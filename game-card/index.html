@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>게임 카드 — Game Prototype</title>
+<title>게임 블럭 — Game Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -14,7 +14,7 @@
   .hero p{color:var(--muted);font-size:16px;margin-top:var(--s3);}
   .actions{margin-bottom:var(--s5);display:flex;gap:var(--s3);flex-wrap:wrap;}
 
-  /* 카드가 놓이는 판 */
+  /* 블럭이 놓이는 판 */
   .board{
     position:relative;
     height:min(70vh,560px);
@@ -26,15 +26,16 @@
     touch-action:none;
   }
 
-  /* 1 : 1.6 비율 카드 */
-  .card-piece{
+  /* 1 : 1 비율 블럭 */
+  .block{
     position:absolute;
-    width:var(--card-w);
-    aspect-ratio:1 / 1.6;
+    width:var(--block-w);
+    aspect-ratio:1 / 1;
     display:flex;
     flex-direction:column;
-    justify-content:space-between;
-    padding:var(--s3);
+    align-items:center;
+    justify-content:center;
+    gap:6px;
     background:linear-gradient(160deg,var(--surface-soft),#191914);
     border:1px solid var(--hairline);
     border-radius:var(--r-md);
@@ -44,46 +45,49 @@
     touch-action:none;
     transition:box-shadow .15s,border-color .15s,transform .15s;
   }
-  .card-piece:hover{border-color:var(--brand-yellow-deep);}
-  .card-piece.is-dragging{
-    cursor:grabbing;
-    border-color:var(--brand-yellow);
-    box-shadow:var(--sh-lg);
-    transform:scale(1.04) rotate(-1deg);
-    transition:none;
-  }
-  .card-piece .rank{
-    color:var(--brand-yellow);
-    font-size:18px;
-    font-weight:700;
-    line-height:1;
-  }
-  .card-piece .rank.bottom{align-self:flex-end;transform:rotate(180deg);}
-  .card-piece .pip{
+  .block::before{
+    content:'';
     position:absolute;
     inset:0;
-    display:grid;
-    place-items:center;
-    font-size:34px;
+    border-radius:inherit;
+    background:var(--tone);
+    opacity:.12;
     pointer-events:none;
+  }
+  .block:hover{border-color:var(--tone);}
+  .block.is-dragging{
+    cursor:grabbing;
+    border-color:var(--tone);
+    box-shadow:var(--sh-lg);
+    transform:scale(1.06);
+    transition:none;
+  }
+  .block .icon{font-size:calc(var(--block-w) * .3);line-height:1;}
+  .block .name{
+    color:var(--tone);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
   }
 
   @media(max-width:560px){
     .hero h1{font-size:28px;}
     .board{height:min(64vh,460px);}
+    .block .name{font-size:10px;}
   }
 </style>
 </head>
 <body>
   <main class="container">
     <header class="hero">
-      <span class="eyebrow">Game Card</span>
-      <h1>게임 카드</h1>
-      <p>1 : 1.6 비율 카드 5장. 드래그해서 옮기기.</p>
+      <span class="eyebrow">Game Block</span>
+      <h1>게임 블럭</h1>
+      <p>1 : 1 비율 블럭 5개. 드래그해서 옮기기.</p>
     </header>
 
     <div class="actions">
-      <button class="btn btn-primary" type="button" id="reset">카드 정렬</button>
+      <button class="btn btn-primary" type="button" id="reset">블럭 정렬</button>
       <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
     </div>
 
@@ -92,47 +96,47 @@
 
 <script>
 (() => {
-  const CARDS = [
-    { rank: 'A', pip: '♠' },
-    { rank: 'K', pip: '♥' },
-    { rank: 'Q', pip: '♦' },
-    { rank: 'J', pip: '♣' },
-    { rank: '10', pip: '★' },
-  ];
-  const CARD_RATIO = 1.6;
+  // 블럭 타입 — 동작은 아직 없고 겉모습만 구분한다
+  const TYPES = {
+    pusher:   { icon: '⏩', tone: '#FFD400' },
+    timer:    { icon: '⏱️', tone: '#3A78C2' },
+    loader:   { icon: '📥', tone: '#3FA66A' },
+    unloader: { icon: '📤', tone: '#E0941A' },
+  };
+  // 화면에 놓이는 블럭 5개
+  const BLOCKS = ['pusher', 'timer', 'loader', 'unloader', 'pusher'];
 
   const board = document.getElementById('board');
   let topZ = 1;
 
-  const cardWidth = () => {
-    const byWidth = (board.clientWidth - 24 * (CARDS.length + 1)) / CARDS.length;
-    const byHeight = (board.clientHeight * 0.7) / CARD_RATIO;
-    return Math.max(72, Math.min(byWidth, byHeight, 160));
+  const blockSize = () => {
+    const byWidth = (board.clientWidth - 24 * (BLOCKS.length + 1)) / BLOCKS.length;
+    const byHeight = board.clientHeight * 0.5;
+    return Math.max(64, Math.min(byWidth, byHeight, 140));
   };
 
-  const elements = CARDS.map(({ rank, pip }) => {
+  const elements = BLOCKS.map((type) => {
+    const { icon, tone } = TYPES[type];
     const el = document.createElement('div');
-    el.className = 'card-piece';
-    el.innerHTML =
-      `<span class="rank">${rank}${pip}</span>` +
-      `<span class="pip">${pip}</span>` +
-      `<span class="rank bottom">${rank}${pip}</span>`;
+    el.className = 'block';
+    el.dataset.type = type;
+    el.style.setProperty('--tone', tone);
+    el.innerHTML = `<span class="icon">${icon}</span><span class="name">${type}</span>`;
     board.appendChild(el);
     return el;
   });
 
-  // 카드를 판 가운데에 가로로 늘어놓는다
+  // 블럭을 판 가운데에 가로로 늘어놓는다
   function layout() {
-    const w = cardWidth();
-    const h = w * CARD_RATIO;
-    const gap = Math.min(24, w * 0.2);
-    const totalWidth = w * CARDS.length + gap * (CARDS.length - 1);
+    const size = blockSize();
+    const gap = Math.min(24, size * 0.25);
+    const totalWidth = size * BLOCKS.length + gap * (BLOCKS.length - 1);
     const startX = (board.clientWidth - totalWidth) / 2;
-    const y = (board.clientHeight - h) / 2;
+    const y = (board.clientHeight - size) / 2;
 
     elements.forEach((el, i) => {
-      el.style.setProperty('--card-w', w + 'px');
-      place(el, startX + i * (w + gap), y);
+      el.style.setProperty('--block-w', size + 'px');
+      place(el, startX + i * (size + gap), y);
     });
   }
 
@@ -177,7 +181,7 @@
 
   document.getElementById('reset').addEventListener('click', layout);
 
-  // 첫 배치 이후에는 판 크기가 바뀌어도 옮겨둔 카드를 흩뜨리지 않고 안쪽으로만 붙잡는다
+  // 첫 배치 이후에는 판 크기가 바뀌어도 옮겨둔 블럭을 흩뜨리지 않고 안쪽으로만 붙잡는다
   let laidOut = false;
   new ResizeObserver(() => {
     if (!board.clientWidth) return;
