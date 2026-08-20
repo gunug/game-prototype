@@ -818,8 +818,8 @@
     dropChip(i);
   }
 
-  // + 의 반응 — 등록된 칩을 유형별로 모두 더해 내놓는다.
-  // 유형이 다르면 더할 수 없으므로 유형마다 하나씩 따로 내놓는다.
+  // + 의 반응 — 등록된 칩을 모두 더한 칩 하나를 생산한다.
+  // 유형이 섞여 더할 수 없으면 유형마다 따로 배출한다.
   function flushPlus(b) {
     if (!b.regs.length) return;
 
@@ -829,8 +829,12 @@
     showRegs(b);
 
     const kinds = [...sums.keys()];
+    if (kinds.length === 1) {
+      generate(b, kinds[0], sums.get(kinds[0]));
+      return;
+    }
     kinds.forEach((kind, i) => {
-      const lean = kinds.length === 1 ? 0 : -0.6 + (1.2 * i) / (kinds.length - 1);
+      const lean = -0.6 + (1.2 * i) / (kinds.length - 1);
       ejectChip(b, kind, sums.get(kind), lean);
     });
   }
