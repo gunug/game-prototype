@@ -178,6 +178,7 @@
   <div class="board" id="board"></div>
   <nav class="hud">
     <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+    <button class="btn btn-secondary btn-sm" type="button" id="reset">초기화</button>
   </nav>
 
 <script>
@@ -1127,6 +1128,8 @@
   // 시작 블럭을 화면 가운데에 늘어놓는다. 한 줄에 다 안 들어가면 줄을 나눈다.
   function layout() {
     groups.slice().forEach(dropGroup);
+    chips.forEach((c) => c.el.remove());
+    chips = [];
     S = fitSize(START.length);
 
     const gap = Math.round(S * 0.25);
@@ -1147,6 +1150,13 @@
     });
     save();
   }
+
+  // 초기화 — 저장된 상태를 지우고 처음 배치로 되돌린다
+  document.getElementById('reset').addEventListener('click', () => {
+    if (!window.confirm('지금까지 조립한 것을 지우고 처음 배치로 되돌립니다.')) return;
+    try { localStorage.removeItem(SAVE_KEY); } catch (err) { /* 지우지 못해도 배치는 되돌린다 */ }
+    layout();
+  });
 
   // 화면 크기가 바뀌면 블럭 크기를 다시 잡되, 조립해 둔 건 그대로 둔다
   let laidOut = false;
