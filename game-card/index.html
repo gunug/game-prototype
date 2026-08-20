@@ -574,7 +574,7 @@
       if (c.y > maxY) { c.y = maxY; c.vy *= -CHIP_BOUNCE; }
       c.vx *= CHIP_DRAG_FRICTION;
       c.vy *= CHIP_DRAG_FRICTION;
-      if (Math.hypot(c.vx, c.vy) < 0.3) { c.vx = 0; c.vy = 0; register(c); }
+      if (Math.hypot(c.vx, c.vy) < 0.3) { c.vx = 0; c.vy = 0; }
       placeChip(c);
     });
     storeTouching();
@@ -603,7 +603,8 @@
   const blockCenter = (b) => [b.g.x + b.gx * S + S / 2, b.g.y + b.gy * S + S / 2];
   const chipCenter = (c) => { const d = chipSize(); return [c.x + d / 2, c.y + d / 2]; };
 
-  // 칩이 멈춘 자리에서 가장 가까운 collector에 등록된다
+  // 등록 — 사용자가 칩을 끌어다 놓은 자리에서 범위 안의 collector에 기록된다.
+  // 저장과 달리 칩은 그대로 남고, collector는 이 칩만 끌어당긴다.
   function register(c) {
     const [cx, cy] = chipCenter(c);
     let owner = null;
@@ -619,11 +620,14 @@
     if (owner) c.el.style.setProperty('--link', TYPES.collector.tone);
   }
 
-  // collector의 반응 — 등록된 칩을 제 쪽으로 조금씩 끌어당긴다
+  // collector의 반응 — 등록된 칩을 제 쪽으로 조금씩 끌어당긴다.
+  // 등록된 칩이 하나도 없으면 아무것도 끌어당기지 않는다.
   function pullChips(b) {
+    const mine = chips.filter((c) => c.owner === b && !c.held);
+    if (!mine.length) return;
+
     const [bx, by] = blockCenter(b);
-    chips.forEach((c) => {
-      if (c.owner !== b || c.held) return;
+    mine.forEach((c) => {
       const [cx, cy] = chipCenter(c);
       const dx = bx - cx;
       const dy = by - cy;
