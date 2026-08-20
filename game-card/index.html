@@ -29,7 +29,7 @@
 
   /* 붙어 있는 블럭 뭉치 — 통째로 움직인다 */
   .group{position:absolute;left:0;top:0;width:0;height:0;}
-  .group.is-dragging{z-index:999;}
+  .group.is-dragging{z-index:2100000000;}
 
   /* 1 : 1 비율 블럭 */
   .block{
@@ -109,6 +109,12 @@
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
   const HOP_MS = 100;       // 기본딜레이 — 행동이 인접 블럭까지 가는 시간
   const FORGET_MS = 5000;   // 지나간 행동 uid를 잊는 시간
+  const BLINK_MS = 340;     // 반응 깜빡임 길이
+
+  // 겹칠 때의 depth 순서: 행동중 > 반응중 > 하단 > 우측 > 상단 > 좌측
+  const Z_ACTING = 2000000000;
+  const Z_REACTING = 1500000000;
+  const Z_ROW = 4000;       // 아래쪽 한 줄이 오른쪽 끝보다 항상 위
 
   const board = document.getElementById('board');
 
@@ -136,7 +142,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set() };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0 };
     g.blocks.push(b);
     return b;
   }
@@ -146,6 +152,17 @@
     g.el.remove();
   }
 
+  // 판 기준 좌표로 depth를 매긴다. 아래쪽이 위로, 같은 줄이면 오른쪽이 위로.
+  function zOf(b) {
+    const y = Math.max(0, Math.round(b.g.y + b.gy * S));
+    const x = Math.max(0, Math.round(b.g.x + b.gx * S));
+    return 1000 + y * Z_ROW + Math.min(x, Z_ROW - 1);
+  }
+
+  function applyZ(b) {
+    b.el.style.zIndex = b.acting ? Z_ACTING : (b.reacting ? Z_REACTING : zOf(b));
+  }
+
   function render(g) {
     g.el.style.transform = 'translate(' + g.x + 'px,' + g.y + 'px)';
     g.blocks.forEach((b) => {
@@ -153,6 +170,7 @@
       b.el.style.height = S + 'px';
       b.el.style.left = b.gx * S + 'px';
       b.el.style.top = b.gy * S + 'px';
+      applyZ(b);
     });
   }
 
@@ -295,12 +313,29 @@
       Math.abs(o.gx - b.gx) + Math.abs(o.gy - b.gy) === 1);
   }
 
-  // 반응했다는 표시로 한 번 깜빡인다
+  // 반응했다는 표시로 한 번 깜빡인다 — 그동안 다른 블럭 위로 올라온다
   function blink(b) {
     b.el.classList.remove('is-reacting');
     void b.el.offsetWidth;            // 애니메이션 재시작
     b.el.classList.add('is-reacting');
-    setTimeout(() => b.el.classList.remove('is-reacting'), 340);
+    b.reacting += 1;
+    applyZ(b);
+    setTimeout(() => {
+      b.reacting -= 1;
+      if (!b.reacting) b.el.classList.remove('is-reacting');
+      applyZ(b);
+    }, BLINK_MS);
+  }
+
+  // 행동을 쥐고 있는 동안(다음 블럭으로 넘기기 전까지) 가장 위로 올라온다
+  function hold(b, uid) {
+    b.acting += 1;
+    applyZ(b);
+    setTimeout(() => {
+      b.acting -= 1;
+      applyZ(b);
+      spread(b, uid);
+    }, HOP_MS);
   }
 
   let audio = null;
@@ -344,7 +379,7 @@
       blink(b);
       deepSound();
     }
-    setTimeout(() => spread(b, uid), HOP_MS);
+    hold(b, uid);
   }
 
   function spread(b, uid) {
@@ -357,7 +392,7 @@
     const uid = ++uidSeq;
     markSeen(b, uid);
     blink(b);
-    setTimeout(() => spread(b, uid), HOP_MS);
+    hold(b, uid);
   }
 
   /* ---------- 입력 ---------- */
