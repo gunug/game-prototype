@@ -81,7 +81,7 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그해서 4방향으로 붙이면 연결된다. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
+      <p>드래그하면 블럭 하나가 떨어져 나오고, 놓은 자리에서 4방향으로 다시 붙는다. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
     </header>
 
     <div class="bar">
@@ -252,6 +252,64 @@
     render(target);
   }
 
+  /* ---------- 떼어내기 ---------- */
+
+  // 블럭 하나를 제 뭉치에서 빼내 낱개 뭉치로 만든다
+  function detach(b) {
+    const src = b.g;
+    if (src.blocks.length === 1) return src;
+
+    const ng = makeGroup(src.x + b.gx * S, src.y + b.gy * S);
+    src.blocks = src.blocks.filter((x) => x !== b);
+    b.g = ng;
+    b.gx = 0;
+    b.gy = 0;
+    ng.el.appendChild(b.el);
+    ng.blocks.push(b);
+    render(ng);
+
+    splitApart(src);
+    render(src);
+    return ng;
+  }
+
+  // 가운데가 빠져 끊어진 뭉치는 이어진 덩어리끼리 갈라 놓는다
+  function splitApart(g) {
+    if (g.blocks.length < 2) return;
+    const at = new Map(g.blocks.map((b) => [b.gx + ',' + b.gy, b]));
+    const seen = new Set();
+    const parts = [];
+
+    g.blocks.forEach((b) => {
+      if (seen.has(b)) return;
+      const part = [];
+      const stack = [b];
+      seen.add(b);
+      while (stack.length) {
+        const cur = stack.pop();
+        part.push(cur);
+        DIRS.forEach((d) => {
+          const n = at.get((cur.gx + d[0]) + ',' + (cur.gy + d[1]));
+          if (n && !seen.has(n)) { seen.add(n); stack.push(n); }
+        });
+      }
+      parts.push(part);
+    });
+    if (parts.length < 2) return;
+
+    // 첫 덩어리는 원래 뭉치에 남기고 나머지는 자리 그대로 새 뭉치로 옮긴다
+    parts.slice(1).forEach((part) => {
+      const ng = makeGroup(g.x, g.y);
+      part.forEach((b) => {
+        g.blocks = g.blocks.filter((x) => x !== b);
+        b.g = ng;
+        ng.el.appendChild(b.el);
+        ng.blocks.push(b);
+      });
+      render(ng);
+    });
+  }
+
   /* ---------- 행동과 반응 ---------- */
 
   // 같은 뭉치 안에서 4방향으로 맞닿은 블럭
@@ -349,26 +407,36 @@
   board.addEventListener('pointerdown', (e) => {
     const blockEl = e.target.closest('.block');
     if (!blockEl) return;
-    const g = findGroup(blockEl);
-    if (!g) return;
+    const src = findGroup(blockEl);
+    if (!src) return;
 
-    const b = g.blocks.find((x) => x.el === blockEl);
-    const startX = e.clientX - g.x;
-    const startY = e.clientY - g.y;
+    const b = src.blocks.find((x) => x.el === blockEl);
+    const rect = blockEl.getBoundingClientRect();
+    const offX = e.clientX - rect.left;
+    const offY = e.clientY - rect.top;
+    let lastX = e.clientX;
+    let lastY = e.clientY;
     let moved = 0;
+    let held = null;          // 손에 들려 떨어져 나온 뭉치
 
-    g.el.classList.add('is-dragging');
     try { blockEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
 
     const move = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
-      const px = g.x;
-      const py = g.y;
-      g.x = ev.clientX - startX;
-      g.y = ev.clientY - startY;
-      clamp(g);
-      render(g);
-      moved += Math.hypot(g.x - px, g.y - py);
+      moved += Math.hypot(ev.clientX - lastX, ev.clientY - lastY);
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+
+      if (!held) {
+        if (moved < CLICK_SLOP) return;   // 살짝 흔든 건 클릭으로 본다
+        held = detach(b);
+        held.el.classList.add('is-dragging');
+      }
+      const br = board.getBoundingClientRect();
+      held.x = ev.clientX - br.left - offX;
+      held.y = ev.clientY - br.top - offY;
+      clamp(held);
+      render(held);
     };
 
     const up = (ev) => {
@@ -376,13 +444,13 @@
       blockEl.removeEventListener('pointermove', move);
       blockEl.removeEventListener('pointerup', up);
       blockEl.removeEventListener('pointercancel', up);
-      g.el.classList.remove('is-dragging');
 
-      if (moved < CLICK_SLOP) {
+      if (!held) {
         if (b.type === 'clicker') click(b);
         return;
       }
-      trySnap(g);
+      held.el.classList.remove('is-dragging');
+      trySnap(held);
     };
 
     blockEl.addEventListener('pointermove', move);
