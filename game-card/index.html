@@ -102,10 +102,39 @@
   /* collector에 등록된 칩 */
   .chip.is-linked{box-shadow:0 0 0 2px var(--link,var(--brand-yellow)),0 0 14px rgba(255,212,0,.25);}
 
+  /* 등록된 칩 — 블럭 상단에 작게 늘어놓고, 많으면 가로로 스크롤 */
+  .block .regs{
+    position:absolute;
+    top:3px;
+    left:3px;
+    right:3px;
+    display:flex;
+    gap:2px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scrollbar-width:none;
+  }
+  .block .regs::-webkit-scrollbar{display:none;}
+  .block .reg{
+    flex:0 0 auto;
+    width:var(--reg,14px);
+    height:var(--reg,14px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:50%;
+    border:1.5px solid var(--brand-yellow);
+    background:rgba(255,212,0,.18);
+    color:var(--ink);
+    font-size:calc(var(--reg,14px) * .6);
+    font-weight:700;
+    line-height:1;
+  }
+
   /* collector가 저장한 수량 */
   .block .store{
     position:absolute;
-    top:4px;
+    bottom:4px;
     right:5px;
     padding:1px 6px;
     border-radius:var(--r-pill);
@@ -136,6 +165,7 @@
   @media(max-width:380px){
     .block .name{display:none;}
     .block .store{font-size:9px;padding:0 4px;}
+    .block .reg{font-size:0;}
     .block .icon{font-size:22px;}
   }
   /* 화면이 낮은 가로 모드 */
@@ -192,7 +222,6 @@
   const RECEIVERS = ['+', 'collector'];   // 칩을 받는 블럭
   const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
   const DELIVER_MS = 260;
-  const COLLECT_RANGE = 2.5;   // 등록 범위 (블럭 한 변 기준)
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
 
   const board = document.getElementById('board');
@@ -252,6 +281,7 @@
       b.el.style.height = S + 'px';
       b.el.style.left = b.gx * S + 'px';
       b.el.style.top = b.gy * S + 'px';
+      b.el.style.setProperty('--reg', Math.round(S * 0.22) + 'px');
       applyZ(b);
     });
   }
@@ -626,6 +656,7 @@
     } else if (b.type === 'collector') {
       b.registered = kind;
       b.el.classList.add('is-armed');
+      showRegs(b);
       refreshLinks();
     }
     save();
@@ -662,23 +693,21 @@
   const blockCenter = (b) => [b.g.x + b.gx * S + S / 2, b.g.y + b.gy * S + S / 2];
   const chipCenter = (c) => { const d = chipSize(); return [c.x + d / 2, c.y + d / 2]; };
 
-  // 등록 — 사용자가 칩을 끌어다 놓으면, 범위 안의 collector에 그 칩의 '유형'이 기록된다.
-  // 저장과 달리 칩은 그대로 남고, 기록된 유형은 블럭의 특수 기능이 쓰는 변수가 된다.
-  function register(c) {
+  // 등록 — 칩을 블럭 위에 끌어다 놓았을 때만 기록된다.
+  // 가까이 굴러왔다고 해서 저절로 등록되지는 않는다.
+  function register(c, index) {
+    const r = chipSize() / 2;
     const [cx, cy] = chipCenter(c);
-    let owner = null;
-    let best = COLLECT_RANGE * S;
+    let target = null;
     eachBlock((b) => {
-      if (b.type !== 'collector') return;
-      const [bx, by] = blockCenter(b);
-      const dist = Math.hypot(cx - bx, cy - by);
-      if (dist <= best) { best = dist; owner = b; }
+      if (target || RECEIVERS.indexOf(b.type) === -1) return;
+      if (touchesBlock(b, cx, cy, r)) target = b;
     });
-    if (!owner) return;
-    owner.registered = c.kind;
-    owner.el.classList.add('is-armed');
-    refreshLinks();
-    save();
+    if (!target) return false;
+
+    receive(target, c.kind, c.value);
+    dropChip(index);
+    return true;
   }
 
   // 어느 collector든 그 유형을 등록해 두었다면, 같은 유형의 칩은 모두 표시된다
@@ -806,7 +835,26 @@
   }
 
   const showStore = (b) => badge(b, b.stored);
-  const showRegs = (b) => badge(b, b.regs.length ? b.regs.length : '');
+
+  // 등록된 칩을 블럭 상단에 작은 칩으로 늘어놓는다
+  function showRegs(b) {
+    if (!b.regsEl) {
+      b.regsEl = document.createElement('span');
+      b.regsEl.className = 'regs';
+      b.el.appendChild(b.regsEl);
+    }
+    const items = b.type === 'collector'
+      ? (b.registered ? [{ value: '' }] : [])
+      : b.regs;
+    b.regsEl.innerHTML = '';
+    items.forEach((r) => {
+      const el = document.createElement('span');
+      el.className = 'reg';
+      el.textContent = r.value;
+      b.regsEl.appendChild(el);
+    });
+    b.regsEl.style.display = items.length ? '' : 'none';
+  }
 
   /* ---------- 입력 ---------- */
 
@@ -912,8 +960,8 @@
       c.held = false;
       c.el.classList.remove('is-dragging');
       c.el.style.zIndex = Z_CHIP;
-      register(c);
-      storeTouching();
+      const at = chips.indexOf(c);
+      if (at !== -1 && !register(c, at)) c.from = null;
       save();
     };
 
@@ -1007,7 +1055,7 @@
         b.registered = bs.r || null;
         b.regs = Array.isArray(bs.h) ? bs.h : [];
         if (b.stored) showStore(b);
-        else if (b.regs.length) showRegs(b);
+        if (b.regs.length || b.registered) showRegs(b);
         if (b.registered) b.el.classList.add('is-armed');
       });
       if (!g.blocks.length) { dropGroup(g); return; }
