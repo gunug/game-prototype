@@ -2,30 +2,47 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>게임 블럭 — Game Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets-ds.css">
 <style>
-  .hero{margin-bottom:var(--s4);}
-  .hero h1{font-size:36px;line-height:1.1;margin:0;}
-  .hero p{color:var(--muted);font-size:16px;margin-top:var(--s3);}
+  html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
 
-  .bar{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-bottom:var(--s4);}
-
-  /* 블럭이 놓이는 판 */
+  /* 뷰포트 전체가 게임 화면 */
   .board{
-    position:relative;
-    height:min(70vh,560px);
-    background:var(--surface);
-    border:1px solid var(--hairline);
-    border-radius:var(--r-lg);
-    box-shadow:var(--sh-sm);
+    position:fixed;
+    inset:0;
+    width:100vw;
+    height:100vh;
+    height:100dvh;
+    background:var(--canvas);
     overflow:hidden;
     touch-action:none;
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
   }
+
+  /* 화면 위에 떠 있는 최소한의 UI */
+  .hud{
+    position:fixed;
+    z-index:2147483000;
+    top:calc(env(safe-area-inset-top, 0px) + 12px);
+    left:calc(env(safe-area-inset-left, 0px) + 12px);
+    display:flex;
+    gap:var(--s2);
+    align-items:center;
+  }
+  .hud .btn{
+    background:rgba(28,28,23,.82);
+    border-color:var(--hairline);
+    color:var(--ink);
+    backdrop-filter:blur(6px);
+  }
+  .hud .btn:hover{background:var(--surface-soft);}
 
   /* 붙어 있는 블럭 뭉치 — 통째로 움직인다 */
   .group{position:absolute;left:0;top:0;width:0;height:0;}
@@ -90,29 +107,27 @@
     100%{border-color:var(--hairline);box-shadow:var(--sh-md);}
   }
 
-  @media(max-width:560px){
-    .hero h1{font-size:28px;}
-    .board{height:min(64vh,460px);}
+  /* 좁은 화면 — 블럭이 작아지므로 글자도 같이 줄인다 */
+  @media(max-width:640px){
     .block .icon{font-size:20px;}
-    .block .name{font-size:9px;}
+    .block .name{font-size:8px;letter-spacing:.02em;}
+    .hud .btn{padding:8px 12px;font-size:12px;}
+  }
+  @media(max-width:380px){
+    .block .name{display:none;}
+    .block .icon{font-size:22px;}
+  }
+  /* 화면이 낮은 가로 모드 */
+  @media(max-height:420px){
+    .hud .btn{padding:6px 10px;font-size:12px;}
   }
 </style>
 </head>
 <body>
-  <main class="container">
-    <header class="hero">
-      <span class="eyebrow">Game Block</span>
-      <h1>게임 블럭</h1>
-      <p>드래그하면 블럭 하나가 떨어져 나온다. mover는 붙은 것까지 통째로 끌고 간다. clicker를 누르면 행동이 퍼지고, maker는 칩을 뱉는다.</p>
-    </header>
-
-    <div class="bar">
-      <button class="btn btn-primary" type="button" id="reset">블럭 정렬</button>
-      <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
-    </div>
-
-    <div class="board" id="board"></div>
-  </main>
+  <div class="board" id="board"></div>
+  <nav class="hud">
+    <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+  </nav>
 
 <script>
 (() => {
@@ -643,39 +658,55 @@
 
   /* ---------- 배치 ---------- */
 
+  // 화면이 좁을수록 블럭도 작아진다
   function blockSize() {
-    const byWidth = (board.clientWidth - 24 * (START.length + 1)) / START.length;
-    const byHeight = board.clientHeight * 0.4;
-    return Math.max(64, Math.min(byWidth, byHeight, 120));
+    const base = Math.min(board.clientWidth, board.clientHeight);
+    return Math.round(Math.max(56, Math.min(120, base * 0.18)));
   }
 
-  // 낱개 블럭 5개를 판 가운데에 가로로 늘어놓는다
+  // 시작 블럭을 화면 가운데에 늘어놓는다. 한 줄에 다 안 들어가면 줄을 나눈다.
   function layout() {
     groups.slice().forEach(dropGroup);
     S = blockSize();
 
-    const gap = Math.min(24, S * 0.25);
-    const total = S * START.length + gap * (START.length - 1);
-    const x0 = (board.clientWidth - total) / 2;
-    const y = (board.clientHeight - S) / 2;
+    const gap = Math.round(S * 0.25);
+    const cols = Math.max(1, Math.min(START.length,
+      Math.floor((board.clientWidth - gap) / (S + gap))));
+    const rows = Math.ceil(START.length / cols);
+    const x0 = (board.clientWidth - (cols * S + (cols - 1) * gap)) / 2;
+    const y0 = (board.clientHeight - (rows * S + (rows - 1) * gap)) / 2;
 
     START.forEach((type, i) => {
-      const g = makeGroup(x0 + i * (S + gap), y);
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const g = makeGroup(x0 + col * (S + gap), y0 + row * (S + gap));
       addBlock(g, type, 0, 0);
       clamp(g);
       render(g);
     });
   }
 
-  document.getElementById('reset').addEventListener('click', layout);
-
-  // 첫 배치 이후에는 판 크기가 바뀌어도 조립해 둔 걸 흩뜨리지 않고 안쪽으로만 붙잡는다
+  // 화면 크기가 바뀌면 블럭 크기를 다시 잡되, 조립해 둔 건 그대로 둔다
   let laidOut = false;
   new ResizeObserver(() => {
     if (!board.clientWidth) return;
     if (!laidOut) { laidOut = true; layout(); return; }
-    groups.forEach((g) => { clamp(g); render(g); });
-    chips.forEach((c) => { sizeChip(c); placeChip(c); });
+
+    const next = blockSize();
+    const ratio = next / S;
+    S = next;
+    groups.forEach((g) => {
+      g.x *= ratio;
+      g.y *= ratio;
+      clamp(g);
+      render(g);
+    });
+    chips.forEach((c) => {
+      c.x *= ratio;
+      c.y *= ratio;
+      sizeChip(c);
+      placeChip(c);
+    });
   }).observe(board);
 })();
 </script>
