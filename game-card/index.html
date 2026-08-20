@@ -150,27 +150,28 @@
 
 <script>
 (() => {
-  // 블럭 종류 — clicker와 deeper만 반응한다
+  // 블럭 종류 — clicker와 beeper만 반응한다
   const TYPES = {
     pusher:   { icon: '⏩', tone: '#FFD400' },
     timer:    { icon: '⏱', tone: '#3A78C2' },
     loader:   { icon: '📥', tone: '#3FA66A' },
     unloader: { icon: '📤', tone: '#E0941A' },
     clicker:  { icon: '👆', tone: '#D24A4A' },
-    deeper:   { icon: '🔊', tone: '#7C5CD6' },
+    beeper:   { icon: '🔊', tone: '#7C5CD6' },
     mover:    { icon: '🧲', tone: '#2FA8A0' },
     maker:    { icon: '🏭', tone: '#D95A9E' },
     collector:{ icon: '🧺', tone: '#B7C34A' },
+    '+':      { icon: '➕', tone: '#5BB8E8' },
   };
   // 화면에 깔아 두는 블럭 20장
   const START = [
     'clicker', 'clicker', 'clicker',
-    'deeper', 'deeper', 'deeper',
+    'beeper', 'beeper', 'beeper',
     'maker', 'maker', 'maker',
     'mover', 'mover', 'mover',
-    'collector', 'collector', 'collector',
-    'pusher', 'pusher',
-    'timer', 'loader', 'unloader',
+    'collector', 'collector',
+    '+', '+',
+    'pusher', 'timer', 'loader', 'unloader',
   ];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
@@ -223,7 +224,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, holding: null };
     g.blocks.push(b);
     return b;
   }
@@ -463,7 +464,7 @@
 
   let audio = null;
 
-  // deeper의 반응 — 낮게 떨어지는 deep 소리
+  // beeper의 반응 — 낮게 떨어지는 deep 소리
   function deepSound() {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -498,7 +499,7 @@
     if (!b.el.isConnected) return;
     if (!markSeen(b, uid)) return;
 
-    if (b.type === 'deeper') {
+    if (b.type === 'beeper') {
       blink(b);
       deepSound();
     } else if (b.type === 'maker') {
@@ -668,35 +669,92 @@
     return Math.hypot(cx - nx, cy - ny) <= r;
   }
 
-  // collector에 닿은 칩은 저장되고 화면에서 사라진다
+  // 칩이 블럭에 닿으면 collector는 저장하고, +는 받아 든다
   function storeTouching() {
     const r = chipSize() / 2;
     for (let i = chips.length - 1; i >= 0; i--) {
       const c = chips[i];
       if (c.held) continue;
       const [cx, cy] = chipCenter(c);
+
+      // 방금 그 블럭이 내놓은 칩은 블럭에서 벗어나야 다시 먹힌다
+      if (c.from && !touchesBlock(c.from, cx, cy, r)) c.from = null;
+
       let target = null;
       eachBlock((b) => {
-        if (target || b.type !== 'collector') return;
+        if (target || b === c.from) return;
+        if (b.type !== 'collector' && b.type !== '+') return;
         if (touchesBlock(b, cx, cy, r)) target = b;
       });
       if (!target) continue;
-      target.stored += c.value;
-      showStore(target);
-      c.el.remove();
-      chips.splice(i, 1);
+
+      if (target.type === 'collector') {
+        target.stored += c.value;
+        showStore(target);
+        dropChip(i);
+      } else {
+        takeIntoPlus(target, c, i);
+      }
       save();
     }
   }
 
-  function showStore(b) {
+  function dropChip(i) {
+    chips[i].el.remove();
+    chips.splice(i, 1);
+  }
+
+  // + 의 규칙 — 들고 있는 칩이 없으면 등록하고,
+  // 있으면 같은 유형끼리 더해 하나로 내놓는다. 못 합치면 각각 내놓는다.
+  function takeIntoPlus(b, c, i) {
+    const got = { kind: c.kind, value: c.value };
+    dropChip(i);
+
+    if (!b.holding) {
+      b.holding = got;
+      showHolding(b);
+      return;
+    }
+    const kept = b.holding;
+    b.holding = null;
+    showHolding(b);
+
+    if (kept.kind === got.kind) {
+      eject(b, kept.kind, kept.value + got.value, 0);
+    } else {
+      eject(b, kept.kind, kept.value, -0.6);
+      eject(b, got.kind, got.value, 0.6);
+    }
+  }
+
+  // 블럭에서 칩을 내보낸다 — 내보낸 블럭은 그 칩을 곧바로 다시 먹지 않는다
+  function eject(b, kind, value, lean) {
+    const d = chipSize();
+    const c = makeChip(b.g.x + b.gx * S + (S - d) / 2,
+                       b.g.y + b.gy * S + (S - d) / 2,
+                       value, kind);
+    const angle = -Math.PI / 2 + lean;
+    const speed = S * CHIP_POP;
+    c.vx = Math.cos(angle) * speed;
+    c.vy = Math.sin(angle) * speed;
+    c.from = b;
+    startChips();
+    return c;
+  }
+
+  // 블럭 모서리에 숫자를 띄운다 (collector는 저장 수량, +는 들고 있는 칩)
+  function badge(b, text) {
     if (!b.storeEl) {
       b.storeEl = document.createElement('span');
       b.storeEl.className = 'store';
       b.el.appendChild(b.storeEl);
     }
-    b.storeEl.textContent = b.stored;
+    b.storeEl.textContent = text;
+    b.storeEl.style.display = text === '' ? 'none' : '';
   }
+
+  const showStore = (b) => badge(b, b.stored);
+  const showHolding = (b) => badge(b, b.holding ? b.holding.value : '');
 
   /* ---------- 입력 ---------- */
 
@@ -848,6 +906,7 @@
           t: b.type, x: b.gx, y: b.gy,
           s: b.stored || 0,
           r: b.registered || null,
+          h: b.holding || null,
         })),
       })),
       chips: chips.map((c) => ({ k: c.kind, v: c.value, x: c.x / S, y: c.y / S })),
@@ -889,11 +948,14 @@
       if (!gs.blocks || !gs.blocks.length) return;
       const g = makeGroup(gs.x * S, gs.y * S);
       gs.blocks.forEach((bs) => {
-        if (!TYPES[bs.t]) return;
-        const b = addBlock(g, bs.t, bs.x, bs.y);
+        const type = bs.t === 'deeper' ? 'beeper' : bs.t;   // 옛 저장 호환
+        if (!TYPES[type]) return;
+        const b = addBlock(g, type, bs.x, bs.y);
         b.stored = bs.s || 0;
         b.registered = bs.r || null;
+        b.holding = bs.h || null;
         if (b.stored) showStore(b);
+        else if (b.holding) showHolding(b);
         if (b.registered) b.el.classList.add('is-armed');
       });
       if (!g.blocks.length) { dropGroup(g); return; }
