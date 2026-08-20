@@ -426,6 +426,7 @@
     let grabX = 0;
     let grabY = 0;
 
+    // 캡처가 되면 좋지만, 안 되더라도 window에서 끝까지 따라간다
     try { blockEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
 
     const move = (ev) => {
@@ -438,8 +439,9 @@
       if (!held) {
         if (moved < CLICK_SLOP) return;   // 살짝 흔든 건 클릭으로 본다
         held = alone ? detach(b) : src;
-        grabX = ev.clientX - br.left - held.x;
-        grabY = ev.clientY - br.top - held.y;
+        // 잡은 지점은 처음 누른 자리 기준 — 문턱을 넘는 순간 튀지 않는다
+        grabX = e.clientX - br.left - held.x;
+        grabY = e.clientY - br.top - held.y;
         held.el.classList.add('is-dragging');
       }
       held.x = ev.clientX - br.left - grabX;
@@ -448,11 +450,13 @@
       render(held);
     };
 
+    // 커서가 블럭 밖이든 판 밖이든, 손을 떼면 드래그는 끝난다
     const up = (ev) => {
-      if (ev.pointerId !== e.pointerId) return;
-      blockEl.removeEventListener('pointermove', move);
-      blockEl.removeEventListener('pointerup', up);
-      blockEl.removeEventListener('pointercancel', up);
+      if (ev && ev.pointerId !== undefined && ev.pointerId !== e.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('blur', up);
 
       if (!held) {
         if (b.type === 'clicker') click(b);
@@ -463,9 +467,10 @@
       trySnap(held);
     };
 
-    blockEl.addEventListener('pointermove', move);
-    blockEl.addEventListener('pointerup', up);
-    blockEl.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('blur', up);
   });
 
   function setSolo(b, on) {
