@@ -196,14 +196,14 @@
 
   /* ---------- 붙이기 ---------- */
 
-  // 새 자리에 놓았을 때 다른 뭉치와 겹치는지
-  function overlaps(g, nx, ny, ignore) {
+  // 새 자리에 놓았을 때 이미 찬 칸을 침범하는지 — 한 면에는 한 블럭만 붙는다
+  function overlaps(g, nx, ny) {
     const eps = S * 0.2;
     return g.blocks.some((mb) => {
       const ax = nx + mb.gx * S;
       const ay = ny + mb.gy * S;
       return groups.some((other) => {
-        if (other === g || other === ignore) return false;
+        if (other === g) return false;
         return other.blocks.some((ob) => {
           const bx = other.x + ob.gx * S;
           const by = other.y + ob.gy * S;
@@ -228,7 +228,7 @@
             const d = Math.hypot(nx - g.x, ny - g.y);
             if (d > S * SNAP_RATIO) continue;
             if (best && d >= best.d) continue;
-            if (overlaps(g, nx, ny, other)) continue;
+            if (overlaps(g, nx, ny)) continue;
             best = { d: d, nx: nx, ny: ny, other: other };
           }
         }
