@@ -224,7 +224,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, holding: null };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, regs: [] };
     g.blocks.push(b);
     return b;
   }
@@ -508,6 +508,9 @@
     } else if (b.type === 'collector') {
       blink(b);
       pullChips(b);
+    } else if (b.type === '+') {
+      blink(b);
+      flushPlus(b);
     }
     hold(b, uid);
   }
@@ -704,27 +707,28 @@
     chips.splice(i, 1);
   }
 
-  // + 의 규칙 — 들고 있는 칩이 없으면 등록하고,
-  // 있으면 같은 유형끼리 더해 하나로 내놓는다. 못 합치면 각각 내놓는다.
+  // + 는 받은 칩을 쌓아 둔다. 더하기는 행동을 받았을 때 한다.
   function takeIntoPlus(b, c, i) {
-    const got = { kind: c.kind, value: c.value };
+    b.regs.push({ kind: c.kind, value: c.value });
+    showRegs(b);
     dropChip(i);
+  }
 
-    if (!b.holding) {
-      b.holding = got;
-      showHolding(b);
-      return;
-    }
-    const kept = b.holding;
-    b.holding = null;
-    showHolding(b);
+  // + 의 반응 — 등록된 칩을 유형별로 모두 더해 내놓는다.
+  // 유형이 다르면 더할 수 없으므로 유형마다 하나씩 따로 내놓는다.
+  function flushPlus(b) {
+    if (!b.regs.length) return;
 
-    if (kept.kind === got.kind) {
-      eject(b, kept.kind, kept.value + got.value, 0);
-    } else {
-      eject(b, kept.kind, kept.value, -0.6);
-      eject(b, got.kind, got.value, 0.6);
-    }
+    const sums = new Map();
+    b.regs.forEach((r) => sums.set(r.kind, (sums.get(r.kind) || 0) + r.value));
+    b.regs = [];
+    showRegs(b);
+
+    const kinds = [...sums.keys()];
+    kinds.forEach((kind, i) => {
+      const lean = kinds.length === 1 ? 0 : -0.6 + (1.2 * i) / (kinds.length - 1);
+      eject(b, kind, sums.get(kind), lean);
+    });
   }
 
   // 블럭에서 칩을 내보낸다 — 내보낸 블럭은 그 칩을 곧바로 다시 먹지 않는다
@@ -754,7 +758,7 @@
   }
 
   const showStore = (b) => badge(b, b.stored);
-  const showHolding = (b) => badge(b, b.holding ? b.holding.value : '');
+  const showRegs = (b) => badge(b, b.regs.length ? b.regs.length : '');
 
   /* ---------- 입력 ---------- */
 
@@ -906,7 +910,7 @@
           t: b.type, x: b.gx, y: b.gy,
           s: b.stored || 0,
           r: b.registered || null,
-          h: b.holding || null,
+          h: b.regs.length ? b.regs : null,
         })),
       })),
       chips: chips.map((c) => ({ k: c.kind, v: c.value, x: c.x / S, y: c.y / S })),
@@ -953,9 +957,9 @@
         const b = addBlock(g, type, bs.x, bs.y);
         b.stored = bs.s || 0;
         b.registered = bs.r || null;
-        b.holding = bs.h || null;
+        b.regs = Array.isArray(bs.h) ? bs.h : [];
         if (b.stored) showStore(b);
-        else if (b.holding) showHolding(b);
+        else if (b.regs.length) showRegs(b);
         if (b.registered) b.el.classList.add('is-armed');
       });
       if (!g.blocks.length) { dropGroup(g); return; }
