@@ -95,6 +95,8 @@
     touch-action:none;
   }
   .chip.is-dragging{cursor:grabbing;box-shadow:0 0 0 3px var(--brand-yellow),var(--sh-lg);}
+  /* 인접 블럭으로 배송되는 중 */
+  .chip.is-flying{pointer-events:none;transition:transform .26s ease-out;}
   /* 칩 유형을 등록해 둔 collector */
   .block.is-armed{border-color:var(--tone);}
   /* collector에 등록된 칩 */
@@ -187,6 +189,9 @@
   const CHIP_POP = 0.09;    // 튀어나갈 때의 힘 (블럭 한 변 기준)
   const CHIP_DRAG_FRICTION = 0.92;
   const CHIP_BOUNCE = 0.5;
+  const RECEIVERS = ['+', 'collector'];   // 칩을 받는 블럭
+  const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
+  const DELIVER_MS = 260;
   const COLLECT_RANGE = 2.5;   // 등록 범위 (블럭 한 변 기준)
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
 
@@ -219,7 +224,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, regs: [] };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, regs: [], turn: 0 };
     g.blocks.push(b);
     return b;
   }
@@ -499,7 +504,7 @@
       deepSound();
     } else if (b.type === 'maker') {
       blink(b);
-      popChip(b);
+      generate(b, CHIP_KIND, CHIP_VALUE);
     } else if (b.type === 'collector') {
       blink(b);
       pullChips(b);
@@ -589,18 +594,66 @@
     if (!moving) save();
   }
 
-  // maker의 반응 — 칩 하나를 만들어 위쪽으로 튕겨낸다
-  function popChip(b) {
+  // 생산 — 새 칩을 만들어, 받는 블럭이 인접해 있으면 배송하고 없으면 배출한다
+  function generate(b, kind, value) {
+    const targets = takers(b);
+    if (!targets.length) {
+      ejectChip(b, kind, value, (Math.random() - 0.5) * 1.6);
+      return null;
+    }
+    const to = targets[b.turn % targets.length];
+    b.turn += 1;
+    receive(to, kind, value);
+    flyChip(b, to, value);
+    return to;
+  }
+
+  // 상, 우, 하, 좌 순으로 붙어 있는 '받는 블럭'
+  function takers(b) {
+    const found = [];
+    DELIVER_DIRS.forEach((d) => {
+      const n = b.g.blocks.find((o) => o.gx === b.gx + d[0] && o.gy === b.gy + d[1]);
+      if (n && RECEIVERS.indexOf(n.type) !== -1) found.push(n);
+    });
+    return found;
+  }
+
+  // 배송 — 칩은 곧바로 받는 블럭에 등록된다
+  function receive(b, kind, value) {
+    if (b.type === '+') {
+      b.regs.push({ kind: kind, value: value });
+      showRegs(b);
+    } else if (b.type === 'collector') {
+      b.registered = kind;
+      b.el.classList.add('is-armed');
+      refreshLinks();
+    }
+    save();
+  }
+
+  // 배송되는 모습 — 칩이 생겨서 옆 블럭으로 건너간다
+  function flyChip(from, to, value) {
     const d = chipSize();
-    const c = makeChip(b.g.x + b.gx * S + (S - d) / 2,
-                       b.g.y + b.gy * S + (S - d) / 2,
-                       CHIP_VALUE, CHIP_KIND);
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-    const speed = S * CHIP_POP;
-    c.vx = Math.cos(angle) * speed;
-    c.vy = Math.sin(angle) * speed;
-    startChips();
-    return c;
+    const ax = from.g.x + from.gx * S + (S - d) / 2;
+    const ay = from.g.y + from.gy * S + (S - d) / 2;
+    const bx = to.g.x + to.gx * S + (S - d) / 2;
+    const by = to.g.y + to.gy * S + (S - d) / 2;
+
+    const el = document.createElement('div');
+    el.className = 'chip is-flying';
+    el.textContent = value;
+    el.style.width = d + 'px';
+    el.style.height = d + 'px';
+    el.style.fontSize = Math.round(d * 0.5) + 'px';
+    el.style.left = ax + 'px';
+    el.style.top = ay + 'px';
+    el.style.zIndex = Z_CHIP;
+    board.appendChild(el);
+
+    requestAnimationFrame(() => {
+      el.style.transform = 'translate(' + (bx - ax) + 'px,' + (by - ay) + 'px)';
+    });
+    setTimeout(() => el.remove(), DELIVER_MS + 80);
   }
 
   /* ---------- collector ---------- */
@@ -722,12 +775,12 @@
     const kinds = [...sums.keys()];
     kinds.forEach((kind, i) => {
       const lean = kinds.length === 1 ? 0 : -0.6 + (1.2 * i) / (kinds.length - 1);
-      eject(b, kind, sums.get(kind), lean);
+      ejectChip(b, kind, sums.get(kind), lean);
     });
   }
 
-  // 블럭에서 칩을 내보낸다 — 내보낸 블럭은 그 칩을 곧바로 다시 먹지 않는다
-  function eject(b, kind, value, lean) {
+  // 배출 — 블럭에서 칩을 튕겨낸다. 내보낸 블럭은 그 칩을 곧바로 다시 먹지 않는다.
+  function ejectChip(b, kind, value, lean) {
     const d = chipSize();
     const c = makeChip(b.g.x + b.gx * S + (S - d) / 2,
                        b.g.y + b.gy * S + (S - d) / 2,
