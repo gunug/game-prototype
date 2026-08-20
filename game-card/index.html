@@ -95,6 +95,8 @@
     touch-action:none;
   }
   .chip.is-dragging{cursor:grabbing;box-shadow:0 0 0 3px var(--brand-yellow),var(--sh-lg);}
+  /* 칩 유형을 등록해 둔 collector */
+  .block.is-armed{border-color:var(--tone);}
   /* collector에 등록된 칩 */
   .chip.is-linked{box-shadow:0 0 0 2px var(--link,var(--brand-yellow)),0 0 14px rgba(255,212,0,.25);}
 
@@ -184,6 +186,7 @@
   const Z_CHIP = 1900000000;
   const Z_CHIP_DRAG = 2150000000;
 
+  const CHIP_KIND = 'chip'; // 칩 유형 — 아직 한 종류뿐이다
   const CHIP_VALUE = 1;     // 칩에 적히는 기본 숫자
   const CHIP_POP = 0.09;    // 튀어나갈 때의 힘 (블럭 한 변 기준)
   const CHIP_DRAG_FRICTION = 0.92;
@@ -220,7 +223,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0 };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null };
     g.blocks.push(b);
     return b;
   }
@@ -525,16 +528,18 @@
 
   const chipSize = () => Math.round(S / 3);
 
-  function makeChip(x, y, value) {
+  function makeChip(x, y, value, kind) {
     const el = document.createElement('div');
     el.className = 'chip';
     el.textContent = value;
     el.style.zIndex = Z_CHIP;
     board.appendChild(el);
-    const c = { uid: nextUid(), value: value, x: x, y: y, vx: 0, vy: 0, held: false, el: el };
+    const c = { uid: nextUid(), kind: kind || CHIP_KIND, value: value,
+                x: x, y: y, vx: 0, vy: 0, held: false, el: el };
     chips.push(c);
     sizeChip(c);
     placeChip(c);
+    refreshLinks();
     return c;
   }
 
@@ -588,7 +593,7 @@
     const d = chipSize();
     const c = makeChip(b.g.x + b.gx * S + (S - d) / 2,
                        b.g.y + b.gy * S + (S - d) / 2,
-                       CHIP_VALUE);
+                       CHIP_VALUE, CHIP_KIND);
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
     const speed = S * CHIP_POP;
     c.vx = Math.cos(angle) * speed;
@@ -603,8 +608,8 @@
   const blockCenter = (b) => [b.g.x + b.gx * S + S / 2, b.g.y + b.gy * S + S / 2];
   const chipCenter = (c) => { const d = chipSize(); return [c.x + d / 2, c.y + d / 2]; };
 
-  // 등록 — 사용자가 칩을 끌어다 놓은 자리에서 범위 안의 collector에 기록된다.
-  // 저장과 달리 칩은 그대로 남고, collector는 이 칩만 끌어당긴다.
+  // 등록 — 사용자가 칩을 끌어다 놓으면, 범위 안의 collector에 그 칩의 '유형'이 기록된다.
+  // 저장과 달리 칩은 그대로 남고, 기록된 유형은 블럭의 특수 기능이 쓰는 변수가 된다.
   function register(c) {
     const [cx, cy] = chipCenter(c);
     let owner = null;
@@ -615,15 +620,27 @@
       const dist = Math.hypot(cx - bx, cy - by);
       if (dist <= best) { best = dist; owner = b; }
     });
-    c.owner = owner;
-    c.el.classList.toggle('is-linked', !!owner);
-    if (owner) c.el.style.setProperty('--link', TYPES.collector.tone);
+    if (!owner) return;
+    owner.registered = c.kind;
+    owner.el.classList.add('is-armed');
+    refreshLinks();
+  }
+
+  // 어느 collector든 그 유형을 등록해 두었다면, 같은 유형의 칩은 모두 표시된다
+  function refreshLinks() {
+    const kinds = new Set();
+    eachBlock((b) => { if (b.registered) kinds.add(b.registered); });
+    chips.forEach((c) => {
+      c.el.classList.toggle('is-linked', kinds.has(c.kind));
+      c.el.style.setProperty('--link', TYPES.collector.tone);
+    });
   }
 
   // collector의 반응 — 등록된 칩을 제 쪽으로 조금씩 끌어당긴다.
   // 등록된 칩이 하나도 없으면 아무것도 끌어당기지 않는다.
   function pullChips(b) {
-    const mine = chips.filter((c) => c.owner === b && !c.held);
+    if (!b.registered) return;
+    const mine = chips.filter((c) => c.kind === b.registered && !c.held);
     if (!mine.length) return;
 
     const [bx, by] = blockCenter(b);
