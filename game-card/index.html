@@ -60,6 +60,9 @@
     letter-spacing:.06em;text-transform:uppercase;
   }
 
+  /* mover가 혼자 움직이도록 예약된 상태 */
+  .block.is-solo{border-style:dashed;border-color:var(--tone);}
+
   /* 반응 — 한 번 깜빡인다 */
   .block.is-reacting{animation:react .32s ease-out;}
   @keyframes react{
@@ -81,7 +84,7 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그하면 블럭 하나가 떨어져 나오고, 놓은 자리에서 4방향으로 다시 붙는다. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
+      <p>드래그하면 블럭 하나가 떨어져 나온다. mover는 붙은 것까지 통째로 끌고 가고, 더블클릭하면 다음 한 번은 혼자 움직인다.</p>
     </header>
 
     <div class="bar">
@@ -102,8 +105,9 @@
     unloader: { icon: '📤', tone: '#E0941A' },
     clicker:  { icon: '👆', tone: '#D24A4A' },
     deeper:   { icon: '🔊', tone: '#7C5CD6' },
+    mover:    { icon: '🧲', tone: '#2FA8A0' },
   };
-  const START = ['clicker', 'deeper', 'deeper', 'pusher', 'timer'];
+  const START = ['clicker', 'deeper', 'deeper', 'mover', 'pusher'];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
@@ -140,7 +144,7 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0 };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false };
     g.blocks.push(b);
     return b;
   }
@@ -404,6 +408,9 @@
 
   const findGroup = (el) => groups.find((g) => g.el.contains(el));
 
+  // mover는 붙어 있는 것까지 통째로 끈다. 단, 혼자 이동이 예약됐으면 낱개로 떨어진다.
+  const dragsAlone = (b) => b.type !== 'mover' || b.solo;
+
   board.addEventListener('pointerdown', (e) => {
     const blockEl = e.target.closest('.block');
     if (!blockEl) return;
@@ -411,13 +418,13 @@
     if (!src) return;
 
     const b = src.blocks.find((x) => x.el === blockEl);
-    const rect = blockEl.getBoundingClientRect();
-    const offX = e.clientX - rect.left;
-    const offY = e.clientY - rect.top;
+    const alone = dragsAlone(b);
     let lastX = e.clientX;
     let lastY = e.clientY;
     let moved = 0;
-    let held = null;          // 손에 들려 떨어져 나온 뭉치
+    let held = null;          // 손에 들린 뭉치
+    let grabX = 0;
+    let grabY = 0;
 
     try { blockEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
 
@@ -427,14 +434,16 @@
       lastX = ev.clientX;
       lastY = ev.clientY;
 
+      const br = board.getBoundingClientRect();
       if (!held) {
         if (moved < CLICK_SLOP) return;   // 살짝 흔든 건 클릭으로 본다
-        held = detach(b);
+        held = alone ? detach(b) : src;
+        grabX = ev.clientX - br.left - held.x;
+        grabY = ev.clientY - br.top - held.y;
         held.el.classList.add('is-dragging');
       }
-      const br = board.getBoundingClientRect();
-      held.x = ev.clientX - br.left - offX;
-      held.y = ev.clientY - br.top - offY;
+      held.x = ev.clientX - br.left - grabX;
+      held.y = ev.clientY - br.top - grabY;
       clamp(held);
       render(held);
     };
@@ -450,12 +459,29 @@
         return;
       }
       held.el.classList.remove('is-dragging');
+      setSolo(b, false);        // 예약된 혼자 이동은 한 번 쓰면 풀린다
       trySnap(held);
     };
 
     blockEl.addEventListener('pointermove', move);
     blockEl.addEventListener('pointerup', up);
     blockEl.addEventListener('pointercancel', up);
+  });
+
+  function setSolo(b, on) {
+    b.solo = on;
+    b.el.classList.toggle('is-solo', on);
+  }
+
+  // mover를 더블클릭하면 다음 드래그 한 번은 인접 블럭을 무시한다
+  board.addEventListener('dblclick', (e) => {
+    const blockEl = e.target.closest('.block');
+    if (!blockEl) return;
+    const g = findGroup(blockEl);
+    if (!g) return;
+    const b = g.blocks.find((x) => x.el === blockEl);
+    if (!b || b.type !== 'mover') return;
+    setSolo(b, !b.solo);
   });
 
   /* ---------- 배치 ---------- */
