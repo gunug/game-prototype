@@ -286,7 +286,42 @@
     g.x = best.nx;
     g.y = best.ny;
     merge(best.other, g);
+    attachAll(best.other);    // 닿은 뭉치가 여럿이면 한꺼번에 다 붙는다
     return true;
+  }
+
+  // 두 뭉치가 4방향으로 맞닿아 있는가
+  function touches(a, b) {
+    const tol = S * 0.2;
+    return a.blocks.some((ab) => {
+      const ax = a.x + ab.gx * S;
+      const ay = a.y + ab.gy * S;
+      return b.blocks.some((bb) => {
+        const dx = Math.abs(ax - (b.x + bb.gx * S));
+        const dy = Math.abs(ay - (b.y + bb.gy * S));
+        return (Math.abs(dx - S) < tol && dy < tol) ||
+               (Math.abs(dy - S) < tol && dx < tol);
+      });
+    });
+  }
+
+  // b의 블럭들이 a의 빈 칸에만 들어가는가
+  function fits(a, b) {
+    const taken = new Set(a.blocks.map((x) => x.gx + ',' + x.gy));
+    return b.blocks.every((x) => {
+      const gx = Math.round((b.x + x.gx * S - a.x) / S);
+      const gy = Math.round((b.y + x.gy * S - a.y) / S);
+      return !taken.has(gx + ',' + gy);
+    });
+  }
+
+  // 맞닿은 뭉치를 더 없을 때까지 계속 흡수한다
+  function attachAll(g) {
+    for (;;) {
+      const next = groups.find((o) => o !== g && touches(g, o) && fits(g, o));
+      if (!next) return;
+      merge(g, next);
+    }
   }
 
   // g의 블럭을 target 뭉치로 옮겨 담는다 (좌표는 target 기준 칸으로 환산)
