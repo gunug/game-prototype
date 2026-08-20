@@ -60,6 +60,25 @@
     letter-spacing:.06em;text-transform:uppercase;
   }
 
+  /* 칩 — 블럭 1/3 크기의 동그란 프레임 */
+  .chip{
+    position:absolute;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:50%;
+    border:2px solid var(--brand-yellow);
+    background:rgba(255,212,0,.16);
+    box-shadow:0 0 12px rgba(255,212,0,.3);
+    color:var(--ink);
+    font-weight:700;
+    line-height:1;
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+  }
+  .chip.is-dragging{cursor:grabbing;box-shadow:0 0 0 3px var(--brand-yellow),var(--sh-lg);}
+
   /* mover가 혼자 움직이도록 예약된 상태 */
   .block.is-solo{border-style:dashed;border-color:var(--tone);}
 
@@ -84,7 +103,7 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그하면 블럭 하나가 떨어져 나온다. mover는 붙은 것까지 통째로 끌고 가고, 더블클릭하면 다음 한 번은 혼자 움직인다.</p>
+      <p>드래그하면 블럭 하나가 떨어져 나온다. mover는 붙은 것까지 통째로 끌고 간다. clicker를 누르면 행동이 퍼지고, maker는 칩을 뱉는다.</p>
     </header>
 
     <div class="bar">
@@ -106,8 +125,9 @@
     clicker:  { icon: '👆', tone: '#D24A4A' },
     deeper:   { icon: '🔊', tone: '#7C5CD6' },
     mover:    { icon: '🧲', tone: '#2FA8A0' },
+    maker:    { icon: '🏭', tone: '#D95A9E' },
   };
-  const START = ['clicker', 'deeper', 'deeper', 'mover', 'pusher'];
+  const START = ['clicker', 'deeper', 'maker', 'mover', 'pusher'];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
@@ -119,12 +139,24 @@
   const Z_ACTING = 2000000000;
   const Z_REACTING = 1500000000;
   const Z_ROW = 4000;       // 아래쪽 한 줄이 오른쪽 끝보다 항상 위
+  const Z_CHIP = 1900000000;
+  const Z_CHIP_DRAG = 2150000000;
+
+  const CHIP_VALUE = 1;     // 칩에 적히는 기본 숫자
+  const CHIP_POP = 0.09;    // 튀어나갈 때의 힘 (블럭 한 변 기준)
+  const CHIP_DRAG_FRICTION = 0.92;
+  const CHIP_BOUNCE = 0.5;
 
   const board = document.getElementById('board');
 
   let S = 96;               // 블럭 한 변 (px)
   let groups = [];
   let uidSeq = 0;
+  let chips = [];
+  let chipRaf = null;
+
+  // 생성 — 새 객체마다 고유 uid를 붙인다
+  const nextUid = () => ++uidSeq;
 
   /* ---------- 뭉치·블럭 만들기 ---------- */
 
@@ -387,6 +419,9 @@
     if (b.type === 'deeper') {
       blink(b);
       deepSound();
+    } else if (b.type === 'maker') {
+      blink(b);
+      popChip(b);
     }
     hold(b, uid);
   }
@@ -398,10 +433,85 @@
 
   // clicker의 반응 — 깜빡이고 새 행동을 하나 만든다
   function click(b) {
-    const uid = ++uidSeq;
+    const uid = nextUid();
     markSeen(b, uid);
     blink(b);
     hold(b, uid);
+  }
+
+  /* ---------- 칩 ---------- */
+
+  const chipSize = () => Math.round(S / 3);
+
+  function makeChip(x, y, value) {
+    const el = document.createElement('div');
+    el.className = 'chip';
+    el.textContent = value;
+    el.style.zIndex = Z_CHIP;
+    board.appendChild(el);
+    const c = { uid: nextUid(), value: value, x: x, y: y, vx: 0, vy: 0, held: false, el: el };
+    chips.push(c);
+    sizeChip(c);
+    placeChip(c);
+    return c;
+  }
+
+  function sizeChip(c) {
+    const d = chipSize();
+    c.el.style.width = d + 'px';
+    c.el.style.height = d + 'px';
+    c.el.style.fontSize = Math.round(d * 0.5) + 'px';
+  }
+
+  // 판 안으로 가둔 뒤 그린다
+  function placeChip(c) {
+    const d = chipSize();
+    c.x = Math.max(0, Math.min(c.x, board.clientWidth - d));
+    c.y = Math.max(0, Math.min(c.y, board.clientHeight - d));
+    c.el.style.left = c.x + 'px';
+    c.el.style.top = c.y + 'px';
+  }
+
+  function startChips() {
+    if (chipRaf === null) chipRaf = requestAnimationFrame(stepChips);
+  }
+
+  // 튕겨 나간 칩이 벽에 부딪히며 굴러가다 멈춘다
+  function stepChips() {
+    const d = chipSize();
+    const maxX = board.clientWidth - d;
+    const maxY = board.clientHeight - d;
+
+    chips.forEach((c) => {
+      if (c.held || (!c.vx && !c.vy)) return;
+      c.x += c.vx;
+      c.y += c.vy;
+      if (c.x < 0) { c.x = 0; c.vx *= -CHIP_BOUNCE; }
+      if (c.x > maxX) { c.x = maxX; c.vx *= -CHIP_BOUNCE; }
+      if (c.y < 0) { c.y = 0; c.vy *= -CHIP_BOUNCE; }
+      if (c.y > maxY) { c.y = maxY; c.vy *= -CHIP_BOUNCE; }
+      c.vx *= CHIP_DRAG_FRICTION;
+      c.vy *= CHIP_DRAG_FRICTION;
+      if (Math.hypot(c.vx, c.vy) < 0.3) { c.vx = 0; c.vy = 0; }
+      placeChip(c);
+    });
+
+    const moving = chips.some((c) => !c.held && (c.vx || c.vy));
+    chipRaf = moving ? requestAnimationFrame(stepChips) : null;
+  }
+
+  // maker의 반응 — 칩 하나를 만들어 위쪽으로 튕겨낸다
+  function popChip(b) {
+    const d = chipSize();
+    const c = makeChip(b.g.x + b.gx * S + (S - d) / 2,
+                       b.g.y + b.gy * S + (S - d) / 2,
+                       CHIP_VALUE);
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+    const speed = S * CHIP_POP;
+    c.vx = Math.cos(angle) * speed;
+    c.vy = Math.sin(angle) * speed;
+    startChips();
+    return c;
   }
 
   /* ---------- 입력 ---------- */
@@ -473,6 +583,48 @@
     window.addEventListener('blur', up);
   });
 
+  // 칩은 블럭과 상관없이 따로 끌어 옮긴다
+  board.addEventListener('pointerdown', (e) => {
+    const chipEl = e.target.closest('.chip');
+    if (!chipEl) return;
+    const c = chips.find((x) => x.el === chipEl);
+    if (!c) return;
+
+    const br = board.getBoundingClientRect();
+    const grabX = e.clientX - br.left - c.x;
+    const grabY = e.clientY - br.top - c.y;
+    c.held = true;
+    c.vx = 0;
+    c.vy = 0;
+    c.el.classList.add('is-dragging');
+    c.el.style.zIndex = Z_CHIP_DRAG;
+    try { chipEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
+
+    const move = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      const r = board.getBoundingClientRect();
+      c.x = ev.clientX - r.left - grabX;
+      c.y = ev.clientY - r.top - grabY;
+      placeChip(c);
+    };
+
+    const up = (ev) => {
+      if (ev && ev.pointerId !== undefined && ev.pointerId !== e.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('blur', up);
+      c.held = false;
+      c.el.classList.remove('is-dragging');
+      c.el.style.zIndex = Z_CHIP;
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('blur', up);
+  });
+
   function setSolo(b, on) {
     b.solo = on;
     b.el.classList.toggle('is-solo', on);
@@ -523,6 +675,7 @@
     if (!board.clientWidth) return;
     if (!laidOut) { laidOut = true; layout(); return; }
     groups.forEach((g) => { clamp(g); render(g); });
+    chips.forEach((c) => { sizeChip(c); placeChip(c); });
   }).observe(board);
 })();
 </script>
