@@ -60,6 +60,14 @@
     letter-spacing:.06em;text-transform:uppercase;
   }
 
+  /* 반응 — 한 번 깜빡인다 */
+  .block.is-reacting{animation:react .32s ease-out;}
+  @keyframes react{
+    0%  {border-color:var(--tone);box-shadow:var(--sh-md);}
+    25% {border-color:var(--tone);box-shadow:0 0 0 3px var(--tone),0 0 24px var(--tone);filter:brightness(1.6);}
+    100%{border-color:var(--hairline);box-shadow:var(--sh-md);}
+  }
+
   @media(max-width:560px){
     .hero h1{font-size:28px;}
     .board{height:min(64vh,460px);}
@@ -73,7 +81,7 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해.</p>
+      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
     </header>
 
     <div class="bar">
@@ -86,18 +94,21 @@
 
 <script>
 (() => {
-  // 블럭 종류 — 아직 동작은 없고 겉모습만 구분한다
+  // 블럭 종류 — clicker와 deeper만 반응한다
   const TYPES = {
     pusher:   { icon: '⏩', tone: '#FFD400' },
     timer:    { icon: '⏱', tone: '#3A78C2' },
     loader:   { icon: '📥', tone: '#3FA66A' },
     unloader: { icon: '📤', tone: '#E0941A' },
     clicker:  { icon: '👆', tone: '#D24A4A' },
+    deeper:   { icon: '🔊', tone: '#7C5CD6' },
   };
-  const START = ['clicker', 'pusher', 'timer', 'loader', 'unloader'];
+  const START = ['clicker', 'deeper', 'deeper', 'pusher', 'timer'];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
+  const HOP_MS = 100;       // 기본딜레이 — 행동이 인접 블럭까지 가는 시간
+  const FORGET_MS = 5000;   // 지나간 행동 uid를 잊는 시간
 
   const board = document.getElementById('board');
 
@@ -105,6 +116,7 @@
   let groups = [];
   let flying = [];          // 분해되어 날아가는 중인 뭉치
   let raf = null;
+  let uidSeq = 0;
 
   /* ---------- 뭉치·블럭 만들기 ---------- */
 
@@ -124,7 +136,9 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    g.blocks.push({ type, gx, gy, el });
+    const b = { type, gx, gy, el, g, seen: new Set() };
+    g.blocks.push(b);
+    return b;
   }
 
   function dropGroup(g) {
@@ -216,11 +230,13 @@
   // g의 블럭을 target 뭉치로 옮겨 담는다 (좌표는 target 기준 칸으로 환산)
   function merge(target, g) {
     g.blocks.forEach((b) => {
-      const gx = Math.round((g.x + b.gx * S - target.x) / S);
-      const gy = Math.round((g.y + b.gy * S - target.y) / S);
+      b.gx = Math.round((g.x + b.gx * S - target.x) / S);
+      b.gy = Math.round((g.y + b.gy * S - target.y) / S);
+      b.g = target;
       target.el.appendChild(b.el);
-      target.blocks.push({ type: b.type, gx: gx, gy: gy, el: b.el });
+      target.blocks.push(b);
     });
+    g.blocks = [];
     dropGroup(g);
     render(target);
   }
@@ -271,6 +287,79 @@
     raf = flying.length ? requestAnimationFrame(step) : null;
   }
 
+  /* ---------- 행동과 반응 ---------- */
+
+  // 같은 뭉치 안에서 4방향으로 맞닿은 블럭
+  function neighbors(b) {
+    return b.g.blocks.filter((o) =>
+      Math.abs(o.gx - b.gx) + Math.abs(o.gy - b.gy) === 1);
+  }
+
+  // 반응했다는 표시로 한 번 깜빡인다
+  function blink(b) {
+    b.el.classList.remove('is-reacting');
+    void b.el.offsetWidth;            // 애니메이션 재시작
+    b.el.classList.add('is-reacting');
+    setTimeout(() => b.el.classList.remove('is-reacting'), 340);
+  }
+
+  let audio = null;
+
+  // deeper의 반응 — 낮게 떨어지는 deep 소리
+  function deepSound() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audio = audio || new Ctx();
+      if (audio.state === 'suspended') audio.resume();
+      const t = audio.currentTime;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, t);
+      osc.frequency.exponentialRampToValueAtTime(55, t + 0.28);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.3, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + 0.32);
+    } catch (err) { /* 소리를 못 내도 게임은 굴러간다 */ }
+  }
+
+  // 같은 uid의 행동에는 한 번만 반응한다
+  function markSeen(b, uid) {
+    if (b.seen.has(uid)) return false;
+    b.seen.add(uid);
+    setTimeout(() => b.seen.delete(uid), FORGET_MS);
+    return true;
+  }
+
+  // 행동이 블럭에 도착 — 반응하는 블럭만 깜빡이고, 전달은 종류와 무관하게 이어진다
+  function deliver(b, uid) {
+    if (!b.el.isConnected) return;
+    if (!markSeen(b, uid)) return;
+
+    if (b.type === 'deeper') {
+      blink(b);
+      deepSound();
+    }
+    setTimeout(() => spread(b, uid), HOP_MS);
+  }
+
+  function spread(b, uid) {
+    if (!b.el.isConnected) return;
+    neighbors(b).forEach((n) => deliver(n, uid));
+  }
+
+  // clicker의 반응 — 깜빡이고 새 행동을 하나 만든다
+  function click(b) {
+    const uid = ++uidSeq;
+    markSeen(b, uid);
+    blink(b);
+    setTimeout(() => spread(b, uid), HOP_MS);
+  }
+
   /* ---------- 입력 ---------- */
 
   const findGroup = (el) => groups.find((g) => g.el.contains(el));
@@ -281,6 +370,7 @@
     const g = findGroup(blockEl);
     if (!g) return;
 
+    const b = g.blocks.find((x) => x.el === blockEl);
     const startX = e.clientX - g.x;
     const startY = e.clientY - g.y;
     let moved = 0;
@@ -306,7 +396,11 @@
       blockEl.removeEventListener('pointercancel', up);
       g.el.classList.remove('is-dragging');
 
-      if (moved >= CLICK_SLOP) trySnap(g);
+      if (moved < CLICK_SLOP) {
+        if (b.type === 'clicker') click(b);
+        return;
+      }
+      trySnap(g);
     };
 
     blockEl.addEventListener('pointermove', move);
