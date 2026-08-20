@@ -947,7 +947,8 @@
   const SAVE_DELAY = 250;
   let saveTimer = null;
 
-  // 좌표는 블럭 한 변(S) 기준으로 저장한다 — 화면 크기가 달라져도 자리가 유지된다
+  // 좌표는 블럭 한 변(S) 기준으로 저장한다 — 화면 크기가 달라져도 자리가 유지된다.
+  // 배출되어 굴러다니는 칩은 저장하지 않는다 (새로고침하면 사라진다).
   function snapshot() {
     return {
       v: 1,
@@ -961,7 +962,6 @@
           h: b.regs.length ? b.regs : null,
         })),
       })),
-      chips: chips.map((c) => ({ k: c.kind, v: c.value, x: c.x / S, y: c.y / S })),
     };
   }
 
@@ -1016,9 +1016,6 @@
     });
     if (!groups.length) return false;
 
-    (state.chips || []).forEach((cs) => {
-      makeChip(cs.x * S, cs.y * S, cs.v || 1, cs.k);
-    });
     refreshLinks();
     return true;
   }
