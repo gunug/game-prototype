@@ -190,14 +190,16 @@
     maker:    { icon: '🏭', tone: '#D95A9E' },
     collector:{ icon: '🧺', tone: '#B7C34A' },
     '+':      { icon: '➕', tone: '#5BB8E8' },
+    counter:  { icon: '🔢', tone: '#E0941A' },
   };
   // 화면에 깔아 두는 블럭 20장 — 구현된 종류만 쓴다
   const START = [
-    'clicker', 'clicker', 'clicker', 'clicker',
+    'clicker', 'clicker', 'clicker',
     'beeper', 'beeper', 'beeper',
-    'maker', 'maker', 'maker', 'maker',
+    'maker', 'maker', 'maker',
     'collector', 'collector', 'collector',
     '+', '+', '+',
+    'counter', 'counter',
     'mover', 'mover', 'mover',
   ];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -219,7 +221,7 @@
   const CHIP_POP = 0.09;    // 튀어나갈 때의 힘 (블럭 한 변 기준)
   const CHIP_DRAG_FRICTION = 0.92;
   const CHIP_BOUNCE = 0.5;
-  const RECEIVERS = ['+', 'collector'];   // 칩을 받는 블럭
+  const RECEIVERS = ['+', 'collector', 'counter'];   // 칩을 받는 블럭
   const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
   const DELIVER_MS = 260;
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
@@ -253,7 +255,9 @@
     el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
-    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0, solo: false, stored: 0, registered: null, regs: [], turn: 0 };
+    const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0,
+                solo: false, stored: 0, registered: null, regs: [], turn: 0, count: 0 };
+    if (type === 'counter') b.regs = [{ kind: CHIP_KIND, value: 1 }];   // 기본 1칩
     g.blocks.push(b);
     return b;
   }
@@ -541,6 +545,9 @@
     } else if (b.type === '+') {
       blink(b);
       flushPlus(b);
+    } else if (b.type === 'counter') {
+      countUp(b, uid);
+      return;                 // 카운트가 찰 때까지 행동을 넘기지 않는다
     }
     hold(b, uid);
   }
@@ -548,6 +555,20 @@
   function spread(b, uid) {
     if (!b.el.isConnected) return;
     neighbors(b).forEach((n) => deliver(n, uid));
+  }
+
+  // counter — 행동을 받을 때마다 세다가, 등록된 칩 숫자에 다다르면 반응해 행동을 넘긴다
+  function countUp(b, uid) {
+    b.count += 1;
+    if (b.count >= needOf(b)) {
+      b.count = 0;
+      showCount(b);
+      blink(b);
+      hold(b, uid);
+    } else {
+      showCount(b);
+    }
+    save();
   }
 
   // clicker의 반응 — 깜빡이고 새 행동을 하나 만든다
@@ -658,6 +679,12 @@
       b.el.classList.add('is-armed');
       showRegs(b);
       refreshLinks();
+    } else if (b.type === 'counter') {
+      const old = b.regs.shift();          // 이미 등록된 칩은 배출한다
+      if (old) ejectChip(b, old.kind, old.value, 0);
+      b.regs = [{ kind: kind, value: value }];
+      showRegs(b);
+      showCount(b);
     }
     save();
   }
@@ -835,6 +862,8 @@
   }
 
   const showStore = (b) => badge(b, b.stored);
+  const needOf = (b) => (b.regs.length ? b.regs[0].value : 1);
+  const showCount = (b) => badge(b, b.count + '/' + needOf(b));
 
   // 등록된 칩을 블럭 상단에 작은 칩으로 늘어놓는다
   function showRegs(b) {
@@ -1008,6 +1037,7 @@
           s: b.stored || 0,
           r: b.registered || null,
           h: b.regs.length ? b.regs : null,
+          n: b.count || 0,
         })),
       })),
     };
@@ -1053,8 +1083,10 @@
         const b = addBlock(g, type, bs.x, bs.y);
         b.stored = bs.s || 0;
         b.registered = bs.r || null;
-        b.regs = Array.isArray(bs.h) ? bs.h : [];
+        b.regs = Array.isArray(bs.h) ? bs.h : b.regs;
+        b.count = bs.n || 0;
         if (b.stored) showStore(b);
+        if (b.type === 'counter') showCount(b);
         if (b.regs.length || b.registered) showRegs(b);
         if (b.registered) b.el.classList.add('is-armed');
       });
@@ -1104,7 +1136,8 @@
       const col = i % cols;
       const row = Math.floor(i / cols);
       const g = makeGroup(x0 + col * (S + gap), y0 + row * (S + gap));
-      addBlock(g, type, 0, 0);
+      const b = addBlock(g, type, 0, 0);
+      if (type === 'counter') { showRegs(b); showCount(b); }
       clamp(g);
       render(g);
     });
