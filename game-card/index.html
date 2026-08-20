@@ -540,6 +540,7 @@
     sizeChip(c);
     placeChip(c);
     refreshLinks();
+    save();
     return c;
   }
 
@@ -586,6 +587,7 @@
 
     const moving = chips.some((c) => !c.held && (c.vx || c.vy));
     chipRaf = moving ? requestAnimationFrame(stepChips) : null;
+    if (!moving) save();
   }
 
   // maker의 반응 — 칩 하나를 만들어 위쪽으로 튕겨낸다
@@ -624,6 +626,7 @@
     owner.registered = c.kind;
     owner.el.classList.add('is-armed');
     refreshLinks();
+    save();
   }
 
   // 어느 collector든 그 유형을 등록해 두었다면, 같은 유형의 칩은 모두 표시된다
@@ -682,6 +685,7 @@
       showStore(target);
       c.el.remove();
       chips.splice(i, 1);
+      save();
     }
   }
 
@@ -755,6 +759,7 @@
       held.el.classList.remove('is-dragging');
       setSolo(b, false);        // 예약된 혼자 이동은 한 번 쓰면 풀린다
       trySnap(held);
+      save();
     };
 
     window.addEventListener('pointermove', move);
@@ -799,6 +804,7 @@
       c.el.style.zIndex = Z_CHIP;
       register(c);
       storeTouching();
+      save();
     };
 
     window.addEventListener('pointermove', move);
@@ -808,8 +814,10 @@
   });
 
   function setSolo(b, on) {
+    if (b.solo === on) return;
     b.solo = on;
     b.el.classList.toggle('is-solo', on);
+    save();
   }
 
   // mover를 더블클릭하면 다음 드래그 한 번은 인접 블럭을 무시한다
@@ -822,6 +830,84 @@
     if (!b || b.type !== 'mover') return;
     setSolo(b, !b.solo);
   });
+
+  /* ---------- 저장 ---------- */
+
+  const SAVE_KEY = 'game-card/state/v1';
+  const SAVE_DELAY = 250;
+  let saveTimer = null;
+
+  // 좌표는 블럭 한 변(S) 기준으로 저장한다 — 화면 크기가 달라져도 자리가 유지된다
+  function snapshot() {
+    return {
+      v: 1,
+      groups: groups.map((g) => ({
+        x: g.x / S,
+        y: g.y / S,
+        blocks: g.blocks.map((b) => ({
+          t: b.type, x: b.gx, y: b.gy,
+          s: b.stored || 0,
+          r: b.registered || null,
+        })),
+      })),
+      chips: chips.map((c) => ({ k: c.kind, v: c.value, x: c.x / S, y: c.y / S })),
+    };
+  }
+
+  function writeState() {
+    saveTimer = null;
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot()));
+    } catch (err) { /* 저장을 못 해도 게임은 굴러간다 */ }
+  }
+
+  // 상태가 바뀔 때마다 불린다. 연달아 불려도 한 번만 쓴다.
+  function save() {
+    if (saveTimer === null) saveTimer = setTimeout(writeState, SAVE_DELAY);
+  }
+
+  function restore() {
+    let state = null;
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      state = JSON.parse(raw);
+    } catch (err) {
+      return false;
+    }
+    if (!state || state.v !== 1 || !Array.isArray(state.groups)) return false;
+
+    const total = state.groups.reduce((n, g) => n + (g.blocks ? g.blocks.length : 0), 0);
+    if (!total) return false;
+
+    groups.slice().forEach(dropGroup);
+    chips.forEach((c) => c.el.remove());
+    chips = [];
+    S = fitSize(total);
+
+    state.groups.forEach((gs) => {
+      if (!gs.blocks || !gs.blocks.length) return;
+      const g = makeGroup(gs.x * S, gs.y * S);
+      gs.blocks.forEach((bs) => {
+        if (!TYPES[bs.t]) return;
+        const b = addBlock(g, bs.t, bs.x, bs.y);
+        b.stored = bs.s || 0;
+        b.registered = bs.r || null;
+        if (b.stored) showStore(b);
+        if (b.registered) b.el.classList.add('is-armed');
+      });
+      if (!g.blocks.length) { dropGroup(g); return; }
+      clamp(g);
+      render(g);
+    });
+    if (!groups.length) return false;
+
+    (state.chips || []).forEach((cs) => {
+      makeChip(cs.x * S, cs.y * S, cs.v || 1, cs.k);
+    });
+    refreshLinks();
+    return true;
+  }
 
   /* ---------- 배치 ---------- */
 
@@ -863,13 +949,18 @@
       clamp(g);
       render(g);
     });
+    save();
   }
 
   // 화면 크기가 바뀌면 블럭 크기를 다시 잡되, 조립해 둔 건 그대로 둔다
   let laidOut = false;
   new ResizeObserver(() => {
     if (!board.clientWidth) return;
-    if (!laidOut) { laidOut = true; layout(); return; }
+    if (!laidOut) {
+      laidOut = true;
+      if (!restore()) layout();
+      return;
+    }
 
     const next = blockSize();
     const ratio = next / S;
@@ -886,6 +977,7 @@
       sizeChip(c);
       placeChip(c);
     });
+    save();
   }).observe(board);
 })();
 </script>
