@@ -81,7 +81,7 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
+      <p>드래그해서 4방향으로 붙이면 연결된다. clicker를 클릭하면 행동이 인접 블럭으로 퍼진다.</p>
     </header>
 
     <div class="bar">
@@ -120,8 +120,6 @@
 
   let S = 96;               // 블럭 한 변 (px)
   let groups = [];
-  let flying = [];          // 분해되어 날아가는 중인 뭉치
-  let raf = null;
   let uidSeq = 0;
 
   /* ---------- 뭉치·블럭 만들기 ---------- */
@@ -181,20 +179,15 @@
     maxY: Math.max(...g.blocks.map((b) => b.gy)),
   });
 
-  // 뭉치 전체를 판 안으로 밀어 넣는다. 벽에 닿았으면 알려준다.
+  // 뭉치 전체를 판 안으로 밀어 넣는다
   function clamp(g) {
     const bb = box(g);
     const w = (bb.maxX - bb.minX + 1) * S;
     const h = (bb.maxY - bb.minY + 1) * S;
     const left = g.x + bb.minX * S;
     const top = g.y + bb.minY * S;
-    const nl = Math.max(0, Math.min(left, board.clientWidth - w));
-    const nt = Math.max(0, Math.min(top, board.clientHeight - h));
-    const hitX = nl !== left;
-    const hitY = nt !== top;
-    g.x += nl - left;
-    g.y += nt - top;
-    return { hitX, hitY };
+    g.x += Math.max(0, Math.min(left, board.clientWidth - w)) - left;
+    g.y += Math.max(0, Math.min(top, board.clientHeight - h)) - top;
   }
 
   /* ---------- 붙이기 ---------- */
@@ -257,52 +250,6 @@
     g.blocks = [];
     dropGroup(g);
     render(target);
-  }
-
-  /* ---------- 분해 ---------- */
-
-  // 무게 중심에서 바깥으로 튕겨 나가며 낱개로 흩어진다
-  function explode(g) {
-    if (g.blocks.length < 2) return;
-    const cx = g.blocks.reduce((s, b) => s + b.gx, 0) / g.blocks.length + 0.5;
-    const cy = g.blocks.reduce((s, b) => s + b.gy, 0) / g.blocks.length + 0.5;
-    const parts = g.blocks.slice();
-
-    parts.forEach((b, i) => {
-      const ng = makeGroup(g.x + b.gx * S, g.y + b.gy * S);
-      addBlock(ng, b.type, 0, 0);
-      render(ng);
-
-      let dx = b.gx + 0.5 - cx;
-      let dy = b.gy + 0.5 - cy;
-      if (!dx && !dy) {            // 정중앙 블럭은 아무 방향으로나 밀어낸다
-        dx = Math.cos(i * 2.399);
-        dy = Math.sin(i * 2.399);
-      }
-      const len = Math.hypot(dx, dy) || 1;
-      const speed = S * 0.14;
-      flying.push({ g: ng, vx: (dx / len) * speed, vy: (dy / len) * speed });
-    });
-
-    dropGroup(g);
-    if (raf === null) raf = requestAnimationFrame(step);
-  }
-
-  function step() {
-    flying = flying.filter((f) => {
-      f.g.x += f.vx;
-      f.g.y += f.vy;
-      const hit = clamp(f.g);
-      if (hit.hitX) f.vx *= -0.45;
-      if (hit.hitY) f.vy *= -0.45;
-      f.vx *= 0.9;
-      f.vy *= 0.9;
-      render(f.g);
-      if (Math.hypot(f.vx, f.vy) >= 0.4) return true;
-      trySnap(f.g);              // 멈춘 자리가 옆 뭉치와 맞으면 다시 붙는다
-      return false;
-    });
-    raf = flying.length ? requestAnimationFrame(step) : null;
   }
 
   /* ---------- 행동과 반응 ---------- */
@@ -443,13 +390,6 @@
     blockEl.addEventListener('pointercancel', up);
   });
 
-  board.addEventListener('dblclick', (e) => {
-    const blockEl = e.target.closest('.block');
-    if (!blockEl) return;
-    const g = findGroup(blockEl);
-    if (g) explode(g);
-  });
-
   /* ---------- 배치 ---------- */
 
   function blockSize() {
@@ -460,7 +400,6 @@
 
   // 낱개 블럭 5개를 판 가운데에 가로로 늘어놓는다
   function layout() {
-    flying = [];
     groups.slice().forEach(dropGroup);
     S = blockSize();
 
