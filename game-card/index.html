@@ -142,7 +142,16 @@
     mover:    { icon: '🧲', tone: '#2FA8A0' },
     maker:    { icon: '🏭', tone: '#D95A9E' },
   };
-  const START = ['clicker', 'deeper', 'maker', 'mover', 'pusher'];
+  // 화면에 깔아 두는 블럭 20장
+  const START = [
+    'clicker', 'clicker', 'clicker',
+    'deeper', 'deeper', 'deeper', 'deeper',
+    'maker', 'maker', 'maker',
+    'mover', 'mover', 'mover',
+    'pusher', 'pusher', 'pusher',
+    'timer', 'timer',
+    'loader', 'unloader',
+  ];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
@@ -699,10 +708,22 @@
     return Math.round(Math.max(56, Math.min(120, base * 0.18)));
   }
 
+  // 시작 블럭 전부가 화면에 들어갈 때까지 크기를 줄인다
+  function fitSize(n) {
+    let size = blockSize();
+    for (; size > 28; size -= 2) {
+      const gap = Math.round(size * 0.25);
+      const cols = Math.max(1, Math.floor((board.clientWidth - gap) / (size + gap)));
+      const rows = Math.ceil(n / cols);
+      if (rows * size + (rows - 1) * gap <= board.clientHeight - gap * 2) break;
+    }
+    return size;
+  }
+
   // 시작 블럭을 화면 가운데에 늘어놓는다. 한 줄에 다 안 들어가면 줄을 나눈다.
   function layout() {
     groups.slice().forEach(dropGroup);
-    S = blockSize();
+    S = fitSize(START.length);
 
     const gap = Math.round(S * 0.25);
     const cols = Math.max(1, Math.min(START.length,
