@@ -9,10 +9,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets-ds.css">
 <style>
-  .hero{margin-bottom:var(--s5);}
+  .hero{margin-bottom:var(--s4);}
   .hero h1{font-size:36px;line-height:1.1;margin:0;}
   .hero p{color:var(--muted);font-size:16px;margin-top:var(--s3);}
-  .actions{margin-bottom:var(--s5);display:flex;gap:var(--s3);flex-wrap:wrap;}
+
+  .bar{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-bottom:var(--s4);}
+  .counter{display:inline-flex;align-items:center;gap:8px;margin-left:auto;
+    background:var(--surface);border:1px solid var(--hairline);
+    border-radius:var(--r-pill);padding:6px 16px;color:var(--ink);
+    font-size:14px;font-weight:600;}
+  .counter .dot{width:14px;height:14px;border-radius:50%;
+    border:2px solid var(--brand-yellow);background:rgba(255,212,0,.15);}
 
   /* 블럭이 놓이는 판 */
   .board{
@@ -26,16 +33,18 @@
     touch-action:none;
   }
 
+  /* 붙어 있는 블럭 뭉치 — 통째로 움직인다 */
+  .group{position:absolute;left:0;top:0;width:0;height:0;}
+  .group.is-dragging{z-index:999;}
+
   /* 1 : 1 비율 블럭 */
   .block{
     position:absolute;
-    width:var(--block-w);
-    aspect-ratio:1 / 1;
     display:flex;
     flex-direction:column;
     align-items:center;
     justify-content:center;
-    gap:6px;
+    gap:4px;
     background:linear-gradient(160deg,var(--surface-soft),#191914);
     border:1px solid var(--hairline);
     border-radius:var(--r-md);
@@ -43,38 +52,36 @@
     cursor:grab;
     user-select:none;
     touch-action:none;
-    transition:box-shadow .15s,border-color .15s,transform .15s;
+    transition:border-color .15s,box-shadow .15s;
   }
   .block::before{
-    content:'';
-    position:absolute;
-    inset:0;
-    border-radius:inherit;
-    background:var(--tone);
-    opacity:.12;
-    pointer-events:none;
+    content:'';position:absolute;inset:0;border-radius:inherit;
+    background:var(--tone);opacity:.12;pointer-events:none;
   }
   .block:hover{border-color:var(--tone);}
-  .block.is-dragging{
-    cursor:grabbing;
-    border-color:var(--tone);
-    box-shadow:var(--sh-lg);
-    transform:scale(1.06);
-    transition:none;
-  }
-  .block .icon{font-size:calc(var(--block-w) * .3);line-height:1;}
+  .group.is-dragging .block{cursor:grabbing;border-color:var(--tone);box-shadow:var(--sh-lg);}
+  .block .icon{font-size:26px;line-height:1;}
   .block .name{
-    color:var(--tone);
-    font-size:12px;
-    font-weight:700;
-    letter-spacing:.08em;
-    text-transform:uppercase;
+    color:var(--tone);font-size:11px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;
+  }
+
+  /* 자원 — 블럭 1/3 크기의 동그란 프레임 */
+  .resource{
+    position:absolute;
+    border-radius:50%;
+    border:2px solid var(--brand-yellow);
+    background:rgba(255,212,0,.15);
+    box-shadow:0 0 12px rgba(255,212,0,.35);
+    pointer-events:none;
+    transition:transform .55s cubic-bezier(.22,.9,.3,1),opacity .55s ease-out;
   }
 
   @media(max-width:560px){
     .hero h1{font-size:28px;}
     .board{height:min(64vh,460px);}
-    .block .name{font-size:10px;}
+    .block .icon{font-size:20px;}
+    .block .name{font-size:9px;}
   }
 </style>
 </head>
@@ -83,12 +90,13 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>1 : 1 비율 블럭 5개. 드래그해서 옮기기.</p>
+      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해. clicker를 누르면 action이 나온다.</p>
     </header>
 
-    <div class="actions">
+    <div class="bar">
       <button class="btn btn-primary" type="button" id="reset">블럭 정렬</button>
       <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
+      <span class="counter"><span class="dot"></span>action <span id="count">0</span></span>
     </div>
 
     <div class="board" id="board"></div>
@@ -96,97 +104,309 @@
 
 <script>
 (() => {
-  // 블럭 타입 — 동작은 아직 없고 겉모습만 구분한다
+  // 블럭 종류 — 지금은 clicker만 동작하고 나머지는 겉모습만 있다
   const TYPES = {
     pusher:   { icon: '⏩', tone: '#FFD400' },
-    timer:    { icon: '⏱️', tone: '#3A78C2' },
+    timer:    { icon: '⏱', tone: '#3A78C2' },
     loader:   { icon: '📥', tone: '#3FA66A' },
     unloader: { icon: '📤', tone: '#E0941A' },
+    clicker:  { icon: '👆', tone: '#D24A4A' },
   };
-  // 화면에 놓이는 블럭 5개
-  const BLOCKS = ['pusher', 'timer', 'loader', 'unloader', 'pusher'];
+  const START = ['clicker', 'pusher', 'timer', 'loader', 'unloader'];
+  const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
+  const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그가 아니라 클릭
 
   const board = document.getElementById('board');
-  let topZ = 1;
+  const countEl = document.getElementById('count');
 
-  const blockSize = () => {
-    const byWidth = (board.clientWidth - 24 * (BLOCKS.length + 1)) / BLOCKS.length;
-    const byHeight = board.clientHeight * 0.5;
-    return Math.max(64, Math.min(byWidth, byHeight, 140));
-  };
+  let S = 96;               // 블럭 한 변 (px)
+  let groups = [];
+  let flying = [];          // 분해되어 날아가는 중인 뭉치
+  let raf = null;
+  let actions = 0;
 
-  const elements = BLOCKS.map((type) => {
-    const { icon, tone } = TYPES[type];
+  /* ---------- 뭉치·블럭 만들기 ---------- */
+
+  function makeGroup(x, y) {
+    const g = { x, y, blocks: [], el: document.createElement('div') };
+    g.el.className = 'group';
+    board.appendChild(g.el);
+    groups.push(g);
+    return g;
+  }
+
+  function addBlock(g, type, gx, gy) {
     const el = document.createElement('div');
     el.className = 'block';
     el.dataset.type = type;
-    el.style.setProperty('--tone', tone);
-    el.innerHTML = `<span class="icon">${icon}</span><span class="name">${type}</span>`;
+    el.style.setProperty('--tone', TYPES[type].tone);
+    el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>' +
+                   '<span class="name">' + type + '</span>';
+    g.el.appendChild(el);
+    g.blocks.push({ type, gx, gy, el });
+  }
+
+  function dropGroup(g) {
+    groups = groups.filter((x) => x !== g);
+    g.el.remove();
+  }
+
+  function render(g) {
+    g.el.style.transform = 'translate(' + g.x + 'px,' + g.y + 'px)';
+    g.blocks.forEach((b) => {
+      b.el.style.width = S + 'px';
+      b.el.style.height = S + 'px';
+      b.el.style.left = b.gx * S + 'px';
+      b.el.style.top = b.gy * S + 'px';
+    });
+  }
+
+  const box = (g) => ({
+    minX: Math.min(...g.blocks.map((b) => b.gx)),
+    minY: Math.min(...g.blocks.map((b) => b.gy)),
+    maxX: Math.max(...g.blocks.map((b) => b.gx)),
+    maxY: Math.max(...g.blocks.map((b) => b.gy)),
+  });
+
+  // 뭉치 전체를 판 안으로 밀어 넣는다. 벽에 닿았으면 알려준다.
+  function clamp(g) {
+    const bb = box(g);
+    const w = (bb.maxX - bb.minX + 1) * S;
+    const h = (bb.maxY - bb.minY + 1) * S;
+    const left = g.x + bb.minX * S;
+    const top = g.y + bb.minY * S;
+    const nl = Math.max(0, Math.min(left, board.clientWidth - w));
+    const nt = Math.max(0, Math.min(top, board.clientHeight - h));
+    const hitX = nl !== left;
+    const hitY = nt !== top;
+    g.x += nl - left;
+    g.y += nt - top;
+    return { hitX, hitY };
+  }
+
+  /* ---------- 붙이기 ---------- */
+
+  // 새 자리에 놓았을 때 다른 뭉치와 겹치는지
+  function overlaps(g, nx, ny, ignore) {
+    const eps = S * 0.2;
+    return g.blocks.some((mb) => {
+      const ax = nx + mb.gx * S;
+      const ay = ny + mb.gy * S;
+      return groups.some((other) => {
+        if (other === g || other === ignore) return false;
+        return other.blocks.some((ob) => {
+          const bx = other.x + ob.gx * S;
+          const by = other.y + ob.gy * S;
+          return Math.abs(ax - bx) < S - eps && Math.abs(ay - by) < S - eps;
+        });
+      });
+    });
+  }
+
+  // 놓은 자리에서 가장 가까운 4방향 접합면을 찾아 붙인다
+  function trySnap(g) {
+    let best = null;
+    for (const other of groups) {
+      if (other === g) continue;
+      for (const ob of other.blocks) {
+        for (const dir of DIRS) {
+          const tx = other.x + (ob.gx + dir[0]) * S;
+          const ty = other.y + (ob.gy + dir[1]) * S;
+          for (const mb of g.blocks) {
+            const nx = tx - mb.gx * S;
+            const ny = ty - mb.gy * S;
+            const d = Math.hypot(nx - g.x, ny - g.y);
+            if (d > S * SNAP_RATIO) continue;
+            if (best && d >= best.d) continue;
+            if (overlaps(g, nx, ny, other)) continue;
+            best = { d: d, nx: nx, ny: ny, other: other };
+          }
+        }
+      }
+    }
+    if (!best) return false;
+
+    g.x = best.nx;
+    g.y = best.ny;
+    merge(best.other, g);
+    return true;
+  }
+
+  // g의 블럭을 target 뭉치로 옮겨 담는다 (좌표는 target 기준 칸으로 환산)
+  function merge(target, g) {
+    g.blocks.forEach((b) => {
+      const gx = Math.round((g.x + b.gx * S - target.x) / S);
+      const gy = Math.round((g.y + b.gy * S - target.y) / S);
+      target.el.appendChild(b.el);
+      target.blocks.push({ type: b.type, gx: gx, gy: gy, el: b.el });
+    });
+    dropGroup(g);
+    render(target);
+  }
+
+  /* ---------- 분해 ---------- */
+
+  // 무게 중심에서 바깥으로 튕겨 나가며 낱개로 흩어진다
+  function explode(g) {
+    if (g.blocks.length < 2) return;
+    const cx = g.blocks.reduce((s, b) => s + b.gx, 0) / g.blocks.length + 0.5;
+    const cy = g.blocks.reduce((s, b) => s + b.gy, 0) / g.blocks.length + 0.5;
+    const parts = g.blocks.slice();
+
+    parts.forEach((b, i) => {
+      const ng = makeGroup(g.x + b.gx * S, g.y + b.gy * S);
+      addBlock(ng, b.type, 0, 0);
+      render(ng);
+
+      let dx = b.gx + 0.5 - cx;
+      let dy = b.gy + 0.5 - cy;
+      if (!dx && !dy) {            // 정중앙 블럭은 아무 방향으로나 밀어낸다
+        dx = Math.cos(i * 2.399);
+        dy = Math.sin(i * 2.399);
+      }
+      const len = Math.hypot(dx, dy) || 1;
+      const speed = S * 0.14;
+      flying.push({ g: ng, vx: (dx / len) * speed, vy: (dy / len) * speed });
+    });
+
+    dropGroup(g);
+    if (raf === null) raf = requestAnimationFrame(step);
+  }
+
+  function step() {
+    flying = flying.filter((f) => {
+      f.g.x += f.vx;
+      f.g.y += f.vy;
+      const hit = clamp(f.g);
+      if (hit.hitX) f.vx *= -0.45;
+      if (hit.hitY) f.vy *= -0.45;
+      f.vx *= 0.9;
+      f.vy *= 0.9;
+      render(f.g);
+      if (Math.hypot(f.vx, f.vy) >= 0.4) return true;
+      trySnap(f.g);              // 멈춘 자리가 옆 뭉치와 맞으면 다시 붙는다
+      return false;
+    });
+    raf = flying.length ? requestAnimationFrame(step) : null;
+  }
+
+  /* ---------- 자원 ---------- */
+
+  // clicker는 누를 때마다 action을 하나 배출한다
+  function emitAction(g, b) {
+    const size = S / 3;
+    const el = document.createElement('div');
+    el.className = 'resource';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.left = g.x + b.gx * S + (S - size) / 2 + 'px';
+    el.style.top = g.y + b.gy * S + (S - size) / 2 + 'px';
     board.appendChild(el);
-    return el;
-  });
 
-  // 블럭을 판 가운데에 가로로 늘어놓는다
-  function layout() {
-    const size = blockSize();
-    const gap = Math.min(24, size * 0.25);
-    const totalWidth = size * BLOCKS.length + gap * (BLOCKS.length - 1);
-    const startX = (board.clientWidth - totalWidth) / 2;
-    const y = (board.clientHeight - size) / 2;
-
-    elements.forEach((el, i) => {
-      el.style.setProperty('--block-w', size + 'px');
-      place(el, startX + i * (size + gap), y);
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+    const dist = S * 0.9;
+    requestAnimationFrame(() => {
+      el.style.transform = 'translate(' + Math.cos(angle) * dist + 'px,' +
+                                          Math.sin(angle) * dist + 'px)';
+      el.style.opacity = '0';
     });
+    setTimeout(() => el.remove(), 600);
+
+    actions += 1;
+    countEl.textContent = actions;
   }
 
-  // 판 안으로 위치를 가둔 뒤 배치
-  function place(el, x, y) {
-    const maxX = board.clientWidth - el.offsetWidth;
-    const maxY = board.clientHeight - el.offsetHeight;
-    el.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
-    el.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
-  }
+  /* ---------- 입력 ---------- */
 
-  elements.forEach((el) => {
-    let pointerId = null;
-    let offsetX = 0;
-    let offsetY = 0;
+  const findGroup = (el) => groups.find((g) => g.el.contains(el));
 
-    el.addEventListener('pointerdown', (e) => {
-      pointerId = e.pointerId;
-      const rect = el.getBoundingClientRect();
-      offsetX = e.clientX - rect.left;
-      offsetY = e.clientY - rect.top;
-      el.style.zIndex = ++topZ;
-      el.classList.add('is-dragging');
-      el.setPointerCapture(pointerId);
-    });
+  board.addEventListener('pointerdown', (e) => {
+    const blockEl = e.target.closest('.block');
+    if (!blockEl) return;
+    const g = findGroup(blockEl);
+    if (!g) return;
 
-    el.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== pointerId) return;
-      const rect = board.getBoundingClientRect();
-      place(el, e.clientX - rect.left - offsetX, e.clientY - rect.top - offsetY);
-    });
+    const b = g.blocks.find((x) => x.el === blockEl);
+    const startX = e.clientX - g.x;
+    const startY = e.clientY - g.y;
+    let moved = 0;
 
-    const end = (e) => {
-      if (e.pointerId !== pointerId) return;
-      el.classList.remove('is-dragging');
-      el.releasePointerCapture(pointerId);
-      pointerId = null;
+    g.el.classList.add('is-dragging');
+    try { blockEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
+
+    const move = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      const px = g.x;
+      const py = g.y;
+      g.x = ev.clientX - startX;
+      g.y = ev.clientY - startY;
+      clamp(g);
+      render(g);
+      moved += Math.hypot(g.x - px, g.y - py);
     };
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
+
+    const up = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      blockEl.removeEventListener('pointermove', move);
+      blockEl.removeEventListener('pointerup', up);
+      blockEl.removeEventListener('pointercancel', up);
+      g.el.classList.remove('is-dragging');
+
+      if (moved < CLICK_SLOP) {
+        if (b.type === 'clicker') emitAction(g, b);
+        return;
+      }
+      trySnap(g);
+    };
+
+    blockEl.addEventListener('pointermove', move);
+    blockEl.addEventListener('pointerup', up);
+    blockEl.addEventListener('pointercancel', up);
   });
+
+  board.addEventListener('dblclick', (e) => {
+    const blockEl = e.target.closest('.block');
+    if (!blockEl) return;
+    const g = findGroup(blockEl);
+    if (g) explode(g);
+  });
+
+  /* ---------- 배치 ---------- */
+
+  function blockSize() {
+    const byWidth = (board.clientWidth - 24 * (START.length + 1)) / START.length;
+    const byHeight = board.clientHeight * 0.4;
+    return Math.max(64, Math.min(byWidth, byHeight, 120));
+  }
+
+  // 낱개 블럭 5개를 판 가운데에 가로로 늘어놓는다
+  function layout() {
+    flying = [];
+    groups.slice().forEach(dropGroup);
+    S = blockSize();
+
+    const gap = Math.min(24, S * 0.25);
+    const total = S * START.length + gap * (START.length - 1);
+    const x0 = (board.clientWidth - total) / 2;
+    const y = (board.clientHeight - S) / 2;
+
+    START.forEach((type, i) => {
+      const g = makeGroup(x0 + i * (S + gap), y);
+      addBlock(g, type, 0, 0);
+      clamp(g);
+      render(g);
+    });
+  }
 
   document.getElementById('reset').addEventListener('click', layout);
 
-  // 첫 배치 이후에는 판 크기가 바뀌어도 옮겨둔 블럭을 흩뜨리지 않고 안쪽으로만 붙잡는다
+  // 첫 배치 이후에는 판 크기가 바뀌어도 조립해 둔 걸 흩뜨리지 않고 안쪽으로만 붙잡는다
   let laidOut = false;
   new ResizeObserver(() => {
     if (!board.clientWidth) return;
     if (!laidOut) { laidOut = true; layout(); return; }
-    elements.forEach((el) => place(el, el.offsetLeft, el.offsetTop));
+    groups.forEach((g) => { clamp(g); render(g); });
   }).observe(board);
 })();
 </script>
