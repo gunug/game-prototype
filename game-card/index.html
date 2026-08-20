@@ -9,10 +9,69 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets-ds.css">
 <style>
-  .hero{margin-bottom:var(--s6);}
+  .hero{margin-bottom:var(--s5);}
   .hero h1{font-size:36px;line-height:1.1;margin:0;}
   .hero p{color:var(--muted);font-size:16px;margin-top:var(--s3);}
-  .actions{margin-top:var(--s5);display:flex;gap:var(--s3);flex-wrap:wrap;}
+  .actions{margin-bottom:var(--s5);display:flex;gap:var(--s3);flex-wrap:wrap;}
+
+  /* 카드가 놓이는 판 */
+  .board{
+    position:relative;
+    height:min(70vh,560px);
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-lg);
+    box-shadow:var(--sh-sm);
+    overflow:hidden;
+    touch-action:none;
+  }
+
+  /* 1 : 1.6 비율 카드 */
+  .card-piece{
+    position:absolute;
+    width:var(--card-w);
+    aspect-ratio:1 / 1.6;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:var(--s3);
+    background:linear-gradient(160deg,var(--surface-soft),#191914);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-md);
+    box-shadow:var(--sh-md);
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+    transition:box-shadow .15s,border-color .15s,transform .15s;
+  }
+  .card-piece:hover{border-color:var(--brand-yellow-deep);}
+  .card-piece.is-dragging{
+    cursor:grabbing;
+    border-color:var(--brand-yellow);
+    box-shadow:var(--sh-lg);
+    transform:scale(1.04) rotate(-1deg);
+    transition:none;
+  }
+  .card-piece .rank{
+    color:var(--brand-yellow);
+    font-size:18px;
+    font-weight:700;
+    line-height:1;
+  }
+  .card-piece .rank.bottom{align-self:flex-end;transform:rotate(180deg);}
+  .card-piece .pip{
+    position:absolute;
+    inset:0;
+    display:grid;
+    place-items:center;
+    font-size:34px;
+    pointer-events:none;
+  }
+
+  @media(max-width:560px){
+    .hero h1{font-size:28px;}
+    .board{height:min(64vh,460px);}
+  }
 </style>
 </head>
 <body>
@@ -20,15 +79,112 @@
     <header class="hero">
       <span class="eyebrow">Game Card</span>
       <h1>게임 카드</h1>
-      <p>카드 기반 프로토타입 작업 공간.</p>
+      <p>1 : 1.6 비율 카드 5장. 드래그해서 옮기기.</p>
     </header>
 
-    <section class="card">
-      <p>여기에 프로토타입 구현.</p>
-      <div class="actions">
-        <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
-      </div>
-    </section>
+    <div class="actions">
+      <button class="btn btn-primary" type="button" id="reset">카드 정렬</button>
+      <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
+    </div>
+
+    <div class="board" id="board"></div>
   </main>
+
+<script>
+(() => {
+  const CARDS = [
+    { rank: 'A', pip: '♠' },
+    { rank: 'K', pip: '♥' },
+    { rank: 'Q', pip: '♦' },
+    { rank: 'J', pip: '♣' },
+    { rank: '10', pip: '★' },
+  ];
+  const CARD_RATIO = 1.6;
+
+  const board = document.getElementById('board');
+  let topZ = 1;
+
+  const cardWidth = () => {
+    const byWidth = (board.clientWidth - 24 * (CARDS.length + 1)) / CARDS.length;
+    const byHeight = (board.clientHeight * 0.7) / CARD_RATIO;
+    return Math.max(72, Math.min(byWidth, byHeight, 160));
+  };
+
+  const elements = CARDS.map(({ rank, pip }) => {
+    const el = document.createElement('div');
+    el.className = 'card-piece';
+    el.innerHTML =
+      `<span class="rank">${rank}${pip}</span>` +
+      `<span class="pip">${pip}</span>` +
+      `<span class="rank bottom">${rank}${pip}</span>`;
+    board.appendChild(el);
+    return el;
+  });
+
+  // 카드를 판 가운데에 가로로 늘어놓는다
+  function layout() {
+    const w = cardWidth();
+    const h = w * CARD_RATIO;
+    const gap = Math.min(24, w * 0.2);
+    const totalWidth = w * CARDS.length + gap * (CARDS.length - 1);
+    const startX = (board.clientWidth - totalWidth) / 2;
+    const y = (board.clientHeight - h) / 2;
+
+    elements.forEach((el, i) => {
+      el.style.setProperty('--card-w', w + 'px');
+      place(el, startX + i * (w + gap), y);
+    });
+  }
+
+  // 판 안으로 위치를 가둔 뒤 배치
+  function place(el, x, y) {
+    const maxX = board.clientWidth - el.offsetWidth;
+    const maxY = board.clientHeight - el.offsetHeight;
+    el.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+    el.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+  }
+
+  elements.forEach((el) => {
+    let pointerId = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      pointerId = e.pointerId;
+      const rect = el.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      el.style.zIndex = ++topZ;
+      el.classList.add('is-dragging');
+      el.setPointerCapture(pointerId);
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== pointerId) return;
+      const rect = board.getBoundingClientRect();
+      place(el, e.clientX - rect.left - offsetX, e.clientY - rect.top - offsetY);
+    });
+
+    const end = (e) => {
+      if (e.pointerId !== pointerId) return;
+      el.classList.remove('is-dragging');
+      el.releasePointerCapture(pointerId);
+      pointerId = null;
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  });
+
+  document.getElementById('reset').addEventListener('click', layout);
+
+  // 첫 배치 이후에는 판 크기가 바뀌어도 옮겨둔 카드를 흩뜨리지 않고 안쪽으로만 붙잡는다
+  let laidOut = false;
+  new ResizeObserver(() => {
+    if (!board.clientWidth) return;
+    if (!laidOut) { laidOut = true; layout(); return; }
+    elements.forEach((el) => place(el, el.offsetLeft, el.offsetTop));
+  }).observe(board);
+})();
+</script>
 </body>
 </html>
