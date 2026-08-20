@@ -14,12 +14,6 @@
   .hero p{color:var(--muted);font-size:16px;margin-top:var(--s3);}
 
   .bar{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-bottom:var(--s4);}
-  .counter{display:inline-flex;align-items:center;gap:8px;margin-left:auto;
-    background:var(--surface);border:1px solid var(--hairline);
-    border-radius:var(--r-pill);padding:6px 16px;color:var(--ink);
-    font-size:14px;font-weight:600;}
-  .counter .dot{width:14px;height:14px;border-radius:50%;
-    border:2px solid var(--brand-yellow);background:rgba(255,212,0,.15);}
 
   /* 블럭이 놓이는 판 */
   .board{
@@ -66,17 +60,6 @@
     letter-spacing:.06em;text-transform:uppercase;
   }
 
-  /* 자원 — 블럭 1/3 크기의 동그란 프레임 */
-  .resource{
-    position:absolute;
-    border-radius:50%;
-    border:2px solid var(--brand-yellow);
-    background:rgba(255,212,0,.15);
-    box-shadow:0 0 12px rgba(255,212,0,.35);
-    pointer-events:none;
-    transition:transform .55s cubic-bezier(.22,.9,.3,1),opacity .55s ease-out;
-  }
-
   @media(max-width:560px){
     .hero h1{font-size:28px;}
     .board{height:min(64vh,460px);}
@@ -90,13 +73,12 @@
     <header class="hero">
       <span class="eyebrow">Game Block</span>
       <h1>게임 블럭</h1>
-      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해. clicker를 누르면 action이 나온다.</p>
+      <p>드래그해서 4방향으로 붙이고, 더블클릭으로 분해.</p>
     </header>
 
     <div class="bar">
       <button class="btn btn-primary" type="button" id="reset">블럭 정렬</button>
       <a class="btn btn-secondary" href="../index.html">← 목록으로</a>
-      <span class="counter"><span class="dot"></span>action <span id="count">0</span></span>
     </div>
 
     <div class="board" id="board"></div>
@@ -104,7 +86,7 @@
 
 <script>
 (() => {
-  // 블럭 종류 — 지금은 clicker만 동작하고 나머지는 겉모습만 있다
+  // 블럭 종류 — 아직 동작은 없고 겉모습만 구분한다
   const TYPES = {
     pusher:   { icon: '⏩', tone: '#FFD400' },
     timer:    { icon: '⏱', tone: '#3A78C2' },
@@ -115,16 +97,14 @@
   const START = ['clicker', 'pusher', 'timer', 'loader', 'unloader'];
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
-  const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그가 아니라 클릭
+  const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
 
   const board = document.getElementById('board');
-  const countEl = document.getElementById('count');
 
   let S = 96;               // 블럭 한 변 (px)
   let groups = [];
   let flying = [];          // 분해되어 날아가는 중인 뭉치
   let raf = null;
-  let actions = 0;
 
   /* ---------- 뭉치·블럭 만들기 ---------- */
 
@@ -291,32 +271,6 @@
     raf = flying.length ? requestAnimationFrame(step) : null;
   }
 
-  /* ---------- 자원 ---------- */
-
-  // clicker는 누를 때마다 action을 하나 배출한다
-  function emitAction(g, b) {
-    const size = S / 3;
-    const el = document.createElement('div');
-    el.className = 'resource';
-    el.style.width = size + 'px';
-    el.style.height = size + 'px';
-    el.style.left = g.x + b.gx * S + (S - size) / 2 + 'px';
-    el.style.top = g.y + b.gy * S + (S - size) / 2 + 'px';
-    board.appendChild(el);
-
-    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
-    const dist = S * 0.9;
-    requestAnimationFrame(() => {
-      el.style.transform = 'translate(' + Math.cos(angle) * dist + 'px,' +
-                                          Math.sin(angle) * dist + 'px)';
-      el.style.opacity = '0';
-    });
-    setTimeout(() => el.remove(), 600);
-
-    actions += 1;
-    countEl.textContent = actions;
-  }
-
   /* ---------- 입력 ---------- */
 
   const findGroup = (el) => groups.find((g) => g.el.contains(el));
@@ -327,7 +281,6 @@
     const g = findGroup(blockEl);
     if (!g) return;
 
-    const b = g.blocks.find((x) => x.el === blockEl);
     const startX = e.clientX - g.x;
     const startY = e.clientY - g.y;
     let moved = 0;
@@ -353,11 +306,7 @@
       blockEl.removeEventListener('pointercancel', up);
       g.el.classList.remove('is-dragging');
 
-      if (moved < CLICK_SLOP) {
-        if (b.type === 'clicker') emitAction(g, b);
-        return;
-      }
-      trySnap(g);
+      if (moved >= CLICK_SLOP) trySnap(g);
     };
 
     blockEl.addEventListener('pointermove', move);
