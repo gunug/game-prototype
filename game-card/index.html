@@ -327,6 +327,7 @@
   const RECEIVERS = ['adder', 'collector'];   // 칩을 받는 블럭
   const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
   const DELIVER_MS = 260;
+  const DELIVER_STOP = 0.28;   // 받는 블럭 중앙에서 이만큼(블럭 한 변 기준) 못 미쳐 멈춘다
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
 
   const board = document.getElementById('board');
@@ -870,10 +871,17 @@
   // 배송되는 모습 — 칩이 생겨서 옆 블럭으로 건너간다
   function flyChip(from, to, value) {
     const d = chipSize();
-    const ax = from.g.x + from.gx * S + (S - d) / 2;
-    const ay = from.g.y + from.gy * S + (S - d) / 2;
-    const bx = to.g.x + to.gx * S + (S - d) / 2;
-    const by = to.g.y + to.gy * S + (S - d) / 2;
+    const [fx, fy] = blockCenter(from);
+    const [tx, ty] = blockCenter(to);
+    const len = Math.hypot(tx - fx, ty - fy) || 1;
+    const ux = (tx - fx) / len;
+    const uy = (ty - fy) / len;
+
+    // 보내는 블럭의 외곽에서 출발해, 받는 블럭 중앙에 닿기 전에 멈춘다
+    const ax = fx + ux * (S / 2) - d / 2;
+    const ay = fy + uy * (S / 2) - d / 2;
+    const bx = tx - ux * (S * DELIVER_STOP) - d / 2;
+    const by = ty - uy * (S * DELIVER_STOP) - d / 2;
 
     const el = document.createElement('div');
     el.className = 'chip is-flying';
