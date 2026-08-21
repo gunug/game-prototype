@@ -712,7 +712,7 @@
   }
 
   // 행동이 블럭에 도착 — 반응하는 블럭만 깜빡이고, 전달은 종류와 무관하게 이어진다
-  function deliver(b, uid) {
+  function deliver(b, uid, sender) {
     if (!b.el.isConnected) return;
     if (!markSeen(b, uid)) return;
 
@@ -724,7 +724,7 @@
       deepSound(b);
     } else if (b.type === 'maker') {
       blink(b);
-      generate(b, CHIP_KIND, CHIP_VALUE);
+      generate(b, CHIP_KIND, CHIP_VALUE, sender);   // 역방향(행동이 온 쪽)으로는 안 보낸다
     } else if (b.type === 'collector') {
       blink(b);
       pullChips(b);
@@ -739,7 +739,7 @@
 
   function spread(b, uid) {
     if (!b.el.isConnected) return;
-    neighbors(b).forEach((n) => deliver(n, uid));
+    neighbors(b).forEach((n) => deliver(n, uid, b));
   }
 
   // counter — 행동을 받을 때마다 세다가, 카운트 리미트에 닿으면 0으로 돌리고 반응해 행동을 넘긴다
@@ -832,8 +832,8 @@
   }
 
   // 생산 — 새 칩을 만들어, 받는 블럭이 인접해 있으면 배송하고 없으면 배출한다
-  function generate(b, kind, value) {
-    const targets = takers(b);
+  function generate(b, kind, value, back) {
+    const targets = takers(b, back);
     if (!targets.length) {
       ejectChip(b, kind, value, (Math.random() - 0.5) * 1.6);
       return null;
@@ -848,12 +848,13 @@
     return to;
   }
 
-  // 상, 우, 하, 좌 순으로 붙어 있는 '받는 블럭'
-  function takers(b) {
+  // 상, 우, 하, 좌 순으로 붙어 있는 '받는 블럭'.
+  // back(행동이 건너온 쪽 = 역방향)은 배송 대상에서 뺀다.
+  function takers(b, back) {
     const found = [];
     DELIVER_DIRS.forEach((d) => {
       const n = b.g.blocks.find((o) => o.gx === b.gx + d[0] && o.gy === b.gy + d[1]);
-      if (n && RECEIVERS.indexOf(n.type) !== -1) found.push(n);
+      if (n && n !== back && RECEIVERS.indexOf(n.type) !== -1) found.push(n);
     });
     return found;
   }
