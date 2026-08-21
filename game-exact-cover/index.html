@@ -15,6 +15,9 @@
   .board{
     position:fixed;
     inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
     background:var(--canvas);
     overflow:hidden;
     touch-action:none;
@@ -23,13 +26,15 @@
     -webkit-tap-highlight-color:transparent;
   }
 
-  /* 격자형 타일맵 — 각 격자 100px * 100px */
+  /* 격자형 타일맵 — 10 x 10, 항상 1:1. 칸 크기는 화면에 맞춰 결정된다 */
   .grid{
-    position:absolute;
-    left:0; top:0;
     display:grid;
-    grid-auto-rows:var(--cell);
     grid-template-columns:repeat(var(--cols), var(--cell));
+    grid-template-rows:repeat(var(--rows), var(--cell));
+    border:1px solid var(--hairline);
+    border-radius:var(--r-sm);
+    overflow:hidden;
+    box-shadow:var(--sh-lg);
   }
   .tile{
     width:var(--cell);
@@ -44,7 +49,7 @@
     position:fixed;
     z-index:10;
     left:calc(env(safe-area-inset-left,0px) + var(--s4));
-    bottom:calc(env(safe-area-inset-bottom,0px) + var(--s4));
+    bottom:calc(env(safe-area-inset-bottom,0px) + var(--s3));
     display:flex;
     align-items:center;
     gap:var(--s2);
@@ -73,68 +78,65 @@
 (() => {
   'use strict';
 
-  const CELL = 100;                 // 각 격자는 100px * 100px
+  const COLS = 10, ROWS = 10;      // 격자는 가로 10칸, 세로 10칸
+  const MARGIN = 16;               // 판 바깥 여백
+  const HUD_H  = 56;               // 하단 HUD가 차지하는 높이
+
   const PALETTE = [
     '#FFD400', '#FF7A59', '#4FC3F7', '#7ED957',
     '#C792EA', '#FF9BD2', '#5BE3C0', '#F2994A'
   ];
 
-  const board  = document.getElementById('board');
   const grid   = document.getElementById('grid');
+  const board  = document.getElementById('board');
   const swatch = document.getElementById('swatch');
 
   /** 칠해진 상태: "col,row" -> color */
   const painted = new Map();
 
-  let cols = 0, rows = 0;
+  let cell = 0;
   let colorIdx = -1;
   let dragColor = null;
-  let dragging = false;
 
   /* ---------- 타일맵 구성 ---------- */
 
   function buildGrid() {
-    const nextCols = Math.ceil(window.innerWidth  / CELL);
-    const nextRows = Math.ceil(window.innerHeight / CELL);
-    if (nextCols === cols && nextRows === rows) return;
-
-    cols = nextCols;
-    rows = nextRows;
-
-    grid.style.setProperty('--cell', CELL + 'px');
-    grid.style.setProperty('--cols', cols);
+    grid.style.setProperty('--cols', COLS);
+    grid.style.setProperty('--rows', ROWS);
 
     const frag = document.createDocumentFragment();
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const t = document.createElement('div');
-        t.className = 'tile';
-        t.dataset.c = c;
-        t.dataset.r = r;
-        frag.appendChild(t);
-      }
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      frag.appendChild(t);
     }
     grid.replaceChildren(frag);
-    repaint();
+  }
+
+  /** 1:1 비율을 유지한 채 디바이스 화면에 맞춰 칸 크기를 다시 계산한다 */
+  function resize() {
+    const availW = window.innerWidth  - MARGIN * 2;
+    const availH = window.innerHeight - MARGIN * 2 - HUD_H;
+    const side = Math.max(Math.min(availW, availH), COLS); // 최소 1px/칸
+    cell = Math.floor(side / COLS);
+    grid.style.setProperty('--cell', cell + 'px');
+    board.style.paddingBottom = HUD_H + 'px';
   }
 
   function tileAt(c, r) {
-    if (c < 0 || r < 0 || c >= cols || r >= rows) return null;
-    return grid.children[r * cols + c] || null;
-  }
-
-  function repaint() {
-    for (const [key, color] of painted) {
-      const [c, r] = key.split(',').map(Number);
-      const t = tileAt(c, r);
-      if (t) { t.style.backgroundColor = color; t.classList.add('on'); }
-    }
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+    return grid.children[r * COLS + c] || null;
   }
 
   /* ---------- 칠하기 ---------- */
 
+  /** 화면 좌표 -> 격자 좌표. 판 밖이면 null */
   function cellFromPoint(x, y) {
-    return { c: Math.floor(x / CELL), r: Math.floor(y / CELL) };
+    const rect = grid.getBoundingClientRect();
+    const c = Math.floor((x - rect.left) / cell);
+    const r = Math.floor((y - rect.top)  / cell);
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+    return { c, r };
   }
 
   function paint(c, r, color) {
@@ -169,19 +171,21 @@
 
   /* ---------- 드래그 ---------- */
 
+  let dragging = false;
   let last = null;
-  let start = null;       // 드래그가 시작된 칸
+  let start = null;        // 드래그가 시작된 칸
   let startWasPainted = false;
-  let moved = false;      // 다른 칸으로 넘어간 적이 있는가
+  let moved = false;       // 다른 칸으로 넘어간 적이 있는가
 
   board.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if (e.target.closest('.hud')) return;
 
-    last = cellFromPoint(e.clientX, e.clientY);
+    const at = cellFromPoint(e.clientX, e.clientY);
+    if (!at) return;                       // 판 밖에서 시작한 드래그는 무시
 
     // 색이 있는 칸에서 시작하면 그 색이 이어지고, 빈 칸이면 새 색을 배정한다
-    const existing = painted.get(last.c + ',' + last.r);
+    const existing = painted.get(at.c + ',' + at.r);
     if (existing) {
       dragColor = existing;
     } else {
@@ -190,12 +194,11 @@
     }
     swatch.style.backgroundColor = dragColor;
 
-    start = last;
+    last = start = at;
     startWasPainted = !!existing;
     moved = false;
-
     dragging = true;
-    paint(last.c, last.r, dragColor);
+    paint(at.c, at.r, dragColor);
 
     board.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -204,6 +207,7 @@
   board.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     const cur = cellFromPoint(e.clientX, e.clientY);
+    if (!cur) return;                      // 판 밖으로 나간 동안은 칠하지 않는다
     if (cur.c === last.c && cur.r === last.r) return;
     moved = true;
     paintLine(last, cur, dragColor);
@@ -220,9 +224,9 @@
     start = null;
     startWasPainted = false;
   }
-  board.addEventListener('pointerup', () => endDrag(true));
+  board.addEventListener('pointerup',     () => endDrag(true));
   board.addEventListener('pointercancel', () => endDrag(false));
-  window.addEventListener('blur', () => endDrag(false));
+  window.addEventListener('blur',         () => endDrag(false));
 
   /* ---------- HUD ---------- */
 
@@ -234,8 +238,10 @@
     }
   });
 
-  window.addEventListener('resize', buildGrid);
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', resize);
   buildGrid();
+  resize();
   swatch.style.backgroundColor = PALETTE[0];
 })();
 </script>
