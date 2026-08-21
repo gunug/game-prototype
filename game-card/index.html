@@ -35,6 +35,8 @@
     bottom:0;
     display:flex;
     flex-direction:column;
+    flex-wrap:wrap;
+    align-content:flex-start;
     gap:8px;
     padding:10px 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
     padding-left:calc(env(safe-area-inset-left, 0px) + 8px);
@@ -47,6 +49,13 @@
     touch-action:pan-y;
   }
   .drawer::-webkit-scrollbar{display:none;}
+  .drawer .slot{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    flex:0 0 auto;
+  }
   .drawer .block{
     position:relative;
     left:auto;
@@ -58,6 +67,15 @@
   }
   .drawer .block .name{display:none;}
   .drawer .block .icon{font-size:calc(var(--half,60px) * .42);}
+  .drawer .label{
+    max-width:calc(var(--half,60px) + 18px);
+    color:var(--muted);
+    font-size:10px;
+    font-weight:600;
+    line-height:1.15;
+    text-align:center;
+    word-break:break-all;
+  }
   /* 여기에 떨구면 지워진다 */
   .drawer.is-target{background:rgba(210,74,74,.35);border-right-color:var(--error);}
 
@@ -1529,19 +1547,33 @@
   function buildDrawer() {
     drawer.innerHTML = '';
     Object.keys(TYPES).forEach((type) => {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+
       const el = document.createElement('div');
       el.className = 'block';
       el.dataset.type = type;
       el.style.setProperty('--tone', TYPES[type].tone);
       el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>';
-      drawer.appendChild(el);
+
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = type;
+
+      slot.appendChild(el);
+      slot.appendChild(label);
+      drawer.appendChild(slot);
     });
     sizeDrawer();
   }
 
-  // 서랍 블럭은 본래 크기의 1/2
+  // 서랍 블럭은 본래 크기의 1/2. 다만 종류가 많아 화면 높이를 넘으면 그만큼 줄인다.
   function sizeDrawer() {
-    drawer.style.setProperty('--half', Math.round(S / 2) + 'px');
+    const n = Object.keys(TYPES).length;
+    const perItem = 21;                       // 이름표 + 사이 간격
+    const room = Math.floor((board.clientHeight - 24) / n) - perItem;
+    const size = Math.max(24, Math.min(Math.round(S / 2), room));
+    drawer.style.setProperty('--half', size + 'px');
   }
 
   // 초기화 — 저장된 상태를 지우고 처음 배치로 되돌린다
