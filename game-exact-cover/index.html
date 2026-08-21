@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>정확한 커버 — Game Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets-ds.css">
+<style>
+  html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
+
+  /* 뷰포트 전체가 게임 화면 */
+  .board{
+    position:fixed;
+    inset:0;
+    background:var(--canvas);
+    overflow:hidden;
+    touch-action:none;
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  /* 격자형 타일맵 — 각 격자 100px * 100px */
+  .grid{
+    position:absolute;
+    left:0; top:0;
+    display:grid;
+    grid-auto-rows:var(--cell);
+    grid-template-columns:repeat(var(--cols), var(--cell));
+  }
+  .tile{
+    width:var(--cell);
+    height:var(--cell);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+    background:transparent;
+    transition:background-color .08s linear;
+  }
+  .tile.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);}
+
+  .hud{
+    position:fixed;
+    z-index:10;
+    left:calc(env(safe-area-inset-left,0px) + var(--s4));
+    bottom:calc(env(safe-area-inset-bottom,0px) + var(--s4));
+    display:flex;
+    align-items:center;
+    gap:var(--s2);
+  }
+  .hud .swatch{
+    width:28px; height:28px;
+    border-radius:var(--r-sm);
+    border:1px solid var(--hairline);
+    box-shadow:var(--sh-sm);
+  }
+  .hud .home{text-decoration:none;}
+</style>
+</head>
+<body>
+  <div class="board" id="board">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="hud">
+    <a class="btn btn-secondary btn-sm home" href="../index.html">← 목록</a>
+    <button class="btn btn-secondary btn-sm" id="clear">지우기</button>
+    <span class="swatch" id="swatch"></span>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const CELL = 100;                 // 각 격자는 100px * 100px
+  const PALETTE = [
+    '#FFD400', '#FF7A59', '#4FC3F7', '#7ED957',
+    '#C792EA', '#FF9BD2', '#5BE3C0', '#F2994A'
+  ];
+
+  const board  = document.getElementById('board');
+  const grid   = document.getElementById('grid');
+  const swatch = document.getElementById('swatch');
+
+  /** 칠해진 상태: "col,row" -> color */
+  const painted = new Map();
+
+  let cols = 0, rows = 0;
+  let colorIdx = -1;
+  let dragColor = null;
+  let dragging = false;
+
+  /* ---------- 타일맵 구성 ---------- */
+
+  function buildGrid() {
+    const nextCols = Math.ceil(window.innerWidth  / CELL);
+    const nextRows = Math.ceil(window.innerHeight / CELL);
+    if (nextCols === cols && nextRows === rows) return;
+
+    cols = nextCols;
+    rows = nextRows;
+
+    grid.style.setProperty('--cell', CELL + 'px');
+    grid.style.setProperty('--cols', cols);
+
+    const frag = document.createDocumentFragment();
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const t = document.createElement('div');
+        t.className = 'tile';
+        t.dataset.c = c;
+        t.dataset.r = r;
+        frag.appendChild(t);
+      }
+    }
+    grid.replaceChildren(frag);
+    repaint();
+  }
+
+  function tileAt(c, r) {
+    if (c < 0 || r < 0 || c >= cols || r >= rows) return null;
+    return grid.children[r * cols + c] || null;
+  }
+
+  function repaint() {
+    for (const [key, color] of painted) {
+      const [c, r] = key.split(',').map(Number);
+      const t = tileAt(c, r);
+      if (t) { t.style.backgroundColor = color; t.classList.add('on'); }
+    }
+  }
+
+  /* ---------- 칠하기 ---------- */
+
+  function cellFromPoint(x, y) {
+    return { c: Math.floor(x / CELL), r: Math.floor(y / CELL) };
+  }
+
+  function paint(c, r, color) {
+    const t = tileAt(c, r);
+    if (!t) return;
+    painted.set(c + ',' + r, color);
+    t.style.backgroundColor = color;
+    t.classList.add('on');
+  }
+
+  /** 포인터가 빨리 움직여 격자를 건너뛰어도 빈칸이 남지 않도록 직선 보간 */
+  function paintLine(from, to, color) {
+    const dc = to.c - from.c, dr = to.r - from.r;
+    const steps = Math.max(Math.abs(dc), Math.abs(dr));
+    if (steps === 0) { paint(to.c, to.r, color); return; }
+    for (let i = 1; i <= steps; i++) {
+      paint(
+        from.c + Math.round(dc * i / steps),
+        from.r + Math.round(dr * i / steps),
+        color
+      );
+    }
+  }
+
+  /* ---------- 드래그 ---------- */
+
+  let last = null;
+
+  board.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if (e.target.closest('.hud')) return;
+
+    // 한번 드래그를 시작하면 하나의 색이 배정된다
+    colorIdx = (colorIdx + 1) % PALETTE.length;
+    dragColor = PALETTE[colorIdx];
+    swatch.style.backgroundColor = dragColor;
+
+    dragging = true;
+    last = cellFromPoint(e.clientX, e.clientY);
+    paint(last.c, last.r, dragColor);
+
+    board.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  board.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const cur = cellFromPoint(e.clientX, e.clientY);
+    if (cur.c === last.c && cur.r === last.r) return;
+    paintLine(last, cur, dragColor);
+    last = cur;
+  });
+
+  function endDrag() {
+    dragging = false;
+    last = null;
+  }
+  board.addEventListener('pointerup', endDrag);
+  board.addEventListener('pointercancel', endDrag);
+  window.addEventListener('blur', endDrag);
+
+  /* ---------- HUD ---------- */
+
+  document.getElementById('clear').addEventListener('click', () => {
+    painted.clear();
+    for (const t of grid.children) {
+      t.style.backgroundColor = '';
+      t.classList.remove('on');
+    }
+  });
+
+  window.addEventListener('resize', buildGrid);
+  buildGrid();
+  swatch.style.backgroundColor = PALETTE[0];
+})();
+</script>
+</body>
+</html>
