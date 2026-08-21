@@ -66,7 +66,8 @@ class Frag extends El {
 }
 
 const nodes = {};
-for (const id of ['grid', 'board', 'preview', 'banner', 'stages', 'reset']) {
+for (const id of ['grid', 'board', 'preview', 'banner', 'stages', 'reset',
+                  'outline', 'outline-path']) {
   nodes[id] = new El('div');
   nodes[id].attrs.id = id;
 }
@@ -108,10 +109,11 @@ try {
 
 const grid = nodes.grid;
 const stages = nodes.stages;
+const tiles = grid.children.filter((t) => t.classList.contains('tile'));
 
-check('격자 100칸', grid.children.length === 100, `${grid.children.length}칸`);
+check('격자 100칸', tiles.length === 100, `${tiles.length}칸`);
 
-const fieldTiles = grid.children.filter((t) => t.classList.contains('field'));
+const fieldTiles = tiles.filter((t) => t.classList.contains('field'));
 check('활성 칸 있음', fieldTiles.length > 0, `${fieldTiles.length}칸`);
 
 check('스테이지 목록 채워짐', stages.children.length > 0, `${stages.children.length}개`);
@@ -130,9 +132,12 @@ check('난이도 1~100', diffs.every((d) => d >= 1 && d <= 100));
 
 check('모양 미리보기', nodes.preview.children.length > 0, `${nodes.preview.children.length}칸`);
 
+const d = nodes['outline-path'].getAttribute('d') || '';
+check('필드 외곽선', d.startsWith('M') && d.length > 20, `${d.length}자`);
+
 // 활성 칸 하나를 실제로 눌러 칠해지는지
 const cell = 80;   // getBoundingClientRect 가 0,0 이고 칸은 80px 로 잡힌다
-const first = grid.children.findIndex((t) => t.classList.contains('field'));
+const first = tiles.findIndex((t) => t.classList.contains('field'));
 const fc = first % 10, fr = Math.floor(first / 10);
 nodes.board.dispatch('pointerdown', {
   button: 0, pointerType: 'mouse', pointerId: 1,
@@ -140,8 +145,36 @@ nodes.board.dispatch('pointerdown', {
   target: { closest: () => null }, preventDefault() {},
 });
 nodes.board.dispatch('pointerup', {});
-check('클릭하면 칠해짐', !!grid.children[first].style.backgroundColor,
-  grid.children[first].style.backgroundColor || '색 없음');
+check('클릭하면 칠해짐', !!tiles[first].style.backgroundColor,
+  tiles[first].style.backgroundColor || '색 없음');
+
+// 목표 모양(스테이지 1은 2x2 정사각형)을 통째로 칠하면 유리 질감이 붙어야 한다
+const isField = (c, r) =>
+  c >= 0 && r >= 0 && c < 10 && r < 10 && tiles[r * 10 + c].classList.contains('field');
+let block = null;
+for (let r = 0; r < 9 && !block; r++)
+  for (let c = 0; c < 9 && !block; c++)
+    if (isField(c, r) && isField(c + 1, r) && isField(c, r + 1) && isField(c + 1, r + 1))
+      block = [c, r];
+
+if (!block) {
+  check('2x2 블록 찾음', false);
+} else {
+  const [bc, br] = block;
+  const at = (c, r) => ({ clientX: c * cell + cell / 2, clientY: r * cell + cell / 2 });
+  nodes.board.dispatch('pointerdown', {
+    button: 0, pointerType: 'mouse', pointerId: 2, ...at(bc, br),
+    target: { closest: () => null }, preventDefault() {},
+  });
+  nodes.board.dispatch('pointermove', at(bc + 1, br));
+  nodes.board.dispatch('pointermove', at(bc + 1, br + 1));
+  nodes.board.dispatch('pointermove', at(bc, br + 1));
+  nodes.board.dispatch('pointerup', {});
+
+  const marked = [[bc, br], [bc + 1, br], [bc, br + 1], [bc + 1, br + 1]]
+    .filter(([c, r]) => tiles[r * 10 + c].classList.contains('match'));
+  check('모양 일치하면 유리 질감', marked.length === 4, `${marked.length}/4칸`);
+}
 
 if (fails.length) {
   console.log(`\n${fails.length}건 실패`);

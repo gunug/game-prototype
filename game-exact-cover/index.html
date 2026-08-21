@@ -111,9 +111,26 @@
     touch-action:none;
   }
   .grid{
+    position:relative;
     display:grid;
     grid-template-columns:repeat(var(--cols), var(--cell));
     grid-template-rows:repeat(var(--rows), var(--cell));
+  }
+
+  /* 필드 바깥 경계선. 칸마다 그리면 모서리가 겹쳐서 한 겹으로 얹는다 */
+  .outline{
+    position:absolute;
+    inset:0;
+    overflow:visible;
+    pointer-events:none;
+  }
+  .outline path{
+    fill:none;
+    stroke:rgba(255,255,255,.92);
+    stroke-width:.045;
+    stroke-linecap:square;
+    filter:drop-shadow(0 0 2px rgba(255,255,255,.9))
+           drop-shadow(0 0 7px rgba(255,255,255,.45));
   }
   .tile{
     width:var(--cell);
@@ -125,6 +142,20 @@
   .tile.off{box-shadow:inset 0 0 0 1px rgba(51,51,43,.35);}
   .tile.field{box-shadow:inset 0 0 0 1px var(--hairline);background:var(--surface);}
   .tile.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);}
+
+  /* 칠해야 할 모양과 일치하는 칠에만 얹는 유리 질감 */
+  .tile.match{
+    background-image:
+      repeating-linear-gradient(135deg,
+        rgba(255,255,255,.30) 0 2px,
+        rgba(255,255,255,.10) 2px 5px,
+        rgba(255,255,255,0)   5px 10px),
+      linear-gradient(150deg,
+        rgba(255,255,255,.42) 0%,
+        rgba(255,255,255,.10) 45%,
+        rgba(255,255,255,0)   70%);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
+  }
 
   .banner{
     position:absolute;
@@ -178,7 +209,11 @@
     </aside>
 
     <main class="board" id="board">
-      <div class="grid" id="grid"></div>
+      <div class="grid" id="grid">
+        <svg class="outline" id="outline" preserveAspectRatio="none" aria-hidden="true">
+          <path id="outline-path"></path>
+        </svg>
+      </div>
       <div class="banner" id="banner">클리어!</div>
     </main>
   </div>
@@ -299,6 +334,8 @@
   /* ==================== 상태 ==================== */
 
   const grid      = document.getElementById('grid');
+  const outline   = document.getElementById('outline');
+  const outlinePath = document.getElementById('outline-path');
   const board     = document.getElementById('board');
   const preview   = document.getElementById('preview');
   const banner    = document.getElementById('banner');
@@ -317,21 +354,42 @@
 
   /* ==================== 화면 ==================== */
 
+  /** 칸 엘리먼트. 격자 안에 경계선 svg 도 들어 있어 children 으로 세지 않는다 */
+  const tiles = [];
+
   function tileAt(c, r) {
     if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
-    return grid.children[r * COLS + c] || null;
+    return tiles[r * COLS + c] || null;
   }
 
   function buildGrid() {
     grid.style.setProperty('--cols', COLS);
     grid.style.setProperty('--rows', ROWS);
+    outline.setAttribute('viewBox', `0 0 ${COLS} ${ROWS}`);
+
+    tiles.length = 0;
     const frag = document.createDocumentFragment();
     for (let i = 0; i < COLS * ROWS; i++) {
       const t = document.createElement('div');
       t.className = 'tile';
+      tiles.push(t);
       frag.appendChild(t);
     }
     grid.replaceChildren(frag);
+    grid.appendChild(outline);   // 칸 위에 한 겹으로 얹는다
+  }
+
+  /** 필드와 바깥이 맞닿는 변만 모아 한 줄기 path 로 그린다 */
+  function drawOutline() {
+    const seg = [];
+    for (const key of field) {
+      const [c, r] = un(key);
+      if (!field.has(k(c, r - 1))) seg.push(`M${c} ${r}H${c + 1}`);
+      if (!field.has(k(c, r + 1))) seg.push(`M${c} ${r + 1}H${c + 1}`);
+      if (!field.has(k(c - 1, r))) seg.push(`M${c} ${r}V${r + 1}`);
+      if (!field.has(k(c + 1, r))) seg.push(`M${c + 1} ${r}V${r + 1}`);
+    }
+    outlinePath.setAttribute('d', seg.join(''));
   }
 
   /** 1:1 비율을 유지한 채 남은 영역에 맞춰 칸 크기를 정한다 */
@@ -408,6 +466,7 @@
         t.className = 'tile ' + (field.has(k(c, r)) ? 'field' : 'off');
       }
     }
+    drawOutline();
     renderPreview(s.shape);
     renderStages();
     showBanner(false);
@@ -502,7 +561,20 @@
     return true;
   }
 
+  /** 칠해야 할 모양과 일치하는 칠에만 유리 질감을 얹는다 */
+  function markMatches() {
+    for (const t of tiles) t.classList.remove('match');
+    const seen = new Set();
+    for (const key of painted.keys()) {
+      if (seen.has(key)) continue;
+      const blob = blobAt(key, seen);
+      if (!targetKeys.has(shapeKey(blob))) continue;
+      for (const [c, r] of blob) tileAt(c, r).classList.add('match');
+    }
+  }
+
   function evaluate() {
+    markMatches();
     const ok = checkClear();
     showBanner(ok);
     if (ok && !cleared.has(STAGES[stageIdx].name)) {
