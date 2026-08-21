@@ -362,7 +362,7 @@
     g.el.appendChild(el);
     const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0,
                 solo: false, stored: 0, registered: null, regs: [], turn: 0,
-                count: 0, limit: 1, note: NOTE_DEFAULT, kit: KIT_DEFAULT };
+                count: 0, limit: 1, note: NOTE_DEFAULT, kit: KIT_DEFAULT, feeder: null };
     if (type === 'counter') buildCounter(b);
     if (type === 'beeper') buildBeeper(b);
     if (type === 'drummer') buildDrummer(b);
@@ -843,7 +843,7 @@
     // 등록은 배송 모션이 끝난 뒤에 이루어진다
     flyChip(b, to, value, () => {
       if (!to.el.isConnected) { ejectChip(b, kind, value, 0); return; }
-      receive(to, kind, value);
+      receive(to, kind, value, b);
     });
     return to;
   }
@@ -859,9 +859,10 @@
     return found;
   }
 
-  // 배송 — 칩은 곧바로 받는 블럭에 등록된다
-  function receive(b, kind, value) {
+  // 배송 — 칩이 받는 블럭에 등록된다. from은 칩을 보낸 블럭(있으면).
+  function receive(b, kind, value, from) {
     if (b.type === 'adder') {
+      b.feeder = from || null;      // 칩이 온 쪽 = 이 블럭 기준 역방향
       feedAdder(b, kind, value);
     } else if (b.type === 'collector') {
       b.registered = kind;
@@ -1025,10 +1026,13 @@
       el.style.transform = 'translateX(' + dx + 'px)';
     });
 
+    const back = b.feeder;          // 칩을 보내 준 쪽으로는 되돌려 보내지 않는다
+    b.feeder = null;
+
     if (same) {
       setTimeout(() => {
         showRegs(b);
-        generate(b, pair[0].kind, pair[0].value + pair[1].value);
+        generate(b, pair[0].kind, pair[0].value + pair[1].value, back);
       }, ADD_IN_MS);
       return;
     }
