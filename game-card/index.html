@@ -283,6 +283,7 @@
   const TYPES = {
     clicker:  { icon: '👆', tone: '#D24A4A' },
     beeper:   { icon: '🎵', tone: '#7C5CD6' },
+    drummer:  { icon: '🥁', tone: '#C96A2E' },
     mover:    { icon: '🧲', tone: '#2FA8A0' },
     maker:    { icon: '🏭', tone: '#D95A9E' },
     collector:{ icon: '🧺', tone: '#B7C34A' },
@@ -347,9 +348,10 @@
     g.el.appendChild(el);
     const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0,
                 solo: false, stored: 0, registered: null, regs: [], turn: 0,
-                count: 0, limit: 1, note: NOTE_DEFAULT };
+                count: 0, limit: 1, note: NOTE_DEFAULT, kit: KIT_DEFAULT };
     if (type === 'counter') buildCounter(b);
     if (type === 'beeper') buildBeeper(b);
+    if (type === 'drummer') buildDrummer(b);
     g.blocks.push(b);
     return b;
   }
@@ -594,6 +596,75 @@
   }
 
   let audio = null;
+  let noiseBuf = null;
+
+  // 소리를 낼 수 있으면 오디오를 깨워 돌려준다
+  function ready() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audio = audio || new Ctx();
+      if (audio.state === 'suspended') audio.resume();
+      return audio;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // 드럼에 쓸 잡음
+  function noise(ctx) {
+    if (noiseBuf) return noiseBuf;
+    const len = Math.floor(ctx.sampleRate * 1.5);
+    noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    return noiseBuf;
+  }
+
+  // 떨어지는 음 하나
+  function boom(ctx, from, to, dur, vol) {
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(from, t);
+    osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  // 필터를 건 잡음 한 줌
+  function hiss(ctx, cutoff, dur, vol) {
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    const filter = ctx.createBiquadFilter();
+    const gain = ctx.createGain();
+    src.buffer = noise(ctx);
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(cutoff, t);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(filter).connect(gain).connect(ctx.destination);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }
+
+  // drummer의 반응 — 고른 드럼 소리
+  function drumSound(b) {
+    const ctx = ready();
+    if (!ctx) return;
+    const kit = (b && b.kit) || KIT_DEFAULT;
+    if (kit === 'kick') boom(ctx, 150, 45, 0.28, 0.9);
+    else if (kit === 'tom') boom(ctx, 260, 120, 0.35, 0.7);
+    else if (kit === 'floor') boom(ctx, 110, 55, 0.5, 0.7);
+    else if (kit === 'snare') { boom(ctx, 190, 120, 0.12, 0.35); hiss(ctx, 1200, 0.2, 0.5); }
+    else if (kit === 'hihat') hiss(ctx, 7000, 0.05, 0.35);
+    else if (kit === 'crash') hiss(ctx, 4000, 1.2, 0.4);
+  }
 
   // beeper의 반응 — 고른 음으로 짧게 울린다
   function deepSound(b) {
@@ -631,7 +702,10 @@
     if (!b.el.isConnected) return;
     if (!markSeen(b, uid)) return;
 
-    if (b.type === 'beeper') {
+    if (b.type === 'drummer') {
+      blink(b);
+      drumSound(b);
+    } else if (b.type === 'beeper') {
       blink(b);
       deepSound(b);
     } else if (b.type === 'maker') {
@@ -985,6 +1059,30 @@
     b.noteEl = sel;
   }
 
+  // 드럼 종류
+  const KITS = [
+    ['kick', '킥'],
+    ['snare', '스네어'],
+    ['hihat', '하이햇'],
+    ['crash', '크래시'],
+    ['tom', '탐'],
+    ['floor', '플로어탐'],
+  ];
+  const KIT_DEFAULT = 'kick';
+
+  function buildDrummer(b) {
+    const sel = document.createElement('select');
+    sel.className = 'note';
+    sel.innerHTML = KITS.map((k) => '<option value="' + k[0] + '">' + k[1] + '</option>').join('');
+    sel.value = b.kit;
+    sel.addEventListener('change', () => {
+      b.kit = sel.value;
+      save();
+    });
+    b.el.appendChild(sel);
+    b.kitEl = sel;
+  }
+
   const COUNT_MIN = 1;
   const COUNT_MAX = 99;
   const needOf = (b) => b.limit;
@@ -1231,6 +1329,7 @@
           n: b.count || 0,
           l: b.limit || 1,
           p: b.note || NOTE_DEFAULT,
+          d: b.kit || KIT_DEFAULT,
         })),
       })),
     };
@@ -1281,6 +1380,8 @@
         b.limit = Math.max(COUNT_MIN, Math.min(COUNT_MAX, bs.l || 1));
         b.note = Math.max(NOTE_LOW, Math.min(NOTE_HIGH, bs.p || NOTE_DEFAULT));
         if (b.noteEl) b.noteEl.value = String(b.note);
+        if (KITS.some((k) => k[0] === bs.d)) b.kit = bs.d;
+        if (b.kitEl) b.kitEl.value = b.kit;
         if (b.stored) showStore(b);
         if (b.type === 'counter') showCount(b);
         if (b.regs.length || b.registered) showRegs(b);
