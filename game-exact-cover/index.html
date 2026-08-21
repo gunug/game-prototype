@@ -11,99 +11,297 @@
 <style>
   html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
 
-  /* 뷰포트 전체가 게임 화면 */
-  .board{
+  .app{
     position:fixed;
     inset:0;
     display:flex;
-    align-items:center;
-    justify-content:center;
     background:var(--canvas);
-    overflow:hidden;
-    touch-action:none;
     -webkit-user-select:none;
     user-select:none;
     -webkit-tap-highlight-color:transparent;
   }
 
-  /* 격자형 타일맵 — 10 x 10, 항상 1:1. 칸 크기는 화면에 맞춰 결정된다 */
+  /* ---- 좌측 스테이지 패널 ---- */
+  .side{
+    flex:0 0 220px;
+    display:flex;
+    flex-direction:column;
+    gap:var(--s4);
+    padding:var(--s4);
+    padding-left:calc(env(safe-area-inset-left,0px) + var(--s4));
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + var(--s4));
+    background:var(--surface);
+    border-right:1px solid var(--hairline);
+    overflow-y:auto;
+  }
+  .side h2{
+    margin:0;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .side .home{text-decoration:none;align-self:flex-start;}
+
+  .stages{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--s2);}
+  .stages button{
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:var(--s2);
+    font-family:var(--font);
+    font-size:14px;
+    font-weight:600;
+    text-align:left;
+    color:var(--body);
+    background:var(--surface-soft);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-md);
+    padding:10px 12px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .stages button:hover{border-color:var(--brand-yellow-deep);}
+  .stages button[aria-current="true"]{
+    border-color:var(--brand-yellow);
+    color:var(--ink);
+  }
+  .stages .check{color:var(--brand-yellow);font-weight:800;visibility:hidden;}
+  .stages button.done .check{visibility:visible;}
+
+  /* 칠해야 할 모양 미리보기 */
+  .target{display:flex;flex-direction:column;gap:var(--s2);}
+  .preview{
+    display:grid;
+    gap:2px;
+    justify-content:start;
+    grid-template-columns:repeat(var(--pc,1), 18px);
+    grid-template-rows:repeat(var(--pr,1), 18px);
+  }
+  .preview i{border-radius:3px;background:transparent;}
+  .preview i.on{background:var(--brand-yellow);}
+
+  .side .spacer{flex:1;}
+
+  /* ---- 판 ---- */
+  .board{
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    touch-action:none;
+  }
   .grid{
     display:grid;
     grid-template-columns:repeat(var(--cols), var(--cell));
     grid-template-rows:repeat(var(--rows), var(--cell));
-    border:1px solid var(--hairline);
-    border-radius:var(--r-sm);
-    overflow:hidden;
-    box-shadow:var(--sh-lg);
   }
   .tile{
     width:var(--cell);
     height:var(--cell);
-    box-shadow:inset 0 0 0 1px var(--hairline);
     background:transparent;
     transition:background-color .08s linear;
   }
+  /* 칠할 필요 없는 필드는 비활성 */
+  .tile.off{box-shadow:inset 0 0 0 1px rgba(51,51,43,.35);}
+  .tile.field{box-shadow:inset 0 0 0 1px var(--hairline);background:var(--surface);}
   .tile.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);}
 
-  .hud{
-    position:fixed;
-    z-index:10;
-    left:calc(env(safe-area-inset-left,0px) + var(--s4));
-    bottom:calc(env(safe-area-inset-bottom,0px) + var(--s3));
-    display:flex;
-    align-items:center;
-    gap:var(--s2);
+  .banner{
+    position:absolute;
+    top:var(--s5);
+    left:50%;
+    transform:translate(-50%,-12px);
+    background:var(--brand-yellow);
+    color:var(--on-brand);
+    font-weight:700;
+    font-size:14px;
+    padding:10px 20px;
+    border-radius:var(--r-pill);
+    box-shadow:var(--sh-md);
+    opacity:0;
+    pointer-events:none;
+    transition:.2s;
   }
-  .hud .swatch{
-    width:28px; height:28px;
-    border-radius:var(--r-sm);
-    border:1px solid var(--hairline);
-    box-shadow:var(--sh-sm);
+  .banner.show{opacity:1;transform:translate(-50%,0);}
+
+  @media(max-width:640px){
+    .app{flex-direction:column;}
+    .side{
+      flex:0 0 auto;
+      flex-direction:row;
+      align-items:center;
+      overflow-x:auto;
+      border-right:none;
+      border-bottom:1px solid var(--hairline);
+    }
+    .side h2,.side .spacer{display:none;}
+    .stages{flex-direction:row;}
+    .stages button{width:auto;}
   }
-  .hud .home{text-decoration:none;}
 </style>
 </head>
 <body>
-  <div class="board" id="board">
-    <div class="grid" id="grid"></div>
-  </div>
+  <div class="app">
+    <aside class="side">
+      <a class="btn btn-secondary btn-sm home" href="../index.html">← 목록</a>
 
-  <div class="hud">
-    <a class="btn btn-secondary btn-sm home" href="../index.html">← 목록</a>
-    <button class="btn btn-secondary btn-sm" id="clear">지우기</button>
-    <span class="swatch" id="swatch"></span>
+      <h2>스테이지</h2>
+      <ul class="stages" id="stages"></ul>
+
+      <div class="target">
+        <h2>칠해야 할 모양</h2>
+        <div class="preview" id="preview"></div>
+      </div>
+
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-sm" id="reset">지우기</button>
+    </aside>
+
+    <main class="board" id="board">
+      <div class="grid" id="grid"></div>
+      <div class="banner" id="banner">클리어!</div>
+    </main>
   </div>
 
 <script>
 (() => {
   'use strict';
 
-  const COLS = 10, ROWS = 10;      // 격자는 가로 10칸, 세로 10칸
-  const MARGIN = 16;               // 판 바깥 여백
-  const HUD_H  = 56;               // 하단 HUD가 차지하는 높이
+  const COLS = 10, ROWS = 10;   // 격자는 가로 10칸, 세로 10칸
+  const MARGIN = 16;
 
-  const PALETTE = [
-    '#FFD400', '#FF7A59', '#4FC3F7', '#7ED957',
-    '#C792EA', '#FF9BD2', '#5BE3C0', '#F2994A'
+  /**
+   * 칠 하나마다 서로 다른 색을 쓰므로 칸 수만큼 색이 필요하다.
+   * 황금각으로 색상환을 돌아 이웃한 번호끼리도 확실히 구분되게 만든다.
+   */
+  const PALETTE = Array.from({ length: COLS * ROWS }, (_, i) => {
+    const hue = (i * 137.508) % 360;
+    return `hsl(${hue.toFixed(1)} 72% ${i % 2 ? 58 : 68}%)`;
+  });
+
+  const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+
+  /* ==================== 모양 ==================== */
+
+  const k  = (c, r) => c + ',' + r;
+  const un = (key) => key.split(',').map(Number);
+
+  /** 좌상단을 0,0으로 옮기고 정렬한 표준형 */
+  function normalize(cells) {
+    let mc = Infinity, mr = Infinity;
+    for (const [c, r] of cells) { if (c < mc) mc = c; if (r < mr) mr = r; }
+    return cells
+      .map(([c, r]) => [c - mc, r - mr])
+      .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  }
+  const shapeKey = (cells) => normalize(cells).map((p) => p.join(',')).join(' ');
+  const rotate90 = (cells) => cells.map(([c, r]) => [-r, c]);
+
+  /** 0/90/180/270 회전형. 반사는 다른 모양으로 본다 */
+  function rotations(cells) {
+    const out = [];
+    let cur = normalize(cells);
+    for (let i = 0; i < 4; i++) { out.push(normalize(cur)); cur = rotate90(cur); }
+    return out;
+  }
+
+  /* ==================== 스테이지 ==================== */
+
+  // L 트로미노
+  const L_TROMINO = [[0, 0], [0, 1], [1, 1]];
+
+  const STAGES = [
+    { name: '스테이지 1', shape: L_TROMINO, pieces: 14, seed: 0x5eed01 }
   ];
 
-  const grid   = document.getElementById('grid');
-  const board  = document.getElementById('board');
-  const swatch = document.getElementById('swatch');
+  /** 재현 가능한 난수 — 같은 스테이지는 항상 같은 문제 */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
 
-  /** 칠해진 상태: "col,row" -> color */
-  const painted = new Map();
+  /**
+   * 모양을 실제로 깔면서 필드를 만든다. 구성 자체가 해답이므로
+   * 만들어진 필드는 항상 그 모양만으로 정확히 덮을 수 있다.
+   */
+  function buildField(shape, pieceCount, seed) {
+    const rnd = mulberry32(seed);
+    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
+    const rots = rotations(shape);
+    const field = new Set();
 
+    let placed = 0, guard = 0;
+    while (placed < pieceCount && guard++ < 5000) {
+      // 이미 깔린 칸에 붙여가며 한 덩어리로 자라게 한다
+      let anchor;
+      if (field.size === 0) {
+        anchor = [4 + Math.floor(rnd() * 2), 4 + Math.floor(rnd() * 2)];
+      } else {
+        const frontier = [];
+        for (const key of field) {
+          const [c, r] = un(key);
+          for (const [dc, dr] of DIRS) {
+            const nc = c + dc, nr = r + dr;
+            if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
+            if (!field.has(k(nc, nr))) frontier.push([nc, nr]);
+          }
+        }
+        if (!frontier.length) break;
+        anchor = pick(frontier);
+      }
+
+      const rot = pick(rots);
+      const off = pick(rot);                       // 이 칸이 anchor에 오도록 맞춘다
+      const cells = rot.map(([dc, dr]) => [anchor[0] + dc - off[0], anchor[1] + dr - off[1]]);
+
+      const ok = cells.every(([c, r]) =>
+        c >= 0 && r >= 0 && c < COLS && r < ROWS && !field.has(k(c, r)));
+      if (!ok) continue;
+
+      cells.forEach(([c, r]) => field.add(k(c, r)));
+      placed++;
+    }
+    return field;
+  }
+
+  /* ==================== 상태 ==================== */
+
+  const grid      = document.getElementById('grid');
+  const board     = document.getElementById('board');
+  const preview   = document.getElementById('preview');
+  const banner    = document.getElementById('banner');
+  const stageList = document.getElementById('stages');
+
+  const STORE = 'exact-cover.cleared';
+  const cleared = new Set(JSON.parse(localStorage.getItem(STORE) || '[]'));
+
+  let stageIdx = 0;
+  let field = new Set();        // 칠할 수 있는 칸
+  let targetKeys = new Set();   // 목표 모양의 회전형 표준키
+  const painted = new Map();    // "c,r" -> color
   let cell = 0;
   let colorIdx = -1;
   let dragColor = null;
 
-  /* ---------- 타일맵 구성 ---------- */
+  /* ==================== 화면 ==================== */
+
+  function tileAt(c, r) {
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+    return grid.children[r * COLS + c] || null;
+  }
 
   function buildGrid() {
     grid.style.setProperty('--cols', COLS);
     grid.style.setProperty('--rows', ROWS);
-
     const frag = document.createDocumentFragment();
     for (let i = 0; i < COLS * ROWS; i++) {
       const t = document.createElement('div');
@@ -113,86 +311,189 @@
     grid.replaceChildren(frag);
   }
 
-  /** 1:1 비율을 유지한 채 디바이스 화면에 맞춰 칸 크기를 다시 계산한다 */
+  /** 1:1 비율을 유지한 채 남은 영역에 맞춰 칸 크기를 정한다 */
   function resize() {
-    const availW = window.innerWidth  - MARGIN * 2;
-    const availH = window.innerHeight - MARGIN * 2 - HUD_H;
-    const side = Math.max(Math.min(availW, availH), COLS); // 최소 1px/칸
+    const rect = board.getBoundingClientRect();
+    const side = Math.max(Math.min(rect.width, rect.height) - MARGIN * 2, COLS);
     cell = Math.floor(side / COLS);
     grid.style.setProperty('--cell', cell + 'px');
-    board.style.paddingBottom = HUD_H + 'px';
   }
 
-  function tileAt(c, r) {
-    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
-    return grid.children[r * COLS + c] || null;
+  function renderPreview(shape) {
+    const cells = normalize(shape);
+    const w = Math.max(...cells.map((p) => p[0])) + 1;
+    const h = Math.max(...cells.map((p) => p[1])) + 1;
+    preview.style.setProperty('--pc', w);
+    preview.style.setProperty('--pr', h);
+    const on = new Set(cells.map(([c, r]) => k(c, r)));
+    const frag = document.createDocumentFragment();
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        const i = document.createElement('i');
+        if (on.has(k(c, r))) i.className = 'on';
+        frag.appendChild(i);
+      }
+    }
+    preview.replaceChildren(frag);
   }
 
-  /* ---------- 칠하기 ---------- */
+  function renderStages() {
+    const frag = document.createDocumentFragment();
+    STAGES.forEach((s, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = s.name;
+      if (i === stageIdx) b.setAttribute('aria-current', 'true');
+      if (cleared.has(s.name)) b.classList.add('done');
+      const chk = document.createElement('span');
+      chk.className = 'check';
+      chk.textContent = '✓';
+      b.appendChild(chk);
+      b.addEventListener('click', () => loadStage(i));
+      li.appendChild(b);
+      frag.appendChild(li);
+    });
+    stageList.replaceChildren(frag);
+  }
 
-  /** 화면 좌표 -> 격자 좌표. 판 밖이면 null */
+  function loadStage(i) {
+    stageIdx = i;
+    const s = STAGES[i];
+
+    field = buildField(s.shape, s.pieces, s.seed);
+    targetKeys = new Set(rotations(s.shape).map(shapeKey));
+
+    painted.clear();
+    colorIdx = -1;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const t = tileAt(c, r);
+        t.style.backgroundColor = '';
+        t.className = 'tile ' + (field.has(k(c, r)) ? 'field' : 'off');
+      }
+    }
+    renderPreview(s.shape);
+    renderStages();
+    showBanner(false);
+    resize();
+  }
+
+  function showBanner(on) { banner.classList.toggle('show', on); }
+
+  /* ==================== 칠하기 ==================== */
+
+  /**
+   * 다음 색. 이미 필드에 쓰이고 있는 색은 배정하지 않는다 — 같은 색이 맞닿으면
+   * 두 칠이 한 덩어리로 읽혀서 모양 판정이 어긋나기 때문이다.
+   */
+  function nextColor() {
+    const inUse = new Set(painted.values());
+    for (let i = 1; i <= PALETTE.length; i++) {
+      const idx = (colorIdx + i) % PALETTE.length;
+      if (!inUse.has(PALETTE[idx])) return (colorIdx = idx);
+    }
+    return (colorIdx = (colorIdx + 1) % PALETTE.length);  // 칸 수만큼 썼을 때만
+  }
+
+  /** 화면 좌표 -> 칠할 수 있는 칸. 판 밖이거나 비활성이면 null */
   function cellFromPoint(x, y) {
     const rect = grid.getBoundingClientRect();
     const c = Math.floor((x - rect.left) / cell);
-    const r = Math.floor((y - rect.top)  / cell);
+    const r = Math.floor((y - rect.top) / cell);
     if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+    if (!field.has(k(c, r))) return null;
     return { c, r };
   }
 
   function paint(c, r, color) {
+    if (!field.has(k(c, r))) return;
     const t = tileAt(c, r);
     if (!t) return;
-    painted.set(c + ',' + r, color);
+    painted.set(k(c, r), color);
     t.style.backgroundColor = color;
     t.classList.add('on');
   }
 
   function erase(c, r) {
     const t = tileAt(c, r);
-    painted.delete(c + ',' + r);
+    painted.delete(k(c, r));
     if (!t) return;
     t.style.backgroundColor = '';
     t.classList.remove('on');
   }
 
-  /** 포인터가 빨리 움직여 격자를 건너뛰어도 빈칸이 남지 않도록 직선 보간 */
+  /** 포인터가 빨리 움직여 칸을 건너뛰어도 빈칸이 남지 않도록 직선 보간 */
   function paintLine(from, to, color) {
     const dc = to.c - from.c, dr = to.r - from.r;
     const steps = Math.max(Math.abs(dc), Math.abs(dr));
     if (steps === 0) { paint(to.c, to.r, color); return; }
     for (let i = 1; i <= steps; i++) {
-      paint(
-        from.c + Math.round(dc * i / steps),
-        from.r + Math.round(dr * i / steps),
-        color
-      );
+      paint(from.c + Math.round(dc * i / steps),
+            from.r + Math.round(dr * i / steps), color);
     }
   }
 
-  /* ---------- 드래그 ---------- */
+  /* ==================== 클리어 판정 ==================== */
 
-  let dragging = false;
-  let last = null;
-  let start = null;        // 드래그가 시작된 칸
-  let startWasPainted = false;
-  let moved = false;       // 다른 칸으로 넘어간 적이 있는가
+  /** 같은 색으로 이어진 덩어리 하나 = 칠 하나 */
+  function blobAt(startKey, seen) {
+    const color = painted.get(startKey);
+    const stack = [startKey], out = [];
+    seen.add(startKey);
+    while (stack.length) {
+      const cur = stack.pop();
+      const [c, r] = un(cur);
+      out.push([c, r]);
+      for (const [dc, dr] of DIRS) {
+        const nk = k(c + dc, r + dr);
+        if (seen.has(nk) || painted.get(nk) !== color) continue;
+        seen.add(nk);
+        stack.push(nk);
+      }
+    }
+    return out;
+  }
+
+  function checkClear() {
+    // 모든 필드를 칠해야한다
+    for (const key of field) if (!painted.has(key)) return false;
+    // 모든 칠은 같은 모양을 가지고 있어야한다
+    const seen = new Set();
+    for (const key of painted.keys()) {
+      if (seen.has(key)) continue;
+      if (!targetKeys.has(shapeKey(blobAt(key, seen)))) return false;
+    }
+    return true;
+  }
+
+  function evaluate() {
+    const ok = checkClear();
+    showBanner(ok);
+    if (ok && !cleared.has(STAGES[stageIdx].name)) {
+      cleared.add(STAGES[stageIdx].name);
+      localStorage.setItem(STORE, JSON.stringify([...cleared]));
+      renderStages();
+    }
+  }
+
+  /* ==================== 드래그 ==================== */
+
+  let dragging = false, last = null, start = null;
+  let startWasPainted = false, moved = false;
 
   board.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-    if (e.target.closest('.hud')) return;
-
     const at = cellFromPoint(e.clientX, e.clientY);
-    if (!at) return;                       // 판 밖에서 시작한 드래그는 무시
+    if (!at) return;
 
     // 색이 있는 칸에서 시작하면 그 색이 이어지고, 빈 칸이면 새 색을 배정한다
-    const existing = painted.get(at.c + ',' + at.r);
+    const existing = painted.get(k(at.c, at.r));
     if (existing) {
       dragColor = existing;
     } else {
-      colorIdx = (colorIdx + 1) % PALETTE.length;
-      dragColor = PALETTE[colorIdx];
+      dragColor = PALETTE[nextColor()];
     }
-    swatch.style.backgroundColor = dragColor;
 
     last = start = at;
     startWasPainted = !!existing;
@@ -207,7 +508,7 @@
   board.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     const cur = cellFromPoint(e.clientX, e.clientY);
-    if (!cur) return;                      // 판 밖으로 나간 동안은 칠하지 않는다
+    if (!cur) return;
     if (cur.c === last.c && cur.r === last.r) return;
     moved = true;
     paintLine(last, cur, dragColor);
@@ -215,34 +516,26 @@
   });
 
   function endDrag(isRelease) {
+    if (!dragging) return;
     // 이동 없이 놓았고 이미 색이 있던 칸이었다면 클릭으로 보고 색을 지운다
-    if (isRelease && dragging && !moved && startWasPainted && start) {
-      erase(start.c, start.r);
-    }
+    if (isRelease && !moved && startWasPainted && start) erase(start.c, start.r);
     dragging = false;
-    last = null;
-    start = null;
+    last = start = null;
     startWasPainted = false;
+    evaluate();
   }
   board.addEventListener('pointerup',     () => endDrag(true));
   board.addEventListener('pointercancel', () => endDrag(false));
   window.addEventListener('blur',         () => endDrag(false));
 
-  /* ---------- HUD ---------- */
+  /* ==================== 시작 ==================== */
 
-  document.getElementById('clear').addEventListener('click', () => {
-    painted.clear();
-    for (const t of grid.children) {
-      t.style.backgroundColor = '';
-      t.classList.remove('on');
-    }
-  });
-
+  document.getElementById('reset').addEventListener('click', () => loadStage(stageIdx));
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', resize);
+
   buildGrid();
-  resize();
-  swatch.style.backgroundColor = PALETTE[0];
+  loadStage(0);
 })();
 </script>
 </body>
