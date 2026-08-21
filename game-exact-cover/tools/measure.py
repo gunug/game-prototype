@@ -24,7 +24,11 @@ from generate import COLS, ROWS, SHAPES, placements, idx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.join(HERE, "..", "index.html")
-DATA = os.path.join(HERE, "stages.json")
+SOURCES = [
+    (os.path.join(HERE, "stages.json"), "single"),
+    (os.path.join(HERE, "stages-dual.json"), "dual"),
+]
+MEASURED = os.path.join(HERE, "measured.json")
 
 SHAPE_LABEL = {
     "I3": "트로미노 I", "L3": "트로미노 L",
@@ -55,14 +59,20 @@ SHAPE_SRC = {
 
 
 class Puzzle:
-    def __init__(self, shape_name, bits):
-        self.shape_name = shape_name
-        self.shape = SHAPES[shape_name]
-        self.size = len(self.shape)
+    def __init__(self, shape_names, bits):
+        if isinstance(shape_names, str):
+            shape_names = [shape_names]
+        self.shape_names = list(shape_names)
+        self.shapes = [SHAPES[n] for n in self.shape_names]
+        self.sizes = [len(sh) for sh in self.shapes]
+        self.size = max(self.sizes)
         self.cells = frozenset(i for i, ch in enumerate(bits) if ch == "1")
-        # 필드 안에 온전히 들어가는 배치만 남긴다
-        self.places = [p for p in placements(self.shape) if set(p) <= self.cells]
-        self.pieces = len(self.cells) // self.size
+        # 필드 안에 온전히 들어가는 배치만 남긴다. 모양이 둘이면 둘 다 모은다
+        self.places = []
+        for sh in self.shapes:
+            self.places += [p for p in placements(sh) if set(p) <= self.cells]
+        # 조각 크기가 다르면 조각 수가 고정이 아니라서 평균으로 잡는다
+        self.pieces = max(1, round(len(self.cells) / (sum(self.sizes) / len(self.sizes))))
         self.det_time = 0.0
 
     def _model(self):
@@ -265,11 +275,15 @@ def score(m):
 # ── index.html 갱신 ─────────────────────────────────────────────────────
 
 
+MODE_LABEL = {"single": "한 종", "dual": "두 종"}
+
+
 def emit_stages(stages):
     used = []
     for st in stages:
-        if st["shape"] not in used:
-            used.append(st["shape"])
+        for name in st["shapes"]:
+            if name not in used:
+                used.append(name)
 
     out = ["  /* ==================== 스테이지 ==================== */", ""]
     out.append("  const SHAPES = {")
@@ -287,14 +301,20 @@ def emit_stages(stages):
         "   */",
         "  const STAGES = [",
     ]
-    for i, st in enumerate(stages):
+    seq = {}
+    for st in stages:
+        mode = st["mode"]
+        seq[mode] = seq.get(mode, 0) + 1
         sol = f"{st['solutions']}{'+' if st['capped'] else ''}"
+        shapes = ", ".join(f"SHAPES.{n}" for n in st["shapes"])
+        label = " + ".join(SHAPE_LABEL[n] for n in st["shapes"])
         out += [
             "    {",
-            f"      name: '스테이지 {i + 1}',",
-            f"      shape: SHAPES.{st['shape']},",
+            f"      name: '{MODE_LABEL[mode]} {seq[mode]}',",
+            f"      mode: '{mode}',",
+            f"      shapes: [{shapes}],",
             f"      difficulty: {st['difficulty']},",
-            f"      // {SHAPE_LABEL[st['shape']]} x{st['pieces']} = {st['cells']}칸 | "
+            f"      // {label} | {st['cells']}칸 | "
             f"해 {sol} | 강제 {st['forced'] * 100:.0f}% | "
             f"이어칠 성공률 {st['success'] * 100:.0f}% | 헛칠 {st['blind'] * 100:.0f}%",
             f"      field: '{st['field']}',",
@@ -330,14 +350,16 @@ def apply_to_game(stages):
 
 def measure_one(st):
     """스테이지 하나를 재서 지표 묶음을 돌려준다. 프로세스 풀에서 돌린다."""
-    pz = Puzzle(st["shape"], st["field"])
+    names = st.get("shapes") or [st["shape"]]
+    pz = Puzzle(names, st["field"])
     sols, capped = pz.count_solutions()
     forced, forced_n = pz.forced_ratio()
     swap = pz.min_swap()
     g = pz.greedy_trials()
 
     m = {
-        "shape": st["shape"],
+        "mode": st.get("mode", "single" if len(names) == 1 else "dual"),
+        "shapes": names,
         "size": pz.size,
         "pieces": pz.pieces,
         "cells": len(pz.cells),
@@ -358,8 +380,22 @@ def measure_one(st):
     return m
 
 
+def load_stages():
+    """generate.py 가 뽑아 둔 필드를 모두 읽어 형식을 맞춘다."""
+    out = []
+    for path, mode in SOURCES:
+        if not os.path.exists(path):
+            continue
+        for st in json.load(open(path, encoding="utf-8")):
+            st.setdefault("mode", mode)
+            # 예전 파일은 모양을 shape 하나로만 들고 있다
+            st["shapes"] = st.get("shapes") or [st["shape"]]
+            out.append(st)
+    return out
+
+
 def main():
-    stages = json.load(open(DATA, encoding="utf-8"))
+    stages = load_stages()
 
     workers = min(os.cpu_count() or 4, 12)
     print(f"{len(stages)}개, 프로세스 {workers}개", file=sys.stderr)
@@ -369,18 +405,20 @@ def main():
         for m in pool.map(measure_one, stages):
             rows.append(m)
             print(f"  잼 {len(rows)}/{len(stages)}: "
-                  f"{m['shape']} x{m['pieces']} -> {m['difficulty']}", file=sys.stderr)
+                  f"{'+'.join(m['shapes'])} -> {m['difficulty']}", file=sys.stderr)
 
-    rows.sort(key=lambda r: (r["difficulty"], r["cells"]))
+    # single 을 먼저, 각 모드 안에서 쉬운 순
+    rows.sort(key=lambda r: (r["mode"] != "single", r["difficulty"], r["cells"]))
 
     print()
-    print("모양       조각  칸  배치    해   강제  이어칠  글렀는데더칠  얽힘  교체  점수")
+    print("모드   모양            칸  배치    해   강제  이어칠  글렀는데더칠  얽힘  교체  점수")
     for r in rows:
         sol = f"{r['solutions']}{'+' if r['capped'] else ''}"
         swap = "유일" if r["minSwap"] is None else str(r["minSwap"])
         print(
-            f"{SHAPE_LABEL[r['shape']]:<10}"
-            f"{r['pieces']:>4}{r['cells']:>5}{r['places']:>6}"
+            f"{r['mode']:<7}"
+            f"{'+'.join(r['shapes']):<12}"
+            f"{r['cells']:>5}{r['places']:>6}"
             f"{sol:>7}"
             f"{r['forced'] * 100:>6.0f}%"
             f"{r['success'] * 100:>7.0f}%"
@@ -390,7 +428,7 @@ def main():
             f"{r['difficulty']:>6}"
         )
 
-    with open(DATA, "w", encoding="utf-8") as f:
+    with open(MEASURED, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
         f.write("\n")
 

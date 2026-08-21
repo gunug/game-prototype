@@ -127,10 +127,16 @@ check('격자 100칸', tiles.length === 100, `${tiles.length}칸`);
 const fieldTiles = tiles.filter((t) => t.classList.contains('field'));
 check('활성 칸 있음', fieldTiles.length > 0, `${fieldTiles.length}칸`);
 
-check('스테이지 목록 채워짐', stages.children.length > 0, `${stages.children.length}개`);
+check('스테이지 목록 채워짐', stages.children.length > 0, `${stages.children.length}줄`);
 
-const buttons = stages.children.map((li) => li.children[0]).filter(Boolean);
-check('스테이지 버튼', buttons.length === stages.children.length);
+const sects = stages.children.filter((li) => li.classList.contains('sect'));
+const buttons = stages.children
+  .filter((li) => !li.classList.contains('sect'))
+  .map((li) => li.children[0])
+  .filter(Boolean);
+check('모드 구분 머리말', sects.length === 2, sects.map((s) => s.textContent).join(' / '));
+check('스테이지 버튼', buttons.length === stages.children.length - sects.length,
+  `${buttons.length}개`);
 
 const withDiff = buttons.filter((b) =>
   b.children.some((c) => c.classList.contains('diff') && /^\d+$/.test(c.textContent)));
@@ -138,10 +144,24 @@ check('난이도 표시', withDiff.length === buttons.length, `${withDiff.length
 
 const diffs = withDiff.map((b) =>
   Number(b.children.find((c) => c.classList.contains('diff')).textContent));
-check('난이도 오름차순', diffs.every((d, i) => i === 0 || diffs[i - 1] <= d), diffs.join(' '));
+// 모드별로 나눠 담기므로 구간 안에서만 오름차순이면 된다
+const runs = [];
+sects.forEach((_, i) => runs.push([]));
+{
+  let r = -1;
+  for (const li of stages.children) {
+    if (li.classList.contains('sect')) { r++; continue; }
+    const badge = li.children[0].children.find((c) => c.classList.contains('diff'));
+    if (badge) runs[r].push(Number(badge.textContent));
+  }
+}
+const sorted = runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d));
+check('구간별 난이도 오름차순', sorted, runs.map((r) => r.join(' ')).join('  |  '));
 check('난이도 1~100', diffs.every((d) => d >= 1 && d <= 100));
 
-check('모양 미리보기', nodes.preview.children.length > 0, `${nodes.preview.children.length}칸`);
+const chips = nodes.preview.children;
+check('모양 미리보기', chips.length > 0 && chips[0].children.length > 0,
+  `${chips.length}개, 첫 칩 ${chips[0] ? chips[0].children.length : 0}칸`);
 
 const d = nodes['outline-path'].getAttribute('d') || '';
 check('필드 외곽선', d.startsWith('M') && d.length > 20, `${d.length}자`);
@@ -224,6 +244,19 @@ if (!block) {
   const one = !tiles[br * 10 + bc].style.backgroundColor
     && !!tiles[br * 10 + bc + 1].style.backgroundColor;
   check('짧게 누르면 한 칸만 지워짐', one);
+}
+
+// 두 종 스테이지를 열면 모양 칩이 둘 나와야 한다
+const dualStart = stages.children.findIndex(
+  (li) => li.classList.contains('sect') && li.textContent.includes('두 종'));
+if (dualStart < 0) {
+  check('두 종 구간 있음', false);
+} else {
+  stages.children[dualStart + 1].children[0].dispatch('click', {});
+  check('두 종은 모양 2개', nodes.preview.children.length === 2,
+    `${nodes.preview.children.length}개`);
+  const dualField = tiles.filter((t) => t.classList.contains('field'));
+  check('두 종 필드 로드', dualField.length > 0, `${dualField.length}칸`);
 }
 
 if (fails.length) {
