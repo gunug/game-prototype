@@ -131,7 +131,7 @@
   }
   .chip.is-dragging{cursor:grabbing;box-shadow:0 0 0 3px var(--brand-yellow),var(--sh-lg);}
   /* 인접 블럭으로 배송되는 중 */
-  .chip.is-flying{pointer-events:none;transition:transform .26s ease-out;}
+  .chip.is-flying{pointer-events:none;transition:transform .3s ease-out;}
   /* 칩 유형을 등록해 둔 collector */
   .block.is-armed{border-color:var(--tone);}
   /* collector에 등록된 칩 */
@@ -326,7 +326,7 @@
   const CHIP_BOUNCE = 0.5;
   const RECEIVERS = ['adder', 'collector'];   // 칩을 받는 블럭
   const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
-  const DELIVER_MS = 260;
+  const DELIVER_MS = 300;
   const DELIVER_STOP = 0.28;   // 받는 블럭 중앙에서 이만큼(블럭 한 변 기준) 못 미쳐 멈춘다
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
 
@@ -840,8 +840,11 @@
     }
     const to = targets[b.turn % targets.length];
     b.turn += 1;
-    receive(to, kind, value);
-    flyChip(b, to, value);
+    // 등록은 배송 모션이 끝난 뒤에 이루어진다
+    flyChip(b, to, value, () => {
+      if (!to.el.isConnected) { ejectChip(b, kind, value, 0); return; }
+      receive(to, kind, value);
+    });
     return to;
   }
 
@@ -868,8 +871,8 @@
     save();
   }
 
-  // 배송되는 모습 — 칩이 생겨서 옆 블럭으로 건너간다
-  function flyChip(from, to, value) {
+  // 배송되는 모습 — 칩이 생겨서 옆 블럭으로 건너간다. 다 건너가면 done을 부른다.
+  function flyChip(from, to, value, done) {
     const d = chipSize();
     const [fx, fy] = blockCenter(from);
     const [tx, ty] = blockCenter(to);
@@ -897,7 +900,10 @@
     requestAnimationFrame(() => {
       el.style.transform = 'translate(' + (bx - ax) + 'px,' + (by - ay) + 'px)';
     });
-    setTimeout(() => el.remove(), DELIVER_MS + 80);
+    setTimeout(() => {
+      el.remove();
+      if (done) done();
+    }, DELIVER_MS);
   }
 
   /* ---------- collector ---------- */
