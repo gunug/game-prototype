@@ -167,13 +167,19 @@
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if (e.target.closest('.hud')) return;
 
-    // 한번 드래그를 시작하면 하나의 색이 배정된다
-    colorIdx = (colorIdx + 1) % PALETTE.length;
-    dragColor = PALETTE[colorIdx];
+    last = cellFromPoint(e.clientX, e.clientY);
+
+    // 색이 있는 칸에서 시작하면 그 색이 이어지고, 빈 칸이면 새 색을 배정한다
+    const existing = painted.get(last.c + ',' + last.r);
+    if (existing) {
+      dragColor = existing;
+    } else {
+      colorIdx = (colorIdx + 1) % PALETTE.length;
+      dragColor = PALETTE[colorIdx];
+    }
     swatch.style.backgroundColor = dragColor;
 
     dragging = true;
-    last = cellFromPoint(e.clientX, e.clientY);
     paint(last.c, last.r, dragColor);
 
     board.setPointerCapture(e.pointerId);
