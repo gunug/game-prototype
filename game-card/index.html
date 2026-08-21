@@ -205,6 +205,27 @@
     line-height:1;
   }
 
+  /* beeper의 음계 선택 */
+  .block .note{
+    position:absolute;
+    left:50%;
+    bottom:3px;
+    transform:translateX(-50%);
+    max-width:88%;
+    padding:1px 2px;
+    border:1px solid var(--hairline);
+    border-radius:var(--r-sm);
+    background:var(--surface);
+    color:var(--ink);
+    font-family:var(--font);
+    font-size:calc(var(--ctl,18px) * .62);
+    font-weight:700;
+    line-height:1.3;
+    text-align:center;
+    cursor:pointer;
+  }
+  .block .note:hover{border-color:var(--tone);}
+
   /* collector가 저장한 수량 */
   .block .store{
     position:absolute;
@@ -261,7 +282,7 @@
   // 블럭 종류 — 구현이 끝난 것만 둔다
   const TYPES = {
     clicker:  { icon: '👆', tone: '#D24A4A' },
-    beeper:   { icon: '🔊', tone: '#7C5CD6' },
+    beeper:   { icon: '🎵', tone: '#7C5CD6' },
     mover:    { icon: '🧲', tone: '#2FA8A0' },
     maker:    { icon: '🏭', tone: '#D95A9E' },
     collector:{ icon: '🧺', tone: '#B7C34A' },
@@ -326,8 +347,9 @@
     g.el.appendChild(el);
     const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0,
                 solo: false, stored: 0, registered: null, regs: [], turn: 0,
-                count: 0, limit: 1 };
+                count: 0, limit: 1, note: NOTE_DEFAULT };
     if (type === 'counter') buildCounter(b);
+    if (type === 'beeper') buildBeeper(b);
     g.blocks.push(b);
     return b;
   }
@@ -573,19 +595,20 @@
 
   let audio = null;
 
-  // beeper의 반응 — 낮게 떨어지는 deep 소리
-  function deepSound() {
+  // beeper의 반응 — 고른 음으로 짧게 울린다
+  function deepSound(b) {
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return;
       audio = audio || new Ctx();
       if (audio.state === 'suspended') audio.resume();
       const t = audio.currentTime;
+      const hz = noteHz(b && b.note ? b.note : NOTE_DEFAULT);
       const osc = audio.createOscillator();
       const gain = audio.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(180, t);
-      osc.frequency.exponentialRampToValueAtTime(55, t + 0.28);
+      osc.frequency.setValueAtTime(hz, t);
+      osc.frequency.exponentialRampToValueAtTime(hz * 0.5, t + 0.28);
       gain.gain.setValueAtTime(0.0001, t);
       gain.gain.exponentialRampToValueAtTime(0.3, t + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
@@ -610,7 +633,7 @@
 
     if (b.type === 'beeper') {
       blink(b);
-      deepSound();
+      deepSound(b);
     } else if (b.type === 'maker') {
       blink(b);
       generate(b, CHIP_KIND, CHIP_VALUE);
@@ -936,6 +959,32 @@
   }
 
   const showStore = (b) => badge(b, b.stored);
+  // 66건반 전음계 — C2 부터 F7 까지 (MIDI 36~101)
+  const NOTE_LOW = 36;
+  const NOTE_HIGH = 101;
+  const NOTE_DEFAULT = 60;      // C4
+  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const noteName = (m) => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+  const noteHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+  // beeper에는 음계를 고르는 콤보박스가 붙는다
+  function buildBeeper(b) {
+    const sel = document.createElement('select');
+    sel.className = 'note';
+    let html = '';
+    for (let m = NOTE_LOW; m <= NOTE_HIGH; m++) {
+      html += '<option value="' + m + '">' + noteName(m) + '</option>';
+    }
+    sel.innerHTML = html;
+    sel.value = String(b.note);
+    sel.addEventListener('change', () => {
+      b.note = Number(sel.value);
+      save();
+    });
+    b.el.appendChild(sel);
+    b.noteEl = sel;
+  }
+
   const COUNT_MIN = 1;
   const COUNT_MAX = 99;
   const needOf = (b) => b.limit;
@@ -993,7 +1042,7 @@
   const dragsAlone = (b) => b.type !== 'mover' || b.solo;
 
   board.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.count-btn')) return;   // 버튼은 드래그를 시작하지 않는다
+    if (e.target.closest('.count-btn, .note')) return;   // 버튼과 콤보박스는 드래그를 시작하지 않는다
     const blockEl = e.target.closest('.block');
     if (!blockEl) return;
     const src = findGroup(blockEl);
@@ -1181,6 +1230,7 @@
           h: b.regs.length ? b.regs : null,
           n: b.count || 0,
           l: b.limit || 1,
+          p: b.note || NOTE_DEFAULT,
         })),
       })),
     };
@@ -1229,6 +1279,8 @@
         b.regs = Array.isArray(bs.h) ? bs.h : b.regs;
         b.count = bs.n || 0;
         b.limit = Math.max(COUNT_MIN, Math.min(COUNT_MAX, bs.l || 1));
+        b.note = Math.max(NOTE_LOW, Math.min(NOTE_HIGH, bs.p || NOTE_DEFAULT));
+        if (b.noteEl) b.noteEl.value = String(b.note);
         if (b.stored) showStore(b);
         if (b.type === 'counter') showCount(b);
         if (b.regs.length || b.registered) showRegs(b);
