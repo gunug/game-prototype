@@ -212,67 +212,67 @@
 
   /* ==================== 스테이지 ==================== */
 
-  // L 트로미노
-  const L_TROMINO = [[0, 0], [0, 1], [1, 1]];
-
-  const STAGES = [
-    { name: '스테이지 1', shape: L_TROMINO, pieces: 14, seed: 0x5eed01 }
-  ];
-
-  /** 재현 가능한 난수 — 같은 스테이지는 항상 같은 문제 */
-  function mulberry32(a) {
-    return function () {
-      a |= 0; a = (a + 0x6D2B79F5) | 0;
-      let t = Math.imul(a ^ (a >>> 15), 1 | a);
-      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
+  const SHAPES = {
+    L3: [[0, 0], [0, 1], [1, 1]],   // 트로미노 L
+    I3: [[0, 0], [0, 1], [0, 2]],   // 트로미노 I
+    O4: [[0, 0], [1, 0], [0, 1], [1, 1]],   // 테트로미노 O
+    T4: [[0, 0], [1, 0], [2, 0], [1, 1]],   // 테트로미노 T
+    L4: [[0, 0], [0, 1], [0, 2], [1, 2]],   // 테트로미노 L
+    L5: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 3]],   // 펜토미노 L
+  };
 
   /**
-   * 모양을 실제로 깔면서 필드를 만든다. 구성 자체가 해답이므로
-   * 만들어진 필드는 항상 그 모양만으로 정확히 덮을 수 있다.
+   * 필드는 tools/generate.py 가 CP-SAT 로 미리 풀어 구운 값이다. 각 칸이
+   * 정확히 한 조각에 덮이도록 제약을 걸어 만들었으므로 항상 해가 있다.
+   * 문자열은 좌상단부터 행 우선으로 읽는 10x10 비트맵.
    */
-  function buildField(shape, pieceCount, seed) {
-    const rnd = mulberry32(seed);
-    const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
-    const rots = rotations(shape);
-    const field = new Set();
+  const STAGES = [
+    {
+      name: '스테이지 1',
+      shape: SHAPES.L3,
+      // L3 x10 = 30칸, 인접쌍 41/49 (조밀도 0.6)
+      field: '0000110000000011000000111100000111110000000110000000011000000001110000001111110000000011000000001100',
+    },
+    {
+      name: '스테이지 2',
+      shape: SHAPES.I3,
+      // I3 x12 = 36칸, 인접쌍 52/60 (조밀도 0.66)
+      field: '0001100000000110000000011111000011111100001110000000111000000010111000001111100000111110000001000000',
+    },
+    {
+      name: '스테이지 3',
+      shape: SHAPES.O4,
+      // O4 x12 = 48칸, 인접쌍 72/82 (조밀도 0.7)
+      field: '1100000000110011001111111100111111111111001111111111110000001111000000111100000011000000000000000000',
+    },
+    {
+      name: '스테이지 4',
+      shape: SHAPES.T4,
+      // T4 x13 = 52칸, 인접쌍 78/88 (조밀도 0.74)
+      field: '0100001110110111110011111100001111111111111111111011110000001111100000111000000011110000000000000000',
+    },
+    {
+      name: '스테이지 5',
+      shape: SHAPES.L4,
+      // L4 x14 = 56칸, 인접쌍 88/97 (조밀도 0.78)
+      field: '0000000000000000011101111111110111111111000111111111110011111111001111001111111100111100000000000000',
+    },
+    {
+      name: '스테이지 6',
+      shape: SHAPES.L5,
+      // L5 x14 = 70칸, 인접쌍 113/123 (조밀도 0.82)
+      field: '0001000111111111111111111111111111111111111111111111100111101110010000111001000011111110000111100000',
+    },
+  ];
 
-    let placed = 0, guard = 0;
-    while (placed < pieceCount && guard++ < 5000) {
-      // 이미 깔린 칸에 붙여가며 한 덩어리로 자라게 한다
-      let anchor;
-      if (field.size === 0) {
-        anchor = [4 + Math.floor(rnd() * 2), 4 + Math.floor(rnd() * 2)];
-      } else {
-        const frontier = [];
-        for (const key of field) {
-          const [c, r] = un(key);
-          for (const [dc, dr] of DIRS) {
-            const nc = c + dc, nr = r + dr;
-            if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
-            if (!field.has(k(nc, nr))) frontier.push([nc, nr]);
-          }
-        }
-        if (!frontier.length) break;
-        anchor = pick(frontier);
-      }
-
-      const rot = pick(rots);
-      const off = pick(rot);                       // 이 칸이 anchor에 오도록 맞춘다
-      const cells = rot.map(([dc, dr]) => [anchor[0] + dc - off[0], anchor[1] + dr - off[1]]);
-
-      const ok = cells.every(([c, r]) =>
-        c >= 0 && r >= 0 && c < COLS && r < ROWS && !field.has(k(c, r)));
-      if (!ok) continue;
-
-      cells.forEach(([c, r]) => field.add(k(c, r)));
-      placed++;
+  /** 비트맵 문자열 -> 칠할 수 있는 칸 집합 */
+  function readField(bits) {
+    const out = new Set();
+    for (let i = 0; i < bits.length; i++) {
+      if (bits[i] === '1') out.add(k(i % COLS, Math.floor(i / COLS)));
     }
-    return field;
+    return out;
   }
-
   /* ==================== 상태 ==================== */
 
   const grid      = document.getElementById('grid');
@@ -361,7 +361,7 @@
     stageIdx = i;
     const s = STAGES[i];
 
-    field = buildField(s.shape, s.pieces, s.seed);
+    field = readField(s.field);
     targetKeys = new Set(rotations(s.shape).map(shapeKey));
 
     painted.clear();
