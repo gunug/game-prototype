@@ -256,6 +256,68 @@
   .block .pair .reg.is-moving{transition:transform .2s ease-in-out;}
   .block .pair .reg.is-clash{transition:transform .12s ease-out;}
 
+  /* exporter / importer 버튼 */
+  .block .io-btn{
+    position:absolute;
+    left:50%;
+    bottom:3px;
+    transform:translateX(-50%);
+    max-width:92%;
+    padding:1px 6px;
+    border:1px solid var(--hairline);
+    border-radius:var(--r-sm);
+    background:var(--surface);
+    color:var(--ink);
+    font-family:var(--font);
+    font-size:calc(var(--ctl,18px) * .55);
+    font-weight:700;
+    line-height:1.4;
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  .block .io-btn:hover{background:var(--surface-soft);border-color:var(--tone);}
+
+  /* json 모달 */
+  .modal{
+    position:fixed;
+    inset:0;
+    z-index:2147483600;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:var(--s4);
+    background:rgba(0,0,0,.6);
+  }
+  .modal[hidden]{display:none;}
+  .sheet{
+    width:min(560px, 100%);
+    max-height:80vh;
+    display:flex;
+    flex-direction:column;
+    gap:var(--s3);
+    padding:var(--s5);
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-lg);
+    box-shadow:var(--sh-lg);
+  }
+  .sheet h2{margin:0;font-size:18px;}
+  .sheet textarea{
+    flex:1;
+    min-height:200px;
+    resize:vertical;
+    padding:var(--s3);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-md);
+    background:var(--canvas);
+    color:var(--body);
+    font-family:var(--mono, ui-monospace, monospace);
+    font-size:12px;
+    line-height:1.5;
+  }
+  .sheet-btns{display:flex;gap:var(--s2);justify-content:flex-end;flex-wrap:wrap;}
+  .sheet-msg{color:var(--muted);font-size:13px;margin-right:auto;align-self:center;}
+
   /* collector가 저장한 수량 */
   .block .store{
     position:absolute;
@@ -302,6 +364,17 @@
 <body>
   <div class="board" id="board"></div>
   <aside class="drawer" id="drawer"></aside>
+  <div class="modal" id="modal" hidden>
+    <div class="sheet">
+      <h2 id="sheet-title"></h2>
+      <textarea id="sheet-text" spellcheck="false"></textarea>
+      <div class="sheet-btns">
+        <span class="sheet-msg" id="sheet-msg"></span>
+        <button class="btn btn-primary btn-sm" type="button" id="sheet-ok"></button>
+        <button class="btn btn-secondary btn-sm" type="button" id="sheet-close">닫기</button>
+      </div>
+    </div>
+  </div>
   <nav class="hud">
     <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
     <button class="btn btn-secondary btn-sm" type="button" id="reset">초기화</button>
@@ -320,6 +393,8 @@
     adder:    { icon: '➕', tone: '#5BB8E8' },
     counter:  { icon: '🔢', tone: '#E0941A' },
     void:     { icon: '🕳️', tone: '#8E8C82' },
+    exporter: { icon: '📤', tone: '#6FA8DC' },
+    importer: { icon: '📥', tone: '#7FB77E' },
   };
   const START = [];         // 화면은 빈 채로 시작하고, 블럭은 서랍에서 꺼낸다
 
@@ -384,6 +459,7 @@
     if (type === 'counter') buildCounter(b);
     if (type === 'beeper') buildBeeper(b);
     if (type === 'drummer') buildDrummer(b);
+    if (type === 'exporter' || type === 'importer') buildIo(b);
     g.blocks.push(b);
     return b;
   }
@@ -1160,6 +1236,15 @@
     b.kitEl = sel;
   }
 
+  // exporter / importer 에는 모달을 여는 버튼이 붙는다
+  function buildIo(b) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'io-btn';
+    btn.textContent = b.type === 'exporter' ? 'export' : 'import';
+    b.el.appendChild(btn);
+  }
+
   const COUNT_MIN = 1;
   const COUNT_MAX = 99;
   const needOf = (b) => b.limit;
@@ -1239,7 +1324,7 @@
   const dragsAlone = (b) => b.type !== 'mover' || b.solo;
 
   board.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.count-btn, .note')) return;   // 버튼과 콤보박스는 드래그를 시작하지 않는다
+    if (e.target.closest('.count-btn, .note, .io-btn')) return;   // 버튼과 콤보박스는 드래그를 시작하지 않는다
     const blockEl = e.target.closest('.block');
     if (!blockEl) return;
     const src = findGroup(blockEl);
@@ -1404,6 +1489,143 @@
     const b = g.blocks.find((x) => x.el === blockEl);
     if (!b || b.type !== 'mover') return;
     setSolo(b, !b.solo);
+  });
+
+  /* ---------- 내보내기 / 가져오기 ---------- */
+
+  const modal = document.getElementById('modal');
+  const sheetTitle = document.getElementById('sheet-title');
+  const sheetText = document.getElementById('sheet-text');
+  const sheetMsg = document.getElementById('sheet-msg');
+  const sheetOk = document.getElementById('sheet-ok');
+  let onOk = null;
+
+  function openSheet(title, text, okLabel, handler) {
+    sheetTitle.textContent = title;
+    sheetText.value = text;
+    sheetMsg.textContent = '';
+    sheetOk.textContent = okLabel;
+    onOk = handler;
+    modal.hidden = false;
+    sheetText.focus();
+  }
+
+  function closeSheet() {
+    modal.hidden = true;
+    onOk = null;
+  }
+
+  // 뭉치 하나를 통째로 json 으로
+  function groupToJson(g) {
+    const bb = box(g);
+    return JSON.stringify({
+      v: 1,
+      blocks: g.blocks.map((b) => {
+        const one = { t: b.type, x: b.gx - bb.minX, y: b.gy - bb.minY };
+        if (b.limit !== 1) one.l = b.limit;
+        if (b.note !== NOTE_DEFAULT) one.p = b.note;
+        if (b.kit !== KIT_DEFAULT) one.d = b.kit;
+        if (b.stored) one.s = b.stored;
+        if (b.registered) one.r = b.registered;
+        if (b.regs.length) one.h = b.regs;
+        return one;
+      }),
+    }, null, 2);
+  }
+
+  // 겹치지 않는 자리를 찾아 새 뭉치를 놓는다
+  function freeSpot(g) {
+    const step = S;
+    for (let ring = 0; ring < 12; ring++) {
+      for (let i = -ring; i <= ring; i++) {
+        for (let j = -ring; j <= ring; j++) {
+          if (Math.max(Math.abs(i), Math.abs(j)) !== ring) continue;
+          const nx = board.clientWidth / 2 + i * step;
+          const ny = board.clientHeight / 2 + j * step;
+          if (!overlaps(g, nx, ny)) return [nx, ny];
+        }
+      }
+    }
+    return [board.clientWidth / 2, board.clientHeight / 2];
+  }
+
+  // json 으로 블럭 세트를 만든다. 만든 개수를 돌려준다.
+  function jsonToGroup(text) {
+    const data = JSON.parse(text);
+    const list = data && Array.isArray(data.blocks) ? data.blocks : null;
+    if (!list || !list.length) throw new Error('blocks 가 없다');
+
+    const g = makeGroup(0, 0);
+    list.forEach((one) => {
+      if (!TYPES[one.t]) return;
+      const b = addBlock(g, one.t, Math.round(one.x) || 0, Math.round(one.y) || 0);
+      if (one.l) b.limit = Math.max(COUNT_MIN, Math.min(COUNT_MAX, one.l));
+      if (one.p) b.note = Math.max(NOTE_LOW, Math.min(NOTE_HIGH, one.p));
+      if (one.d && KITS.some((k) => k[0] === one.d)) b.kit = one.d;
+      if (one.s) b.stored = one.s;
+      if (one.r) { b.registered = one.r; b.el.classList.add('is-armed'); }
+      if (Array.isArray(one.h)) b.regs = one.h;
+      if (b.noteEl) b.noteEl.value = String(b.note);
+      if (b.kitEl) b.kitEl.value = b.kit;
+      if (b.type === 'counter') showCount(b);
+      if (b.stored) showStore(b);
+      if (b.regs.length || b.registered) showRegs(b);
+    });
+    if (!g.blocks.length) { dropGroup(g); throw new Error('아는 블럭이 없다'); }
+
+    const spot = freeSpot(g);
+    g.x = spot[0];
+    g.y = spot[1];
+    clamp(g);
+    render(g);
+    refreshLinks();
+    save();
+    return g.blocks.length;
+  }
+
+  function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) { /* 아래 방법으로 다시 시도한다 */ }
+    try {
+      sheetText.select();
+      return document.execCommand('copy');
+    } catch (err) {
+      return false;
+    }
+  }
+
+  document.getElementById('sheet-close').addEventListener('click', closeSheet);
+  sheetOk.addEventListener('click', () => { if (onOk) onOk(); });
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeSheet(); });
+
+  // 블럭의 export / import 버튼
+  board.addEventListener('click', (e) => {
+    const btn = e.target.closest('.io-btn');
+    if (!btn) return;
+    const g = findGroup(btn.closest('.block'));
+    if (!g) return;
+    const b = g.blocks.find((x) => x.el === btn.closest('.block'));
+    if (!b) return;
+
+    if (b.type === 'exporter') {
+      openSheet('Export — 연결된 블럭 ' + g.blocks.length + '개', groupToJson(g), '복사', () => {
+        sheetMsg.textContent = copyText(sheetText.value) ? '복사했다' : '복사하지 못했다';
+      });
+    } else {
+      openSheet('Import — json 을 붙여 넣어라', '', '생성', () => {
+        try {
+          const n = jsonToGroup(sheetText.value);
+          sheetMsg.textContent = n + '개 블럭을 만들었다';
+          closeSheet();
+        } catch (err) {
+          sheetMsg.textContent = '읽지 못했다: ' + err.message;
+        }
+      });
+    }
   });
 
   /* ---------- 저장 ---------- */
