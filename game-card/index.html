@@ -226,6 +226,18 @@
   }
   .block .note:hover{border-color:var(--tone);}
 
+  /* adder에 등록된 두 칩 — 왼쪽/오른쪽, 상하 중앙 */
+  .block .pair{position:absolute;inset:0;pointer-events:none;}
+  .block .pair .reg{
+    position:absolute;
+    top:50%;
+    margin-top:calc(var(--reg,14px) / -2);
+  }
+  .block .pair .slot-l{left:9%;}
+  .block .pair .slot-r{right:9%;}
+  .block .pair .reg.is-moving{transition:transform .2s ease-in-out;}
+  .block .pair .reg.is-clash{transition:transform .12s ease-out;}
+
   /* collector가 저장한 수량 */
   .block .store{
     position:absolute;
@@ -715,9 +727,6 @@
     } else if (b.type === 'collector') {
       blink(b);
       pullChips(b);
-    } else if (b.type === 'adder') {
-      blink(b);
-      flushAdder(b);
     } else if (b.type === 'counter') {
       countUp(b, uid);
       return;                 // 카운트가 찰 때까지 행동을 넘기지 않는다
@@ -848,8 +857,7 @@
   // 배송 — 칩은 곧바로 받는 블럭에 등록된다
   function receive(b, kind, value) {
     if (b.type === 'adder') {
-      b.regs.push({ kind: kind, value: value });
-      showRegs(b);
+      feedAdder(b, kind, value);
     } else if (b.type === 'collector') {
       b.registered = kind;
       b.el.classList.add('is-armed');
@@ -978,25 +986,53 @@
     chips.splice(i, 1);
   }
 
-  // adder의 반응 — 등록된 칩을 모두 더한 칩 하나를 생산한다.
-  // 유형이 섞여 더할 수 없으면 유형마다 따로 배출한다.
-  function flushAdder(b) {
-    if (!b.regs.length) return;
-
-    const sums = new Map();
-    b.regs.forEach((r) => sums.set(r.kind, (sums.get(r.kind) || 0) + r.value));
-    b.regs = [];
+  // adder는 두 번째 칩을 받는 순간 반응한다 (행동과는 무관하다)
+  function feedAdder(b, kind, value) {
+    b.regs.push({ kind: kind, value: value });
     showRegs(b);
+    if (b.regs.length < ADD_SLOTS) return;
+    reactAdder(b);
+  }
 
-    const kinds = [...sums.keys()];
-    if (kinds.length === 1) {
-      generate(b, kinds[0], sums.get(kinds[0]));
+  // 두 칩이 가운데로 모였다가, 합쳐지거나 부딪혀 튕겨 나간다
+  function reactAdder(b) {
+    const pair = b.regs.slice(0, ADD_SLOTS);
+    b.regs = b.regs.slice(ADD_SLOTS);
+    blink(b);
+
+    const slots = b.pairEl ? [...b.pairEl.children] : [];
+    const same = pair[0].kind === pair[1].kind;
+
+    slots.forEach((el, i) => {
+      if (!pair[i]) return;
+      const dx = b.el.clientWidth / 2 - (el.offsetLeft + el.offsetWidth / 2);
+      el.classList.add('is-moving');
+      el.style.transform = 'translateX(' + dx + 'px)';
+    });
+
+    if (same) {
+      setTimeout(() => {
+        showRegs(b);
+        generate(b, pair[0].kind, pair[0].value + pair[1].value);
+      }, ADD_IN_MS);
       return;
     }
-    kinds.forEach((kind, i) => {
-      const lean = -0.6 + (1.2 * i) / (kinds.length - 1);
-      ejectChip(b, kind, sums.get(kind), lean);
-    });
+
+    // 못 합치는 칩끼리는 부딪혀 되튄다
+    setTimeout(() => {
+      slots.forEach((el, i) => {
+        if (!pair[i]) return;
+        const away = (i === 0 ? -1 : 1) * b.el.clientWidth * 0.22;
+        el.classList.remove('is-moving');
+        el.classList.add('is-clash');
+        el.style.transform = 'translateX(' + away + 'px)';
+      });
+      setTimeout(() => {
+        showRegs(b);
+        ejectChip(b, pair[0].kind, pair[0].value, -0.6);
+        ejectChip(b, pair[1].kind, pair[1].value, 0.6);
+      }, CLASH_OUT_MS);
+    }, ADD_IN_MS);
   }
 
   // 배출 — 블럭에서 칩을 튕겨낸다. 내보낸 블럭은 그 칩을 곧바로 다시 먹지 않는다.
@@ -1063,6 +1099,10 @@
   ];
   const KIT_DEFAULT = 'kick';
 
+  const ADD_SLOTS = 2;      // adder가 한 번에 들고 있는 칩 수
+  const ADD_IN_MS = 200;    // 가운데로 모이는 시간
+  const CLASH_OUT_MS = 140; // 못 합칠 때 튕겨 나가는 시간
+
   function buildDrummer(b) {
     const sel = document.createElement('select');
     sel.className = 'note';
@@ -1105,8 +1145,30 @@
     save();
   }
 
-  // 등록된 칩을 블럭 상단에 작은 칩으로 늘어놓는다
+  // adder는 두 칩을 좌·우에 놓고, 나머지 블럭은 상단에 늘어놓는다
   function showRegs(b) {
+    if (b.type === 'adder') { showPair(b); return; }
+    showStrip(b);
+  }
+
+  function showPair(b) {
+    if (!b.pairEl) {
+      b.pairEl = document.createElement('span');
+      b.pairEl.className = 'pair';
+      b.pairEl.innerHTML = '<span class="reg slot-l"></span><span class="reg slot-r"></span>';
+      b.el.appendChild(b.pairEl);
+    }
+    [...b.pairEl.children].forEach((el, i) => {
+      const item = b.regs[i];
+      el.textContent = item ? item.value : '';
+      el.style.display = item ? '' : 'none';
+      el.style.transform = '';
+      el.classList.remove('is-moving', 'is-clash');
+    });
+  }
+
+  // 등록된 칩을 블럭 상단에 작은 칩으로 늘어놓는다
+  function showStrip(b) {
     if (!b.regsEl) {
       b.regsEl = document.createElement('span');
       b.regsEl.className = 'regs';
