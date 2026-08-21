@@ -145,6 +145,14 @@
     t.classList.add('on');
   }
 
+  function erase(c, r) {
+    const t = tileAt(c, r);
+    painted.delete(c + ',' + r);
+    if (!t) return;
+    t.style.backgroundColor = '';
+    t.classList.remove('on');
+  }
+
   /** 포인터가 빨리 움직여 격자를 건너뛰어도 빈칸이 남지 않도록 직선 보간 */
   function paintLine(from, to, color) {
     const dc = to.c - from.c, dr = to.r - from.r;
@@ -162,6 +170,9 @@
   /* ---------- 드래그 ---------- */
 
   let last = null;
+  let start = null;       // 드래그가 시작된 칸
+  let startWasPainted = false;
+  let moved = false;      // 다른 칸으로 넘어간 적이 있는가
 
   board.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -179,6 +190,10 @@
     }
     swatch.style.backgroundColor = dragColor;
 
+    start = last;
+    startWasPainted = !!existing;
+    moved = false;
+
     dragging = true;
     paint(last.c, last.r, dragColor);
 
@@ -190,17 +205,24 @@
     if (!dragging) return;
     const cur = cellFromPoint(e.clientX, e.clientY);
     if (cur.c === last.c && cur.r === last.r) return;
+    moved = true;
     paintLine(last, cur, dragColor);
     last = cur;
   });
 
-  function endDrag() {
+  function endDrag(isRelease) {
+    // 이동 없이 놓았고 이미 색이 있던 칸이었다면 클릭으로 보고 색을 지운다
+    if (isRelease && dragging && !moved && startWasPainted && start) {
+      erase(start.c, start.r);
+    }
     dragging = false;
     last = null;
+    start = null;
+    startWasPainted = false;
   }
-  board.addEventListener('pointerup', endDrag);
-  board.addEventListener('pointercancel', endDrag);
-  window.addEventListener('blur', endDrag);
+  board.addEventListener('pointerup', () => endDrag(true));
+  board.addEventListener('pointercancel', () => endDrag(false));
+  window.addEventListener('blur', () => endDrag(false));
 
   /* ---------- HUD ---------- */
 
