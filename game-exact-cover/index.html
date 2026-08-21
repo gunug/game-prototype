@@ -68,6 +68,21 @@
     border-color:var(--brand-yellow);
     color:var(--ink);
   }
+  .stages .label{flex:1;}
+  /* 난이도 — 낮으면 흐리게, 높을수록 브랜드색으로 */
+  .stages .diff{
+    flex:0 0 auto;
+    min-width:26px;
+    text-align:center;
+    font-size:11px;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+    padding:2px 6px;
+    border-radius:var(--r-pill);
+    color:color-mix(in srgb, var(--brand-yellow) calc(var(--t) * 100%), var(--muted));
+    background:color-mix(in srgb, var(--brand-yellow) calc(var(--t) * 14%), transparent);
+    border:1px solid color-mix(in srgb, var(--brand-yellow) calc(var(--t) * 45%), var(--hairline));
+  }
   .stages .check{color:var(--brand-yellow);font-weight:800;visibility:hidden;}
   .stages button.done .check{visibility:visible;}
 
@@ -213,66 +228,65 @@
   /* ==================== 스테이지 ==================== */
 
   const SHAPES = {
-    L3: [[0, 0], [0, 1], [1, 1]],   // 트로미노 L
-    I3: [[0, 0], [0, 1], [0, 2]],   // 트로미노 I
     O4: [[0, 0], [1, 0], [0, 1], [1, 1]],   // 테트로미노 O
+    I3: [[0, 0], [0, 1], [0, 2]],   // 트로미노 I
     T4: [[0, 0], [1, 0], [2, 0], [1, 1]],   // 테트로미노 T
-    L4: [[0, 0], [0, 1], [0, 2], [1, 2]],   // 테트로미노 L
+    L3: [[0, 0], [0, 1], [1, 1]],   // 트로미노 L
     L5: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 3]],   // 펜토미노 L
+    L4: [[0, 0], [0, 1], [0, 2], [1, 2]],   // 테트로미노 L
   };
 
   /**
    * 필드는 tools/generate.py 가 CP-SAT 로 미리 풀어 구운 값이다. 각 칸이
    * 정확히 한 조각에 덮이도록 제약을 걸어 만들었으므로 항상 해가 있다.
    * 문자열은 좌상단부터 행 우선으로 읽는 10x10 비트맵.
+   *
+   * difficulty 는 tools/measure.py 가 잰 1~100 점수. 쉬운 순으로 정렬돼 있다.
    */
   const STAGES = [
     {
       name: '스테이지 1',
-      shape: SHAPES.L3,
-      // L3 x10 = 30칸, 인접쌍 41/49 (조밀도 0.6)
-      field: '0000110000000011000000111100000111110000000110000000011000000001110000001111110000000011000000001100',
+      shape: SHAPES.O4,
+      difficulty: 8,
+      // 테트로미노 O x12 = 48칸 | 해 1 | 강제 100% | 이어칠 성공률 100% | 헛칠 0%
+      field: '1100000000110011001111111100111111111111001111111111110000001111000000111100000011000000000000000000',
     },
     {
       name: '스테이지 2',
       shape: SHAPES.I3,
-      // I3 x12 = 36칸, 인접쌍 52/60 (조밀도 0.66)
+      difficulty: 36,
+      // 트로미노 I x12 = 36칸 | 해 4 | 강제 50% | 이어칠 성공률 37% | 헛칠 0%
       field: '0001100000000110000000011111000011111100001110000000111000000010111000001111100000111110000001000000',
     },
     {
       name: '스테이지 3',
-      shape: SHAPES.O4,
-      // O4 x12 = 48칸, 인접쌍 72/82 (조밀도 0.7)
-      field: '1100000000110011001111111100111111111111001111111111110000001111000000111100000011000000000000000000',
-    },
-    {
-      name: '스테이지 4',
       shape: SHAPES.T4,
-      // T4 x13 = 52칸, 인접쌍 78/88 (조밀도 0.74)
+      difficulty: 49,
+      // 테트로미노 T x13 = 52칸 | 해 4 | 강제 69% | 이어칠 성공률 7% | 헛칠 2%
       field: '0100001110110111110011111100001111111111111111111011110000001111100000111000000011110000000000000000',
     },
     {
+      name: '스테이지 4',
+      shape: SHAPES.L3,
+      difficulty: 52,
+      // 트로미노 L x10 = 30칸 | 해 2 | 강제 80% | 이어칠 성공률 0% | 헛칠 10%
+      field: '0000110000000011000000111100000111110000000110000000011000000001110000001111110000000011000000001100',
+    },
+    {
       name: '스테이지 5',
-      shape: SHAPES.L4,
-      // L4 x14 = 56칸, 인접쌍 88/97 (조밀도 0.78)
-      field: '0000000000000000011101111111110111111111000111111111110011111111001111001111111100111100000000000000',
+      shape: SHAPES.L5,
+      difficulty: 62,
+      // 펜토미노 L x14 = 70칸 | 해 1 | 강제 100% | 이어칠 성공률 0% | 헛칠 18%
+      field: '0001000111111111111111111111111111111111111111111111100111101110010000111001000011111110000111100000',
     },
     {
       name: '스테이지 6',
-      shape: SHAPES.L5,
-      // L5 x14 = 70칸, 인접쌍 113/123 (조밀도 0.82)
-      field: '0001000111111111111111111111111111111111111111111111100111101110010000111001000011111110000111100000',
+      shape: SHAPES.L4,
+      difficulty: 68,
+      // 테트로미노 L x14 = 56칸 | 해 8 | 강제 50% | 이어칠 성공률 3% | 헛칠 21%
+      field: '0000000000000000011101111111110111111111000111111111110011111111001111001111111100111100000000000000',
     },
   ];
-
-  /** 비트맵 문자열 -> 칠할 수 있는 칸 집합 */
-  function readField(bits) {
-    const out = new Set();
-    for (let i = 0; i < bits.length; i++) {
-      if (bits[i] === '1') out.add(k(i % COLS, Math.floor(i / COLS)));
-    }
-    return out;
-  }
   /* ==================== 상태 ==================== */
 
   const grid      = document.getElementById('grid');
@@ -343,13 +357,25 @@
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = s.name;
       if (i === stageIdx) b.setAttribute('aria-current', 'true');
       if (cleared.has(s.name)) b.classList.add('done');
+
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = s.name;
+
+      // tools/measure.py 가 잰 1~100 난이도
+      const diff = document.createElement('span');
+      diff.className = 'diff';
+      diff.textContent = s.difficulty;
+      diff.title = `난이도 ${s.difficulty}`;
+      diff.style.setProperty('--t', Math.min(s.difficulty, 100) / 100);
+
       const chk = document.createElement('span');
       chk.className = 'check';
       chk.textContent = '✓';
-      b.appendChild(chk);
+
+      b.append(label, diff, chk);
       b.addEventListener('click', () => loadStage(i));
       li.appendChild(b);
       frag.appendChild(li);
