@@ -16,6 +16,7 @@ import os
 import random
 import re
 import sys
+from concurrent.futures import ProcessPoolExecutor
 
 from ortools.sat.python import cp_model
 
@@ -76,7 +77,9 @@ class Puzzle:
             m.Add(sum(covering[c]) == 1)
         return m, use
 
-    def _solve(self, m, limit=5.0, workers=8):
+    # 모델이 아주 작아서 솔버를 병렬로 돌리면 이득보다 준비 비용이 크다.
+    # 대신 스테이지 단위로 프로세스를 나눈다.
+    def _solve(self, m, limit=5.0, workers=1):
         s = cp_model.CpSolver()
         s.parameters.max_time_in_seconds = limit
         s.parameters.num_workers = workers
@@ -325,38 +328,48 @@ def apply_to_game(stages):
 # ── 실행 ────────────────────────────────────────────────────────────────
 
 
+def measure_one(st):
+    """스테이지 하나를 재서 지표 묶음을 돌려준다. 프로세스 풀에서 돌린다."""
+    pz = Puzzle(st["shape"], st["field"])
+    sols, capped = pz.count_solutions()
+    forced, forced_n = pz.forced_ratio()
+    swap = pz.min_swap()
+    g = pz.greedy_trials()
+
+    m = {
+        "shape": st["shape"],
+        "size": pz.size,
+        "pieces": pz.pieces,
+        "cells": len(pz.cells),
+        "places": len(pz.places),
+        "field": st["field"],
+        "solutions": sols,
+        "capped": capped,
+        "forced": forced,
+        "forcedPieces": forced_n,
+        "minSwap": swap,
+        "success": g["success"],
+        "doomDepth": g["doom_depth"],
+        "blind": g["blind"],
+        "blame": g["blame"],
+        "detTime": round(pz.det_time, 2),
+    }
+    m["difficulty"], m["parts"] = score(m)
+    return m
+
+
 def main():
     stages = json.load(open(DATA, encoding="utf-8"))
+
+    workers = min(os.cpu_count() or 4, 12)
+    print(f"{len(stages)}개, 프로세스 {workers}개", file=sys.stderr)
+
     rows = []
-
-    for st in stages:
-        pz = Puzzle(st["shape"], st["field"])
-        sols, capped = pz.count_solutions()
-        forced, forced_n = pz.forced_ratio()
-        swap = pz.min_swap()
-        g = pz.greedy_trials()
-
-        m = {
-            "shape": st["shape"],
-            "size": pz.size,
-            "pieces": pz.pieces,
-            "cells": len(pz.cells),
-            "places": len(pz.places),
-            "field": st["field"],
-            "solutions": sols,
-            "capped": capped,
-            "forced": forced,
-            "forcedPieces": forced_n,
-            "minSwap": swap,
-            "success": g["success"],
-            "doomDepth": g["doom_depth"],
-            "blind": g["blind"],
-            "blame": g["blame"],
-            "detTime": round(pz.det_time, 2),
-        }
-        m["difficulty"], m["parts"] = score(m)
-        rows.append(m)
-        print(f"  잼: {st['shape']} -> {m['difficulty']}", file=sys.stderr)
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for m in pool.map(measure_one, stages):
+            rows.append(m)
+            print(f"  잼 {len(rows)}/{len(stages)}: "
+                  f"{m['shape']} x{m['pieces']} -> {m['difficulty']}", file=sys.stderr)
 
     rows.sort(key=lambda r: (r["difficulty"], r["cells"]))
 

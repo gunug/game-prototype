@@ -211,17 +211,28 @@ def to_bits(cells):
 
 # ── 스테이지 목록 ───────────────────────────────────────────────────────
 
-# (이름, 모양, 조각 수, 조밀도)
-# 조밀도를 1.0 으로 두면 매번 직사각형이 나온다. 0.6~0.8 대가 뭉툭하면서도
-# 윤곽에 요철이 남아 스테이지마다 다르게 생긴다.
-CURVE = [
-    ("스테이지 1", "L3", 10, 0.60),
-    ("스테이지 2", "I3", 12, 0.66),
-    ("스테이지 3", "O4", 12, 0.70),
-    ("스테이지 4", "T4", 13, 0.74),
-    ("스테이지 5", "L4", 14, 0.78),
-    ("스테이지 6", "L5", 14, 0.82),
+# 조각 수와 조밀도를 바꿔 가며 모양마다 여러 문제를 뽑는다.
+# 조밀도를 1.0 으로 두면 매번 직사각형이 나온다. 0.55~0.85 대가 뭉툭하면서도
+# 윤곽에 요철이 남아 문제마다 다르게 생긴다.
+FRACS = (0.55, 0.70, 0.85)
+
+FAMILIES = [
+    (["I3", "L3"], (8, 12, 16)),                        # 트로미노
+    (["I4", "O4", "T4", "L4", "S4"], (9, 12, 15)),      # 테트로미노
+    (["L5", "P5", "T5", "V5", "W5", "Y5"], (10, 13, 16)),  # 펜토미노
 ]
+
+
+def curve():
+    out = []
+    for shapes, counts in FAMILIES:
+        for name in shapes:
+            for i, pieces in enumerate(counts):
+                out.append((name, pieces, FRACS[i % len(FRACS)]))
+    return out
+
+
+CURVE = curve()
 
 
 # ── 검증 ────────────────────────────────────────────────────────────────
@@ -277,7 +288,8 @@ def io_open(path):
 
 def main():
     out = []
-    for i, (name, shape_name, pieces, frac) in enumerate(CURVE):
+    for i, (shape_name, pieces, frac) in enumerate(CURVE):
+        name = f"{shape_name} x{pieces} f{frac}"
         result = None
         for attempt in range(6):
             seed = 1000 + i * 37 + attempt
