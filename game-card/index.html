@@ -26,12 +26,47 @@
     -webkit-tap-highlight-color:transparent;
   }
 
+  /* 서랍 — 화면 왼쪽에 붙어 있는 블럭 보관함 */
+  .drawer{
+    position:fixed;
+    z-index:2147482000;
+    left:0;
+    top:0;
+    bottom:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    padding:10px 8px calc(env(safe-area-inset-bottom, 0px) + 10px);
+    padding-left:calc(env(safe-area-inset-left, 0px) + 8px);
+    background:rgba(28,28,23,.9);
+    border-right:1px solid var(--hairline);
+    overflow-y:auto;
+    overflow-x:hidden;
+    scrollbar-width:none;
+    backdrop-filter:blur(6px);
+    touch-action:pan-y;
+  }
+  .drawer::-webkit-scrollbar{display:none;}
+  .drawer .block{
+    position:relative;
+    left:auto;
+    top:auto;
+    width:var(--half,60px);
+    height:var(--half,60px);
+    flex:0 0 auto;
+    box-shadow:var(--sh-sm);
+  }
+  .drawer .block .name{display:none;}
+  .drawer .block .icon{font-size:calc(var(--half,60px) * .42);}
+  /* 여기에 떨구면 지워진다 */
+  .drawer.is-target{background:rgba(210,74,74,.35);border-right-color:var(--error);}
+
   /* 화면 위에 떠 있는 최소한의 UI */
   .hud{
     position:fixed;
     z-index:2147483000;
     top:calc(env(safe-area-inset-top, 0px) + 12px);
-    left:calc(env(safe-area-inset-left, 0px) + 12px);
+    right:calc(env(safe-area-inset-right, 0px) + 12px);
     display:flex;
     gap:var(--s2);
     align-items:center;
@@ -176,6 +211,7 @@
 </head>
 <body>
   <div class="board" id="board"></div>
+  <aside class="drawer" id="drawer"></aside>
   <nav class="hud">
     <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
     <button class="btn btn-secondary btn-sm" type="button" id="reset">초기화</button>
@@ -193,16 +229,8 @@
     '+':      { icon: '➕', tone: '#5BB8E8' },
     counter:  { icon: '🔢', tone: '#E0941A' },
   };
-  // 화면에 깔아 두는 블럭 20장 — 구현된 종류만 쓴다
-  const START = [
-    'clicker', 'clicker', 'clicker',
-    'beeper', 'beeper', 'beeper',
-    'maker', 'maker', 'maker',
-    'collector', 'collector', 'collector',
-    '+', '+', '+',
-    'counter', 'counter',
-    'mover', 'mover', 'mover',
-  ];
+  const START = [];         // 화면은 빈 채로 시작하고, 블럭은 서랍에서 꺼낸다
+
   const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const SNAP_RATIO = 0.5;   // 블럭 한 변의 절반 안에 들어오면 붙는다
   const CLICK_SLOP = 5;     // 이만큼 안 움직이면 드래그로 치지 않는다
@@ -228,6 +256,7 @@
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
 
   const board = document.getElementById('board');
+  const drawer = document.getElementById('drawer');
 
   let S = 96;               // 블럭 한 변 (px)
   let groups = [];
@@ -298,6 +327,9 @@
     maxY: Math.max(...g.blocks.map((b) => b.gy)),
   });
 
+  // 서랍에 가리지 않도록 판의 왼쪽 여백을 잡는다
+  const padLeft = () => drawer.getBoundingClientRect().width;
+
   // 뭉치 전체를 판 안으로 밀어 넣는다
   function clamp(g) {
     const bb = box(g);
@@ -305,7 +337,8 @@
     const h = (bb.maxY - bb.minY + 1) * S;
     const left = g.x + bb.minX * S;
     const top = g.y + bb.minY * S;
-    g.x += Math.max(0, Math.min(left, board.clientWidth - w)) - left;
+    const minX = padLeft();
+    g.x += Math.max(minX, Math.min(left, Math.max(minX, board.clientWidth - w))) - left;
     g.y += Math.max(0, Math.min(top, board.clientHeight - h)) - top;
   }
 
@@ -610,7 +643,7 @@
   // 판 안으로 가둔 뒤 그린다
   function placeChip(c) {
     const d = chipSize();
-    c.x = Math.max(0, Math.min(c.x, board.clientWidth - d));
+    c.x = Math.max(padLeft(), Math.min(c.x, board.clientWidth - d));
     c.y = Math.max(0, Math.min(c.y, board.clientHeight - d));
     c.el.style.left = c.x + 'px';
     c.el.style.top = c.y + 'px';
@@ -623,6 +656,7 @@
   // 튕겨 나간 칩이 벽에 부딪히며 굴러가다 멈춘다
   function stepChips() {
     const d = chipSize();
+    const minX = padLeft();
     const maxX = board.clientWidth - d;
     const maxY = board.clientHeight - d;
 
@@ -630,7 +664,7 @@
       if (c.held || (!c.vx && !c.vy)) return;
       c.x += c.vx;
       c.y += c.vy;
-      if (c.x < 0) { c.x = 0; c.vx *= -CHIP_BOUNCE; }
+      if (c.x < minX) { c.x = minX; c.vx *= -CHIP_BOUNCE; }
       if (c.x > maxX) { c.x = maxX; c.vx *= -CHIP_BOUNCE; }
       if (c.y < 0) { c.y = 0; c.vy *= -CHIP_BOUNCE; }
       if (c.y > maxY) { c.y = maxY; c.vy *= -CHIP_BOUNCE; }
@@ -902,18 +936,42 @@
     if (!blockEl) return;
     const src = findGroup(blockEl);
     if (!src) return;
-
     const b = src.blocks.find((x) => x.el === blockEl);
+    beginDrag(e, b, src, false);
+  });
+
+  // 서랍에서 끌어내면 본래 크기의 블럭이 새로 생긴다
+  drawer.addEventListener('pointerdown', (e) => {
+    const slot = e.target.closest('.block');
+    if (!slot) return;
+    e.preventDefault();
+
+    const br = board.getBoundingClientRect();
+    const g = makeGroup(e.clientX - br.left - S / 2, e.clientY - br.top - S / 2);
+    const b = addBlock(g, slot.dataset.type, 0, 0);
+    if (b.type === 'counter') { showRegs(b); showCount(b); }
+    clamp(g);
+    render(g);
+    beginDrag(e, b, g, true);
+  });
+
+  const overDrawer = (x, y) => {
+    const r = drawer.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+
+  // instant면 이미 손에 들린 상태로 시작한다 (서랍에서 꺼낸 경우)
+  function beginDrag(e, b, src, instant) {
     const alone = dragsAlone(b);
     let lastX = e.clientX;
     let lastY = e.clientY;
     let moved = 0;
-    let held = null;          // 손에 들린 뭉치
-    let grabX = 0;
-    let grabY = 0;
+    let held = instant ? src : null;
+    let grabX = instant ? S / 2 : 0;
+    let grabY = instant ? S / 2 : 0;
+    if (instant) src.el.classList.add('is-dragging');
 
-    // 캡처가 되면 좋지만, 안 되더라도 window에서 끝까지 따라간다
-    try { blockEl.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
+    try { b.el.setPointerCapture(e.pointerId); } catch (err) { /* 캡처 불가한 입력은 그냥 진행 */ }
 
     const move = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
@@ -925,7 +983,6 @@
       if (!held) {
         if (moved < CLICK_SLOP) return;   // 살짝 흔든 건 클릭으로 본다
         held = alone ? detach(b) : src;
-        // 잡은 지점은 처음 누른 자리 기준 — 문턱을 넘는 순간 튀지 않는다
         grabX = e.clientX - br.left - held.x;
         grabY = e.clientY - br.top - held.y;
         held.el.classList.add('is-dragging');
@@ -934,15 +991,16 @@
       held.y = ev.clientY - br.top - grabY;
       clamp(held);
       render(held);
+      drawer.classList.toggle('is-target', overDrawer(ev.clientX, ev.clientY));
     };
 
-    // 커서가 블럭 밖이든 판 밖이든, 손을 떼면 드래그는 끝난다
     const up = (ev) => {
       if (ev && ev.pointerId !== undefined && ev.pointerId !== e.pointerId) return;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       window.removeEventListener('blur', up);
+      drawer.classList.remove('is-target');
 
       if (!held) {
         if (b.type === 'clicker') click(b);
@@ -950,6 +1008,13 @@
       }
       held.el.classList.remove('is-dragging');
       setSolo(b, false);        // 예약된 혼자 이동은 한 번 쓰면 풀린다
+
+      // 서랍 위에서 놓으면 지운다
+      if (ev && ev.clientX !== undefined && overDrawer(ev.clientX, ev.clientY)) {
+        dropGroup(held);
+        save();
+        return;
+      }
       trySnap(held);
       save();
     };
@@ -958,7 +1023,7 @@
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
     window.addEventListener('blur', up);
-  });
+  }
 
   // 칩은 블럭과 상관없이 따로 끌어 옮긴다
   board.addEventListener('pointerdown', (e) => {
@@ -1148,7 +1213,27 @@
       clamp(g);
       render(g);
     });
+    sizeDrawer();
     save();
+  }
+
+  // 서랍에는 구현된 블럭이 종류마다 하나씩 놓인다
+  function buildDrawer() {
+    drawer.innerHTML = '';
+    Object.keys(TYPES).forEach((type) => {
+      const el = document.createElement('div');
+      el.className = 'block';
+      el.dataset.type = type;
+      el.style.setProperty('--tone', TYPES[type].tone);
+      el.innerHTML = '<span class="icon">' + TYPES[type].icon + '</span>';
+      drawer.appendChild(el);
+    });
+    sizeDrawer();
+  }
+
+  // 서랍 블럭은 본래 크기의 1/2
+  function sizeDrawer() {
+    drawer.style.setProperty('--half', Math.round(S / 2) + 'px');
   }
 
   // 초기화 — 저장된 상태를 지우고 처음 배치로 되돌린다
@@ -1165,6 +1250,7 @@
     if (!laidOut) {
       laidOut = true;
       if (!restore()) layout();
+      buildDrawer();
       return;
     }
 
@@ -1183,6 +1269,7 @@
       sizeChip(c);
       placeChip(c);
     });
+    sizeDrawer();
     save();
   }).observe(board);
 })();
