@@ -297,7 +297,21 @@ def emit_stages(stages):
             f"      field: '{st['field']}',",
             "    },",
         ]
-    out += ["  ];", ""]
+    # readField 도 이 블록 안에 있다. 여기서 같이 내보내지 않으면 --apply 가
+    # 블록을 통째로 갈아치울 때 정의가 사라진다.
+    out += [
+        "  ];",
+        "",
+        "  /** 비트맵 문자열 -> 칠할 수 있는 칸 집합 */",
+        "  function readField(bits) {",
+        "    const out = new Set();",
+        "    for (let i = 0; i < bits.length; i++) {",
+        "      if (bits[i] === '1') out.add(k(i % COLS, Math.floor(i / COLS)));",
+        "    }",
+        "    return out;",
+        "  }",
+        "",
+    ]
     return "\n".join(out)
 
 
