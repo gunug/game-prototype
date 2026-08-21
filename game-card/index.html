@@ -131,7 +131,7 @@
   }
   .chip.is-dragging{cursor:grabbing;box-shadow:0 0 0 3px var(--brand-yellow),var(--sh-lg);}
   /* 인접 블럭으로 배송되는 중 */
-  .chip.is-flying{pointer-events:none;transition:transform .3s ease-out;}
+  .chip.is-flying{pointer-events:none;}
   /* 칩 유형을 등록해 둔 collector */
   .block.is-armed{border-color:var(--tone);}
   /* collector에 등록된 칩 */
@@ -899,9 +899,16 @@
     el.style.zIndex = Z_CHIP;
     board.appendChild(el);
 
-    requestAnimationFrame(() => {
-      el.style.transform = 'translate(' + (bx - ax) + 'px,' + (by - ay) + 'px)';
-    });
+    const target = 'translate(' + (bx - ax) + 'px,' + (by - ay) + 'px)';
+    // CSS 전이는 초기 스타일이 확정되기 전에 값을 바꾸면 통째로 건너뛰어진다.
+    // 애니메이션 API로 두 지점을 못박아 어떤 호출 경로에서도 반드시 움직이게 한다.
+    if (el.animate) {
+      el.animate([{ transform: 'none' }, { transform: target }],
+                 { duration: DELIVER_MS, easing: 'ease-out' });
+    } else {
+      void el.offsetWidth;                 // 초기 스타일을 강제로 확정시킨 뒤
+    }
+    el.style.transform = target;           // 애니메이션이 끝난 자리
     setTimeout(() => {
       el.remove();
       if (done) done();
