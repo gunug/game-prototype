@@ -166,6 +166,45 @@
     line-height:1;
   }
 
+  /* counter의 리미트 조절 */
+  .block .ctl{
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:3px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+  }
+  .block .ctl button{
+    width:var(--ctl,18px);
+    height:var(--ctl,18px);
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid var(--hairline);
+    border-radius:var(--r-sm);
+    background:var(--surface);
+    color:var(--ink);
+    font-family:var(--font);
+    font-size:calc(var(--ctl,18px) * .7);
+    font-weight:800;
+    line-height:1;
+    cursor:pointer;
+    touch-action:none;
+  }
+  .block .ctl button:hover{background:var(--surface-soft);border-color:var(--tone);}
+  .block .ctl .count{
+    min-width:calc(var(--ctl,18px) * 1.6);
+    text-align:center;
+    color:var(--ink);
+    font-size:calc(var(--ctl,18px) * .62);
+    font-weight:700;
+    line-height:1;
+  }
+
   /* collector가 저장한 수량 */
   .block .store{
     position:absolute;
@@ -250,7 +289,7 @@
   const CHIP_POP = 0.09;    // 튀어나갈 때의 힘 (블럭 한 변 기준)
   const CHIP_DRAG_FRICTION = 0.92;
   const CHIP_BOUNCE = 0.5;
-  const RECEIVERS = ['+', 'collector', 'counter'];   // 칩을 받는 블럭
+  const RECEIVERS = ['+', 'collector'];   // 칩을 받는 블럭
   const DELIVER_DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];  // 상, 우, 하, 좌
   const DELIVER_MS = 260;
   const COLLECT_PULL = 0.06;   // 반응 한 번에 끌어당기는 힘
@@ -286,8 +325,9 @@
                    '<span class="name">' + type + '</span>';
     g.el.appendChild(el);
     const b = { type, gx, gy, el, g, seen: new Set(), acting: 0, reacting: 0,
-                solo: false, stored: 0, registered: null, regs: [], turn: 0, count: 0 };
-    if (type === 'counter') b.regs = [{ kind: CHIP_KIND, value: 1 }];   // 기본 1칩
+                solo: false, stored: 0, registered: null, regs: [], turn: 0,
+                count: 0, limit: 1 };
+    if (type === 'counter') buildCounter(b);
     g.blocks.push(b);
     return b;
   }
@@ -316,6 +356,7 @@
       b.el.style.left = b.gx * S + 'px';
       b.el.style.top = b.gy * S + 'px';
       b.el.style.setProperty('--reg', Math.round(S * 0.22) + 'px');
+      b.el.style.setProperty('--ctl', Math.round(S * 0.2) + 'px');
       applyZ(b);
     });
   }
@@ -591,7 +632,7 @@
     neighbors(b).forEach((n) => deliver(n, uid));
   }
 
-  // counter — 행동을 받을 때마다 세다가, 등록된 칩 숫자에 다다르면 반응해 행동을 넘긴다
+  // counter — 행동을 받을 때마다 세다가, 카운트 리미트에 닿으면 0으로 돌리고 반응해 행동을 넘긴다
   function countUp(b, uid) {
     b.count += 1;
     if (b.count >= needOf(b)) {
@@ -714,12 +755,6 @@
       b.el.classList.add('is-armed');
       showRegs(b);
       refreshLinks();
-    } else if (b.type === 'counter') {
-      const old = b.regs.shift();          // 이미 등록된 칩은 배출한다
-      if (old) ejectChip(b, old.kind, old.value, 0);
-      b.regs = [{ kind: kind, value: value }];
-      showRegs(b);
-      showCount(b);
     }
     save();
   }
@@ -901,8 +936,34 @@
   }
 
   const showStore = (b) => badge(b, b.stored);
-  const needOf = (b) => (b.regs.length ? b.regs[0].value : 1);
-  const showCount = (b) => badge(b, b.count + '/' + needOf(b));
+  const COUNT_MIN = 1;
+  const COUNT_MAX = 99;
+  const needOf = (b) => b.limit;
+
+  // counter에는 리미트를 올리고 내리는 버튼이 붙는다
+  function buildCounter(b) {
+    const ctl = document.createElement('span');
+    ctl.className = 'ctl';
+    ctl.innerHTML = '<button type="button" class="count-btn" data-step="-1">−</button>' +
+                    '<span class="count"></span>' +
+                    '<button type="button" class="count-btn" data-step="1">+</button>';
+    b.el.appendChild(ctl);
+    b.countEl = ctl.querySelector('.count');
+    showCount(b);
+  }
+
+  function showCount(b) {
+    if (b.countEl) b.countEl.textContent = b.count + '/' + b.limit;
+  }
+
+  function stepLimit(b, step) {
+    const next = Math.max(COUNT_MIN, Math.min(COUNT_MAX, b.limit + step));
+    if (next === b.limit) return;
+    b.limit = next;
+    if (b.count >= b.limit) b.count = 0;   // 리미트를 내리면 세던 것을 다시 센다
+    showCount(b);
+    save();
+  }
 
   // 등록된 칩을 블럭 상단에 작은 칩으로 늘어놓는다
   function showRegs(b) {
@@ -932,12 +993,24 @@
   const dragsAlone = (b) => b.type !== 'mover' || b.solo;
 
   board.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.count-btn')) return;   // 버튼은 드래그를 시작하지 않는다
     const blockEl = e.target.closest('.block');
     if (!blockEl) return;
     const src = findGroup(blockEl);
     if (!src) return;
     const b = src.blocks.find((x) => x.el === blockEl);
     beginDrag(e, b, src, false);
+  });
+
+  // 리미트 조절
+  board.addEventListener('click', (e) => {
+    const btn = e.target.closest('.count-btn');
+    if (!btn) return;
+    const blockEl = btn.closest('.block');
+    const g = findGroup(blockEl);
+    if (!g) return;
+    const b = g.blocks.find((x) => x.el === blockEl);
+    if (b) stepLimit(b, Number(btn.dataset.step));
   });
 
   // 서랍에서 끌어내면 본래 크기의 블럭이 새로 생긴다
@@ -949,7 +1022,6 @@
     const br = board.getBoundingClientRect();
     const g = makeGroup(e.clientX - br.left - S / 2, e.clientY - br.top - S / 2);
     const b = addBlock(g, slot.dataset.type, 0, 0);
-    if (b.type === 'counter') { showRegs(b); showCount(b); }
     clamp(g);
     render(g);
     beginDrag(e, b, g, true);
@@ -1108,6 +1180,7 @@
           r: b.registered || null,
           h: b.regs.length ? b.regs : null,
           n: b.count || 0,
+          l: b.limit || 1,
         })),
       })),
     };
@@ -1155,6 +1228,7 @@
         b.registered = bs.r || null;
         b.regs = Array.isArray(bs.h) ? bs.h : b.regs;
         b.count = bs.n || 0;
+        b.limit = Math.max(COUNT_MIN, Math.min(COUNT_MAX, bs.l || 1));
         if (b.stored) showStore(b);
         if (b.type === 'counter') showCount(b);
         if (b.regs.length || b.registered) showRegs(b);
@@ -1209,7 +1283,6 @@
       const row = Math.floor(i / cols);
       const g = makeGroup(x0 + col * (S + gap), y0 + row * (S + gap));
       const b = addBlock(g, type, 0, 0);
-      if (type === 'counter') { showRegs(b); showCount(b); }
       clamp(g);
       render(g);
     });
