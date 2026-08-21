@@ -74,6 +74,15 @@ for (const id of ['grid', 'board', 'preview', 'banner', 'stages', 'reset',
 
 const store = new Map();
 
+// 타이머는 직접 돌린다. 3초 홀드를 실제로 기다리지 않고 검사하기 위해서다.
+const timers = new Map();
+let timerId = 0;
+const runTimers = () => {
+  const due = [...timers.values()];
+  timers.clear();
+  due.forEach((fn) => fn());
+};
+
 const sandbox = {
   document: {
     getElementById: (id) => nodes[id] ?? null,
@@ -86,6 +95,8 @@ const sandbox = {
     setItem: (key, value) => store.set(key, String(value)),
   },
   console,
+  setTimeout: (fn) => { timers.set(++timerId, fn); return timerId; },
+  clearTimeout: (id) => timers.delete(id),
 };
 sandbox.window.localStorage = sandbox.localStorage;
 
@@ -171,9 +182,48 @@ if (!block) {
   nodes.board.dispatch('pointermove', at(bc, br + 1));
   nodes.board.dispatch('pointerup', {});
 
-  const marked = [[bc, br], [bc + 1, br], [bc, br + 1], [bc + 1, br + 1]]
-    .filter(([c, r]) => tiles[r * 10 + c].classList.contains('match'));
+  const square = [[bc, br], [bc + 1, br], [bc, br + 1], [bc + 1, br + 1]];
+  const marked = square.filter(([c, r]) => tiles[r * 10 + c].classList.contains('match'));
   check('모양 일치하면 유리 질감', marked.length === 4, `${marked.length}/4칸`);
+
+  // 칠해진 칸을 홀드하면 그 색 전체가 지워져야 한다
+  nodes.board.dispatch('pointerdown', {
+    button: 0, pointerType: 'mouse', pointerId: 3, ...at(bc, br),
+    target: { closest: () => null }, preventDefault() {},
+  });
+  const marking = square.filter(([c, r]) => tiles[r * 10 + c].classList.contains('holding'));
+  check('홀드 중 표시', marking.length === 4, `${marking.length}/4칸`);
+
+  runTimers();
+  const left = square.filter(([c, r]) => tiles[r * 10 + c].style.backgroundColor);
+  check('홀드하면 같은 색 전부 지워짐', left.length === 0, `${left.length}칸 남음`);
+
+  nodes.board.dispatch('pointerup', {});
+  const stillHolding = tiles.filter((t) => t.classList.contains('holding'));
+  check('홀드 표시 정리됨', stillHolding.length === 0, `${stillHolding.length}칸`);
+
+  // 다시 칠하고, 칸을 옮기면 홀드가 취소되는지
+  const press = (c, r, id) => nodes.board.dispatch('pointerdown', {
+    button: 0, pointerType: 'mouse', pointerId: id, ...at(c, r),
+    target: { closest: () => null }, preventDefault() {},
+  });
+  press(bc, br, 4);
+  nodes.board.dispatch('pointermove', at(bc + 1, br));
+  nodes.board.dispatch('pointerup', {});
+
+  press(bc, br, 5);                            // 칠해진 칸에서 다시 시작
+  nodes.board.dispatch('pointermove', at(bc + 1, br));
+  runTimers();                                 // 옮겼으니 홀드는 안 터져야 한다
+  const kept = [[bc, br], [bc + 1, br]].filter(([c, r]) => tiles[r * 10 + c].style.backgroundColor);
+  check('옮기면 홀드 취소', kept.length === 2, `${kept.length}/2칸 남음`);
+  nodes.board.dispatch('pointerup', {});
+
+  // 짧게 누르면 그 칸만 지워진다
+  press(bc, br, 6);
+  nodes.board.dispatch('pointerup', {});
+  const one = !tiles[br * 10 + bc].style.backgroundColor
+    && !!tiles[br * 10 + bc + 1].style.backgroundColor;
+  check('짧게 누르면 한 칸만 지워짐', one);
 }
 
 if (fails.length) {

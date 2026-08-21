@@ -155,6 +155,13 @@
   .tile.field{box-shadow:inset 0 0 0 1px var(--hairline);background:var(--surface);}
   .tile.on{box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);}
 
+  /* 홀드하는 3초 동안 지워질 칠 전체가 서서히 밝아진다 */
+  @keyframes hold-fade{
+    from{filter:none;}
+    to{filter:brightness(2.2) saturate(.25);}
+  }
+  .tile.holding{animation:hold-fade var(--hold) linear forwards;}
+
   /* 칠해야 할 모양과 일치하는 칠에만 얹는 유리 질감 */
   .tile.match{
     background-image:
@@ -236,6 +243,7 @@
 
   const COLS = 10, ROWS = 10;   // 격자는 가로 10칸, 세로 10칸
   const MARGIN = 16;
+  const HOLD_MS = 3000;   // 이만큼 누르고 있으면 그 색 전체가 지워진다
 
   /**
    * 칠 하나마다 서로 다른 색을 쓰므로 칸 수만큼 색이 필요하다.
@@ -616,6 +624,7 @@
     grid.style.setProperty('--cols', COLS);
     grid.style.setProperty('--rows', ROWS);
     outline.setAttribute('viewBox', `0 0 ${COLS} ${ROWS}`);
+    grid.style.setProperty('--hold', HOLD_MS + 'ms');
 
     tiles.length = 0;
     const frag = document.createDocumentFragment();
@@ -707,6 +716,7 @@
     field = readField(s.field);
     targetKeys = new Set(rotations(s.shape).map(shapeKey));
 
+    cancelHold();
     painted.clear();
     colorIdx = -1;
     for (let r = 0; r < ROWS; r++) {
@@ -776,6 +786,45 @@
       paint(from.c + Math.round(dc * i / steps),
             from.r + Math.round(dr * i / steps), color);
     }
+  }
+
+  /* ==================== 홀드해서 색 전체 지우기 ==================== */
+
+  let holdTimer = null;
+  let holdColor = null;
+  let holdFired = false;   // 홀드로 지웠으면 뗄 때 한 칸 지우기를 건너뛴다
+
+  function eachOfColor(color, fn) {
+    for (const [key, c] of [...painted]) {
+      if (c !== color) continue;
+      const [cc, rr] = un(key);
+      fn(cc, rr);
+    }
+  }
+
+  function startHold(color) {
+    holdColor = color;
+    holdFired = false;
+    // 무엇이 지워질지 보이도록 같은 색 전체를 밝힌다
+    eachOfColor(color, (c, r) => tileAt(c, r).classList.add('holding'));
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      holdFired = true;
+      dragging = false;                 // 지운 뒤에 이어 칠하지 않는다
+      eachOfColor(color, erase);
+      clearHoldMark();
+      evaluate();
+    }, HOLD_MS);
+  }
+
+  function clearHoldMark() {
+    for (const t of tiles) t.classList.remove('holding');
+    holdColor = null;
+  }
+
+  function cancelHold() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    if (holdColor) clearHoldMark();
   }
 
   /* ==================== 클리어 판정 ==================== */
@@ -857,6 +906,7 @@
     moved = false;
     dragging = true;
     paint(at.c, at.r, dragColor);
+    if (existing) startHold(existing);
 
     board.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -867,15 +917,20 @@
     const cur = cellFromPoint(e.clientX, e.clientY);
     if (!cur) return;
     if (cur.c === last.c && cur.r === last.r) return;
+    cancelHold();          // 칸을 옮겼으면 홀드가 아니라 드래그다
     moved = true;
     paintLine(last, cur, dragColor);
     last = cur;
   });
 
   function endDrag(isRelease) {
-    if (!dragging) return;
+    cancelHold();
+    if (!dragging) { holdFired = false; return; }
     // 이동 없이 놓았고 이미 색이 있던 칸이었다면 클릭으로 보고 색을 지운다
-    if (isRelease && !moved && startWasPainted && start) erase(start.c, start.r);
+    if (isRelease && !moved && !holdFired && startWasPainted && start) {
+      erase(start.c, start.r);
+    }
+    holdFired = false;
     dragging = false;
     last = start = null;
     startWasPainted = false;
