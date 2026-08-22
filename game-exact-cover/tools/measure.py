@@ -228,6 +228,58 @@ class Puzzle:
             "blame": avg(blames),
         }
 
+    def branching(self):
+        """
+        칸 하나를 놓고 볼 때 후보가 몇 개나 되는가. 같은 넓이라도 모양이 둘이면
+        회전까지 곱해져 후보가 확 늘어난다. 솔버 없이 세는 값이다.
+        """
+        n = 0
+        for p in self.places:
+            n += len(p)
+        return n / len(self.cells)
+
+    def deduction(self, limit_steps=40):
+        """
+        가장 앞선 빈 칸부터 채워 나가며 두 가지를 잰다.
+
+        - 확인 비용: 그 칸을 덮을 수 있는 후보가 몇 개인가. 후보가 하나뿐이면
+          눈에 바로 보이는 강제 수고, 여럿이면 하나씩 따져 봐야 한다.
+        - 추측 비율: 후보를 다 따져도 둘 이상 살아남는 자리의 비율.
+
+        강제 비율은 솔버가 증명한 전역 성질이라 "사람이 알아볼 수 있는가" 를
+        담지 못한다. 같은 강제 100% 라도 후보 1개짜리와 8개짜리는 전혀 다르다.
+        """
+        by_cell = {c: [] for c in self.cells}
+        for i, p in enumerate(self.places):
+            for c in p:
+                by_cell[c].append(i)
+        order = sorted(self.cells)
+
+        chosen, occupied = [], set()
+        checks, guesses, steps = [], 0, 0
+
+        while len(occupied) < len(self.cells) and steps < limit_steps:
+            first = next((c for c in order if c not in occupied), None)
+            if first is None:
+                break
+            cand = [i for i in by_cell[first] if not (occupied & set(self.places[i]))]
+            if not cand:
+                break
+            checks.append(len(cand))
+            viable = [i for i in cand if self.feasible(fixed=chosen + [i])]
+            if not viable:
+                break
+            steps += 1
+            if len(viable) > 1:
+                guesses += 1
+            chosen.append(viable[0])
+            occupied |= set(self.places[viable[0]])
+
+        return {
+            "check": sum(checks) / len(checks) if checks else 1.0,
+            "guess": guesses / steps if steps else 0.0,
+        }
+
     def blame(self, chosen):
         """
         막힌 배치들 중 몇 개가 서로 엮여서 모순을 만드는가.
@@ -248,11 +300,13 @@ class Puzzle:
 # ── 점수 ────────────────────────────────────────────────────────────────
 
 WEIGHTS = {
-    "greedy_fail": 0.32,   # 이어 칠하기만으로는 못 끝내는가
-    "blind":       0.22,   # 이미 글렀는데도 계속 칠하게 되는가
-    "not_forced":  0.20,   # 논리만으로 안 풀리는가
-    "blame":       0.12,   # 모순이 여러 수에 얽혀 있는가
-    "bulk":        0.14,   # 조각 크기와 칸 수
+    "branch":      0.20,   # 같은 넓이에 놓을 수 있는 방법이 얼마나 많은가
+    "check":       0.15,   # 한 자리를 정하려고 후보를 몇 개나 따져야 하는가
+    "greedy_fail": 0.22,   # 이어 칠하기만으로는 못 끝내는가
+    "blind":       0.18,   # 이미 글렀는데도 계속 칠하게 되는가
+    "guess":       0.10,   # 따져 봐도 답이 하나로 안 좁혀지는 자리의 비율
+    "blame":       0.08,   # 모순이 여러 수에 얽혀 있는가
+    "bulk":        0.07,   # 조각 크기와 칸 수
 }
 
 
@@ -261,10 +315,14 @@ def score(m):
     size_term = (m["size"] - 3) / 2                     # 3~5칸 조각
     volume_term = min(m["cells"] / 100, 1.0)
     parts = {
+        # 한 종은 칸당 후보가 5 안팎, 두 종은 15 를 넘는다. 16 을 위쪽 끝으로 본다
+        "branch": min(m["branch"] / 16, 1.0),
+        # 후보가 하나면 공짜, 아홉이면 최대치
+        "check": min((m["check"] - 1) / 8, 1.0),
         "greedy_fail": 1 - m["success"],
         # 조각 절반을 헛칠하면 최대치로 본다
         "blind": min(m["blind"] * 2, 1.0),
-        "not_forced": 1 - m["forced"],
+        "guess": m["guess"],
         "blame": m["blame"],
         "bulk": (size_term + volume_term) / 2,
     }
@@ -356,6 +414,7 @@ def measure_one(st):
     forced, forced_n = pz.forced_ratio()
     swap = pz.min_swap()
     g = pz.greedy_trials()
+    d = pz.deduction()
 
     m = {
         "mode": st.get("mode", "single" if len(names) == 1 else "dual"),
@@ -374,6 +433,9 @@ def measure_one(st):
         "doomDepth": g["doom_depth"],
         "blind": g["blind"],
         "blame": g["blame"],
+        "branch": pz.branching(),
+        "check": d["check"],
+        "guess": d["guess"],
         "detTime": round(pz.det_time, 2),
     }
     m["difficulty"], m["parts"] = score(m)
@@ -411,20 +473,21 @@ def main():
     rows.sort(key=lambda r: (r["mode"] != "single", r["difficulty"], r["cells"]))
 
     print()
-    print("모드   모양            칸  배치    해   강제  이어칠  글렀는데더칠  얽힘  교체  점수")
+    print("모드   모양          칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수")
     for r in rows:
         sol = f"{r['solutions']}{'+' if r['capped'] else ''}"
         swap = "유일" if r["minSwap"] is None else str(r["minSwap"])
         print(
             f"{r['mode']:<7}"
             f"{'+'.join(r['shapes']):<12}"
-            f"{r['cells']:>5}{r['places']:>6}"
+            f"{r['cells']:>4}{r['places']:>6}"
+            f"{r['branch']:>9.1f}"
+            f"{r['check']:>9.1f}"
+            f"{r['guess'] * 100:>5.0f}%"
             f"{sol:>7}"
             f"{r['forced'] * 100:>6.0f}%"
-            f"{r['success'] * 100:>7.0f}%"
-            f"{r['blind'] * 100:>12.0f}%"
-            f"{r['blame'] * 100:>6.0f}%"
-            f"{swap:>6}"
+            f"{r['success'] * 100:>6.0f}%"
+            f"{r['blind'] * 100:>5.0f}%"
             f"{r['difficulty']:>6}"
         )
 
