@@ -9,90 +9,102 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets-ds.css">
 <style>
-  html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
-
-  .app{
-    position:fixed;
-    inset:0;
-    display:flex;
-    background:var(--canvas);
+  html,body{height:100%;margin:0;overscroll-behavior:none;}
+  body{
     -webkit-user-select:none;
     user-select:none;
     -webkit-tap-highlight-color:transparent;
   }
 
-  /* ---- 좌측 스테이지 패널 ---- */
-  .side{
-    flex:0 0 220px;
+  /* ==================== 퍼즐 고르는 페이지 ==================== */
+
+  .select{
+    position:fixed;
+    inset:0;
+    overflow-y:auto;
+    background:var(--canvas);
+  }
+  .select-inner{
+    max-width:1100px;
+    margin:0 auto;
+    padding:var(--s7) var(--s5) var(--s8);
+    padding-left:calc(env(safe-area-inset-left,0px) + var(--s5));
+    padding-right:calc(env(safe-area-inset-right,0px) + var(--s5));
+  }
+  .select-head{
     display:flex;
     flex-direction:column;
+    align-items:flex-start;
     gap:var(--s4);
-    padding:var(--s4);
-    padding-left:calc(env(safe-area-inset-left,0px) + var(--s4));
-    padding-bottom:calc(env(safe-area-inset-bottom,0px) + var(--s4));
-    background:var(--surface);
-    border-right:1px solid var(--hairline);
-    overflow:hidden;
+    margin-bottom:var(--s7);
   }
-  .side h2{
+  .select-head h1{font-size:40px;line-height:1.05;margin:0;}
+  .select-head .lead{color:var(--muted);margin:var(--s2) 0 0;}
+  .select-head .progress{
+    color:var(--muted);
+    font-size:13px;
+    font-variant-numeric:tabular-nums;
     margin:0;
+  }
+
+  .group{margin-bottom:var(--s7);}
+  .group > h2{
     font-size:12px;
     font-weight:600;
     letter-spacing:.12em;
     text-transform:uppercase;
     color:var(--muted);
+    margin:0 0 var(--s4);
   }
-  .side .home{text-decoration:none;align-self:flex-start;}
-
-  /* 스테이지가 많아도 모양 미리보기와 지우기 버튼이 밀려나지 않도록
-     목록만 스크롤한다 */
-  .stages{
+  .cards{
     list-style:none;
     margin:0;
-    padding:0 var(--s2) 0 0;
-    display:flex;
-    flex-direction:column;
-    gap:var(--s2);
-    flex:1 1 auto;
-    min-height:0;
-    overflow-y:auto;
-    scrollbar-width:thin;
+    padding:0;
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+    gap:var(--s3);
   }
-  .stages button{
+  .cards button{
     width:100%;
     display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:var(--s2);
+    flex-direction:column;
+    gap:var(--s3);
     font-family:var(--font);
-    font-size:14px;
-    font-weight:600;
     text-align:left;
     color:var(--body);
-    background:var(--surface-soft);
+    background:var(--surface);
     border:1px solid var(--hairline);
-    border-radius:var(--r-md);
-    padding:10px 12px;
+    border-radius:var(--r-lg);
+    padding:var(--s4);
     cursor:pointer;
     transition:.15s;
   }
-  .stages button:hover{border-color:var(--brand-yellow-deep);}
-  .stages button[aria-current="true"]{
+  .cards button:hover{
     border-color:var(--brand-yellow);
-    color:var(--ink);
+    transform:translateY(-2px);
+    box-shadow:var(--sh-md);
   }
-  .stages .sect{
-    font-size:11px;
-    font-weight:700;
-    letter-spacing:.1em;
-    text-transform:uppercase;
-    color:var(--muted);
-    padding:var(--s3) 2px 2px;
+  .cards .row{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);}
+  .cards .name{font-size:14px;font-weight:700;color:var(--ink);}
+  .cards .meta{font-size:12px;color:var(--muted);}
+  .cards button.done{border-color:var(--brand-yellow-deep);}
+  .cards .check{color:var(--brand-yellow);font-weight:800;visibility:hidden;}
+  .cards button.done .check{visibility:visible;}
+
+  /* ==================== 모양 미리보기 ==================== */
+
+  .preview{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;}
+  .preview .chip{
+    display:grid;
+    gap:2px;
+    grid-template-columns:repeat(var(--pc,1), var(--dot,14px));
+    grid-template-rows:repeat(var(--pr,1), var(--dot,14px));
   }
-  .stages .sect:first-child{padding-top:0;}
-  .stages .label{flex:1;}
+  .preview i{border-radius:3px;background:transparent;}
+  .preview i.on{background:var(--brand-yellow);}
+
   /* 난이도 — 낮으면 흐리게, 높을수록 브랜드색으로 */
-  .stages .diff{
+  .diff{
     flex:0 0 auto;
     min-width:26px;
     text-align:center;
@@ -105,23 +117,36 @@
     background:color-mix(in srgb, var(--brand-yellow) calc(var(--t) * 14%), transparent);
     border:1px solid color-mix(in srgb, var(--brand-yellow) calc(var(--t) * 45%), var(--hairline));
   }
-  .stages .check{color:var(--brand-yellow);font-weight:800;visibility:hidden;}
-  .stages button.done .check{visibility:visible;}
 
-  /* 칠해야 할 모양 미리보기 */
-  .target{display:flex;flex-direction:column;gap:var(--s2);}
-  .preview{display:flex;align-items:flex-start;gap:var(--s4);flex-wrap:wrap;}
-  .preview .chip{
-    display:grid;
-    gap:2px;
-    grid-template-columns:repeat(var(--pc,1), 18px);
-    grid-template-rows:repeat(var(--pr,1), 18px);
+  /* ==================== 퍼즐 푸는 페이지 ==================== */
+
+  .play{
+    position:fixed;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    background:var(--canvas);
   }
-  .preview i{border-radius:3px;background:transparent;}
-  .preview i.on{background:var(--brand-yellow);}
+  .play[hidden]{display:none;}
 
+  .topbar{
+    flex:0 0 auto;
+    display:flex;
+    align-items:center;
+    gap:var(--s3);
+    padding:var(--s3) var(--s4);
+    padding-left:calc(env(safe-area-inset-left,0px) + var(--s4));
+    padding-right:calc(env(safe-area-inset-right,0px) + var(--s4));
+    background:var(--surface);
+    border-bottom:1px solid var(--hairline);
+    overflow-x:auto;
+    scrollbar-width:none;
+  }
+  .topbar::-webkit-scrollbar{display:none;}
+  .topbar .stage-name{font-size:14px;font-weight:700;color:var(--ink);white-space:nowrap;}
+  .topbar .grow{flex:1;}
+  .topbar .preview{--dot:11px;}
 
-  /* ---- 판 ---- */
   .board{
     position:relative;
     flex:1;
@@ -153,6 +178,7 @@
     filter:drop-shadow(0 0 2px rgba(255,255,255,.9))
            drop-shadow(0 0 7px rgba(255,255,255,.45));
   }
+
   .tile{
     width:var(--cell);
     height:var(--cell);
@@ -185,56 +211,64 @@
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
   }
 
-  .banner{
+  /* 클리어 배너 — 다음 퍼즐로 넘어가는 버튼이 함께 뜬다 */
+  .done{
     position:absolute;
-    top:var(--s5);
     left:50%;
-    transform:translate(-50%,-12px);
+    bottom:var(--s6);
+    transform:translate(-50%, 16px);
+    display:flex;
+    align-items:center;
+    gap:var(--s4);
     background:var(--brand-yellow);
     color:var(--on-brand);
     font-weight:700;
     font-size:14px;
-    padding:10px 20px;
+    padding:10px 12px 10px 20px;
     border-radius:var(--r-pill);
-    box-shadow:var(--sh-md);
+    box-shadow:var(--sh-lg);
     opacity:0;
     pointer-events:none;
     transition:.2s;
   }
-  .banner.show{opacity:1;transform:translate(-50%,0);}
+  .done.show{opacity:1;transform:translate(-50%, 0);pointer-events:auto;}
+  .done .btn-primary{background:var(--on-brand);color:var(--brand-yellow);}
+  .done .btn-primary:hover{background:#000;color:#fff;}
 
-  @media(max-width:640px){
-    .app{flex-direction:column;}
-    .side{
-      flex:0 0 auto;
-      flex-direction:row;
-      align-items:center;
-      overflow-x:auto;
-      border-right:none;
-      border-bottom:1px solid var(--hairline);
-    }
-    .side h2{display:none;}
-    .stages{flex:0 1 auto;overflow-x:auto;overflow-y:hidden;padding:0;}
-    .stages{flex-direction:row;}
-    .stages button{width:auto;}
+  @media(max-width:560px){
+    .select-inner{padding-top:var(--s5);}
+    .select-head h1{font-size:30px;}
+    .cards{grid-template-columns:repeat(auto-fill, minmax(128px, 1fr));}
   }
 </style>
 </head>
 <body>
-  <div class="app">
-    <aside class="side">
-      <a class="btn btn-secondary btn-sm home" href="../index.html">← 목록</a>
+  <!-- 퍼즐 고르는 페이지 -->
+  <section class="select" id="select">
+    <div class="select-inner">
+      <header class="select-head">
+        <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+        <div>
+          <span class="eyebrow">Exact Cover</span>
+          <h1>정확한 커버</h1>
+          <p class="lead">필드를 남김없이 칠하되, 모든 칠이 같은 모양이어야 한다.</p>
+        </div>
+        <p class="progress" id="progress"></p>
+      </header>
+      <div id="groups"></div>
+    </div>
+  </section>
 
-      <h2>스테이지</h2>
-      <ul class="stages" id="stages"></ul>
-
-      <div class="target">
-        <h2>칠해야 할 모양</h2>
-        <div class="preview" id="preview"></div>
-      </div>
-
+  <!-- 퍼즐 푸는 페이지 -->
+  <section class="play" id="play" hidden>
+    <header class="topbar">
+      <button class="btn btn-secondary btn-sm" id="back">← 퍼즐</button>
+      <span class="stage-name" id="stage-name"></span>
+      <span class="diff" id="stage-diff"></span>
+      <div class="preview" id="preview" title="칠해야 할 모양"></div>
+      <span class="grow"></span>
       <button class="btn btn-secondary btn-sm" id="reset">지우기</button>
-    </aside>
+    </header>
 
     <main class="board" id="board">
       <div class="grid" id="grid">
@@ -242,9 +276,13 @@
           <path id="outline-path"></path>
         </svg>
       </div>
-      <div class="banner" id="banner">클리어!</div>
     </main>
-  </div>
+
+    <div class="done" id="banner">
+      <span class="done-text">클리어!</span>
+      <button class="btn btn-primary btn-sm" id="next">다음 →</button>
+    </div>
+  </section>
 
 <script>
 (() => {
@@ -638,21 +676,61 @@
     {
       name: '두 종 2',
       mode: 'dual',
+      shapes: [SHAPES.I4, SHAPES.W5],
+      difficulty: 56,
+      // 테트로미노 I + 펜토미노 W | 80칸 | 해 1 | 강제 100% | 이어칠 성공률 0% | 헛칠 9%
+      field: '1111100011111110011100111101110111111111011111111101111111110011111111011111111100111111000011111111',
+    },
+    {
+      name: '두 종 3',
+      mode: 'dual',
+      shapes: [SHAPES.S4, SHAPES.P5],
+      difficulty: 58,
+      // 테트로미노 S + 펜토미노 P | 72칸 | 해 2 | 강제 81% | 이어칠 성공률 0% | 헛칠 3%
+      field: '1100111110110111111011000111101111011100111111110011111011111111111111000111111100011111000001111100',
+    },
+    {
+      name: '두 종 4',
+      mode: 'dual',
       shapes: [SHAPES.I3, SHAPES.L3],
       difficulty: 59,
       // 트로미노 I + 트로미노 L | 48칸 | 해 4004 | 강제 12% | 이어칠 성공률 0% | 헛칠 6%
       field: '0010000000011000000001100000000110000000111111100111111100010111111111111111111111000111110000000000',
     },
     {
-      name: '두 종 3',
+      name: '두 종 5',
+      mode: 'dual',
+      shapes: [SHAPES.O4, SHAPES.V5],
+      difficulty: 60,
+      // 테트로미노 O + 펜토미노 V | 76칸 | 해 16 | 강제 76% | 이어칠 성공률 0% | 헛칠 3%
+      field: '1100110000110111111011111111101111111110111111111000011111100111111111011101111001110111100111111110',
+    },
+    {
+      name: '두 종 6',
+      mode: 'dual',
+      shapes: [SHAPES.L4, SHAPES.T5],
+      difficulty: 61,
+      // 테트로미노 L + 펜토미노 T | 76칸 | 해 1 | 강제 100% | 이어칠 성공률 0% | 헛칠 18%
+      field: '1110111110011111111001111111110011111111011111111101000011111100001111111000111111100111111110011111',
+    },
+    {
+      name: '두 종 7',
+      mode: 'dual',
+      shapes: [SHAPES.T4, SHAPES.L5],
+      difficulty: 67,
+      // 테트로미노 T + 펜토미노 L | 72칸 | 해 1 | 강제 100% | 이어칠 성공률 0% | 헛칠 27%
+      field: '0001111010110111111011011111111111111111110111111111100111101110011110111001100011111110001111001000',
+    },
+    {
+      name: '두 종 8',
       mode: 'dual',
       shapes: [SHAPES.L3, SHAPES.T4],
       difficulty: 68,
       // 트로미노 L + 테트로미노 T | 60칸 | 해 5000+ | 강제 0% | 이어칠 성공률 0% | 헛칠 2%
-      field: '0110000000011001100001111111101111111111111011111111100110101111111100111111100011111000000100000000',
+      field: '0110000000011001100001111111101111111111111011111111100111101011111100111111100011111000000100000000',
     },
     {
-      name: '두 종 4',
+      name: '두 종 9',
       mode: 'dual',
       shapes: [SHAPES.L3, SHAPES.L4],
       difficulty: 70,
@@ -660,7 +738,7 @@
       field: '0011110000011111110011111111001111110000111111111111111111101111100110111110001111000000111100000011',
     },
     {
-      name: '두 종 5',
+      name: '두 종 10',
       mode: 'dual',
       shapes: [SHAPES.T4, SHAPES.S4],
       difficulty: 72,
@@ -685,7 +763,13 @@
   const board     = document.getElementById('board');
   const preview   = document.getElementById('preview');
   const banner    = document.getElementById('banner');
-  const stageList = document.getElementById('stages');
+  const selectPage = document.getElementById('select');
+  const playPage   = document.getElementById('play');
+  const groups     = document.getElementById('groups');
+  const progress   = document.getElementById('progress');
+  const stageName  = document.getElementById('stage-name');
+  const stageDiff  = document.getElementById('stage-diff');
+  const nextBtn    = document.getElementById('next');
 
   const STORE = 'exact-cover.cleared';
   const cleared = new Set(JSON.parse(localStorage.getItem(STORE) || '[]'));
@@ -776,45 +860,82 @@
 
   const MODE_LABEL = { single: '조각 한 종', dual: '조각 두 종' };
 
-  function renderStages() {
+  /** 난이도 배지 하나 */
+  function diffBadge(value) {
+    const el = document.createElement('span');
+    el.className = 'diff';
+    el.textContent = value;
+    el.title = `난이도 ${value}`;
+    el.style.setProperty('--t', Math.min(value, 100) / 100);
+    return el;
+  }
+
+  /** 퍼즐 고르는 페이지. 모드별로 묶어 카드로 깐다 */
+  function renderSelect() {
     const frag = document.createDocumentFragment();
     let mode = null;
+    let list = null;
+
     STAGES.forEach((s, i) => {
-      // 모드가 바뀌는 자리에 구분 머리말을 넣는다
       if (s.mode !== mode) {
         mode = s.mode;
-        const sect = document.createElement('li');
-        sect.className = 'sect';
-        sect.textContent = MODE_LABEL[mode] || mode;
-        frag.appendChild(sect);
+        const sec = document.createElement('section');
+        sec.className = 'group';
+        const h = document.createElement('h2');
+        h.textContent = MODE_LABEL[mode] || mode;
+        list = document.createElement('ul');
+        list.className = 'cards';
+        sec.append(h, list);
+        frag.appendChild(sec);
       }
-      const li = document.createElement('li');
+
       const b = document.createElement('button');
       b.type = 'button';
-      if (i === stageIdx) b.setAttribute('aria-current', 'true');
       if (cleared.has(s.name)) b.classList.add('done');
 
-      const label = document.createElement('span');
-      label.className = 'label';
-      label.textContent = s.name;
-
-      // tools/measure.py 가 잰 1~100 난이도
-      const diff = document.createElement('span');
-      diff.className = 'diff';
-      diff.textContent = s.difficulty;
-      diff.title = `난이도 ${s.difficulty}`;
-      diff.style.setProperty('--t', Math.min(s.difficulty, 100) / 100);
-
+      const top = document.createElement('div');
+      top.className = 'row';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = s.name;
       const chk = document.createElement('span');
       chk.className = 'check';
       chk.textContent = '✓';
+      top.append(name, chk);
 
-      b.append(label, diff, chk);
-      b.addEventListener('click', () => loadStage(i));
+      const bottom = document.createElement('div');
+      bottom.className = 'row';
+      const chips = document.createElement('div');
+      chips.className = 'preview';
+      s.shapes.forEach((sh) => chips.appendChild(shapeChip(sh)));
+      bottom.append(chips, diffBadge(s.difficulty));
+
+      b.append(top, bottom);
+      b.addEventListener('click', () => openStage(i));
+
+      const li = document.createElement('li');
       li.appendChild(b);
-      frag.appendChild(li);
+      list.appendChild(li);
     });
-    stageList.replaceChildren(frag);
+
+    groups.replaceChildren(frag);
+    progress.textContent = `${cleared.size} / ${STAGES.length} 클리어`;
+  }
+
+  /* ==================== 페이지 전환 ==================== */
+
+  function showSelect() {
+    cancelHold();
+    playPage.hidden = true;
+    selectPage.hidden = false;
+    renderSelect();
+  }
+
+  function openStage(i) {
+    selectPage.hidden = true;
+    playPage.hidden = false;
+    loadStage(i);
+    resize();          // 숨어 있는 동안은 크기를 잴 수 없다
   }
 
   function loadStage(i) {
@@ -837,12 +958,16 @@
     }
     drawOutline();
     renderPreview(s.shapes);
-    renderStages();
+    stageName.textContent = s.name;
+    stageDiff.replaceChildren(diffBadge(s.difficulty));
     showBanner(false);
     resize();
   }
 
-  function showBanner(on) { banner.classList.toggle('show', on); }
+  function showBanner(on) {
+    banner.classList.toggle('show', on);
+    if (on) nextBtn.textContent = stageIdx + 1 < STAGES.length ? '다음 →' : '퍼즐 목록 →';
+  }
 
   /* ==================== 칠하기 ==================== */
 
@@ -988,7 +1113,6 @@
     if (ok && !cleared.has(STAGES[stageIdx].name)) {
       cleared.add(STAGES[stageIdx].name);
       localStorage.setItem(STORE, JSON.stringify([...cleared]));
-      renderStages();
     }
   }
 
@@ -1052,11 +1176,19 @@
   /* ==================== 시작 ==================== */
 
   document.getElementById('reset').addEventListener('click', () => loadStage(stageIdx));
+  document.getElementById('back').addEventListener('click', showSelect);
+
+  // 클리어한 뒤에만 누를 수 있다. 마지막 퍼즐이면 목록으로 돌아간다
+  nextBtn.addEventListener('click', () => {
+    if (stageIdx + 1 < STAGES.length) openStage(stageIdx + 1);
+    else showSelect();
+  });
+
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', resize);
 
   buildGrid();
-  loadStage(0);
+  showSelect();
 })();
 </script>
 </body>

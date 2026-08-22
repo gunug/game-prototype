@@ -66,8 +66,9 @@ class Frag extends El {
 }
 
 const nodes = {};
-for (const id of ['grid', 'board', 'preview', 'banner', 'stages', 'reset',
-                  'outline', 'outline-path']) {
+for (const id of ['grid', 'board', 'preview', 'banner', 'reset',
+                  'outline', 'outline-path', 'select', 'play', 'groups',
+                  'progress', 'stage-name', 'stage-diff', 'back', 'next']) {
   nodes[id] = new El('div');
   nodes[id].attrs.id = id;
 }
@@ -119,45 +120,47 @@ try {
 }
 
 const grid = nodes.grid;
-const stages = nodes.stages;
-const tiles = grid.children.filter((t) => t.classList.contains('tile'));
 
+/* ── 퍼즐 고르는 페이지 ── */
+
+check('처음엔 목록 화면', nodes.play.attrs.hidden !== undefined || nodes.play.hidden === true,
+  `play.hidden=${nodes.play.hidden}`);
+
+const sections = nodes.groups.children;
+check('모드별 묶음', sections.length === 2,
+  sections.map((sec) => sec.children[0].textContent).join(' / '));
+
+const cards = sections.flatMap((sec) => sec.children[1].children.map((li) => li.children[0]));
+check('퍼즐 카드', cards.length > 0, `${cards.length}개`);
+check('진행 표시', /\d+ \/ \d+/.test(nodes.progress.textContent), nodes.progress.textContent);
+
+const cardDiff = (b) => {
+  const badge = b.children[1].children.find((c) => c.classList.contains('diff'));
+  return badge ? Number(badge.textContent) : NaN;
+};
+check('카드마다 난이도', cards.every((b) => Number.isFinite(cardDiff(b))));
+check('난이도 1~100', cards.every((b) => cardDiff(b) >= 1 && cardDiff(b) <= 100));
+
+const runs = sections.map((sec) =>
+  sec.children[1].children.map((li) => cardDiff(li.children[0])));
+check('구간별 난이도 오름차순',
+  runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d)),
+  runs.map((r) => r.join(' ')).join('  |  '));
+
+check('카드에 모양 칩', cards.every((b) => b.children[1].children[0].children.length > 0));
+
+/* ── 퍼즐 열기 ── */
+
+cards[0].dispatch('click', {});
+check('퍼즐 열면 게임 화면', nodes.play.hidden === false && nodes.select.hidden === true,
+  `play=${nodes.play.hidden} select=${nodes.select.hidden}`);
+check('퍼즐 이름 표시', !!nodes['stage-name'].textContent, nodes['stage-name'].textContent);
+
+const tiles = grid.children.filter((t) => t.classList.contains('tile'));
 check('격자 100칸', tiles.length === 100, `${tiles.length}칸`);
 
 const fieldTiles = tiles.filter((t) => t.classList.contains('field'));
 check('활성 칸 있음', fieldTiles.length > 0, `${fieldTiles.length}칸`);
-
-check('스테이지 목록 채워짐', stages.children.length > 0, `${stages.children.length}줄`);
-
-const sects = stages.children.filter((li) => li.classList.contains('sect'));
-const buttons = stages.children
-  .filter((li) => !li.classList.contains('sect'))
-  .map((li) => li.children[0])
-  .filter(Boolean);
-check('모드 구분 머리말', sects.length === 2, sects.map((s) => s.textContent).join(' / '));
-check('스테이지 버튼', buttons.length === stages.children.length - sects.length,
-  `${buttons.length}개`);
-
-const withDiff = buttons.filter((b) =>
-  b.children.some((c) => c.classList.contains('diff') && /^\d+$/.test(c.textContent)));
-check('난이도 표시', withDiff.length === buttons.length, `${withDiff.length}/${buttons.length}`);
-
-const diffs = withDiff.map((b) =>
-  Number(b.children.find((c) => c.classList.contains('diff')).textContent));
-// 모드별로 나눠 담기므로 구간 안에서만 오름차순이면 된다
-const runs = [];
-sects.forEach((_, i) => runs.push([]));
-{
-  let r = -1;
-  for (const li of stages.children) {
-    if (li.classList.contains('sect')) { r++; continue; }
-    const badge = li.children[0].children.find((c) => c.classList.contains('diff'));
-    if (badge) runs[r].push(Number(badge.textContent));
-  }
-}
-const sorted = runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d));
-check('구간별 난이도 오름차순', sorted, runs.map((r) => r.join(' ')).join('  |  '));
-check('난이도 1~100', diffs.every((d) => d >= 1 && d <= 100));
 
 const chips = nodes.preview.children;
 check('모양 미리보기', chips.length > 0 && chips[0].children.length > 0,
@@ -246,18 +249,30 @@ if (!block) {
   check('짧게 누르면 한 칸만 지워짐', one);
 }
 
+// 목록으로 돌아가기
+nodes.back.dispatch('click', {});
+check('뒤로 가면 목록', nodes.select.hidden === false && nodes.play.hidden === true);
+
 // 두 종 스테이지를 열면 모양 칩이 둘 나와야 한다
-const dualStart = stages.children.findIndex(
-  (li) => li.classList.contains('sect') && li.textContent.includes('두 종'));
-if (dualStart < 0) {
-  check('두 종 구간 있음', false);
+const dualSec = nodes.groups.children.find((sec) => sec.children[0].textContent.includes('두 종'));
+if (!dualSec) {
+  check('두 종 묶음 있음', false);
 } else {
-  stages.children[dualStart + 1].children[0].dispatch('click', {});
+  dualSec.children[1].children[0].children[0].dispatch('click', {});
   check('두 종은 모양 2개', nodes.preview.children.length === 2,
     `${nodes.preview.children.length}개`);
-  const dualField = tiles.filter((t) => t.classList.contains('field'));
+  const dualField = grid.children.filter((t) => t.classList.contains('field'));
   check('두 종 필드 로드', dualField.length > 0, `${dualField.length}칸`);
 }
+
+// 클리어 배너와 다음 버튼
+check('처음엔 배너 숨김', !nodes.banner.classList.contains('show'));
+
+const before = nodes['stage-name'].textContent;
+nodes.next.dispatch('click', {});
+check('다음 버튼이 다음 퍼즐을 연다',
+  nodes['stage-name'].textContent !== before && nodes.play.hidden === false,
+  `${before} -> ${nodes['stage-name'].textContent}`);
 
 if (fails.length) {
   console.log(`\n${fails.length}건 실패`);
