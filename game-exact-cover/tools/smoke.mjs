@@ -196,9 +196,11 @@ check('카드에 모양 칩',
 }
 
 const BANDS = ['그냥', '추론', '탐색', '중간'];
+const FACES = { '그냥': '😒', '중간': '😐', '추론': '😎', '탐색': '🤮' };
+const bandEl = (b) => b.children[0].children.find((c) => c.classList.contains('band'));
 const cardBand = (b) => {
-  const el = b.children[0].children.find((c) => c.classList.contains('band'));
-  return el ? el.textContent : null;
+  const el = bandEl(b);
+  return el ? el.getAttribute('data-band') : null;
 };
 const banded = cards.filter((b) => BANDS.includes(cardBand(b)));
 check('카드마다 방식 뱃지', banded.length === cards.length, `${banded.length}/${cards.length}`);
@@ -209,9 +211,13 @@ check('카드마다 방식 뱃지', banded.length === cards.length, `${banded.le
     BANDS.map((n) => `${n} ${tally[n] || 0}`).join(' '));
   // 색을 따로 주므로 클래스도 붙어 있어야 한다
   check('뱃지 클래스', cards.every((b) => {
-    const el = b.children[0].children.find((c) => c.classList.contains('band'));
-    return el && el.classList.contains('b-' + el.textContent);
+    const el = bandEl(b);
+    return el && el.classList.contains('b-' + el.getAttribute('data-band'));
   }));
+  check('뱃지가 이모티콘', cards.every((b) => {
+    const el = bandEl(b);
+    return el && el.textContent === FACES[el.getAttribute('data-band')];
+  }), [...new Set(cards.map((b) => bandEl(b).textContent))].join(' '));
 }
 
 /* ── 퍼즐 열기 ── */
