@@ -50,7 +50,7 @@ class El {
     return node;
   }
   append(...nodes) { nodes.forEach((n) => this.appendChild(n)); }
-  replaceChildren(node) { this.children = []; if (node) this.appendChild(node); }
+  replaceChildren(...nodes) { this.children = []; nodes.forEach((n) => n && this.appendChild(n)); }
   setAttribute(name, value) { this.attrs[name] = String(value); }
   getAttribute(name) { return this.attrs[name] ?? null; }
   addEventListener(type, fn) { (this.handlers[type] ??= []).push(fn); }
@@ -101,6 +101,10 @@ const sandbox = {
 };
 sandbox.window.localStorage = sandbox.localStorage;
 
+// 클리어한 퍼즐이 어떻게 보이는지 보려고 하나를 미리 클리어시켜 둔다
+const CLEARED = '한 종 1';
+store.set('exact-cover.cleared', JSON.stringify([CLEARED]));
+
 /* ── 실행 ── */
 
 const js = fs.readFileSync(GAME, 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
@@ -134,6 +138,14 @@ const cards = sections.flatMap((sec) => sec.children[1].children.map((li) => li.
 check('퍼즐 카드', cards.length > 0, `${cards.length}개`);
 check('진행 표시', /\d+ \/ \d+/.test(nodes.progress.textContent), nodes.progress.textContent);
 
+{
+  const done = cards.filter((b) => b.classList.contains('done'));
+  check('클리어한 퍼즐 표시', done.length === 1, `${done.length}개`);
+  // 숨기거나 잠그지 않는다. 다시 눌러 풀 수 있어야 한다
+  check('클리어해도 다시 누를 수 있음',
+    done.length === 1 && (done[0].handlers.click || []).length > 0);
+}
+
 const cardDiff = (b) => {
   const badge = b.children[1].children.find((c) => c.classList.contains('diff'));
   return badge ? Number(badge.textContent) : NaN;
@@ -149,12 +161,33 @@ check('구간별 난이도 오름차순',
 
 check('카드에 모양 칩', cards.every((b) => b.children[1].children[0].children.length > 0));
 
+const BANDS = ['그냥', '추론', '탐색', '중간'];
+const cardBand = (b) => {
+  const el = b.children[0].children.find((c) => c.classList.contains('band'));
+  return el ? el.textContent : null;
+};
+const banded = cards.filter((b) => BANDS.includes(cardBand(b)));
+check('카드마다 방식 뱃지', banded.length === cards.length, `${banded.length}/${cards.length}`);
+{
+  const tally = {};
+  cards.forEach((b) => { const v = cardBand(b); tally[v] = (tally[v] || 0) + 1; });
+  check('네 종류 다 나옴', BANDS.every((n) => tally[n] > 0),
+    BANDS.map((n) => `${n} ${tally[n] || 0}`).join(' '));
+  // 색을 따로 주므로 클래스도 붙어 있어야 한다
+  check('뱃지 클래스', cards.every((b) => {
+    const el = b.children[0].children.find((c) => c.classList.contains('band'));
+    return el && el.classList.contains('b-' + el.textContent);
+  }));
+}
+
 /* ── 퍼즐 열기 ── */
 
 cards[0].dispatch('click', {});
 check('퍼즐 열면 게임 화면', nodes.play.hidden === false && nodes.select.hidden === true,
   `play=${nodes.play.hidden} select=${nodes.select.hidden}`);
 check('퍼즐 이름 표시', !!nodes['stage-name'].textContent, nodes['stage-name'].textContent);
+check('상단 바에 난이도와 방식', nodes['stage-diff'].children.length === 2,
+  nodes['stage-diff'].children.map((c) => c.textContent).join(' '));
 
 const tiles = grid.children.filter((t) => t.classList.contains('tile'));
 check('격자 100칸', tiles.length === 100, `${tiles.length}칸`);

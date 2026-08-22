@@ -310,6 +310,27 @@ WEIGHTS = {
 }
 
 
+BANDS = ("그냥", "추론", "탐색", "중간")
+
+
+def band(m):
+    """
+    퍼즐이 어떤 식으로 풀리는지 한 마디로.
+
+    - 그냥: 후보가 늘 하나뿐이라 따질 것 없이 채워진다
+    - 추론: 후보가 여럿인데 따져 보면 하나로 좁혀진다 (수도쿠에서 재미있는 자리)
+    - 탐색: 따져도 안 좁혀져 시행착오가 필요하다
+    - 중간: 그 사이
+    """
+    if m["guess"] >= 0.20:
+        return "탐색"
+    if m["check"] >= 2.0 and m["guess"] == 0:
+        return "추론"
+    if m["check"] < 1.5:
+        return "그냥"
+    return "중간"
+
+
 def score(m):
     """0~1 성분을 가중합해 1~100 으로."""
     size_term = (m["size"] - 3) / 2                     # 3~5칸 조각
@@ -372,6 +393,7 @@ def emit_stages(stages):
             f"      mode: '{mode}',",
             f"      shapes: [{shapes}],",
             f"      difficulty: {st['difficulty']},",
+            f"      band: '{st.get('band') or band(st)}',",
             f"      // {label} | {st['cells']}칸 | "
             f"해 {sol} | 강제 {st['forced'] * 100:.0f}% | "
             f"이어칠 성공률 {st['success'] * 100:.0f}% | 헛칠 {st['blind'] * 100:.0f}%",
@@ -439,6 +461,7 @@ def measure_one(st):
         "detTime": round(pz.det_time, 2),
     }
     m["difficulty"], m["parts"] = score(m)
+    m["band"] = band(m)
     return m
 
 
@@ -473,7 +496,7 @@ def main():
     rows.sort(key=lambda r: (r["mode"] != "single", r["difficulty"], r["cells"]))
 
     print()
-    print("모드   모양          칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수")
+    print("모드   모양          칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  방식")
     for r in rows:
         sol = f"{r['solutions']}{'+' if r['capped'] else ''}"
         swap = "유일" if r["minSwap"] is None else str(r["minSwap"])
@@ -489,6 +512,7 @@ def main():
             f"{r['success'] * 100:>6.0f}%"
             f"{r['blind'] * 100:>5.0f}%"
             f"{r['difficulty']:>6}"
+            f"  {r['band']}"
         )
 
     with open(MEASURED, "w", encoding="utf-8") as f:
