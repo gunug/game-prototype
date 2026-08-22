@@ -107,7 +107,25 @@ store.set('exact-cover.cleared', JSON.stringify([CLEARED]));
 
 /* ── 실행 ── */
 
-const js = fs.readFileSync(GAME, 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+const html = fs.readFileSync(GAME, 'utf8');
+const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
+const js = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+
+/**
+ * 아무 조상도 안 붙은 `.foo { position: absolute }` 같은 규칙은 그 클래스를
+ * 쓰는 다른 곳까지 끌고 간다. 클리어 배너가 .done 이었을 때 클리어한 카드가
+ * 배너 자리로 튀어 나갔다. 자리를 옮기는 전역 클래스 규칙을 모아 둔다.
+ */
+const relocating = new Set();
+const bareCss = css.replace(/\/\*[\s\S]*?\*\//g, '');   // 주석이 셀렉터에 딸려 오지 않게
+for (const [, sel, body] of bareCss.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+  if (!/position\s*:\s*(absolute|fixed)/.test(body)) continue;
+  for (const one of sel.split(',')) {
+    const m = one.trim().match(/^\.([\w-]+)(?:[.:][\w-]+)*$/);   // 조상 없는 단일 클래스
+    if (m) relocating.add(m[1]);
+  }
+}
+
 const run = new Function(...Object.keys(sandbox), js);
 
 const fails = [];
@@ -160,6 +178,17 @@ check('구간별 난이도 오름차순',
   runs.map((r) => r.join(' ')).join('  |  '));
 
 check('카드에 모양 칩', cards.every((b) => b.children[1].children[0].children.length > 0));
+
+{
+  const used = new Set();
+  const walk = (el) => {
+    el.classList.set.forEach((c) => used.add(c));
+    el.children.forEach(walk);
+  };
+  nodes.groups.children.forEach(walk);
+  const clash = [...used].filter((c) => relocating.has(c));
+  check('카드 클래스가 전역 배치 규칙과 안 겹침', clash.length === 0, clash.join(' ') || '없음');
+}
 
 const BANDS = ['그냥', '추론', '탐색', '중간'];
 const cardBand = (b) => {
