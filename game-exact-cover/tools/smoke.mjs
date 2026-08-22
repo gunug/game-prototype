@@ -89,6 +89,7 @@ const sandbox = {
     getElementById: (id) => nodes[id] ?? null,
     createElement: (tag) => new El(tag),
     createDocumentFragment: () => new Frag(),
+    createTextNode: (text) => { const t = new El('#text'); t.textContent = String(text); return t; },
   },
   window: { addEventListener() {}, innerWidth: 900, innerHeight: 900 },
   localStorage: {
@@ -149,10 +150,52 @@ check('처음엔 목록 화면', nodes.play.attrs.hidden !== undefined || nodes.
   `play.hidden=${nodes.play.hidden}`);
 
 const sections = nodes.groups.children;
-check('모드별 묶음', sections.length === 2,
+check('대분류 = 조각 종류 수', sections.length === 2,
   sections.map((sec) => sec.children[0].textContent).join(' / '));
 
-const cards = sections.flatMap((sec) => sec.children[1].children.map((li) => li.children[0]));
+// 대분류 > 소분류(방식) > 카드
+const subsOf = (sec) => sec.children.filter((c) => c.classList.contains('sub'));
+const cardsOf = (sub) => sub.children
+  .find((c) => c.classList.contains('cards')).children.map((li) => li.children[0]);
+const cards = sections.flatMap((sec) => subsOf(sec).flatMap(cardsOf));
+
+const BANDS = ['그냥', '추론', '탐색', '중간'];
+const FACES = { '그냥': '😒', '중간': '😐', '추론': '😎', '탐색': '🤮' };
+const bandEl = (b) => b.children[0].children.find((c) => c.classList.contains('band'));
+const cardBand = (b) => {
+  const el = bandEl(b);
+  return el ? el.getAttribute('data-band') : null;
+};
+
+{
+  const subs = sections.flatMap(subsOf);
+  check('소분류 = 방식별', subs.length > 0,
+    sections.map((sec) => subsOf(sec).length + '개').join(' / '));
+  // 소분류 제목은 방식 순서대로, 안에 든 카드는 모두 그 방식이어야 한다
+  const order = ['그냥', '중간', '추론', '탐색'];
+  const okOrder = sections.every((sec) => {
+    const names = subsOf(sec).map((sub) => sub.children[0].children
+      .find((c) => c.classList.contains('band')).getAttribute('data-band'));
+    const rank = names.map((n) => order.indexOf(n));
+    return rank.every((v, i) => v >= 0 && (i === 0 || rank[i - 1] < v));
+  });
+  check('소분류 순서', okOrder,
+    sections.map((sec) => subsOf(sec).map((sub) => sub.children[0].children
+      .find((c) => c.classList.contains('band')).getAttribute('data-band')).join('>')).join('  |  '));
+
+  const pure = subs.every((sub) => {
+    const want = sub.children[0].children
+      .find((c) => c.classList.contains('band')).getAttribute('data-band');
+    return cardsOf(sub).every((b) => cardBand(b) === want);
+  });
+  check('소분류 안은 같은 방식만', pure);
+
+  const counts = subs.every((sub) => {
+    const badge = sub.children[0].children.find((c) => c.classList.contains('count'));
+    return badge && Number(badge.textContent) === cardsOf(sub).length;
+  });
+  check('소분류 개수 표시', counts);
+}
 check('퍼즐 카드', cards.length > 0, `${cards.length}개`);
 check('진행 표시', /\d+ \/ \d+/.test(nodes.progress.textContent), nodes.progress.textContent);
 
@@ -171,9 +214,9 @@ const cardDiff = (b) => {
 check('카드마다 난이도', cards.every((b) => Number.isFinite(cardDiff(b))));
 check('난이도 1~100', cards.every((b) => cardDiff(b) >= 1 && cardDiff(b) <= 100));
 
-const runs = sections.map((sec) =>
-  sec.children[1].children.map((li) => cardDiff(li.children[0])));
-check('구간별 난이도 오름차순',
+// 난이도는 소분류 칸 안에서만 오름차순이면 된다
+const runs = sections.flatMap((sec) => subsOf(sec).map((sub) => cardsOf(sub).map(cardDiff)));
+check('소분류 안 난이도 오름차순',
   runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d)),
   runs.map((r) => r.join(' ')).join('  |  '));
 
@@ -195,13 +238,6 @@ check('카드에 모양 칩',
   check('카드 클래스가 전역 배치 규칙과 안 겹침', clash.length === 0, clash.join(' ') || '없음');
 }
 
-const BANDS = ['그냥', '추론', '탐색', '중간'];
-const FACES = { '그냥': '😒', '중간': '😐', '추론': '😎', '탐색': '🤮' };
-const bandEl = (b) => b.children[0].children.find((c) => c.classList.contains('band'));
-const cardBand = (b) => {
-  const el = bandEl(b);
-  return el ? el.getAttribute('data-band') : null;
-};
 const banded = cards.filter((b) => BANDS.includes(cardBand(b)));
 check('카드마다 방식 뱃지', banded.length === cards.length, `${banded.length}/${cards.length}`);
 {
@@ -248,82 +284,125 @@ check('필드 외곽선', d.startsWith('M') && d.length > 20, `${d.length}자`);
 
 // 활성 칸 하나를 실제로 눌러 칠해지는지
 const cell = 80;   // getBoundingClientRect 가 0,0 이고 칸은 80px 로 잡힌다
-const first = tiles.findIndex((t) => t.classList.contains('field'));
-const fc = first % 10, fr = Math.floor(first / 10);
-nodes.board.dispatch('pointerdown', {
-  button: 0, pointerType: 'mouse', pointerId: 1,
-  clientX: fc * cell + cell / 2, clientY: fr * cell + cell / 2,
+const at = (c, r) => ({ clientX: c * cell + cell / 2, clientY: r * cell + cell / 2 });
+const press = (c, r, id = 1) => nodes.board.dispatch('pointerdown', {
+  button: 0, pointerType: 'mouse', pointerId: id, ...at(c, r),
   target: { closest: () => null }, preventDefault() {},
 });
+const tileAt = (c, r) =>
+  (c >= 0 && r >= 0 && c < 10 && r < 10) ? tiles[r * 10 + c] : null;
+const isField = (c, r) => !!tileAt(c, r) && tileAt(c, r).classList.contains('field');
+
+const first = tiles.findIndex((t) => t.classList.contains('field'));
+press(first % 10, Math.floor(first / 10));
 nodes.board.dispatch('pointerup', {});
 check('클릭하면 칠해짐', !!tiles[first].style.backgroundColor,
   tiles[first].style.backgroundColor || '색 없음');
 
-// 목표 모양(스테이지 1은 2x2 정사각형)을 통째로 칠하면 유리 질감이 붙어야 한다
-const isField = (c, r) =>
-  c >= 0 && r >= 0 && c < 10 && r < 10 && tiles[r * 10 + c].classList.contains('field');
-let block = null;
-for (let r = 0; r < 9 && !block; r++)
-  for (let c = 0; c < 9 && !block; c++)
-    if (isField(c, r) && isField(c + 1, r) && isField(c, r + 1) && isField(c + 1, r + 1))
-      block = [c, r];
+nodes.reset.dispatch('click', {});   // 판을 비우고 시작한다
 
-if (!block) {
-  check('2x2 블록 찾음', false);
-} else {
-  const [bc, br] = block;
-  const at = (c, r) => ({ clientX: c * cell + cell / 2, clientY: r * cell + cell / 2 });
-  nodes.board.dispatch('pointerdown', {
-    button: 0, pointerType: 'mouse', pointerId: 2, ...at(bc, br),
-    target: { closest: () => null }, preventDefault() {},
+/**
+ * 목표 모양을 화면에서 읽어 온다. 칩은 pc x pr 격자에 점을 찍어 두었으므로
+ * 켜진 점의 좌표가 곧 모양이다. 스테이지가 바뀌어도 검사가 따라간다.
+ */
+function shapeFromChip(previewEl) {
+  const chip = previewEl.children[0].children.find((c) => c.classList.contains('chip'));
+  const pc = Number(chip.style['--pc']);
+  const out = [];
+  chip.children.forEach((dot, i) => {
+    if (dot.classList.contains('on')) out.push([i % pc, Math.floor(i / pc)]);
   });
-  nodes.board.dispatch('pointermove', at(bc + 1, br));
-  nodes.board.dispatch('pointermove', at(bc + 1, br + 1));
-  nodes.board.dispatch('pointermove', at(bc, br + 1));
-  nodes.board.dispatch('pointerup', {});
+  return out;
+}
 
-  const square = [[bc, br], [bc + 1, br], [bc, br + 1], [bc + 1, br + 1]];
-  const marked = square.filter(([c, r]) => tiles[r * 10 + c].classList.contains('match'));
-  check('모양 일치하면 유리 질감', marked.length === 4, `${marked.length}/4칸`);
+const shape = shapeFromChip(nodes.preview);
+
+/** 모양이 통째로 활성 칸 위에 얹히는 자리 */
+function findSpot(cells) {
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 10; c++) {
+      if (cells.every(([dc, dr]) => isField(c + dc, r + dr))) return [c, r];
+    }
+  }
+  return null;
+}
+
+const spot = findSpot(shape);
+if (!spot) {
+  check('목표 모양 놓을 자리', false);
+} else {
+  const [oc, or_] = spot;
+  const placed = shape.map(([dc, dr]) => [oc + dc, or_ + dr]);
+  const key = ([c, r]) => c + ',' + r;
+  const want = new Set(placed.map(key));
+
+  /**
+   * 한 색으로 이어 칠한다. 빈 칸을 누르면 새 색이 배정되므로, 첫 칸만 눌러
+   * 색을 얻고 나머지는 이미 칠한 이웃에서 끌어와 같은 색을 잇는다.
+   */
+  function paintShape(cellsList, idBase) {
+    const [fc, fr] = cellsList[0];
+    press(fc, fr, idBase);
+    nodes.board.dispatch('pointerup', {});
+    const done = new Set([key(cellsList[0])]);
+    let id = idBase;
+    let progress = true;
+    while (done.size < cellsList.length && progress) {
+      progress = false;
+      for (const [c, r] of cellsList) {
+        if (done.has(key([c, r]))) continue;
+        const near = [[c - 1, r], [c + 1, r], [c, r - 1], [c, r + 1]]
+          .find((n) => done.has(key(n)));
+        if (!near) continue;
+        press(near[0], near[1], ++id);   // 칠해진 칸에서 시작하면 그 색이 이어진다
+        nodes.board.dispatch('pointermove', at(c, r));
+        nodes.board.dispatch('pointerup', {});
+        done.add(key([c, r]));
+        progress = true;
+      }
+    }
+    return done.size === cellsList.length;
+  }
+
+  check('모양대로 칠하기', paintShape(placed, 10));
+
+  const painted = tiles.filter((t) => t.style.backgroundColor).length;
+  check('칠한 칸 수', painted === shape.length, `${painted}/${shape.length}칸`);
+
+  const marked = placed.filter(([c, r]) => tileAt(c, r).classList.contains('match'));
+  check('모양 일치하면 유리 질감', marked.length === shape.length,
+    `${marked.length}/${shape.length}칸`);
 
   // 칠해진 칸을 홀드하면 그 색 전체가 지워져야 한다
-  nodes.board.dispatch('pointerdown', {
-    button: 0, pointerType: 'mouse', pointerId: 3, ...at(bc, br),
-    target: { closest: () => null }, preventDefault() {},
-  });
-  const marking = square.filter(([c, r]) => tiles[r * 10 + c].classList.contains('holding'));
-  check('홀드 중 표시', marking.length === 4, `${marking.length}/4칸`);
+  press(oc + shape[0][0], or_ + shape[0][1], 60);
+  const marking = placed.filter(([c, r]) => tileAt(c, r).classList.contains('holding'));
+  check('홀드 중 표시', marking.length === shape.length,
+    `${marking.length}/${shape.length}칸`);
 
   runTimers();
-  const left = square.filter(([c, r]) => tiles[r * 10 + c].style.backgroundColor);
+  const left = placed.filter(([c, r]) => tileAt(c, r).style.backgroundColor);
   check('홀드하면 같은 색 전부 지워짐', left.length === 0, `${left.length}칸 남음`);
 
   nodes.board.dispatch('pointerup', {});
-  const stillHolding = tiles.filter((t) => t.classList.contains('holding'));
-  check('홀드 표시 정리됨', stillHolding.length === 0, `${stillHolding.length}칸`);
+  check('홀드 표시 정리됨',
+    tiles.filter((t) => t.classList.contains('holding')).length === 0);
 
-  // 다시 칠하고, 칸을 옮기면 홀드가 취소되는지
-  const press = (c, r, id) => nodes.board.dispatch('pointerdown', {
-    button: 0, pointerType: 'mouse', pointerId: id, ...at(c, r),
-    target: { closest: () => null }, preventDefault() {},
-  });
-  press(bc, br, 4);
-  nodes.board.dispatch('pointermove', at(bc + 1, br));
-  nodes.board.dispatch('pointerup', {});
-
-  press(bc, br, 5);                            // 칠해진 칸에서 다시 시작
-  nodes.board.dispatch('pointermove', at(bc + 1, br));
+  // 두 칸을 한 색으로 칠해 두고, 칸을 옮기면 홀드가 취소되는지
+  const pair = placed.slice(0, 2);
+  paintShape(pair, 70);
+  press(pair[0][0], pair[0][1], 80);
+  nodes.board.dispatch('pointermove', at(pair[1][0], pair[1][1]));
   runTimers();                                 // 옮겼으니 홀드는 안 터져야 한다
-  const kept = [[bc, br], [bc + 1, br]].filter(([c, r]) => tiles[r * 10 + c].style.backgroundColor);
+  const kept = pair.filter(([c, r]) => tileAt(c, r).style.backgroundColor);
   check('옮기면 홀드 취소', kept.length === 2, `${kept.length}/2칸 남음`);
   nodes.board.dispatch('pointerup', {});
 
   // 짧게 누르면 그 칸만 지워진다
-  press(bc, br, 6);
+  press(pair[0][0], pair[0][1], 90);
   nodes.board.dispatch('pointerup', {});
-  const one = !tiles[br * 10 + bc].style.backgroundColor
-    && !!tiles[br * 10 + bc + 1].style.backgroundColor;
-  check('짧게 누르면 한 칸만 지워짐', one);
+  check('짧게 누르면 한 칸만 지워짐',
+    !tileAt(pair[0][0], pair[0][1]).style.backgroundColor
+    && !!tileAt(pair[1][0], pair[1][1]).style.backgroundColor);
 }
 
 // 목록으로 돌아가기
@@ -335,7 +414,9 @@ const dualSec = nodes.groups.children.find((sec) => sec.children[0].textContent.
 if (!dualSec) {
   check('두 종 묶음 있음', false);
 } else {
-  dualSec.children[1].children[0].children[0].dispatch('click', {});
+  dualSec.children.filter((c) => c.classList.contains('sub'))[0]
+    .children.find((c) => c.classList.contains('cards'))
+    .children[0].children[0].dispatch('click', {});
   check('두 종은 모양 2개', nodes.preview.children.length === 2,
     `${nodes.preview.children.length}개`);
   const dualField = grid.children.filter((t) => t.classList.contains('field'));
