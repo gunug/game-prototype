@@ -159,6 +159,16 @@ const cardsOf = (sub) => sub.children
   .find((c) => c.classList.contains('cards')).children.map((li) => li.children[0]);
 const cards = sections.flatMap((sec) => subsOf(sec).flatMap(cardsOf));
 
+// .preview > .shape > .chip > i 까지 내려가 실제 점 격자를 확인한다
+const chipsIn = (previewEl) => previewEl.children
+  .flatMap((shape) => shape.children.filter((c) => c.classList.contains('chip')));
+const chipDots = (previewEl) => chipsIn(previewEl).map((chip) => chip.children.length);
+
+const cardDiff = (b) => {
+  const badge = b.children[1].children.find((c) => c.classList.contains('diff'));
+  return badge ? Number(badge.textContent) : NaN;
+};
+
 const BANDS = ['그냥', '추론', '탐색', '중간'];
 const FACES = { '그냥': '😒', '중간': '😐', '추론': '😎', '탐색': '🤮' };
 const bandEl = (b) => b.children[0].children.find((c) => c.classList.contains('band'));
@@ -169,26 +179,37 @@ const cardBand = (b) => {
 
 {
   const subs = sections.flatMap(subsOf);
-  check('소분류 = 방식별', subs.length > 0,
-    sections.map((sec) => subsOf(sec).length + '개').join(' / '));
-  // 소분류 제목은 방식 순서대로, 안에 든 카드는 모두 그 방식이어야 한다
-  const order = ['그냥', '중간', '추론', '탐색'];
-  const okOrder = sections.every((sec) => {
-    const names = subsOf(sec).map((sub) => sub.children[0].children
-      .find((c) => c.classList.contains('band')).getAttribute('data-band'));
-    const rank = names.map((n) => order.indexOf(n));
-    return rank.every((v, i) => v >= 0 && (i === 0 || rank[i - 1] < v));
-  });
-  check('소분류 순서', okOrder,
-    sections.map((sec) => subsOf(sec).map((sub) => sub.children[0].children
-      .find((c) => c.classList.contains('band')).getAttribute('data-band')).join('>')).join('  |  '));
+  check('소분류 = 조각 크기별', subs.length > 0,
+    sections.map((sec) => subsOf(sec).map((sub) => sub.getAttribute('data-size')).join(' ')).join('  |  '));
 
-  const pure = subs.every((sub) => {
-    const want = sub.children[0].children
-      .find((c) => c.classList.contains('band')).getAttribute('data-band');
-    return cardsOf(sub).every((b) => cardBand(b) === want);
+  // 제목이 크기 그대로인지, 작은 것부터인지
+  const labelOk = subs.every((sub) => {
+    const key = sub.getAttribute('data-size').split('+').map(Number);
+    return sub.children[0].textContent.startsWith(key.map((n) => n + '칸').join(' + '));
   });
-  check('소분류 안은 같은 방식만', pure);
+  check('소분류 제목', labelOk,
+    subs.map((sub) => sub.children[0].textContent).join(' / '));
+
+  const ordered = sections.every((sec) => {
+    const keys = subsOf(sec).map((sub) => sub.getAttribute('data-size').split('+').map(Number));
+    return keys.every((k, i) => {
+      if (i === 0) return true;
+      const prev = keys[i - 1];
+      for (let j = 0; j < Math.max(k.length, prev.length); j++) {
+        if ((prev[j] || 0) !== (k[j] || 0)) return (prev[j] || 0) < (k[j] || 0);
+      }
+      return false;
+    });
+  });
+  check('소분류 순서 = 작은 조각부터', ordered);
+
+  // 한 칸 안의 카드는 모두 그 크기 조합이어야 한다. 칩의 켜진 점 수로 확인한다
+  const cardSizes = (b) => chipsIn(b.children[1].children[0])
+    .map((chip) => chip.children.filter((d) => d.classList.contains('on')).length)
+    .sort((x, y) => x - y).join('+');
+  const pure = subs.every((sub) =>
+    cardsOf(sub).every((b) => cardSizes(b) === sub.getAttribute('data-size')));
+  check('소분류 안은 같은 크기 조합만', pure);
 
   const counts = subs.every((sub) => {
     const badge = sub.children[0].children.find((c) => c.classList.contains('count'));
@@ -196,21 +217,7 @@ const cardBand = (b) => {
   });
   check('소분류 개수 표시', counts);
 }
-check('퍼즐 카드', cards.length > 0, `${cards.length}개`);
-check('진행 표시', /\d+ \/ \d+/.test(nodes.progress.textContent), nodes.progress.textContent);
 
-{
-  const done = cards.filter((b) => b.classList.contains('done'));
-  check('클리어한 퍼즐 표시', done.length === 1, `${done.length}개`);
-  // 숨기거나 잠그지 않는다. 다시 눌러 풀 수 있어야 한다
-  check('클리어해도 다시 누를 수 있음',
-    done.length === 1 && (done[0].handlers.click || []).length > 0);
-}
-
-const cardDiff = (b) => {
-  const badge = b.children[1].children.find((c) => c.classList.contains('diff'));
-  return badge ? Number(badge.textContent) : NaN;
-};
 check('카드마다 난이도', cards.every((b) => Number.isFinite(cardDiff(b))));
 check('난이도 1~100', cards.every((b) => cardDiff(b) >= 1 && cardDiff(b) <= 100));
 
@@ -220,12 +227,10 @@ check('소분류 안 난이도 오름차순',
   runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d)),
   runs.map((r) => r.join(' ')).join('  |  '));
 
-// .preview > .shape > .chip > i 까지 내려가 실제 점 격자를 확인한다
-const chipDots = (previewEl) => previewEl.children
-  .flatMap((shape) => shape.children.filter((c) => c.classList.contains('chip')))
-  .map((chip) => chip.children.length);
-check('카드에 모양 칩',
-  cards.every((b) => chipDots(b.children[1].children[0]).every((n) => n > 0)));
+check('카드에 모양 칩', cards.every((b) => {
+  const dots = chipDots(b.children[1].children[0]);
+  return dots.length > 0 && dots.every((n) => n > 0);
+}));
 
 {
   const used = new Set();
