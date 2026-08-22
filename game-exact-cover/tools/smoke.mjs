@@ -177,7 +177,12 @@ check('구간별 난이도 오름차순',
   runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d)),
   runs.map((r) => r.join(' ')).join('  |  '));
 
-check('카드에 모양 칩', cards.every((b) => b.children[1].children[0].children.length > 0));
+// .preview > .shape > .chip > i 까지 내려가 실제 점 격자를 확인한다
+const chipDots = (previewEl) => previewEl.children
+  .flatMap((shape) => shape.children.filter((c) => c.classList.contains('chip')))
+  .map((chip) => chip.children.length);
+check('카드에 모양 칩',
+  cards.every((b) => chipDots(b.children[1].children[0]).every((n) => n > 0)));
 
 {
   const used = new Set();
@@ -224,9 +229,13 @@ check('격자 100칸', tiles.length === 100, `${tiles.length}칸`);
 const fieldTiles = tiles.filter((t) => t.classList.contains('field'));
 check('활성 칸 있음', fieldTiles.length > 0, `${fieldTiles.length}칸`);
 
-const chips = nodes.preview.children;
-check('모양 미리보기', chips.length > 0 && chips[0].children.length > 0,
-  `${chips.length}개, 첫 칩 ${chips[0] ? chips[0].children.length : 0}칸`);
+const dots = chipDots(nodes.preview);
+check('모양 미리보기', dots.length > 0 && dots.every((n) => n > 0),
+  `칩 ${dots.length}개, 점 ${dots.join('/')}`);
+const rotLabels = nodes.preview.children
+  .flatMap((shape) => shape.children.filter((c) => c.classList.contains('rot')));
+check('회전 수 표시', rotLabels.length === dots.length && rotLabels.every((r) => /회전 [124]/.test(r.textContent)),
+  rotLabels.map((r) => r.textContent).join(' '));
 
 const d = nodes['outline-path'].getAttribute('d') || '';
 check('필드 외곽선', d.startsWith('M') && d.length > 20, `${d.length}자`);

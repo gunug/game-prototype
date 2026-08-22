@@ -20,7 +20,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 from ortools.sat.python import cp_model
 
-from generate import COLS, ROWS, SHAPES, placements, idx
+from generate import COLS, ROWS, SHAPES, placements, rotations, idx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.join(HERE, "..", "index.html")
@@ -65,6 +65,8 @@ class Puzzle:
         self.shape_names = list(shape_names)
         self.shapes = [SHAPES[n] for n in self.shape_names]
         self.sizes = [len(sh) for sh in self.shapes]
+        # 회전해도 같은 칸을 덮는 형태는 하나로 친다. 정사각형은 1, 막대와 번개는 2
+        self.rots = [len(rotations(sh)) for sh in self.shapes]
         self.size = max(self.sizes)
         self.cells = frozenset(i for i, ch in enumerate(bits) if ch == "1")
         # 필드 안에 온전히 들어가는 배치만 남긴다. 모양이 둘이면 둘 다 모은다
@@ -395,6 +397,7 @@ def emit_stages(stages):
             f"      difficulty: {st['difficulty']},",
             f"      band: '{st.get('band') or band(st)}',",
             f"      // {label} | {st['cells']}칸 | "
+            f"회전 {'+'.join(str(n) for n in st['rots'])}종 | "
             f"해 {sol} | 강제 {st['forced'] * 100:.0f}% | "
             f"이어칠 성공률 {st['success'] * 100:.0f}% | 헛칠 {st['blind'] * 100:.0f}%",
             f"      field: '{st['field']}',",
@@ -442,6 +445,7 @@ def measure_one(st):
         "mode": st.get("mode", "single" if len(names) == 1 else "dual"),
         "shapes": names,
         "size": pz.size,
+        "rots": pz.rots,
         "pieces": pz.pieces,
         "cells": len(pz.cells),
         "places": len(pz.places),
@@ -496,14 +500,15 @@ def main():
     rows.sort(key=lambda r: (r["mode"] != "single", r["difficulty"], r["cells"]))
 
     print()
-    print("모드   모양          칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  방식")
+    print("모드   모양        회전  칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  방식")
     for r in rows:
         sol = f"{r['solutions']}{'+' if r['capped'] else ''}"
         swap = "유일" if r["minSwap"] is None else str(r["minSwap"])
         print(
             f"{r['mode']:<7}"
             f"{'+'.join(r['shapes']):<12}"
-            f"{r['cells']:>4}{r['places']:>6}"
+            f"{'+'.join(str(n) for n in r['rots']):>4}"
+            f"{r['cells']:>5}{r['places']:>6}"
             f"{r['branch']:>9.1f}"
             f"{r['check']:>9.1f}"
             f"{r['guess'] * 100:>5.0f}%"
