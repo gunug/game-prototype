@@ -103,7 +103,8 @@ const sandbox = {
 sandbox.window.localStorage = sandbox.localStorage;
 
 // 클리어한 퍼즐이 어떻게 보이는지 보려고 하나를 미리 클리어시켜 둔다
-const CLEARED = '한 종 1';
+// 키는 정렬이 바뀌어도 안 움직이도록 내용으로 매긴 id 를 쓴다
+const CLEARED = fs.readFileSync(GAME, 'utf8').match(/id: '([^']+)'/)[1];
 store.set('exact-cover.cleared', JSON.stringify([CLEARED]));
 
 /* ── 실행 ── */
@@ -168,14 +169,14 @@ const cardDiff = (b) => {
   const badge = b.children[1].children.find((c) => c.classList.contains('diff'));
   return badge ? Number(badge.textContent) : NaN;
 };
-
-const BANDS = ['그냥', '추론', '탐색', '중간'];
-const FACES = { '그냥': '😒', '중간': '😐', '추론': '😎', '탐색': '🤮' };
-const bandEl = (b) => b.children[0].children.find((c) => c.classList.contains('band'));
-const cardBand = (b) => {
-  const el = bandEl(b);
-  return el ? el.getAttribute('data-band') : null;
+// 상한을 넘긴 것은 `8+수` 로 나온다. 정렬에서는 그보다 깊다는 뜻으로 친다
+const cardDepth = (b) => {
+  const badge = b.children[0].children.find((c) => c.classList.contains('depth'));
+  if (!badge) return NaN;
+  const m = badge.textContent.match(/^(\d+)(\+?)수$/);
+  return m ? Number(m[1]) + (m[2] ? 0.5 : 0) : NaN;
 };
+
 
 {
   const subs = sections.flatMap(subsOf);
@@ -221,11 +222,20 @@ const cardBand = (b) => {
 check('카드마다 난이도', cards.every((b) => Number.isFinite(cardDiff(b))));
 check('난이도 1~100', cards.every((b) => cardDiff(b) >= 1 && cardDiff(b) <= 100));
 
-// 난이도는 소분류 칸 안에서만 오름차순이면 된다
-const runs = sections.flatMap((sec) => subsOf(sec).map((sub) => cardsOf(sub).map(cardDiff)));
-check('소분류 안 난이도 오름차순',
-  runs.every((run) => run.every((d, i) => i === 0 || run[i - 1] <= d)),
-  runs.map((r) => r.join(' ')).join('  |  '));
+check('카드마다 반박 깊이', cards.every((b) => Number.isFinite(cardDepth(b))));
+check('번호 표시 없음', cards.every((b) => !b.children[0].children
+  .some((c) => c.classList.contains('name'))));
+
+// 소분류 칸 안에서 깊이가 1차, 난이도가 2차 정렬 기준이다
+const runs = sections.flatMap((sec) => subsOf(sec)
+  .map((sub) => cardsOf(sub).map((b) => [cardDepth(b), cardDiff(b)])));
+check('소분류 안 깊이 -> 난이도 순',
+  runs.every((run) => run.every(([dp, df], i) => {
+    if (i === 0) return true;
+    const [pdp, pdf] = run[i - 1];
+    return pdp < dp || (pdp === dp && pdf <= df);
+  })),
+  runs.map((r) => r.map(([dp, df]) => `${dp}/${df}`).join(' ')).join('  |  '));
 
 check('카드에 모양 칩', cards.every((b) => {
   const dots = chipDots(b.children[1].children[0]);
@@ -243,31 +253,14 @@ check('카드에 모양 칩', cards.every((b) => {
   check('카드 클래스가 전역 배치 규칙과 안 겹침', clash.length === 0, clash.join(' ') || '없음');
 }
 
-const banded = cards.filter((b) => BANDS.includes(cardBand(b)));
-check('카드마다 방식 뱃지', banded.length === cards.length, `${banded.length}/${cards.length}`);
-{
-  const tally = {};
-  cards.forEach((b) => { const v = cardBand(b); tally[v] = (tally[v] || 0) + 1; });
-  check('네 종류 다 나옴', BANDS.every((n) => tally[n] > 0),
-    BANDS.map((n) => `${n} ${tally[n] || 0}`).join(' '));
-  // 색을 따로 주므로 클래스도 붙어 있어야 한다
-  check('뱃지 클래스', cards.every((b) => {
-    const el = bandEl(b);
-    return el && el.classList.contains('b-' + el.getAttribute('data-band'));
-  }));
-  check('뱃지가 이모티콘', cards.every((b) => {
-    const el = bandEl(b);
-    return el && el.textContent === FACES[el.getAttribute('data-band')];
-  }), [...new Set(cards.map((b) => bandEl(b).textContent))].join(' '));
-}
-
 /* ── 퍼즐 열기 ── */
 
 cards[0].dispatch('click', {});
 check('퍼즐 열면 게임 화면', nodes.play.hidden === false && nodes.select.hidden === true,
   `play=${nodes.play.hidden} select=${nodes.select.hidden}`);
-check('퍼즐 이름 표시', !!nodes['stage-name'].textContent, nodes['stage-name'].textContent);
-check('상단 바에 난이도와 방식', nodes['stage-diff'].children.length === 2,
+check('상단 바 제목 = 조각 크기', /칸/.test(nodes['stage-name'].textContent),
+  nodes['stage-name'].textContent);
+check('상단 바에 깊이와 난이도', nodes['stage-diff'].children.length === 2,
   nodes['stage-diff'].children.map((c) => c.textContent).join(' '));
 
 const tiles = grid.children.filter((t) => t.classList.contains('tile'));
@@ -431,11 +424,11 @@ if (!dualSec) {
 // 클리어 배너와 다음 버튼
 check('처음엔 배너 숨김', !nodes.banner.classList.contains('show'));
 
-const before = nodes['stage-name'].textContent;
+// 같은 크기 묶음이면 제목이 같으므로 필드 자체가 바뀌었는지 본다
+const beforeField = nodes['outline-path'].getAttribute('d');
 nodes.next.dispatch('click', {});
 check('다음 버튼이 다음 퍼즐을 연다',
-  nodes['stage-name'].textContent !== before && nodes.play.hidden === false,
-  `${before} -> ${nodes['stage-name'].textContent}`);
+  nodes['outline-path'].getAttribute('d') !== beforeField && nodes.play.hidden === false);
 
 if (fails.length) {
   console.log(`\n${fails.length}건 실패`);

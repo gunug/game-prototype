@@ -11,6 +11,7 @@ generate.py 가 만든 필드를 읽어 난이도를 재고, 1~100 점수를 매
 대신 "사람이 저지를 법한 상황"을 만들어 놓고 솔버에게 물어보는 값을 쓴다.
 """
 
+import hashlib
 import json
 import os
 import random
@@ -282,6 +283,82 @@ class Puzzle:
             "guess": guesses / steps if steps else 0.0,
         }
 
+    # ── 반박 깊이 ──
+
+    def _frontier(self, occupied):
+        """읽는 순서로 가장 앞선 빈 칸과, 그 칸을 덮을 수 있는 배치들."""
+        for c in self._order:
+            if c not in occupied:
+                return c, [i for i in self._by_cell[c] if not (occupied & self._sets[i])]
+        return None, []
+
+    def _refutable(self, occupied, k):
+        """
+        k 수 안에 막힌다는 걸 보일 수 있는가.
+
+        가장 앞선 빈 칸은 반드시 덮어야 하므로 거기서만 갈라도 반박은 완전하다.
+        덮을 방법이 아예 없으면 그 자리에서 모순이고, 아니면 모든 갈래가
+        한 수 얕은 깊이에서 막혀야 반박이 선다.
+        """
+        first, cand = self._frontier(occupied)
+        if first is None:
+            return False            # 다 채웠으면 모순이 아니다
+        if not cand:
+            return True             # 못 덮는 칸이 생겼다
+        if k <= 1:
+            return False            # 더 볼 수 없다
+        return all(self._refutable(occupied | self._sets[i], k - 1) for i in cand)
+
+    def _depth_of(self, occupied, p, cap):
+        """틀린 배치 p 를 쳐내는 데 필요한 수. cap 안에 안 되면 cap + 1."""
+        after = occupied | self._sets[p]
+        for k in range(1, cap + 1):
+            if self._refutable(after, k):
+                return k
+        return cap + 1
+
+    def refute_depth(self, cap=8, limit_steps=40):
+        """
+        풀어 나가면서 자리마다 "틀린 후보를 쳐내는 데 몇 수가 필요한가" 를 잰다.
+
+        후보가 하나뿐인 자리는 0수. 고를 게 없으니 생각도 없다.
+        후보가 여럿이면 틀린 것을 전부 쳐내야 하므로 그중 가장 깊은 것이 그 자리의 깊이다.
+        """
+        self._sets = [set(p) for p in self.places]
+        self._by_cell = {c: [] for c in self.cells}
+        for i, p in enumerate(self.places):
+            for c in p:
+                self._by_cell[c].append(i)
+        self._order = sorted(self.cells)
+
+        chosen, occupied = [], set()
+        per_step = []
+
+        while len(occupied) < len(self.cells) and len(per_step) < limit_steps:
+            first, cand = self._frontier(occupied)
+            if first is None or not cand:
+                break
+
+            if len(cand) == 1:
+                per_step.append(0)
+                chosen.append(cand[0])
+                occupied |= self._sets[cand[0]]
+                continue
+
+            viable = [i for i in cand if self.feasible(fixed=chosen + [i])]
+            if not viable:
+                break
+            wrong = [i for i in cand if i not in viable]
+            per_step.append(max((self._depth_of(occupied, w, cap) for w in wrong), default=0))
+            chosen.append(viable[0])
+            occupied |= self._sets[viable[0]]
+
+        return {
+            "depth": max(per_step) if per_step else 0,
+            "depthCap": cap,
+            "steps": per_step,
+        }
+
     def blame(self, chosen):
         """
         막힌 배치들 중 몇 개가 서로 엮여서 모순을 만드는가.
@@ -359,6 +436,17 @@ def score(m):
 MODE_LABEL = {"single": "한 종", "dual": "두 종"}
 
 
+def stage_id(st):
+    """
+    스테이지를 가리키는 안정된 키.
+
+    번호는 정렬이 바뀔 때마다 옮겨 다녀서 클리어 기록이 엉뚱한 퍼즐에 붙는다.
+    내용으로 매기면 다시 재고 다시 정렬해도 그대로다.
+    """
+    raw = "+".join(st["shapes"]) + "|" + st["field"]
+    return "+".join(st["shapes"]) + "-" + hashlib.sha1(raw.encode()).hexdigest()[:8]
+
+
 def emit_stages(stages):
     used = []
     for st in stages:
@@ -382,22 +470,21 @@ def emit_stages(stages):
         "   */",
         "  const STAGES = [",
     ]
-    seq = {}
     for st in stages:
         mode = st["mode"]
-        seq[mode] = seq.get(mode, 0) + 1
         sol = f"{st['solutions']}{'+' if st['capped'] else ''}"
         shapes = ", ".join(f"SHAPES.{n}" for n in st["shapes"])
         label = " + ".join(SHAPE_LABEL[n] for n in st["shapes"])
         out += [
             "    {",
-            f"      name: '{MODE_LABEL[mode]} {seq[mode]}',",
+            f"      id: '{stage_id(st)}',",
             f"      mode: '{mode}',",
             f"      shapes: [{shapes}],",
+            f"      depth: {st['depth']},",
+            f"      depthCap: {st['depthCap']},",
             f"      difficulty: {st['difficulty']},",
-            f"      band: '{st.get('band') or band(st)}',",
             f"      // {label} | {st['cells']}칸 | "
-            f"회전 {'+'.join(str(n) for n in st['rots'])}종 | "
+            f"반박 깊이 {st['depth']}{'+' if st['depth'] > st['depthCap'] else ''}수 | "
             f"해 {sol} | 강제 {st['forced'] * 100:.0f}% | "
             f"이어칠 성공률 {st['success'] * 100:.0f}% | 헛칠 {st['blind'] * 100:.0f}%",
             f"      field: '{st['field']}',",
@@ -440,6 +527,7 @@ def measure_one(st):
     swap = pz.min_swap()
     g = pz.greedy_trials()
     d = pz.deduction()
+    rd = pz.refute_depth()
 
     m = {
         "mode": st.get("mode", "single" if len(names) == 1 else "dual"),
@@ -462,6 +550,9 @@ def measure_one(st):
         "branch": pz.branching(),
         "check": d["check"],
         "guess": d["guess"],
+        "depth": rd["depth"],
+        "depthCap": rd["depthCap"],
+        "depthSteps": rd["steps"],
         "detTime": round(pz.det_time, 2),
     }
     m["difficulty"], m["parts"] = score(m)
@@ -497,10 +588,11 @@ def main():
                   f"{'+'.join(m['shapes'])} -> {m['difficulty']}", file=sys.stderr)
 
     # single 을 먼저, 각 모드 안에서 쉬운 순
-    rows.sort(key=lambda r: (r["mode"] != "single", r["difficulty"], r["cells"]))
+    # 반박 깊이가 1차, 난이도 점수가 2차
+    rows.sort(key=lambda r: (r["mode"] != "single", r["depth"], r["difficulty"], r["cells"]))
 
     print()
-    print("모드   모양        회전  칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  방식")
+    print("모드   모양        회전  칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  깊이")
     for r in rows:
         sol = f"{r['solutions']}{'+' if r['capped'] else ''}"
         swap = "유일" if r["minSwap"] is None else str(r["minSwap"])
@@ -517,7 +609,7 @@ def main():
             f"{r['success'] * 100:>6.0f}%"
             f"{r['blind'] * 100:>5.0f}%"
             f"{r['difficulty']:>6}"
-            f"  {r['band']}"
+            f"{r['depth']:>5}수"
         )
 
     with open(MEASURED, "w", encoding="utf-8") as f:

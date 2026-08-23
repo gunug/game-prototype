@@ -282,7 +282,7 @@ def verify():
     html = io_open(os.path.join(here, "..", "index.html"))
 
     entries = re.findall(
-        r"name: '([^']+)',.*?shapes: \[([^\]]+)\],.*?field: '([01]+)'",
+        r"id: '([^']+)',.*?shapes: \[([^\]]+)\],.*?field: '([01]+)'",
         html, re.S)
     if not entries:
         print("STAGES 를 못 읽음", file=sys.stderr)
