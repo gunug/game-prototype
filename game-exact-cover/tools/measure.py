@@ -28,6 +28,7 @@ GAME = os.path.join(HERE, "..", "index.html")
 SOURCES = [
     (os.path.join(HERE, "stages.json"), "single"),
     (os.path.join(HERE, "stages-dual.json"), "dual"),
+    (os.path.join(HERE, "stages-tactic.json"), "tactic"),
 ]
 MEASURED = os.path.join(HERE, "measured.json")
 
@@ -37,6 +38,7 @@ SHAPE_LABEL = {
     "L4": "테트로미노 L", "S4": "테트로미노 S",
     "L5": "펜토미노 L", "P5": "펜토미노 P", "T5": "펜토미노 T",
     "V5": "펜토미노 V", "W5": "펜토미노 W", "Y5": "펜토미노 Y",
+    "P6": "헥소미노 P", "V6": "헥소미노 V", "Y6": "헥소미노 Y", "Z6": "헥소미노 Z",
 }
 
 SHAPE_SRC = {
@@ -53,6 +55,10 @@ SHAPE_SRC = {
     "V5": "[[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]",
     "W5": "[[0, 0], [0, 1], [1, 1], [1, 2], [2, 2]]",
     "Y5": "[[1, 0], [0, 1], [1, 1], [1, 2], [1, 3]]",
+    "P6": "[[0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [0, 3]]",
+    "V6": "[[0, 0], [1, 0], [2, 0], [0, 1], [0, 2], [0, 3]]",
+    "Y6": "[[2, 0], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2]]",
+    "Z6": "[[1, 0], [2, 0], [0, 1], [1, 1], [1, 2], [2, 2]]",
 }
 
 
@@ -596,9 +602,10 @@ def main():
             print(f"  잼 {len(rows)}/{len(stages)}: "
                   f"{'+'.join(m['shapes'])} -> {m['difficulty']}", file=sys.stderr)
 
-    # single 을 먼저, 각 모드 안에서 쉬운 순
+    # 한 종 -> 두 종 -> 묘수풀이 순. 각 모드 안에서는 쉬운 순으로,
     # 반박 깊이가 1차, 난이도 점수가 2차
-    rows.sort(key=lambda r: (r["mode"] != "single", r["depth"], r["difficulty"], r["cells"]))
+    order = {"single": 0, "dual": 1, "tactic": 2}
+    rows.sort(key=lambda r: (order.get(r["mode"], 9), r["depth"], r["difficulty"], r["cells"]))
 
     print()
     print("모드   모양        회전  칸  배치  칸당후보 확인비용 추측  해     강제  이어칠 헛칠  점수  깊이")

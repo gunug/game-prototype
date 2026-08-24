@@ -158,8 +158,14 @@ check('처음엔 목록 화면', nodes.play.attrs.hidden !== undefined || nodes.
   `play.hidden=${nodes.play.hidden}`);
 
 const sections = nodes.groups.children;
-check('대분류 = 조각 종류 수', sections.length === 2,
-  sections.map((sec) => sec.children[0].textContent).join(' / '));
+// 조각 한 종 / 조각 두 종 / 묘수풀이. 묘수풀이는 작고 깊은 문제만 모은 별도 묶음이다
+const sectionNames = sections.map((sec) => sec.children[0].textContent);
+check('대분류 = 조각 한 종 / 두 종 / 묘수풀이',
+  sections.length === 3
+  && sectionNames[0].startsWith('조각 한 종')
+  && sectionNames[1].startsWith('조각 두 종')
+  && sectionNames[2].startsWith('묘수풀이'),
+  sectionNames.join(' / '));
 
 // 대분류 > 소분류(방식) > 카드
 const subsOf = (sec) => sec.children.filter((c) => c.classList.contains('sub'));
