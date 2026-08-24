@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>드래그 드롭 — Game Prototype</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#FFD400">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets-ds.css">
+<style>
+  html,body{height:100%;margin:0;overscroll-behavior:none;}
+  body{
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+
+  /* ==================== 스테이지 고르는 페이지 ==================== */
+
+  .select{position:fixed;inset:0;overflow-y:auto;background:var(--canvas);}
+  .select-inner{
+    max-width:900px;
+    margin:0 auto;
+    padding:var(--s7) var(--s5) var(--s8);
+    padding-left:calc(env(safe-area-inset-left,0px) + var(--s5));
+    padding-right:calc(env(safe-area-inset-right,0px) + var(--s5));
+  }
+  .select-head{margin-bottom:var(--s6);}
+  .select-head h1{font-size:40px;line-height:1.05;margin:0;}
+  .select-head .lead{color:var(--muted);margin:var(--s3) 0 0;}
+  .select-head .progress{
+    color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;
+    margin:var(--s3) 0 0;
+  }
+
+  .cards{
+    list-style:none;margin:0;padding:0;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--s3);
+  }
+  .cards button{
+    width:100%;display:flex;flex-direction:column;gap:var(--s2);
+    font-family:var(--font);text-align:left;color:var(--body);
+    background:var(--surface);border:1px solid var(--hairline);
+    border-radius:var(--r-md);padding:var(--s3);cursor:pointer;transition:.15s;
+  }
+  .cards button:hover{
+    border-color:var(--brand-yellow);transform:translateY(-2px);box-shadow:var(--sh-md);
+  }
+  /* 클리어한 스테이지는 흐리게. 다시 풀 수 있어야 하므로 숨기거나 잠그지 않는다 */
+  .cards button.done{border-color:var(--brand-yellow-deep);opacity:.45;}
+  .cards button.done:hover{opacity:1;}
+  .cards .row{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);}
+  .cards .title{color:var(--ink);font-weight:700;font-size:14px;}
+  .cards .meta{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;}
+  .cards .check{color:var(--brand-yellow);font-weight:800;font-size:12px;visibility:hidden;}
+  .cards button.done .check{visibility:visible;}
+  /* 카드 안 미리보기는 필드 윤곽만 아주 작게 */
+  .mini{display:grid;grid-template-columns:repeat(10,6px);grid-template-rows:repeat(10,6px);gap:1px;}
+  .mini i{border-radius:1px;background:transparent;}
+  .mini i.on{background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--hairline);}
+
+  /* ==================== 푸는 페이지 ==================== */
+
+  .play{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--canvas);}
+  .topbar{
+    display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s3) var(--s4);
+    padding-top:calc(env(safe-area-inset-top,0px) + var(--s3));
+    border-bottom:1px solid var(--hairline);
+  }
+  .topbar .name{color:var(--ink);font-weight:700;font-size:15px;}
+  .topbar .left{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;}
+  .topbar .spacer{flex:1;}
+
+  .board{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;}
+  .grid{
+    position:relative;
+    display:grid;
+    grid-template-columns:repeat(10,var(--cell,32px));
+    grid-template-rows:repeat(10,var(--cell,32px));
+    touch-action:none;
+  }
+  .tile{border-radius:3px;background:transparent;position:relative;}
+  .tile.on{background:var(--surface);box-shadow:inset 0 0 0 1px var(--hairline);}
+  .tile.fill{background:var(--pc);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);}
+  /* 놓일 자리 미리보기. 못 놓는 자리는 빨갛게 */
+  .tile.hint{outline:2px solid var(--brand-yellow);outline-offset:-2px;border-radius:2px;}
+  .tile.bad{outline:2px solid #E5484D;outline-offset:-2px;border-radius:2px;}
+
+  /* 칸마다 테두리를 그리면 모서리가 겹친다. 필드와 바깥이 맞닿는 변만 한 겹으로 */
+  .outline{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+  .outline path{
+    fill:none;stroke:#fff;stroke-width:.06;stroke-linecap:round;
+    filter:drop-shadow(0 0 .12px #fff);opacity:.55;
+  }
+
+  .clear-banner{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:var(--s4);
+    background:rgba(18,18,16,.82);opacity:0;pointer-events:none;transition:.2s;
+  }
+  .clear-banner.show{opacity:1;pointer-events:auto;}
+  .clear-banner h2{font-size:32px;margin:0;color:var(--brand-yellow);}
+
+  .tray{
+    display:flex;align-items:flex-end;gap:var(--s3);
+    overflow-x:auto;overflow-y:hidden;
+    padding:var(--s3) var(--s4);
+    padding-bottom:calc(env(safe-area-inset-bottom,0px) + var(--s3));
+    border-top:1px solid var(--hairline);background:var(--surface);
+    min-height:84px;
+    touch-action:none;
+  }
+  /* 격자 크기는 pieceGrid 가 인라인으로 준다. --pc 는 조각 색이다 */
+  .tray .item{
+    flex:0 0 auto;
+    display:grid;gap:2px;
+    padding:7px;border:1px solid var(--hairline);border-radius:var(--r-md);
+    background:var(--surface-soft);cursor:grab;
+  }
+  .tray .item.dragging{opacity:.25;}
+  .tray i{border-radius:3px;background:transparent;}
+  .tray i.on{background:var(--pc);}
+  .tray .empty{color:var(--muted);font-size:12px;padding:var(--s3);}
+
+  /* 끌고 다니는 조각. 손가락에 붙어 다니므로 포인터를 먹으면 안 된다 */
+  .ghost{
+    position:fixed;left:0;top:0;z-index:60;pointer-events:none;
+    display:grid;gap:0;
+    opacity:.85;filter:drop-shadow(0 6px 14px rgba(0,0,0,.5));
+  }
+  .ghost i{border-radius:3px;background:transparent;}
+  .ghost i.on{background:var(--pc);box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);}
+
+  @media(max-width:560px){.select-head h1{font-size:30px;}}
+</style>
+</head>
+<body>
+
+<div class="select" id="select">
+  <div class="select-inner">
+    <header class="select-head">
+      <span class="eyebrow">Game Prototype</span>
+      <h1>드래그 드롭</h1>
+      <p class="lead">조각을 끌어다 칸을 전부 채운다. 회전은 없다.</p>
+      <p class="progress" id="progress"></p>
+    </header>
+    <ul class="cards" id="cards"></ul>
+  </div>
+</div>
+
+<div class="play" id="play" hidden>
+  <header class="topbar">
+    <button class="btn btn-secondary btn-sm" id="back" type="button">← 목록</button>
+    <span class="name" id="stage-name"></span>
+    <span class="left" id="left"></span>
+    <span class="spacer"></span>
+    <button class="btn btn-secondary btn-sm" id="reset" type="button">지우기</button>
+  </header>
+
+  <div class="board" id="board">
+    <div class="grid" id="grid">
+      <svg class="outline" id="outline" viewBox="0 0 10 10" preserveAspectRatio="none">
+        <path id="outline-path" d=""></path>
+      </svg>
+    </div>
+    <div class="clear-banner" id="banner">
+      <h2>클리어!</h2>
+      <button class="btn btn-primary" id="next" type="button">다음 →</button>
+    </div>
+  </div>
+
+  <div class="tray" id="tray"></div>
+</div>
+
+<div class="ghost" id="ghost" hidden></div>
+
+<script>
+  /* ==================== 스테이지 ==================== */
+
+  /**
+   * tools/generate.py 가 조각을 실제로 깔아 만든 값이다. 깔아서 만들었으니
+   * 답이 반드시 하나 이상 있다. field 는 좌상단부터 행 우선으로 읽는
+   * 10x10 비트맵, pieces 는 회전 없이 그대로 놓아야 할 조각들이다.
+   */
+  const STAGES = [
+    {
+      name: '첫 걸음',
+      // 20칸 | 조각 5개 | 해 1
+      pieces: [[[0,0], [1,0], [1,1], [1,2]], [[0,1], [1,0], [1,1], [1,2]], [[0,0], [0,1], [1,0], [1,1]], [[0,1], [1,1], [2,0], [2,1]], [[0,0], [0,1], [0,2], [1,1]]],
+      field: '0000000000000000000000001000000000110000000111100000111110000001111100000001110000000000000000000000',
+    },
+    {
+      name: '네 칸',
+      // 28칸 | 조각 7개 | 해 1
+      pieces: [[[0,0], [0,1], [1,1], [1,2]], [[0,0], [1,0], [1,1], [2,1]], [[0,0], [0,1], [0,2], [0,3]], [[0,0], [1,0], [1,1], [1,2]], [[0,0], [1,0], [1,1], [2,0]], [[0,1], [1,1], [2,0], [2,1]], [[0,0], [0,1], [0,2], [1,2]]],
+      field: '0000000000000000000001111100000010011000001111110000111111000011111000001110000000000000000000000000',
+    },
+    {
+      name: '섞기',
+      // 35칸 | 조각 9개 | 해 1
+      pieces: [[[0,0], [0,1], [1,0]], [[0,0], [0,1], [1,0], [2,0]], [[0,1], [1,0], [1,1], [2,1]], [[0,0], [1,0], [1,1], [1,2]], [[0,1], [0,2], [1,0], [1,1], [1,2]], [[0,1], [0,2], [1,0], [1,1], [1,2]], [[0,0], [0,1], [0,2], [1,1]], [[0,0], [0,1], [1,1]], [[0,0], [1,0], [1,1]]],
+      field: '0000011000000000100000011110000000111000001011100001111110000001111000001111111000111010000000000000',
+    },
+    {
+      name: '펜토미노',
+      // 55칸 | 조각 11개 | 해 1
+      pieces: [[[0,0], [1,0], [1,1], [2,0], [3,0]], [[0,0], [0,1], [0,2], [1,2], [2,2]], [[0,0], [1,0], [1,1], [2,0], [2,1]], [[0,0], [0,1], [0,2], [1,0], [2,0]], [[0,0], [0,1], [0,2], [1,1], [2,1]], [[0,0], [1,0], [1,1], [1,2], [2,0]], [[0,0], [1,0], [1,1], [2,0], [3,0]], [[0,0], [0,1], [1,0], [1,1], [2,1]], [[0,0], [0,1], [0,2], [1,1], [2,1]], [[0,1], [0,2], [1,0], [1,1], [1,2]], [[0,0], [0,1], [1,0], [2,0], [3,0]]],
+      field: '0011101000111101111010110110011011111111001111101101111110000111011000001111111100010001000000000000',
+    },
+    {
+      name: '한 판 가득',
+      // 58칸 | 조각 13개 | 해 1
+      pieces: [[[0,1], [1,0], [1,1], [1,2]], [[0,1], [1,0], [1,1]], [[0,0], [1,0], [1,1], [2,0]], [[0,1], [1,0], [1,1], [1,2], [1,3]], [[0,0], [0,1], [1,0], [2,0], [2,1]], [[0,1], [1,1], [2,1], [3,0], [3,1]], [[0,0], [0,1], [0,2], [0,3], [1,2]], [[0,0], [0,1], [0,2], [0,3], [1,2]], [[0,0], [1,0], [1,1], [2,0]], [[0,0], [0,1], [1,0], [2,0], [2,1]], [[0,1], [1,1], [2,1], [3,0], [3,1]], [[0,0], [0,1], [1,1], [1,2], [2,2]], [[0,0], [0,1], [1,1]]],
+      field: '1110000010101011111011111000001110100010111011111011111111001011111110111001000010111110000001001100',
+    },
+  ];
+
+  /** 비트맵 문자열 -> 채워야 할 칸 번호 집합 */
+  function readField(bits) {
+    const out = new Set();
+    for (let i = 0; i < bits.length; i++) if (bits[i] === '1') out.add(i);
+    return out;
+  }
+  /* ==================== 상태 ==================== */
+
+  const COLS = 10, ROWS = 10;
+  const TRAY_CELL = 15;      // 서랍에 그리는 칸 크기(px). 잡은 칸을 셀 때도 쓴다
+
+  const selectPage = document.getElementById('select');
+  const playPage   = document.getElementById('play');
+  const cardsEl    = document.getElementById('cards');
+  const progressEl = document.getElementById('progress');
+  const grid       = document.getElementById('grid');
+  const board      = document.getElementById('board');
+  const outlineEl  = document.getElementById('outline');
+  const outlinePath = document.getElementById('outline-path');
+  const trayEl     = document.getElementById('tray');
+  const ghostEl    = document.getElementById('ghost');
+  const banner     = document.getElementById('banner');
+  const nameEl     = document.getElementById('stage-name');
+  const leftEl     = document.getElementById('left');
+  const backBtn    = document.getElementById('back');
+  const nextBtn    = document.getElementById('next');
+  const resetBtn   = document.getElementById('reset');
+
+  const STORE = 'drag-drop.cleared';
+  const cleared = new Set(JSON.parse(localStorage.getItem(STORE) || '[]'));
+
+  /**
+   * 클리어 기록의 키. 번호로 매기면 스테이지를 하나 끼워 넣을 때 기록이
+   * 통째로 밀린다. 내용으로 매기면 순서가 바뀌어도 그대로다.
+   */
+  function stageId(s) {
+    let h = 2166136261;
+    for (const ch of s.name + '|' + s.field) {
+      h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    }
+    return s.name + '-' + (h >>> 0).toString(36);
+  }
+
+  let stageIdx = 0;
+  let field = new Set();      // 채워야 할 칸 번호
+  let pieces = [];            // 조각마다 [[c,r], ...]. 회전은 없다
+  const placed = new Map();   // 조각 번호 -> 놓인 자리의 기준 칸 번호
+  const occ = new Map();      // 칸 번호 -> 그 칸을 덮은 조각 번호
+  let cell = 32;
+
+  /** 조각 색. 황금각으로 색상환을 돌아 이웃한 조각끼리 안 겹치게 한다 */
+  const pieceColor = (i) => `hsl(${(i * 137.508) % 360} 68% 62%)`;
+
+  /* ==================== 판 ==================== */
+
+  const tiles = [];
+
+  function buildGrid() {
+    tiles.length = 0;
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.addEventListener('pointerdown', (e) => liftFromBoard(i, e));
+      tiles.push(t);
+      frag.appendChild(t);
+    }
+    grid.replaceChildren(frag);
+    grid.appendChild(outlineEl);   // 칸 위에 한 겹으로 얹는다
+  }
+
+  /** 필드와 바깥이 맞닿는 변만 모아 한 줄기 path 로 그린다 */
+  function drawOutline() {
+    const seg = [];
+    for (const i of field) {
+      const c = i % COLS, r = Math.floor(i / COLS);
+      if (!field.has(idx(c, r - 1))) seg.push(`M${c} ${r}H${c + 1}`);
+      if (!field.has(idx(c, r + 1))) seg.push(`M${c} ${r + 1}H${c + 1}`);
+      if (!field.has(idx(c - 1, r))) seg.push(`M${c} ${r}V${r + 1}`);
+      if (!field.has(idx(c + 1, r))) seg.push(`M${c + 1} ${r}V${r + 1}`);
+    }
+    outlinePath.setAttribute('d', seg.join(''));
+  }
+
+  /** 판 밖은 -1 로 떨어뜨린다. 안 그러면 반대쪽 줄로 넘어가 버린다 */
+  function idx(c, r) {
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return -1;
+    return r * COLS + c;
+  }
+
+  /** 1:1 비율을 지키면서 남은 영역에 맞춰 칸 크기를 정한다 */
+  function resize() {
+    const rect = board.getBoundingClientRect();
+    const side = Math.max(Math.min(rect.width, rect.height) - 16, COLS);
+    cell = Math.floor(side / COLS);
+    grid.style.setProperty('--cell', cell + 'px');
+  }
+
+  /* ==================== 조각 놓기 ==================== */
+
+  /** 조각을 (c0,r0) 에 놓았을 때 덮는 칸들. 판 밖으로 나가면 null */
+  function cellsAt(pi, c0, r0) {
+    const out = [];
+    for (const [c, r] of pieces[pi]) {
+      const i = idx(c0 + c, r0 + r);
+      if (i < 0) return null;
+      out.push(i);
+    }
+    return out;
+  }
+
+  /** 필드 안이고, 비어 있거나 자기 자신이 덮고 있던 칸이어야 놓을 수 있다 */
+  function canPlace(pi, c0, r0) {
+    const ids = cellsAt(pi, c0, r0);
+    if (!ids) return null;
+    for (const i of ids) {
+      if (!field.has(i)) return null;
+      const owner = occ.get(i);
+      if (owner !== undefined && owner !== pi) return null;
+    }
+    return ids;
+  }
+
+  function place(pi, c0, r0) {
+    const ids = canPlace(pi, c0, r0);
+    if (!ids) return false;
+    lift(pi);
+    ids.forEach((i) => occ.set(i, pi));
+    placed.set(pi, [c0, r0]);
+    return true;
+  }
+
+  /** 놓인 조각을 판에서 걷어낸다 */
+  function lift(pi) {
+    if (!placed.has(pi)) return;
+    for (const [i, owner] of [...occ]) if (owner === pi) occ.delete(i);
+    placed.delete(pi);
+  }
+
+  /* ==================== 그리기 ==================== */
+
+  function renderBoard() {
+    for (let i = 0; i < tiles.length; i++) {
+      const t = tiles[i];
+      t.className = field.has(i) ? 'tile on' : 'tile';
+      const owner = occ.get(i);
+      if (owner === undefined) {
+        t.style.removeProperty('--pc');
+      } else {
+        t.classList.add('fill');
+        t.style.setProperty('--pc', pieceColor(owner));
+      }
+    }
+  }
+
+  /** 조각 하나를 칸 격자로 그린다. 서랍과 끌고 다니는 조각이 같은 함수를 쓴다 */
+  function pieceGrid(pi, host) {
+    const p = pieces[pi];
+    const w = Math.max(...p.map(([c]) => c)) + 1;
+    const h = Math.max(...p.map(([, r]) => r)) + 1;
+    // 칸 크기는 --tc 로 받는다. 서랍은 기본값, 끌고 다니는 조각은 판 칸 크기
+    host.style.setProperty('--pc', pieceColor(pi));
+    host.style.gridTemplateColumns = `repeat(${w}, var(--tc, ${TRAY_CELL}px))`;
+    host.style.gridTemplateRows = `repeat(${h}, var(--tc, ${TRAY_CELL}px))`;
+    const on = new Set(p.map(([c, r]) => r * COLS + c));
+    const kids = [];
+    for (let r = 0; r < h; r++) {
+      for (let c = 0; c < w; c++) {
+        const i = document.createElement('i');
+        if (on.has(r * COLS + c)) i.className = 'on';
+        kids.push(i);
+      }
+    }
+    host.replaceChildren(...kids);
+    return { w, h };
+  }
+
+  function renderTray() {
+    const frag = document.createDocumentFragment();
+    let n = 0;
+    for (let pi = 0; pi < pieces.length; pi++) {
+      if (placed.has(pi)) continue;
+      n++;
+      const item = document.createElement('div');
+      item.className = 'item';
+      item.setAttribute('data-piece', String(pi));
+      pieceGrid(pi, item);
+      item.addEventListener('pointerdown', (e) => grabFromTray(pi, item, e));
+      frag.appendChild(item);
+    }
+    if (n === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = '서랍이 비었다';
+      frag.appendChild(empty);
+    }
+    trayEl.replaceChildren(frag);
+    leftEl.textContent = `남은 조각 ${n} / ${pieces.length}`;
+  }
+
+  function render() {
+    renderBoard();
+    renderTray();
+    banner.classList.toggle('show', isClear());
+  }
+
+  function isClear() {
+    return pieces.length > 0 && placed.size === pieces.length;
+  }
+
+  /* ==================== 끌기 ==================== */
+
+  // 잡은 조각과, 조각의 어느 칸을 쥐었는지. 쥔 칸이 포인터 밑에 오도록 붙인다
+  let drag = null;
+
+  /** 쥔 자리가 조각 밖이면 가장 가까운 칸으로 당긴다 */
+  function nearestCell(pi, c, r) {
+    let best = pieces[pi][0], bd = Infinity;
+    for (const [pc, pr] of pieces[pi]) {
+      const d = Math.abs(pc - c) + Math.abs(pr - r);
+      if (d < bd) { bd = d; best = [pc, pr]; }
+    }
+    return best;
+  }
+
+  function grabFromTray(pi, item, e) {
+    const rect = item.getBoundingClientRect();
+    const c = Math.floor((e.clientX - rect.left - 7) / TRAY_CELL);
+    const r = Math.floor((e.clientY - rect.top - 7) / TRAY_CELL);
+    item.classList.add('dragging');
+    startDrag(pi, nearestCell(pi, c, r), e, trayEl);
+  }
+
+  function liftFromBoard(i, e) {
+    const pi = occ.get(i);
+    if (pi === undefined || isClear()) return;
+    const [c0, r0] = placed.get(pi);
+    const grab = [i % COLS - c0, Math.floor(i / COLS) - r0];
+    lift(pi);
+    renderBoard();
+    startDrag(pi, grab, e, grid);
+  }
+
+  /**
+   * host 로 포인터를 잡아 둔다. 서랍이나 판을 벗어나도 이벤트가 계속 오게
+   * 하려는 것이고, 잡는 대상을 자식이 아니라 컨테이너로 두어야 그리기를
+   * 다시 해도 잡은 것이 안 풀린다.
+   */
+  function startDrag(pi, grab, e, host) {
+    drag = { pi, grab, host };
+    if (host.setPointerCapture && e.pointerId !== undefined) {
+      host.setPointerCapture(e.pointerId);
+    }
+    ghostEl.hidden = false;
+    ghostEl.style.gridTemplateColumns = '';
+    ghostEl.style.gridTemplateRows = '';
+    pieceGrid(pi, ghostEl);
+    ghostEl.style.setProperty('--tc', cell + 'px');
+    moveDrag(e);
+  }
+
+  /** 포인터가 가리키는 칸에서 쥔 칸만큼 물러난 자리가 조각의 기준 칸이다 */
+  function targetOrigin(e) {
+    const rect = grid.getBoundingClientRect();
+    const c = Math.floor((e.clientX - rect.left) / cell);
+    const r = Math.floor((e.clientY - rect.top) / cell);
+    return [c - drag.grab[0], r - drag.grab[1]];
+  }
+
+  function clearHints() {
+    tiles.forEach((t) => { t.classList.remove('hint'); t.classList.remove('bad'); });
+  }
+
+  function moveDrag(e) {
+    if (!drag) return;
+    const p = pieces[drag.pi];
+    const w = Math.max(...p.map(([c]) => c)) + 1;
+    ghostEl.style.left = (e.clientX - (drag.grab[0] + 0.5) * cell) + 'px';
+    ghostEl.style.top = (e.clientY - (drag.grab[1] + 0.5) * cell) + 'px';
+    ghostEl.style.width = w * cell + 'px';
+
+    clearHints();
+    const [c0, r0] = targetOrigin(e);
+    const ok = canPlace(drag.pi, c0, r0);
+    if (ok) {
+      ok.forEach((i) => tiles[i].classList.add('hint'));
+    } else {
+      // 판 위에 걸쳐 있을 때만 빨갛게. 서랍 위에서는 아무 표시도 안 한다
+      for (const [c, r] of p) {
+        const i = idx(c0 + c, r0 + r);
+        if (i >= 0) tiles[i].classList.add('bad');
+      }
+    }
+  }
+
+  function endDrag(e, drop) {
+    if (!drag) return;
+    const { pi, host } = drag;
+    if (host.releasePointerCapture && e && e.pointerId !== undefined) {
+      host.releasePointerCapture(e.pointerId);
+    }
+    if (drop && e) {
+      const [c0, r0] = targetOrigin(e);
+      place(pi, c0, r0);
+    }
+    drag = null;
+    ghostEl.hidden = true;
+    clearHints();
+    render();
+    if (isClear()) markCleared();
+  }
+
+  for (const host of [trayEl, grid]) {
+    host.addEventListener('pointermove', (e) => moveDrag(e));
+    host.addEventListener('pointerup', (e) => endDrag(e, true));
+    host.addEventListener('pointercancel', (e) => endDrag(e, false));
+  }
+
+  /* ==================== 스테이지 ==================== */
+
+  function openStage(i) {
+    stageIdx = i;
+    const s = STAGES[i];
+    field = readField(s.field);
+    pieces = s.pieces.map((p) => p.map(([c, r]) => [c, r]));
+    placed.clear();
+    occ.clear();
+    drag = null;
+    ghostEl.hidden = true;
+
+    nameEl.textContent = s.name;
+    selectPage.hidden = true;
+    playPage.hidden = false;
+    resize();
+    drawOutline();
+    render();
+    nextBtn.textContent = i + 1 < STAGES.length ? '다음 →' : '스테이지 목록 →';
+  }
+
+  function markCleared() {
+    cleared.add(stageId(STAGES[stageIdx]));
+    localStorage.setItem(STORE, JSON.stringify([...cleared]));
+  }
+
+  function toSelect() {
+    playPage.hidden = true;
+    selectPage.hidden = false;
+    renderSelect();
+  }
+
+  function miniField(bits) {
+    const el = document.createElement('div');
+    el.className = 'mini';
+    const kids = [];
+    for (let i = 0; i < COLS * ROWS; i++) {
+      const dot = document.createElement('i');
+      if (bits[i] === '1') dot.className = 'on';
+      kids.push(dot);
+    }
+    el.replaceChildren(...kids);
+    return el;
+  }
+
+  function renderSelect() {
+    const frag = document.createDocumentFragment();
+    STAGES.forEach((s, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (cleared.has(stageId(s))) b.classList.add('done');
+
+      const top = document.createElement('div');
+      top.className = 'row';
+      const title = document.createElement('span');
+      title.className = 'title';
+      title.textContent = s.name;
+      const chk = document.createElement('span');
+      chk.className = 'check';
+      chk.textContent = '✓';
+      top.append(title, chk);
+
+      const bottom = document.createElement('div');
+      bottom.className = 'row';
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = `조각 ${s.pieces.length} · ${readField(s.field).size}칸`;
+      bottom.append(miniField(s.field), meta);
+
+      b.append(top, bottom);
+      b.addEventListener('click', () => openStage(i));
+      li.appendChild(b);
+      frag.appendChild(li);
+    });
+    cardsEl.replaceChildren(frag);
+    progressEl.textContent = `${cleared.size} / ${STAGES.length} 클리어`;
+  }
+
+  backBtn.addEventListener('click', toSelect);
+  resetBtn.addEventListener('click', () => {
+    if (isClear()) return;      // 다 맞춘 판을 실수로 날리지 않게
+    placed.clear();
+    occ.clear();
+    render();
+  });
+  nextBtn.addEventListener('click', () => {
+    if (stageIdx + 1 < STAGES.length) openStage(stageIdx + 1);
+    else toSelect();
+  });
+  window.addEventListener('resize', () => { resize(); });
+
+  buildGrid();
+  renderSelect();
+</script>
+</body>
+</html>
