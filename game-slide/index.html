@@ -61,7 +61,8 @@
     box-shadow:var(--sh-md);
     transition:transform .13s cubic-bezier(.2,.7,.3,1);
   }
-  .monster{background:#3A2320;color:#FF8A73;box-shadow:inset 0 0 0 1px #5A3630;}
+  .monster{background:#3A2320;color:#FF8A73;box-shadow:inset 0 0 0 1px #5A3630;
+    transition:transform .13s cubic-bezier(.2,.7,.3,1);}
   .monster span{display:block;animation:pop .18s ease-out;}
   @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
 
@@ -86,7 +87,7 @@
       <div class="board" id="board"></div>
     </div>
 
-    <p class="hint">화면 어디든 스와이프 · 방향키 / WASD</p>
+    <p class="hint" id="hint">화면 어디든 스와이프 · 방향키 / WASD</p>
   </main>
 
 <script>
@@ -105,16 +106,16 @@
   const stageEl = document.getElementById('stage');
   const movesEl = document.getElementById('moves');
   const countEl = document.getElementById('mcount');
+  const hintEl = document.querySelector('.hint');
   const fenceEl = document.createElement('div');
 
   let cellPx = 32, gapPx = 2;
-  let player = { x: START.x, y: START.y };
-  let monsters = [];            // {x,y,el}
+  const player = { x: START.x, y: START.y };
+  const monsters = [];          // {kind,x,y,el}
   let moves = 0;
   let playerEl = null;
 
   const isInner = (x, y) => x >= MIN && x <= MAX && y >= MIN && y <= MAX;
-  const key = (x, y) => y * N + x;
 
   // ── 판 그리기 ───────────────────────────────────────────────
   function buildBoard() {
@@ -177,6 +178,12 @@
     el.style.transform = 'translate(' + (x * step) + 'px,' + (y * step) + 'px)';
   }
 
+  // ── 칸 차지 ────────────────────────────────────────────────
+  const onBoard = (x, y) => x >= 0 && x < N && y >= 0 && y < N;
+  const monsterAt = (x, y) => monsters.find(m => m.x === x && m.y === y) || null;
+  // 플레이어와 몬스터가 물체다. 둘 다 남의 칸으로는 못 들어간다
+  const occupied = (x, y) => (player.x === x && player.y === y) || !!monsterAt(x, y);
+
   // ── 몬스터 ─────────────────────────────────────────────────
   function outerCells() {
     const out = [];
@@ -188,36 +195,81 @@
     return out;
   }
 
-  function spawnMonster() {
-    const taken = new Set(monsters.map(m => key(m.x, m.y)));
-    const free = outerCells().filter(c => !taken.has(key(c.x, c.y)));
-    if (!free.length) return false;               // 외부 64칸이 다 찼다
-    const spot = free[Math.floor(Math.random() * free.length)];
-
+  function addMonster(x, y) {
     const el = document.createElement('div');
     el.className = 'token monster';
-    el.innerHTML = '<span>x</span>';
+    el.innerHTML = '<span>g</span>';
     el.style.width = cellPx + 'px';
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
     boardEl.appendChild(el);
-    place(el, spot.x, spot.y);
+    place(el, x, y);
 
-    monsters.push({ x: spot.x, y: spot.y, el });
+    const m = { kind: 'goblin', x, y, el };
+    monsters.push(m);
     countEl.textContent = monsters.length;
+    return m;
+  }
+
+  function spawnMonster() {
+    const free = outerCells().filter(c => !occupied(c.x, c.y));
+    if (!free.length) return false;               // 외부에 빈 칸이 없다
+    const spot = free[Math.floor(Math.random() * free.length)];
+    addMonster(spot.x, spot.y);
     return true;
   }
 
-  // ── 이동 ───────────────────────────────────────────────────
-  // 스와이프 한 번에 한 칸. 벽 쪽이면 아무 일도 없고 턴도 안 넘어간다
+  // 고블린: 매 턴 플레이어를 향해 상하좌우 한 칸.
+  // 차이가 큰 축을 먼저 시도하고, 막혔으면 다른 축으로. 둘 다 막혔으면 그 자리에 선다.
+  // 가로세로 차이가 같으면 가로를 먼저 본다 (규칙에 없어서 정한 것)
+  function goblinStep(m) {
+    const dx = player.x - m.x, dy = player.y - m.y;
+    const h = dx ? [Math.sign(dx), 0] : null;
+    const v = dy ? [0, Math.sign(dy)] : null;
+    const tries = Math.abs(dx) >= Math.abs(dy) ? [h, v] : [v, h];
+
+    for (const t of tries) {
+      if (!t) continue;
+      const nx = m.x + t[0], ny = m.y + t[1];
+      // 판 밖, 다른 몬스터, 플레이어가 있는 칸으로는 못 간다
+      if (!onBoard(nx, ny) || occupied(nx, ny)) continue;
+      m.x = nx; m.y = ny;
+      place(m.el, nx, ny);
+      return;
+    }
+  }
+
+  // 한 마리씩 차례로 옮긴다. 앞 마리가 비운 칸은 뒷 마리가 쓸 수 있다
+  function monstersTurn() {
+    for (const m of monsters) goblinStep(m);
+  }
+
+  // ── 플레이어 이동 ──────────────────────────────────────────
+  // 스와이프 한 번에 한 칸. 벽이거나 다른 물체가 있으면 이동도 턴도 없다
   function move(dx, dy) {
     const x = player.x + dx, y = player.y + dy;
     if (!isInner(x, y)) return;
+    if (occupied(x, y)) return;
 
-    player = { x, y };
+    player.x = x; player.y = y;
     place(playerEl, x, y);
     movesEl.textContent = ++moves;
+
+    monstersTurn();
     spawnMonster();
+    updateStuck();
+  }
+
+  // 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서 멈춘 것인지
+  // 고장인지 구분이 안 되므로 상태만 표시한다
+  function updateStuck() {
+    const canMove = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const x = player.x + dx, y = player.y + dy;
+      return isInner(x, y) && !occupied(x, y);
+    });
+    hintEl.textContent = canMove
+      ? '화면 어디든 스와이프 · 방향키 / WASD'
+      : '갇혔다. 다시 를 눌러라';
   }
 
   // ── 입력 ───────────────────────────────────────────────────
@@ -253,13 +305,14 @@
   // ── 시작 / 다시 ────────────────────────────────────────────
   function reset() {
     for (const m of monsters) m.el.remove();
-    monsters = [];
-    player = { x: START.x, y: START.y };
+    monsters.length = 0;
+    player.x = START.x; player.y = START.y;
     moves = 0;
     movesEl.textContent = '0';
     countEl.textContent = '0';
     place(playerEl, player.x, player.y);
     for (let i = 0; i < START_MONSTERS; i++) spawnMonster();
+    updateStuck();
   }
 
   document.getElementById('reset').addEventListener('click', reset);
@@ -268,6 +321,10 @@
   buildBoard();
   layout();
   reset();
+
+  // 판을 원하는 상태로 놓고 확인하기 위한 손잡이. 스폰이 랜덤이라
+  // 이것이 없으면 "고블린이 다가오는가" 를 재현성 있게 볼 수가 없다
+  window.__t = { monsters, player, place, addMonster, updateStuck };
 })();
 </script>
 </body>
