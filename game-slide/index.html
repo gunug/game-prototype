@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>슬라이드 — Game Prototype</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#FFD400">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets-ds.css">
+<style>
+  html,body{height:100%;margin:0;overscroll-behavior:none;}
+  body{
+    -webkit-user-select:none;
+    user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:none;
+  }
+
+  .play{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--canvas);}
+
+  .topbar{
+    display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s3) var(--s4);
+    padding-top:calc(env(safe-area-inset-top,0px) + var(--s3));
+    border-bottom:1px solid var(--hairline);
+  }
+  .topbar .name{color:var(--ink);font-weight:700;font-size:15px;}
+  .topbar .stat{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;}
+  .topbar .stat b{color:var(--ink);}
+  .topbar .spacer{flex:1;}
+
+  /* 판이 들어갈 자리. 남는 공간 전부 */
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:var(--s3);min-height:0;}
+
+  .board{position:relative;}
+
+  /* 칸은 배경으로만 깔린다. 움직이는 것(플레이어/몬스터)은 그 위에 얹는다 */
+  .cell{position:absolute;border-radius:3px;}
+  .cell.outer{background:#161613;box-shadow:inset 0 0 0 1px var(--hairline);}
+  .cell.inner{background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--hairline);}
+
+  /* 내부 8*8 의 테두리. 플레이어가 어디서 멈추는지 보이게 */
+  .fence{
+    position:absolute;pointer-events:none;border-radius:var(--r-sm);
+    border:2px solid var(--brand-yellow-deep);opacity:.55;
+  }
+
+  .token{
+    position:absolute;left:0;top:0;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:var(--r-sm);
+    font-weight:800;line-height:1;
+    will-change:transform;
+  }
+  /* transform 은 자리를 잡는 데 쓰고 있다. 등장 효과는 안쪽 글자에만 건다 */
+  .player{
+    background:var(--brand-yellow);color:var(--on-brand);
+    box-shadow:var(--sh-md);
+    transition:transform .13s cubic-bezier(.2,.7,.3,1);
+  }
+  .monster{background:#3A2320;color:#FF8A73;box-shadow:inset 0 0 0 1px #5A3630;}
+  .monster span{display:block;animation:pop .18s ease-out;}
+  @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  .hint{
+    color:var(--muted);font-size:12px;text-align:center;margin:0;
+    padding:0 var(--s4) calc(env(safe-area-inset-bottom,0px) + var(--s4));
+  }
+</style>
+</head>
+<body>
+  <main class="play">
+    <div class="topbar">
+      <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+      <span class="name">슬라이드</span>
+      <span class="spacer"></span>
+      <span class="stat">이동 <b id="moves">0</b></span>
+      <span class="stat">몬스터 <b id="mcount">0</b></span>
+      <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="board" id="board"></div>
+    </div>
+
+    <p class="hint">화면 어디든 스와이프 · 방향키 / WASD</p>
+  </main>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── 규칙 상수 ───────────────────────────────────────────────
+  const N = 10;                 // 필드 10*10
+  const BORDER = 1;             // 각 변 1줄이 외부. 상하 합쳐 2줄, 좌우 합쳐 2줄
+  const MIN = BORDER;           // 내부 최소 좌표 = 1
+  const MAX = N - 1 - BORDER;   // 내부 최대 좌표 = 8  → 내부 8*8
+  const START_MONSTERS = 3;
+  const START = { x: 4, y: 4 }; // 내부 8*8 의 가운데
+
+  const boardEl = document.getElementById('board');
+  const stageEl = document.getElementById('stage');
+  const movesEl = document.getElementById('moves');
+  const countEl = document.getElementById('mcount');
+  const fenceEl = document.createElement('div');
+
+  let cellPx = 32, gapPx = 2;
+  let player = { x: START.x, y: START.y };
+  let monsters = [];            // {x,y,el}
+  let moves = 0;
+  let playerEl = null;
+
+  const isInner = (x, y) => x >= MIN && x <= MAX && y >= MIN && y <= MAX;
+  const key = (x, y) => y * N + x;
+
+  // ── 판 그리기 ───────────────────────────────────────────────
+  function buildBoard() {
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const c = document.createElement('div');
+        c.className = 'cell ' + (isInner(x, y) ? 'inner' : 'outer');
+        c.dataset.x = x;
+        c.dataset.y = y;
+        boardEl.appendChild(c);
+      }
+    }
+    fenceEl.className = 'fence';
+    boardEl.appendChild(fenceEl);
+
+    playerEl = document.createElement('div');
+    playerEl.className = 'token player';
+    playerEl.textContent = '@';
+    boardEl.appendChild(playerEl);
+  }
+
+  // 칸 크기는 남은 공간에 맞춰 정수 px 로 내림. 소수 px 이면 격자가 흔들린다
+  function layout() {
+    const w = stageEl.clientWidth - 24;
+    const h = stageEl.clientHeight - 24;
+    const side = Math.max(140, Math.min(w, h));
+    gapPx = side < 340 ? 1 : 2;
+    cellPx = Math.max(10, Math.floor((side - gapPx * (N - 1)) / N));
+
+    const total = cellPx * N + gapPx * (N - 1);
+    boardEl.style.width = total + 'px';
+    boardEl.style.height = total + 'px';
+
+    const step = cellPx + gapPx;
+    for (const c of boardEl.querySelectorAll('.cell')) {
+      c.style.width = cellPx + 'px';
+      c.style.height = cellPx + 'px';
+      c.style.left = (+c.dataset.x) * step + 'px';
+      c.style.top = (+c.dataset.y) * step + 'px';
+    }
+
+    fenceEl.style.left = (MIN * step - gapPx / 2 - 2) + 'px';
+    fenceEl.style.top = (MIN * step - gapPx / 2 - 2) + 'px';
+    fenceEl.style.width = ((MAX - MIN + 1) * step - gapPx + 4) + 'px';
+    fenceEl.style.height = ((MAX - MIN + 1) * step - gapPx + 4) + 'px';
+
+    const fs = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
+    for (const t of boardEl.querySelectorAll('.token')) {
+      t.style.width = cellPx + 'px';
+      t.style.height = cellPx + 'px';
+      t.style.fontSize = fs;
+    }
+
+    place(playerEl, player.x, player.y);
+    for (const m of monsters) place(m.el, m.x, m.y);
+  }
+
+  function place(el, x, y) {
+    const step = cellPx + gapPx;
+    el.style.transform = 'translate(' + (x * step) + 'px,' + (y * step) + 'px)';
+  }
+
+  // ── 몬스터 ─────────────────────────────────────────────────
+  function outerCells() {
+    const out = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (!isInner(x, y)) out.push({ x, y });
+      }
+    }
+    return out;
+  }
+
+  function spawnMonster() {
+    const taken = new Set(monsters.map(m => key(m.x, m.y)));
+    const free = outerCells().filter(c => !taken.has(key(c.x, c.y)));
+    if (!free.length) return false;               // 외부 36칸이 다 찼다
+    const spot = free[Math.floor(Math.random() * free.length)];
+
+    const el = document.createElement('div');
+    el.className = 'token monster';
+    el.innerHTML = '<span>x</span>';
+    el.style.width = cellPx + 'px';
+    el.style.height = cellPx + 'px';
+    el.style.fontSize = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
+    boardEl.appendChild(el);
+    place(el, spot.x, spot.y);
+
+    monsters.push({ x: spot.x, y: spot.y, el });
+    countEl.textContent = monsters.length;
+    return true;
+  }
+
+  // ── 슬라이드 ───────────────────────────────────────────────
+  // 한 칸이 아니라 내부 필드 벽에 닿을 때까지 미끄러진다
+  function slide(dx, dy) {
+    let x = player.x, y = player.y;
+    while (isInner(x + dx, y + dy)) { x += dx; y += dy; }
+    if (x === player.x && y === player.y) return; // 이미 벽에 붙어 있다
+
+    player = { x, y };
+    place(playerEl, x, y);
+    movesEl.textContent = ++moves;
+    spawnMonster();
+  }
+
+  // ── 입력 ───────────────────────────────────────────────────
+  const DIRS = {
+    arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0],
+    w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+  };
+  window.addEventListener('keydown', e => {
+    const dir = DIRS[e.key.toLowerCase()];
+    if (!dir) return;
+    e.preventDefault();
+    slide(dir[0], dir[1]);
+  });
+
+  // 스와이프는 판이 아니라 화면 전체에서 받는다
+  const THRESHOLD = 24;
+  let start = null;
+  window.addEventListener('pointerdown', e => {
+    // 상단 바 조작은 그대로 둔다. target 이 Element 가 아닐 수도 있어 closest 유무를 먼저 본다
+    if (e.target && e.target.closest && e.target.closest('a,button')) return;
+    start = { x: e.clientX, y: e.clientY };
+  });
+  window.addEventListener('pointerup', e => {
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    start = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < THRESHOLD) return;
+    if (Math.abs(dx) > Math.abs(dy)) slide(Math.sign(dx), 0);
+    else slide(0, Math.sign(dy));
+  });
+  window.addEventListener('pointercancel', () => { start = null; });
+
+  // ── 시작 / 다시 ────────────────────────────────────────────
+  function reset() {
+    for (const m of monsters) m.el.remove();
+    monsters = [];
+    player = { x: START.x, y: START.y };
+    moves = 0;
+    movesEl.textContent = '0';
+    countEl.textContent = '0';
+    place(playerEl, player.x, player.y);
+    for (let i = 0; i < START_MONSTERS; i++) spawnMonster();
+  }
+
+  document.getElementById('reset').addEventListener('click', reset);
+  window.addEventListener('resize', layout);
+
+  buildBoard();
+  layout();
+  reset();
+})();
+</script>
+</body>
+</html>
