@@ -61,13 +61,15 @@
     background:radial-gradient(ellipse at 50% 78%,
       rgba(255,212,0,.42), rgba(255,212,0,.10) 55%, transparent 72%);
     box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);
-    transition:transform .13s cubic-bezier(.2,.7,.3,1);
+    transition:transform .13s cubic-bezier(.2,.7,.3,1),
+               width .13s, height .13s, left .13s, top .13s, font-size .13s;
   }
   .monster{
     background:radial-gradient(ellipse at 50% 78%,
       rgba(255,138,115,.28), rgba(255,138,115,.07) 55%, transparent 72%);
     box-shadow:inset 0 0 0 1px rgba(255,138,115,.35);
-    transition:transform .13s cubic-bezier(.2,.7,.3,1);
+    transition:transform .13s cubic-bezier(.2,.7,.3,1),
+               width .13s, height .13s, left .13s, top .13s, font-size .13s;
   }
   .monster .glyph{animation:pop .18s ease-out;}
   @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
@@ -144,7 +146,11 @@
   const playEl = document.querySelector('.play');
   const fenceEl = document.createElement('div');
 
-  let cellPx = 32, gapPx = 2;
+  // 외부는 적이 어디서 나오는지만 보여 주면 되므로 내부 칸의 1/3 크기로 그린다.
+  // 규칙(좌표·이동·스폰)은 그대로다. 화면에서 차지하는 자리만 줄인다
+  const OUTER_SCALE = 1 / 3;
+  let gapPx = 2;
+  let axis = { size: [], pos: [], total: 0 };
   const player = { x: START.x, y: START.y, hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, el: null };
   const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
@@ -183,45 +189,70 @@
     ent.el.classList.toggle('full', ent.hp >= ent.maxHp);
   }
 
+  // 한 축의 칸 크기와 시작 위치를 미리 구한다. 내부 칸은 C, 외부 칸은 C/3 이라
+  // 칸마다 크기가 달라 더는 곱셈 한 번으로 자리를 낼 수 없다.
+  //   전체 = 내부수*C + 외부수*(C/3) + 간격*(N-1)
+  function computeAxis(side, gap) {
+    const innerCount = MAX - MIN + 1;
+    const outerCount = N - innerCount;
+    const C = Math.max(12,
+      Math.floor((side - gap * (N - 1)) / (innerCount + outerCount * OUTER_SCALE)));
+    const O = Math.max(3, Math.round(C * OUTER_SCALE));
+
+    const size = [], pos = [];
+    let p = 0;
+    for (let i = 0; i < N; i++) {
+      size.push(i >= MIN && i <= MAX ? C : O);
+      pos.push(p);
+      p += size[i] + gap;
+    }
+    return { size, pos, total: p - gap };
+  }
+
   // 칸 크기는 남은 공간에 맞춰 정수 px 로 내림. 소수 px 이면 격자가 흔들린다
   function layout() {
     const w = stageEl.clientWidth - 24;
     const h = stageEl.clientHeight - 24;
     const side = Math.max(140, Math.min(w, h));
     gapPx = side < 340 ? 1 : 2;
-    cellPx = Math.max(10, Math.floor((side - gapPx * (N - 1)) / N));
+    axis = computeAxis(side, gapPx);
 
-    const total = cellPx * N + gapPx * (N - 1);
-    boardEl.style.width = total + 'px';
-    boardEl.style.height = total + 'px';
+    boardEl.style.width = axis.total + 'px';
+    boardEl.style.height = axis.total + 'px';
 
-    const step = cellPx + gapPx;
+    // 세로줄과 가로줄을 따로 본다. 왼쪽 띠의 안쪽 행은 좁고 길쭉한 칸이 된다
     for (const c of boardEl.querySelectorAll('.cell')) {
-      c.style.width = cellPx + 'px';
-      c.style.height = cellPx + 'px';
-      c.style.left = (+c.dataset.x) * step + 'px';
-      c.style.top = (+c.dataset.y) * step + 'px';
+      const x = +c.dataset.x, y = +c.dataset.y;
+      c.style.width = axis.size[x] + 'px';
+      c.style.height = axis.size[y] + 'px';
+      c.style.left = axis.pos[x] + 'px';
+      c.style.top = axis.pos[y] + 'px';
     }
 
-    fenceEl.style.left = (MIN * step - gapPx / 2 - 2) + 'px';
-    fenceEl.style.top = (MIN * step - gapPx / 2 - 2) + 'px';
-    fenceEl.style.width = ((MAX - MIN + 1) * step - gapPx + 4) + 'px';
-    fenceEl.style.height = ((MAX - MIN + 1) * step - gapPx + 4) + 'px';
-
-    const fs = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
-    for (const t of boardEl.querySelectorAll('.token')) {
-      t.style.width = cellPx + 'px';
-      t.style.height = cellPx + 'px';
-      t.style.fontSize = fs;
-    }
+    const span = axis.pos[MAX] + axis.size[MAX] - axis.pos[MIN];
+    fenceEl.style.left = (axis.pos[MIN] - gapPx / 2 - 2) + 'px';
+    fenceEl.style.top = (axis.pos[MIN] - gapPx / 2 - 2) + 'px';
+    fenceEl.style.width = (span + 4) + 'px';
+    fenceEl.style.height = (span + 4) + 'px';
 
     place(player.el, player.x, player.y);
     for (const m of monsters) place(m.el, m.x, m.y);
   }
 
+  // 자리와 크기를 같이 잡는다. 띠를 넘나들면 칸 크기가 바뀌므로 둘을 떼면 안 된다.
+  // 토큰은 늘 정사각형이다. 옆 띠의 칸은 좁고 길쭉해서, 칸을 꽉 채우면
+  // 고블린이 길쭉한 알약 바닥에 처박힌 꼴이 된다. 짧은 변에 맞춰 칸 가운데 둔다.
+  // 가운데로 미는 것은 left/top 으로 한다. transform 은 칸의 원점을 그대로 가리켜야
+  // 자리 계산이 한 군데로 모인다
   function place(el, x, y) {
-    const step = cellPx + gapPx;
-    el.style.transform = 'translate(' + (x * step) + 'px,' + (y * step) + 'px)';
+    const w = axis.size[x], h = axis.size[y];
+    const s = Math.min(w, h);
+    el.style.width = s + 'px';
+    el.style.height = s + 'px';
+    el.style.left = ((w - s) / 2) + 'px';
+    el.style.top = ((h - s) / 2) + 'px';
+    el.style.fontSize = Math.max(7, Math.floor(s * 0.55)) + 'px';
+    el.style.transform = 'translate(' + axis.pos[x] + 'px,' + axis.pos[y] + 'px)';
   }
 
   // ── 칸 차지 ────────────────────────────────────────────────
@@ -245,9 +276,6 @@
     const el = document.createElement('div');
     el.className = 'token monster';
     el.innerHTML = tokenInner('goblin.png', '고블린');
-    el.style.width = cellPx + 'px';
-    el.style.height = cellPx + 'px';
-    el.style.fontSize = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
     boardEl.appendChild(el);
     place(el, x, y);
 
