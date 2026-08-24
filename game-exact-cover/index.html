@@ -1331,6 +1331,7 @@
   function stageCard(s, i) {
     const b = document.createElement('button');
     b.type = 'button';
+    b.setAttribute('data-stage', s.id);
     if (cleared.has(s.id)) b.classList.add('done');
 
     // 번호는 정렬이 바뀔 때마다 옮겨 다녀 의미가 없어 빼 두었다
@@ -1354,7 +1355,11 @@
    * 퍼즐 고르는 페이지.
    * 대분류는 조각 종류 수, 소분류는 푸는 방식이다. 같은 칸 안에서는 난이도 순.
    */
-  function renderSelect() {
+  /**
+   * 목록에 깔리는 차례. 대분류 -> 조각 크기 -> 카드.
+   * 화면과 `다음 →` 이 같은 차례를 봐야 해서 한곳에서 만든다.
+   */
+  function stageGroups() {
     const buckets = new Map();      // mode -> 크기묶음 -> [{s, i}]
     STAGES.forEach((s, i) => {
       if (!buckets.has(s.mode)) buckets.set(s.mode, new Map());
@@ -1364,19 +1369,7 @@
       bySize.get(key).push({ s, i });
     });
 
-    const frag = document.createDocumentFragment();
-    for (const [mode, bySize] of buckets) {
-      const sec = document.createElement('section');
-      sec.className = 'group';
-
-      const h = document.createElement('h2');
-      h.textContent = MODE_LABEL[mode] || mode;
-      const total = document.createElement('span');
-      total.className = 'count';
-      total.textContent = [...bySize.values()].reduce((n, v) => n + v.length, 0);
-      h.appendChild(total);
-      sec.appendChild(h);
-
+    return [...buckets].map(([mode, bySize]) => {
       // 작은 조각부터
       const keys = [...bySize.keys()].sort((a, b) => {
         const x = a.split('+').map(Number), y = b.split('+').map(Number);
@@ -1385,9 +1378,39 @@
         }
         return 0;
       });
+      return { mode, subs: keys.map((key) => ({ key, items: bySize.get(key) })) };
+    });
+  }
 
-      for (const key of keys) {
-        const items = bySize.get(key);
+  /**
+   * 다음에 풀 퍼즐. 목록에 깔린 차례로 아직 못 깬 것을 찾고,
+   * 끝까지 갔으면 앞으로 돌아와 건너뛴 것을 줍는다. 남은 게 없으면 -1.
+   */
+  function nextUncleared() {
+    const order = stageGroups().flatMap((g) => g.subs.flatMap((sub) => sub.items.map((it) => it.i)));
+    const at = order.indexOf(stageIdx);
+    for (let n = 1; n <= order.length; n++) {
+      const i = order[(at + n) % order.length];
+      if (i !== stageIdx && !cleared.has(STAGES[i].id)) return i;
+    }
+    return -1;
+  }
+
+  function renderSelect() {
+    const frag = document.createDocumentFragment();
+    for (const { mode, subs } of stageGroups()) {
+      const sec = document.createElement('section');
+      sec.className = 'group';
+
+      const h = document.createElement('h2');
+      h.textContent = MODE_LABEL[mode] || mode;
+      const total = document.createElement('span');
+      total.className = 'count';
+      total.textContent = subs.reduce((n, sub) => n + sub.items.length, 0);
+      h.appendChild(total);
+      sec.appendChild(h);
+
+      for (const { key, items } of subs) {
         const sub = document.createElement('div');
         sub.className = 'sub';
         sub.setAttribute('data-size', key);
@@ -1453,6 +1476,7 @@
         t.className = 'tile ' + (field.has(k(c, r)) ? 'field' : 'off');
       }
     }
+    playPage.setAttribute('data-stage', s.id);
     drawOutline();
     renderPreview(s.shapes);
     stageName.textContent = sizeLabel(sizeKey(s));
@@ -1463,7 +1487,7 @@
 
   function showBanner(on) {
     banner.classList.toggle('show', on);
-    if (on) nextBtn.textContent = stageIdx + 1 < STAGES.length ? '다음 →' : '퍼즐 목록 →';
+    if (on) nextBtn.textContent = nextUncleared() >= 0 ? '다음 →' : '퍼즐 목록 →';
   }
 
   /* ==================== 칠하기 ==================== */
@@ -1606,11 +1630,11 @@
   function evaluate() {
     markMatches();
     const ok = checkClear();
-    showBanner(ok);
     if (ok && !cleared.has(STAGES[stageIdx].id)) {
       cleared.add(STAGES[stageIdx].id);
       localStorage.setItem(STORE, JSON.stringify([...cleared]));
     }
+    showBanner(ok);
   }
 
   /* ==================== 조각 스탬프 ==================== */
@@ -1889,9 +1913,10 @@
   document.getElementById('reset').addEventListener('click', () => loadStage(stageIdx));
   document.getElementById('back').addEventListener('click', showSelect);
 
-  // 클리어한 뒤에만 누를 수 있다. 마지막 퍼즐이면 목록으로 돌아간다
+  // 클리어한 뒤에만 누를 수 있다. 이미 깬 퍼즐은 건너뛰고, 남은 게 없으면 목록으로
   nextBtn.addEventListener('click', () => {
-    if (stageIdx + 1 < STAGES.length) openStage(stageIdx + 1);
+    const i = nextUncleared();
+    if (i >= 0) openStage(i);
     else showSelect();
   });
 

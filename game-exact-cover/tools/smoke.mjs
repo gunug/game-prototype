@@ -619,11 +619,34 @@ if (!dualSec) {
 // 클리어 배너와 다음 버튼
 check('처음엔 배너 숨김', !nodes.banner.classList.contains('show'));
 
-// 같은 크기 묶음이면 제목이 같으므로 필드 자체가 바뀌었는지 본다
-const beforeField = nodes['outline-path'].getAttribute('d');
+const beforeStage = nodes.play.getAttribute('data-stage');
 nodes.next.dispatch('click', {});
 check('다음 버튼이 다음 퍼즐을 연다',
-  nodes['outline-path'].getAttribute('d') !== beforeField && nodes.play.hidden === false);
+  nodes.play.getAttribute('data-stage') !== beforeStage && nodes.play.hidden === false,
+  `${beforeStage} -> ${nodes.play.getAttribute('data-stage')}`);
+
+/* ── 다음 → 은 이미 깬 퍼즐을 건너뛴다 ── */
+
+nodes.back.dispatch('click', {});
+const cards2 = nodes.groups.children.flatMap((sec) =>
+  sec.children.filter((c) => c.classList.contains('sub')).flatMap((sub) =>
+    sub.children.find((c) => c.classList.contains('cards')).children.map((li) => li.children[0])));
+const ids2 = cards2.map((b) => b.getAttribute('data-stage'));
+check('카드마다 스테이지 id', ids2.length > 0 && ids2.every(Boolean));
+
+const done2 = new Set(JSON.parse(store.get('exact-cover.cleared') || '[]'));
+// 목록 차례로 바로 앞 카드에서 다음을 누르면 깬 것을 건너뛰어야 한다
+const hit = ids2.findIndex((id, i) => i > 0 && done2.has(id));
+if (hit < 1) {
+  check('건너뛸 클리어 퍼즐 있음', false, `클리어 ${done2.size}개`);
+} else {
+  cards2[hit - 1].dispatch('click', {});
+  nodes.next.dispatch('click', {});
+  const landed = nodes.play.getAttribute('data-stage');
+  check('다음 → 은 이미 깬 퍼즐을 건너뛴다', landed !== ids2[hit],
+    `${ids2[hit - 1]} -> ${landed} (건너뛸 것 ${ids2[hit]})`);
+  check('다음 → 이 연 퍼즐은 안 깬 것', !done2.has(landed), landed);
+}
 
 if (fails.length) {
   console.log(`\n${fails.length}건 실패`);
