@@ -104,14 +104,15 @@ const check = (label, ok, detail = '') => {
   if (!ok) fails.push(label);
 };
 
+const bareCss = css.replace(/\/\*[\s\S]*?\*\//g, '');   // 주석이 셀렉터에 딸려 오지 않게
+
 /**
  * 조상 없는 `.foo{position:absolute}` 같은 전역 규칙은 그 클래스를 쓰는 다른
  * 곳까지 끌고 간다. 카드가 쓰는 클래스와 겹치면 카드가 엉뚱한 자리로 튄다.
  */
 {
-  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const relocating = new Set();
-  for (const [, sel, body] of bare.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+  for (const [, sel, body] of bareCss.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
     if (!/position\s*:\s*(absolute|fixed)/.test(body)) continue;
     for (const one of sel.split(',')) {
       const m = one.trim().match(/^\.([\w-]+)(?:[.:][\w-]+)*$/);
@@ -121,6 +122,28 @@ const check = (label, ok, detail = '') => {
   const cardClasses = ['row', 'title', 'meta', 'check', 'mini', 'item'];
   const clash = cardClasses.filter((c) => relocating.has(c));
   check('자리를 옮기는 전역 클래스 규칙 없음', clash.length === 0, clash.join(' '));
+}
+
+/**
+ * `hidden` 이 정말 감추는지.
+ *
+ * 브라우저 기본 규칙 `[hidden]{display:none}` 은 작성자가 쓴
+ * `.play{display:flex}` 에 진다. 그래서 `.play[hidden]{display:none}` 을 따로
+ * 안 써 주면 푸는 화면이 목록 위를 계속 덮는다 — 실제로 그렇게 나갔다.
+ * 마크업에서 hidden 을 달고 나오는 요소마다 그 규칙이 있는지 본다.
+ */
+{
+  const missing = [];
+  for (const [, attrs] of html.matchAll(/<(?:div|section|aside|main)\s([^>]*)>/g)) {
+    if (!/(^|\s)hidden(\s|=|$)/.test(attrs)) continue;      // aria-hidden 은 아니다
+    const cls = (attrs.match(/class="([^"]+)"/) || [, ''])[1].split(/\s+/).filter(Boolean);
+    for (const c of cls) {
+      const setsDisplay = new RegExp('\\.' + c + '\\s*\\{[^}]*display\\s*:').test(bareCss);
+      const guarded = new RegExp('\\.' + c + '\\[hidden\\]').test(bareCss);
+      if (setsDisplay && !guarded) missing.push(c);
+    }
+  }
+  check('hidden 이 display 규칙에 안 진다', missing.length === 0, missing.join(' '));
 }
 
 let run;
@@ -138,6 +161,7 @@ const stagesBlock = js.split('const STAGES = [')[1].split('\n  ];')[0];
 const stageCount = [...stagesBlock.matchAll(/\n      name: '/g)].length;
 
 check('스테이지 5개', stageCount === 5, `${stageCount}개`);
+check('허브로 돌아가는 링크', /href="\.\.\/index\.html"/.test(html));
 check('readField 살아 있음', /function readField/.test(js));
 
 /* ── 고르는 페이지 ── */
