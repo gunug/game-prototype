@@ -63,8 +63,24 @@
   }
   .monster{background:#3A2320;color:#FF8A73;box-shadow:inset 0 0 0 1px #5A3630;
     transition:transform .13s cubic-bezier(.2,.7,.3,1);}
-  .monster span{display:block;animation:pop .18s ease-out;}
+  .monster .glyph{animation:pop .18s ease-out;}
   @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+  /* 체력바. em 이라 칸 크기를 따라간다 (토큰 font-size 는 칸에 맞춰 정해진다) */
+  .token .glyph{display:block;}
+  .token .hp{
+    position:absolute;left:12%;right:12%;bottom:6%;height:.22em;
+    background:rgba(0,0,0,.5);border-radius:.11em;overflow:hidden;
+  }
+  .token .hp i{display:block;height:100%;width:100%;transition:width .18s;}
+  .player .hp i{background:#1E5E20;}
+  .monster .hp i{background:#FF8A73;}
+  /* 가득 찬 체력바는 알려 주는 것이 없다. 다친 놈만 눈에 띄게 */
+  .token.full .hp{display:none;}
+  /* transform 은 자리 잡는 데 쓰고 있으므로 피격 표시는 filter 로 낸다 */
+  .token.hit{animation:hit .25s ease-out;}
+  @keyframes hit{0%,100%{filter:none;}25%{filter:brightness(2.4);}}
+  .play.over .board{filter:grayscale(.6) brightness(.7);}
 
   .hint{
     color:var(--muted);font-size:12px;text-align:center;margin:0;
@@ -78,6 +94,7 @@
       <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
       <span class="name">슬라이드</span>
       <span class="spacer"></span>
+      <span class="stat">체력 <b id="hp">10/10</b></span>
       <span class="stat">이동 <b id="moves">0</b></span>
       <span class="stat">몬스터 <b id="mcount">0</b></span>
       <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
@@ -101,19 +118,25 @@
   const MAX = N - 1 - BORDER;   // 내부 최대 좌표 = 7  → 내부 6*6
   const START_MONSTERS = 3;
   const START = { x: 4, y: 4 }; // 내부 6*6 (2~7) 의 가운데
+  // 체력·피해량은 규칙에 숫자가 없어서 정한 값이다
+  const PLAYER_MAX_HP = 10;
+  const GOBLIN_MAX_HP = 3;
+  const GOBLIN_ATK = 1;
 
   const boardEl = document.getElementById('board');
   const stageEl = document.getElementById('stage');
   const movesEl = document.getElementById('moves');
   const countEl = document.getElementById('mcount');
+  const hpEl = document.getElementById('hp');
   const hintEl = document.querySelector('.hint');
+  const playEl = document.querySelector('.play');
   const fenceEl = document.createElement('div');
 
   let cellPx = 32, gapPx = 2;
-  const player = { x: START.x, y: START.y };
-  const monsters = [];          // {kind,x,y,el}
+  const player = { x: START.x, y: START.y, hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, el: null };
+  const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
-  let playerEl = null;
+  let over = false;             // 플레이어가 쓰러졌다
 
   const isInner = (x, y) => x >= MIN && x <= MAX && y >= MIN && y <= MAX;
 
@@ -131,10 +154,19 @@
     fenceEl.className = 'fence';
     boardEl.appendChild(fenceEl);
 
-    playerEl = document.createElement('div');
-    playerEl.className = 'token player';
-    playerEl.textContent = '@';
-    boardEl.appendChild(playerEl);
+    player.el = document.createElement('div');
+    player.el.className = 'token player';
+    player.el.innerHTML = tokenInner('@');
+    boardEl.appendChild(player.el);
+  }
+
+  const tokenInner = g => '<span class="glyph">' + g + '</span><span class="hp"><i></i></span>';
+
+  // 체력바 폭과 `full` 표시를 현재 체력에 맞춘다
+  function renderHp(ent) {
+    ent.el.querySelector('.hp i').style.width =
+      (100 * Math.max(0, ent.hp) / ent.maxHp) + '%';
+    ent.el.classList.toggle('full', ent.hp >= ent.maxHp);
   }
 
   // 칸 크기는 남은 공간에 맞춰 정수 px 로 내림. 소수 px 이면 격자가 흔들린다
@@ -169,7 +201,7 @@
       t.style.fontSize = fs;
     }
 
-    place(playerEl, player.x, player.y);
+    place(player.el, player.x, player.y);
     for (const m of monsters) place(m.el, m.x, m.y);
   }
 
@@ -198,15 +230,16 @@
   function addMonster(x, y) {
     const el = document.createElement('div');
     el.className = 'token monster';
-    el.innerHTML = '<span>g</span>';
+    el.innerHTML = tokenInner('g');
     el.style.width = cellPx + 'px';
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
     boardEl.appendChild(el);
     place(el, x, y);
 
-    const m = { kind: 'goblin', x, y, el };
+    const m = { kind: 'goblin', x, y, hp: GOBLIN_MAX_HP, maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, el };
     monsters.push(m);
+    renderHp(m);
     countEl.textContent = monsters.length;
     return m;
   }
@@ -244,25 +277,57 @@
     for (const m of monsters) goblinStep(m);
   }
 
-  // ── 플레이어 이동 ──────────────────────────────────────────
-  // 스와이프 한 번에 한 칸. 벽이거나 다른 물체가 있으면 이동도 턴도 없다
+  // ── 전투 ───────────────────────────────────────────────────
+  const adjacent4 = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+
+  function damage(target, amount) {
+    target.hp = Math.max(0, target.hp - amount);
+    renderHp(target);
+    // transform 은 자리 잡는 데 쓰고 있어서 흔들 수가 없다. class 를 다시 붙여 재생한다
+    target.el.classList.remove('hit');
+    void target.el.offsetWidth;
+    target.el.classList.add('hit');
+  }
+
+  // 공격 페이즈. 플레이어에 4방향으로 붙은 고블린이 때린다.
+  // 플레이어 쪽 공격은 규칙(발동 조건·피해량·조작)이 아직 없어서 비워 뒀다
+  function attackPhase() {
+    for (const m of monsters) {
+      if (adjacent4(m, player)) damage(player, m.atk);
+    }
+  }
+
+  // ── 턴 ─────────────────────────────────────────────────────
+  // 한 턴은 이동 페이즈 -> 공격 페이즈. 각 페이즈에 저마다 한 가지 행동
   function move(dx, dy) {
+    if (over) return;
     const x = player.x + dx, y = player.y + dy;
     if (!isInner(x, y)) return;
     if (occupied(x, y)) return;
 
+    // 이동 페이즈
     player.x = x; player.y = y;
-    place(playerEl, x, y);
+    place(player.el, x, y);
     movesEl.textContent = ++moves;
-
     monstersTurn();
-    spawnMonster();
-    updateStuck();
+
+    // 공격 페이즈
+    attackPhase();
+
+    if (player.hp <= 0) over = true;
+    else spawnMonster();
+    updateStatus();
   }
 
-  // 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서 멈춘 것인지
-  // 고장인지 구분이 안 되므로 상태만 표시한다
-  function updateStuck() {
+  // 쓰러지거나 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서
+  // 멈춘 것인지 고장인지 화면상 구분이 안 되므로 상태를 적어 준다
+  function updateStatus() {
+    hpEl.textContent = Math.max(0, player.hp) + '/' + player.maxHp;
+    playEl.classList.toggle('over', over);
+    if (over) {
+      hintEl.textContent = '쓰러졌다. 다시 를 눌러라';
+      return;
+    }
     const canMove = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
       const x = player.x + dx, y = player.y + dy;
       return isInner(x, y) && !occupied(x, y);
@@ -307,12 +372,15 @@
     for (const m of monsters) m.el.remove();
     monsters.length = 0;
     player.x = START.x; player.y = START.y;
+    player.hp = player.maxHp;
+    renderHp(player);
+    over = false;
     moves = 0;
     movesEl.textContent = '0';
     countEl.textContent = '0';
-    place(playerEl, player.x, player.y);
+    place(player.el, player.x, player.y);
     for (let i = 0; i < START_MONSTERS; i++) spawnMonster();
-    updateStuck();
+    updateStatus();
   }
 
   document.getElementById('reset').addEventListener('click', reset);
@@ -324,7 +392,11 @@
 
   // 판을 원하는 상태로 놓고 확인하기 위한 손잡이. 스폰이 랜덤이라
   // 이것이 없으면 "고블린이 다가오는가" 를 재현성 있게 볼 수가 없다
-  window.__t = { monsters, player, place, addMonster, updateStuck };
+  window.__t = {
+    monsters, player, place, addMonster, updateStatus, renderHp,
+    isOver: () => over,
+    limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK },
+  };
 })();
 </script>
 </body>
