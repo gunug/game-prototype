@@ -55,19 +55,31 @@
     font-weight:800;line-height:1;
     will-change:transform;
   }
-  /* transform 은 자리를 잡는 데 쓰고 있다. 등장 효과는 안쪽 글자에만 건다 */
+  /* transform 은 자리를 잡는 데 쓰고 있다. 등장 효과는 안쪽 스프라이트에만 건다 */
+  /* 스프라이트가 주인공이라 바닥판은 옅게 깔고 테두리로만 누가 있는지 알린다 */
   .player{
-    background:var(--brand-yellow);color:var(--on-brand);
-    box-shadow:var(--sh-md);
+    background:radial-gradient(ellipse at 50% 78%,
+      rgba(255,212,0,.42), rgba(255,212,0,.10) 55%, transparent 72%);
+    box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);
     transition:transform .13s cubic-bezier(.2,.7,.3,1);
   }
-  .monster{background:#3A2320;color:#FF8A73;box-shadow:inset 0 0 0 1px #5A3630;
-    transition:transform .13s cubic-bezier(.2,.7,.3,1);}
+  .monster{
+    background:radial-gradient(ellipse at 50% 78%,
+      rgba(255,138,115,.28), rgba(255,138,115,.07) 55%, transparent 72%);
+    box-shadow:inset 0 0 0 1px rgba(255,138,115,.35);
+    transition:transform .13s cubic-bezier(.2,.7,.3,1);
+  }
   .monster .glyph{animation:pop .18s ease-out;}
   @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
 
-  /* 체력바. em 이라 칸 크기를 따라간다 (토큰 font-size 는 칸에 맞춰 정해진다) */
-  .token .glyph{display:block;}
+  /* 384px 원본을 칸 크기(보통 30~60px)로 줄여 쓴다. 축소라서 image-rendering 은
+     기본값(부드럽게)이 낫다. pixelated 는 픽셀을 10칸에 하나씩 버려 실루엣이 깨진다.
+     체력바 자리를 남기려고 높이는 86% */
+  .token .glyph{
+    position:absolute;left:0;top:0;width:100%;height:86%;
+    object-fit:contain;object-position:center bottom;
+    pointer-events:none;
+  }
   .token .hp{
     position:absolute;left:12%;right:12%;bottom:6%;height:.22em;
     background:rgba(0,0,0,.5);border-radius:.11em;overflow:hidden;
@@ -156,11 +168,13 @@
 
     player.el = document.createElement('div');
     player.el.className = 'token player';
-    player.el.innerHTML = tokenInner('@');
+    player.el.innerHTML = tokenInner('player.png', '플레이어');
     boardEl.appendChild(player.el);
   }
 
-  const tokenInner = g => '<span class="glyph">' + g + '</span><span class="hp"><i></i></span>';
+  const tokenInner = (src, alt) =>
+    '<img class="glyph" src="images/' + src + '" alt="' + alt + '">' +
+    '<span class="hp"><i></i></span>';
 
   // 체력바 폭과 `full` 표시를 현재 체력에 맞춘다
   function renderHp(ent) {
@@ -230,7 +244,7 @@
   function addMonster(x, y) {
     const el = document.createElement('div');
     el.className = 'token monster';
-    el.innerHTML = tokenInner('g');
+    el.innerHTML = tokenInner('goblin.png', '고블린');
     el.style.width = cellPx + 'px';
     el.style.height = cellPx + 'px';
     el.style.fontSize = Math.max(9, Math.floor(cellPx * 0.55)) + 'px';
