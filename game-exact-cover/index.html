@@ -267,6 +267,16 @@
     box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
   }
 
+  /* 스탬프 모드 — 떼면 놓일 자리를 미리 보여 준다 */
+  .tile.ghost{
+    background-image:repeating-linear-gradient(135deg,
+      rgba(255,212,0,.34) 0 2px,
+      rgba(255,212,0,.06) 2px 7px);
+    box-shadow:inset 0 0 0 2px var(--brand-yellow);
+  }
+  /* 그 칸을 덮는 자리가 하나도 없을 때 */
+  .tile.nofit{box-shadow:inset 0 0 0 2px #C0392B;}
+
   /* 클리어 배너 — 다음 퍼즐로 넘어가는 버튼이 함께 뜬다.
      클래스 이름은 카드의 .done 과 겹치지 않게 따로 둔다 */
   .clear-banner{
@@ -292,6 +302,52 @@
   .clear-banner .btn-primary{background:var(--on-brand);color:var(--brand-yellow);}
   .clear-banner .btn-primary:hover{background:#000;color:#fff;}
 
+  /* ==================== 설정 모달 ==================== */
+
+  .modal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;}
+  .modal[hidden]{display:none;}
+  .modal-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.62);}
+  .modal-panel{
+    position:relative;
+    width:min(420px, calc(100vw - var(--s5)));
+    max-height:calc(100vh - var(--s6));
+    overflow-y:auto;
+    background:var(--surface);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-lg);
+    box-shadow:var(--sh-lg);
+    padding:var(--s5);
+  }
+  .modal-panel header{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+    margin-bottom:var(--s5);
+  }
+  .modal-panel h2{font-size:18px;margin:0;color:var(--ink);}
+  .modal-panel h3{
+    font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 var(--s3);
+  }
+  .modal-panel .note{font-size:12px;color:var(--muted);margin:var(--s4) 0 0;}
+
+  .opts{display:flex;flex-direction:column;gap:var(--s2);}
+  .opt{
+    display:flex;flex-direction:column;gap:4px;
+    font-family:var(--font);text-align:left;
+    background:var(--canvas);color:var(--body);
+    border:1px solid var(--hairline);
+    border-radius:var(--r-md);
+    padding:var(--s3) var(--s4);
+    cursor:pointer;
+    transition:.15s;
+  }
+  .opt:hover{border-color:var(--brand-yellow);}
+  .opt.on{border-color:var(--brand-yellow);background:color-mix(in srgb, var(--brand-yellow) 10%, var(--canvas));}
+  .opt-name{font-size:14px;font-weight:700;color:var(--ink);}
+  .opt.on .opt-name::after{content:' ¹3';color:var(--brand-yellow);}
+  .opt-desc{font-size:12px;line-height:1.5;color:var(--muted);}
+
+  .head-row{display:flex;align-items:center;gap:var(--s2);}
+
   @media(max-width:560px){
     .select-inner{padding-top:var(--s5);}
     .select-head h1{font-size:30px;}
@@ -304,7 +360,10 @@
   <section class="select" id="select">
     <div class="select-inner">
       <header class="select-head">
-        <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+        <div class="head-row">
+          <a class="btn btn-secondary btn-sm" href="../index.html">← 목록</a>
+          <button class="btn btn-secondary btn-sm" id="settings-open">⚙ 설정</button>
+        </div>
         <div>
           <span class="eyebrow">Exact Cover</span>
           <h1>정확한 커버</h1>
@@ -325,6 +384,7 @@
       <div class="preview" id="preview" title="칠해야 할 모양"></div>
       <span class="grow"></span>
       <button class="btn btn-secondary btn-sm" id="reset">지우기</button>
+      <button class="btn btn-secondary btn-sm" id="settings" title="설정">⚙</button>
     </header>
 
     <main class="board" id="board">
@@ -340,6 +400,20 @@
       <button class="btn btn-primary btn-sm" id="next">다음 →</button>
     </div>
   </section>
+
+  <!-- 설정 -->
+  <div class="modal" id="settings-modal" hidden>
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-label="설정">
+      <header>
+        <h2>설정</h2>
+        <button class="btn btn-secondary btn-sm" id="settings-close">닫기</button>
+      </header>
+      <h3>조작 방식</h3>
+      <div class="opts" id="mode-opts"></div>
+      <p class="note">방식을 바꾸면 지금 판은 처음부터 다시 시작한다.</p>
+    </div>
+  </div>
 
 <script>
 (() => {
@@ -801,9 +875,33 @@
   const stageName  = document.getElementById('stage-name');
   const stageDiff  = document.getElementById('stage-diff');
   const nextBtn    = document.getElementById('next');
+  const settingsModal = document.getElementById('settings-modal');
+  const modeOpts      = document.getElementById('mode-opts');
 
   const STORE = 'exact-cover.cleared';
   const cleared = new Set(JSON.parse(localStorage.getItem(STORE) || '[]'));
+
+  /**
+   * 조작 방식. 조각 모양은 이미 정해져 있으므로 그리기는 퍼즐이 아니라 마찰이다.
+   * 기본은 스탬프로 두고, 예전 자유 드로잉도 설정에서 고를 수 있게 남긴다.
+   */
+  const MODES = [
+    {
+      id: 'stamp',
+      name: '조각 스탬프',
+      desc: '누른 칸에서 끌어 방향을 고르고 떼면 조각이 통째로 놓인다. '
+          + '놓인 조각을 누르면 통째로 지워진다.',
+    },
+    {
+      id: 'draw',
+      name: '자유 드로잉',
+      desc: '지나간 칸이 칠해진다. 조각 모양을 직접 그려야 하고, '
+          + '3초 홀드해야 한 칠이 지워진다.',
+    },
+  ];
+  const MODE_STORE = 'exact-cover.mode';
+  const savedMode = localStorage.getItem(MODE_STORE);
+  let mode = MODES.some((m) => m.id === savedMode) ? savedMode : 'stamp';
 
   let stageIdx = 0;
   let field = new Set();        // 칠할 수 있는 칸
@@ -1058,8 +1156,10 @@
     field = readField(s.field);
     // 두 종이면 어느 쪽 모양이어도 맞는 것으로 본다
     targetKeys = new Set(s.shapes.flatMap((sh) => rotations(sh).map(shapeKey)));
+    buildPlacements(s.shapes);
 
     cancelHold();
+    stampCancel();
     painted.clear();
     colorIdx = -1;
     for (let r = 0; r < ROWS; r++) {
@@ -1229,12 +1329,182 @@
     }
   }
 
+  /* ==================== 조각 스탬프 ==================== */
+
+  let placements = [];           // 필드에 통째로 얹히는 모든 조각 자리
+  let placeByCell = new Map();   // "c,r" -> 그 칸을 덮는 자리 목록
+
+  /**
+   * 스테이지마다 한 번만 센다. 회전형 x 100칸이라 금방 끝나고,
+   * 이후 판정이 이 목록만 훑으면 되므로 드래그 중에 계산할 게 없다.
+   */
+  function buildPlacements(shapes) {
+    placements = [];
+    placeByCell = new Map();
+    const seen = new Set();
+    for (const sh of shapes) {
+      for (const rot of rotations(sh)) {
+        const rk = shapeKey(rot);
+        if (seen.has(rk)) continue;   // 대칭이면 회전형이 겹친다
+        seen.add(rk);
+        const w = Math.max(...rot.map((q) => q[0])) + 1;
+        const h = Math.max(...rot.map((q) => q[1])) + 1;
+        for (let orr = 0; orr + h <= ROWS; orr++) {
+          for (let oc = 0; oc + w <= COLS; oc++) {
+            const cells = rot.map(([c, r]) => [c + oc, r + orr]);
+            if (!cells.every(([c, r]) => field.has(k(c, r)))) continue;
+            const p = {
+              cells,
+              keys: new Set(cells.map(([c, r]) => k(c, r))),
+              // 무게중심. 끌어간 방향과 견주는 데 쓴다
+              gx: cells.reduce((a, [c]) => a + c, 0) / cells.length + 0.5,
+              gy: cells.reduce((a, [, r]) => a + r, 0) / cells.length + 0.5,
+            };
+            placements.push(p);
+            for (const key of p.keys) {
+              if (!placeByCell.has(key)) placeByCell.set(key, []);
+              placeByCell.get(key).push(p);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** 지나간 칸을 모두 덮으면서 아직 아무것도 안 칠해진 자리 */
+  function fitting(must) {
+    const list = placeByCell.get(must[0]) || [];
+    return list.filter((p) =>
+      must.every((key) => p.keys.has(key)) &&
+      p.cells.every(([c, r]) => !painted.has(k(c, r))));
+  }
+
+  /**
+   * 후보가 여럿이면 끌어간 방향과 무게중심 방향이 가장 잘 맞는 것을 고른다.
+   * 거의 안 끌었으면 누른 칸이 가장 가운데 오는 것을 준다 — 탭 한 번으로 놓인다.
+   *
+   * want 는 지금까지 지나간 칸 수다. 지나간 칸이 딱 조각 하나를 이루면 그것을
+   * 먼저 본다. 두 종에서 작은 조각이 큰 조각 안에 통째로 들어가는 일이 있어서,
+   * 이게 없으면 작은 조각을 아무리 정확히 그어도 큰 조각에 삼켜진다.
+   */
+  function pickPlacement(cands, anchor, px, py, want) {
+    if (cands.length <= 1) return cands[0] || null;
+    const exact = cands.filter((p) => p.cells.length === want);
+    const pool = exact.length ? exact : cands;
+    if (pool.length === 1) return pool[0];
+
+    const ax = anchor.c + 0.5, ay = anchor.r + 0.5;
+    const vx = px - ax, vy = py - ay;
+    const len = Math.hypot(vx, vy);
+    if (len < 0.4) {
+      return pool.reduce((best, p) =>
+        Math.hypot(p.gx - ax, p.gy - ay) < Math.hypot(best.gx - ax, best.gy - ay) ? p : best);
+    }
+    let best = null, score = -Infinity;
+    for (const p of pool) {
+      const dx = p.gx - ax, dy = p.gy - ay;
+      const d = Math.hypot(dx, dy) || 1e-6;
+      const s = (dx * vx + dy * vy) / (d * len);
+      if (s > score) { score = s; best = p; }
+    }
+    return best;
+  }
+
+  /** 떼면 어디가 칠해지는지 미리 보여 준다. 들어갈 자리가 없으면 누른 칸을 붉힌다 */
+  function showGhost(p, anchor) {
+    for (const t of tiles) t.classList.remove('ghost', 'nofit');
+    if (p) { for (const [c, r] of p.cells) tileAt(c, r).classList.add('ghost'); }
+    else if (anchor) tileAt(anchor.c, anchor.r).classList.add('nofit');
+  }
+
+  /** 놓인 조각 하나를 통째로 지운다. 3초 홀드를 대신한다 */
+  function erasePiece(c, r) {
+    if (!painted.has(k(c, r))) return false;
+    for (const [cc, rr] of blobAt(k(c, r), new Set())) erase(cc, rr);
+    return true;
+  }
+
+  let stampAnchor = null;    // 누른 칸
+  let stampMust = [];        // 반드시 덮어야 할 칸 — 누른 칸 + 지나간 칸
+  let stampPick = null;      // 지금 놓일 자리
+  let stampErase = null;     // 칠해진 칸에서 시작했으면 그 칸
+  let stampMoved = false;
+
+  /** 소수점까지 있는 격자 좌표. 방향을 재려면 칸 번호만으로는 모자란다 */
+  function gridPoint(x, y) {
+    const rect = grid.getBoundingClientRect();
+    return { x: (x - rect.left) / cell, y: (y - rect.top) / cell };
+  }
+
+  function stampDown(e) {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    const at = cellFromPoint(e.clientX, e.clientY);
+    if (!at) return;
+    stampMoved = false;
+    board.setPointerCapture(e.pointerId);
+    e.preventDefault();
+
+    // 놓인 조각을 누르면 통째로 지운다. 뗄 때 판정해서 스치기로는 안 지워지게 한다
+    if (painted.has(k(at.c, at.r))) { stampErase = at; return; }
+
+    stampAnchor = at;
+    stampMust = [k(at.c, at.r)];
+    const pt = gridPoint(e.clientX, e.clientY);
+    stampPick = pickPlacement(fitting(stampMust), at, pt.x, pt.y, stampMust.length);
+    showGhost(stampPick, at);
+  }
+
+  function stampMove(e) {
+    if (stampErase) {
+      const at = cellFromPoint(e.clientX, e.clientY);
+      if (at && (at.c !== stampErase.c || at.r !== stampErase.r)) stampMoved = true;
+      return;
+    }
+    if (!stampAnchor) return;
+    const at = cellFromPoint(e.clientX, e.clientY);
+    if (at && !painted.has(k(at.c, at.r))) {
+      const key = k(at.c, at.r);
+      if (key === stampMust[0]) {
+        // 누른 칸으로 되돌아오면 처음부터 다시 고른다. 잘못 지나간 칸에 갇히지 않게
+        stampMust = [stampMust[0]];
+      } else if (!stampMust.includes(key) && fitting([...stampMust, key]).length) {
+        // 다 덮을 수 있을 때만 조건에 넣는다. 넘어가도 손해가 없어야 한다
+        stampMust = [...stampMust, key];
+        stampMoved = true;
+      }
+    }
+    const pt = gridPoint(e.clientX, e.clientY);
+    const cands = fitting(stampMust);
+    if (cands.length) stampPick = pickPlacement(cands, stampAnchor, pt.x, pt.y, stampMust.length);
+    showGhost(stampPick, stampAnchor);
+  }
+
+  function stampUp() {
+    if (stampErase) {
+      if (!stampMoved) erasePiece(stampErase.c, stampErase.r);
+    } else if (stampPick) {
+      const color = PALETTE[nextColor()];
+      for (const [c, r] of stampPick.cells) paint(c, r, color);
+    }
+    stampCancel();
+    evaluate();
+  }
+
+  function stampCancel() {
+    stampAnchor = null;
+    stampMust = [];
+    stampPick = null;
+    stampErase = null;
+    stampMoved = false;
+    showGhost(null, null);
+  }
+
   /* ==================== 드래그 ==================== */
 
   let dragging = false, last = null, start = null;
   let startWasPainted = false, moved = false;
 
-  board.addEventListener('pointerdown', (e) => {
+  function drawDown(e) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const at = cellFromPoint(e.clientX, e.clientY);
     if (!at) return;
@@ -1256,9 +1526,9 @@
 
     board.setPointerCapture(e.pointerId);
     e.preventDefault();
-  });
+  }
 
-  board.addEventListener('pointermove', (e) => {
+  function drawMove(e) {
     if (!dragging) return;
     const cur = cellFromPoint(e.clientX, e.clientY);
     if (!cur) return;
@@ -1267,7 +1537,7 @@
     moved = true;
     paintLine(last, cur, dragColor);
     last = cur;
-  });
+  }
 
   function endDrag(isRelease) {
     cancelHold();
@@ -1282,9 +1552,53 @@
     startWasPainted = false;
     evaluate();
   }
-  board.addEventListener('pointerup',     () => endDrag(true));
-  board.addEventListener('pointercancel', () => endDrag(false));
-  window.addEventListener('blur',         () => endDrag(false));
+  const stamping = () => mode === 'stamp';
+  board.addEventListener('pointerdown',   (e) => (stamping() ? stampDown : drawDown)(e));
+  board.addEventListener('pointermove',   (e) => (stamping() ? stampMove : drawMove)(e));
+  board.addEventListener('pointerup',     () => (stamping() ? stampUp() : endDrag(true)));
+  board.addEventListener('pointercancel', () => (stamping() ? stampCancel() : endDrag(false)));
+  window.addEventListener('blur',         () => (stamping() ? stampCancel() : endDrag(false)));
+
+  /* ==================== 설정 ==================== */
+
+  function renderModes() {
+    modeOpts.replaceChildren(...MODES.map((m) => {
+      const b = document.createElement('button');
+      b.className = 'opt' + (m.id === mode ? ' on' : '');
+      b.setAttribute('data-mode', m.id);
+      const name = document.createElement('span');
+      name.className = 'opt-name';
+      name.textContent = m.name;
+      const desc = document.createElement('span');
+      desc.className = 'opt-desc';
+      desc.textContent = m.desc;
+      b.append(name, desc);
+      b.addEventListener('click', () => setMode(m.id));
+      return b;
+    }));
+  }
+
+  function setMode(id) {
+    if (id !== mode) {
+      mode = id;
+      localStorage.setItem(MODE_STORE, id);
+      renderModes();
+      cancelHold();
+      stampCancel();
+      // 자유 드로잉으로 그린 덩어리는 스탬프로 이어 놓을 수 없다. 판을 새로 연다
+      if (!playPage.hidden) loadStage(stageIdx);
+    }
+    closeSettings();
+  }
+
+  function openSettings() { renderModes(); settingsModal.hidden = false; }
+  function closeSettings() { settingsModal.hidden = true; }
+
+  document.getElementById('settings').addEventListener('click', openSettings);
+  document.getElementById('settings-open').addEventListener('click', openSettings);
+  document.getElementById('settings-close').addEventListener('click', closeSettings);
+  document.getElementById('settings-backdrop').addEventListener('click', closeSettings);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
 
   /* ==================== 시작 ==================== */
 
@@ -1301,6 +1615,7 @@
   window.addEventListener('orientationchange', resize);
 
   buildGrid();
+  renderModes();
   showSelect();
 })();
 </script>

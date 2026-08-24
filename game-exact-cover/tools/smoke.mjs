@@ -68,7 +68,9 @@ class Frag extends El {
 const nodes = {};
 for (const id of ['grid', 'board', 'preview', 'banner', 'reset',
                   'outline', 'outline-path', 'select', 'play', 'groups',
-                  'progress', 'stage-name', 'stage-diff', 'back', 'next']) {
+                  'progress', 'stage-name', 'stage-diff', 'back', 'next',
+                  'settings', 'settings-open', 'settings-close',
+                  'settings-modal', 'settings-backdrop', 'mode-opts']) {
   nodes[id] = new El('div');
   nodes[id].attrs.id = id;
 }
@@ -104,7 +106,11 @@ sandbox.window.localStorage = sandbox.localStorage;
 
 // 클리어한 퍼즐이 어떻게 보이는지 보려고 하나를 미리 클리어시켜 둔다
 // 키는 정렬이 바뀌어도 안 움직이도록 내용으로 매긴 id 를 쓴다
-const allIds = [...fs.readFileSync(GAME, 'utf8').matchAll(/id: '([^']+)'/g)].map((m) => m[1]);
+// STAGES 블록만 훑는다. 스크립트 어디에나 있는 id: 'x' 를 다 주우면
+// 조작 방식 목록 같은 것까지 스테이지로 세어 버린다
+const stagesBlock = fs.readFileSync(GAME, 'utf8')
+  .split('const STAGES = [')[1].split('\n  ];')[0];
+const allIds = [...stagesBlock.matchAll(/id: '([^']+)'/g)].map((m) => m[1]);
 const CLEARED = allIds[0];
 store.set('exact-cover.cleared', JSON.stringify([CLEARED]));
 
@@ -297,7 +303,10 @@ const d = nodes['outline-path'].getAttribute('d') || '';
 check('필드 외곽선', d.startsWith('M') && d.length > 20, `${d.length}자`);
 
 // 활성 칸 하나를 실제로 눌러 칠해지는지
-const cell = 80;   // getBoundingClientRect 가 0,0 이고 칸은 80px 로 잡힌다
+// 칸 크기를 800/10 으로 어림하면 마지막 줄이 판 밖으로 나가 눌리지 않는다.
+// resize 가 실제로 정한 값을 읽는다
+const cell = parseInt(grid.style['--cell'], 10);
+check('칸 크기 읽힘', Number.isFinite(cell) && cell > 0, `${cell}px`);
 const at = (c, r) => ({ clientX: c * cell + cell / 2, clientY: r * cell + cell / 2 });
 const press = (c, r, id = 1) => nodes.board.dispatch('pointerdown', {
   button: 0, pointerType: 'mouse', pointerId: id, ...at(c, r),
@@ -307,10 +316,74 @@ const tileAt = (c, r) =>
   (c >= 0 && r >= 0 && c < 10 && r < 10) ? tiles[r * 10 + c] : null;
 const isField = (c, r) => !!tileAt(c, r) && tileAt(c, r).classList.contains('field');
 
+/* ── 설정: 조작 방식 ── */
+
+check('설정에 조작 방식 두 가지', nodes['mode-opts'].children.length === 2,
+  nodes['mode-opts'].children.map((o) => o.getAttribute('data-mode')).join(' / '));
+check('기본은 스탬프',
+  nodes['mode-opts'].children[0].getAttribute('data-mode') === 'stamp'
+  && nodes['mode-opts'].children[0].classList.contains('on'));
+
+/* ── 스탬프 모드 ── */
+
+{
+  const size = shapeFromChip(nodes.preview).length;
+  const anchor = tiles.findIndex((t) => t.classList.contains('field'));
+  const [ac, ar] = [anchor % 10, Math.floor(anchor / 10)];
+
+  press(ac, ar, 200);
+  const ghost = tiles.filter((t) => t.classList.contains('ghost'));
+  check('스탬프 — 누르면 놓일 자리 미리보기', ghost.length === size,
+    `${ghost.length}/${size}칸`);
+
+  nodes.board.dispatch('pointerup', {});
+  const put = tiles.filter((t) => t.style.backgroundColor);
+  check('스탬프 — 떼면 조각이 통째로 놓임', put.length === size, `${put.length}/${size}칸`);
+  // 항상 조각 모양 그대로 놓이므로 놓자마자 모양이 맞아야 한다
+  check('스탬프 — 놓인 조각은 모양 일치', put.length > 0
+    && put.every((t) => t.classList.contains('match')));
+  check('스탬프 — 미리보기 정리됨',
+    tiles.filter((t) => t.classList.contains('ghost')).length === 0);
+
+  const one = tiles.findIndex((t) => t.style.backgroundColor);
+  press(one % 10, Math.floor(one / 10), 201);
+  nodes.board.dispatch('pointerup', {});
+  check('스탬프 — 조각 누르면 통째로 지워짐',
+    tiles.filter((t) => t.style.backgroundColor).length === 0);
+
+  // 스치듯 끌면 지우지 않는다. 놓인 조각을 잘못 날리지 않으려는 것
+  press(ac, ar, 202);
+  nodes.board.dispatch('pointerup', {});
+  const again = tiles.filter((t) => t.style.backgroundColor);
+  const cur = tiles.findIndex((t) => t.style.backgroundColor);
+  press(cur % 10, Math.floor(cur / 10), 203);
+  const away = tiles.findIndex((t, i) => t.style.backgroundColor && i !== cur);
+  nodes.board.dispatch('pointermove', at(away % 10, Math.floor(away / 10)));
+  nodes.board.dispatch('pointerup', {});
+  check('스탬프 — 끌면 지우지 않음',
+    tiles.filter((t) => t.style.backgroundColor).length === again.length,
+    `${tiles.filter((t) => t.style.backgroundColor).length}/${again.length}칸`);
+}
+
+/* ── 자유 드로잉으로 전환 ── */
+
+nodes.settings.dispatch('click', {});
+check('톱니 누르면 설정 열림', nodes['settings-modal'].hidden === false);
+nodes['mode-opts'].children.find((o) => o.getAttribute('data-mode') === 'draw')
+  .dispatch('click', {});
+check('고르면 설정 닫힘', nodes['settings-modal'].hidden === true);
+check('자유 드로잉으로 바뀜',
+  nodes['mode-opts'].children[1].classList.contains('on')
+  && !nodes['mode-opts'].children[0].classList.contains('on'));
+check('방식 바꾸면 판 초기화',
+  tiles.filter((t) => t.style.backgroundColor).length === 0);
+
+/* ── 자유 드로잉 모드 ── */
+
 const first = tiles.findIndex((t) => t.classList.contains('field'));
 press(first % 10, Math.floor(first / 10));
 nodes.board.dispatch('pointerup', {});
-check('클릭하면 칠해짐', !!tiles[first].style.backgroundColor,
+check('드로잉 — 클릭하면 칠해짐', !!tiles[first].style.backgroundColor,
   tiles[first].style.backgroundColor || '색 없음');
 
 nodes.reset.dispatch('click', {});   // 판을 비우고 시작한다
@@ -435,6 +508,101 @@ if (!dualSec) {
     `${nodes.preview.children.length}개`);
   const dualField = grid.children.filter((t) => t.classList.contains('field'));
   check('두 종 필드 로드', dualField.length > 0, `${dualField.length}칸`);
+
+  // 끄는 방향이 자리를 고르는지. 두 종은 칸당 후보가 많아 여기서 잘 드러난다
+  nodes.settings.dispatch('click', {});
+  nodes['mode-opts'].children.find((o) => o.getAttribute('data-mode') === 'stamp')
+    .dispatch('click', {});
+  const ghostKey = () => tiles
+    .map((t, i) => (t.classList.contains('ghost') ? i : -1)).filter((i) => i >= 0).join(' ');
+  const open = tiles.map((t, i) => (t.classList.contains('field') ? i : -1)).filter((i) => i >= 0);
+  const anc = open[Math.floor(open.length / 2)];
+  const [nc, nr] = [anc % 10, Math.floor(anc / 10)];
+  const spots = new Set();
+  for (const [dc, dr] of [[3, 0], [-3, 0], [0, 3], [0, -3]]) {
+    press(nc, nr, 300);
+    nodes.board.dispatch('pointermove', at(nc + dc, nr + dr));
+    spots.add(ghostKey());
+    nodes.board.dispatch('pointercancel', {});
+  }
+  check('스탬프 — 끄는 방향마다 다른 자리', spots.size >= 3, `${spots.size}/4가지`);
+  check('스탬프 — 취소하면 미리보기 사라짐',
+    tiles.filter((t) => t.classList.contains('ghost')).length === 0);
+
+  /**
+   * 스탬프만으로 실제 해를 끝까지 입력할 수 있는지. 두 종은 작은 조각이 큰 조각
+   * 안에 통째로 들어가는 일이 있어서 (L3 는 L5 의 끝자락과 같다) 조각을 정확히
+   * 그어도 큰 쪽에 삼켜지면 못 푸는 퍼즐이 된다.
+   */
+  nodes.reset.dispatch('click', {});
+
+  const kk = ([c, r]) => c + ',' + r;
+  const nm = (cs) => {
+    const mc = Math.min(...cs.map((q) => q[0])), mr = Math.min(...cs.map((q) => q[1]));
+    return cs.map(([c, r]) => [c - mc, r - mr]).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  };
+  const rt = (cs) => {
+    const out = [];
+    let cur = nm(cs);
+    for (let i = 0; i < 4; i++) { out.push(nm(cur)); cur = cur.map(([c, r]) => [-r, c]); }
+    return out;
+  };
+
+  const openKeys = new Set();
+  tiles.forEach((t, i) => {
+    if (t.classList.contains('field')) openKeys.add(kk([i % 10, Math.floor(i / 10)]));
+  });
+
+  // 화면의 칩에서 두 모양을 읽어 놓을 수 있는 자리를 전부 만든다
+  const allSpots = [];
+  const seenRot = new Set();
+  for (const sh of nodes.preview.children.map((el) =>
+    shapeFromChip({ children: [el] }))) {
+    for (const rot of rt(sh)) {
+      const rk = rot.map(kk).join(' ');
+      if (seenRot.has(rk)) continue;
+      seenRot.add(rk);
+      const w = Math.max(...rot.map((q) => q[0])) + 1;
+      const h = Math.max(...rot.map((q) => q[1])) + 1;
+      for (let r = 0; r + h <= 10; r++) {
+        for (let c = 0; c + w <= 10; c++) {
+          const cs = rot.map(([x, y]) => [x + c, y + r]);
+          if (cs.every((q) => openKeys.has(kk(q)))) allSpots.push(cs);
+        }
+      }
+    }
+  }
+
+  const took = new Set(), plan = [];
+  (function search() {
+    const gap = [...openKeys].find((q) => !took.has(q));
+    if (!gap) return true;
+    for (const cs of allSpots) {
+      if (!cs.some((q) => kk(q) === gap) || cs.some((q) => took.has(kk(q)))) continue;
+      cs.forEach((q) => took.add(kk(q)));
+      plan.push(cs);
+      if (search()) return true;
+      cs.forEach((q) => took.delete(kk(q)));
+      plan.pop();
+    }
+    return false;
+  })();
+  check('두 종 해 찾음', plan.length > 0 && took.size === openKeys.size, `${plan.length}조각`);
+
+  let pid = 400, off = 0;
+  for (const cs of plan) {
+    press(cs[0][0], cs[0][1], ++pid);
+    for (const [c, r] of cs.slice(1)) nodes.board.dispatch('pointermove', at(c, r));
+    const drawn = tiles
+      .map((t, i) => (t.classList.contains('ghost') ? kk([i % 10, Math.floor(i / 10)]) : null))
+      .filter(Boolean).sort().join(' ');
+    if (drawn !== cs.map(kk).sort().join(' ')) off++;
+    nodes.board.dispatch('pointerup', {});
+  }
+  check('스탬프 — 그은 조각 그대로 놓임', off === 0, `어긋남 ${off}/${plan.length}조각`);
+  check('스탬프 — 해를 다 놓으면 클리어', nodes.banner.classList.contains('show'));
+
+  nodes.reset.dispatch('click', {});
 }
 
 // 클리어 배너와 다음 버튼
