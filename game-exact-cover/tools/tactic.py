@@ -38,25 +38,51 @@ DEST = os.path.join(HERE, "stages-tactic.json")
 
 DEPTH_CAP = 8
 
+TETS = ["T4", "L4", "J4"]
 PENTOS = ["L5", "P5", "T5", "V5", "W5", "Y5"]
 HEXES = ["P6", "V6", "Y6", "Z6"]
 
-# 소분류마다 후보 조합과 조각 수 범위. 조각이 크면 같은 깊이를 내는 데 조각이
-# 더 든다. 5칸+6칸은 어차피 얕게 나와서 조각 수를 조금 더 준다.
+# 세 종 묶음. 조합이 폭발하므로 전부 돌리지 않고 골고루 겹치게 여섯 개만 고른다
+PENTO_TRIPLES = [
+    ["L5", "P5", "T5"], ["L5", "V5", "W5"], ["P5", "T5", "Y5"],
+    ["T5", "V5", "W5"], ["L5", "P5", "Y5"], ["V5", "W5", "Y5"],
+]
+HEX_TRIPLES = [
+    ["P6", "V6", "Y6"], ["P6", "V6", "Z6"],
+    ["P6", "Y6", "Z6"], ["V6", "Y6", "Z6"],
+]
+MIXED_345 = [
+    ["L3", "T4", "L5"], ["L3", "T4", "P5"], ["L3", "L4", "T5"],
+    ["L3", "L4", "V5"], ["L3", "J4", "W5"], ["L3", "J4", "Y5"],
+]
+MIXED_456 = [
+    ["T4", "L5", "P6"], ["T4", "P5", "V6"], ["L4", "T5", "Y6"],
+    ["L4", "V5", "Z6"], ["J4", "W5", "P6"], ["J4", "Y5", "V6"],
+]
+
+# 소분류마다 (후보 조합, 조각 수 범위, 몇 번 깔아 볼지).
+# 조각이 크면 같은 깊이를 내는 데 조각이 더 들고, 종이 늘면 배치가 많아져
+# 깊이 재는 값이 비싸진다. 그래서 큰 묶음은 시도 횟수를 줄인다.
+# 세 종은 모양마다 2조각 이상 써야 하므로 조각 수가 6 아래로는 못 내려간다.
 CATEGORIES = [
-    ("1종",   [["L3"]],                                         (8, 9, 10, 11)),
-    ("3+4",   [["L3", "T4"], ["L3", "L4"]],                     (7, 8, 9, 10)),
-    ("4+5",   [[t, p] for t in ("T4", "L4") for p in PENTOS],   (7, 8, 9, 10)),
-    ("5+6",   [[p, h] for p in PENTOS for h in HEXES],          (8, 9, 10)),
+    ("1종",      [["L3"]],                                        (8, 9, 10, 11), 100),
+    ("3+4",      [["L3", "T4"], ["L3", "L4"], ["L3", "J4"]],      (7, 8, 9, 10), 100),
+    ("4+5",      [[t, p] for t in TETS for p in PENTOS],          (7, 8, 9, 10), 60),
+    ("5+6",      [[p, h] for p in PENTOS for h in HEXES],         (8, 9, 10), 60),
+    ("4칸 3종",  [TETS],                                          (8, 9, 10, 11), 100),
+    ("5칸 3종",  PENTO_TRIPLES,                                   (8, 9, 10), 60),
+    # 6칸짜리는 놓자마자 구멍이 나서 1수에 죽기 쉽다. 깊은 게 드물어 더 뽑는다
+    ("6칸 3종",  HEX_TRIPLES,                                     (8, 9, 10, 11), 200),
+    ("3+4+5",    MIXED_345,                                       (8, 9, 10), 60),
+    ("4+5+6",    MIXED_456,                                       (8, 9, 10), 50),
 ]
 
 # 게임 규칙과 같이 회전형이 4개인 모양만 쓴다
-for _cat, _combos, _counts in CATEGORIES:
+for _cat, _combos, _counts, _trials in CATEGORIES:
     for _names in _combos:
         for _n in _names:
             assert len(rotations(SHAPES[_n])) == 4, f"{_n} 은 회전형이 4개가 아니다"
 
-TRIALS = 100         # (조합, 조각 수) 하나당 몇 번 깔아 볼지
 PICK = 3             # 소분류마다 몇 문제
 
 
@@ -126,14 +152,18 @@ def adjacency(cells):
 
 
 def probe(job):
-    """(조합, 조각 수) 하나를 TRIALS 번 뽑아 가장 깊은 것을 돌려준다."""
-    cat, names, npieces, seed = job
+    """(조합, 조각 수) 하나를 여러 번 뽑아 가장 깊은 것들을 돌려준다."""
+    cat, names, npieces, seed, trials = job
     rnd = random.Random(seed)
     best = []
-    for _ in range(TRIALS):
+    for _ in range(trials):
         cells = grow(names, npieces, rnd)
         if not cells or not connected(cells):
             continue
+        # 재기 전에 먼저 판 가운데로 옮긴다. 깊이 탐색이 "읽는 순서로 가장 앞선
+        # 빈 칸" 에서 갈라지므로, 필드를 옮기면 그 순서가 바뀌어 깊이도 달라진다.
+        # 옮기기 전 값으로 골라 놓고 옮긴 필드를 내보내면 값이 어긋난다
+        cells = centered(cells)
         pz = Puzzle(names, to_bits(cells))
         if not pz.feasible():
             continue
@@ -145,7 +175,7 @@ def probe(job):
             "cells": len(cells),
             "depth": rd["depth"],
             "adj": adjacency(cells),
-            "field": to_bits(centered(cells)),
+            "field": to_bits(cells),
         })
     best.sort(key=lambda r: (-r["depth"], r["cells"], -r["adj"]))
     return best[:8]
@@ -153,13 +183,15 @@ def probe(job):
 
 def main():
     jobs = []
-    for cat, combos, counts in CATEGORIES:
+    for cat, combos, counts, trials in CATEGORIES:
         for ci, names in enumerate(combos):
             for pi, npieces in enumerate(counts):
-                jobs.append((cat, names, npieces, 9000 + ci * 131 + pi * 17))
+                if npieces < 2 * len(names):
+                    continue        # 모양마다 2조각씩은 써야 한다
+                jobs.append((cat, names, npieces, 9000 + ci * 131 + pi * 17, trials))
 
     workers = min(os.cpu_count() or 4, 12)
-    print(f"후보 {len(jobs)}묶음 x {TRIALS}회, 프로세스 {workers}개", file=sys.stderr)
+    print(f"후보 {len(jobs)}묶음, 프로세스 {workers}개", file=sys.stderr)
 
     pool_out = []
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -169,7 +201,7 @@ def main():
                 print(f"  {i + 1}/{len(jobs)}", file=sys.stderr)
 
     out = []
-    for cat, _combos, _counts in CATEGORIES:
+    for cat, _combos, _counts, _trials in CATEGORIES:
         rows = [r for r in pool_out if r["cat"] == cat]
         # 조각 수가 깊이에 붙어 있으면 "반박" 이 아니라 그냥 끝까지 푸는 것이다.
         # 여유를 두 조각 이상 남긴 것만 묘수로 친다

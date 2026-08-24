@@ -197,9 +197,14 @@ const cardDepth = (b) => {
     sections.map((sec) => subsOf(sec).map((sub) => sub.getAttribute('data-size')).join(' ')).join('  |  '));
 
   // 제목이 크기 그대로인지, 작은 것부터인지
+  // 같은 크기가 셋 이상이면 `4칸 3종`, 아니면 `3칸 + 4칸`
+  const labelOf = (key) =>
+    (key.length >= 3 && key.every((n) => n === key[0]))
+      ? `${key[0]}칸 ${key.length}종`
+      : key.map((n) => n + '칸').join(' + ');
   const labelOk = subs.every((sub) => {
     const key = sub.getAttribute('data-size').split('+').map(Number);
-    return sub.children[0].textContent.startsWith(key.map((n) => n + '칸').join(' + '));
+    return sub.children[0].textContent.startsWith(labelOf(key));
   });
   check('소분류 제목', labelOk,
     subs.map((sub) => sub.children[0].textContent).join(' / '));
