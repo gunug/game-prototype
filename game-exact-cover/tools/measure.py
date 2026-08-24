@@ -448,6 +448,15 @@ def stage_id(st):
 
 
 def emit_stages(stages):
+    # id 가 겹치면 다른 퍼즐이 남의 클리어 기록을 물려받는다. 여기서 끊는다
+    seen = {}
+    for st in stages:
+        sid = stage_id(st)
+        if sid in seen:
+            other = "+".join(st["shapes"]) + f" {st['cells']}칸"
+            raise SystemExit(f"id 충돌: {sid} — {seen[sid]} / {other}")
+        seen[sid] = "+".join(st["shapes"]) + f" {st['cells']}칸"
+
     used = []
     for st in stages:
         for name in st["shapes"]:

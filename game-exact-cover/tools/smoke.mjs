@@ -104,7 +104,8 @@ sandbox.window.localStorage = sandbox.localStorage;
 
 // 클리어한 퍼즐이 어떻게 보이는지 보려고 하나를 미리 클리어시켜 둔다
 // 키는 정렬이 바뀌어도 안 움직이도록 내용으로 매긴 id 를 쓴다
-const CLEARED = fs.readFileSync(GAME, 'utf8').match(/id: '([^']+)'/)[1];
+const allIds = [...fs.readFileSync(GAME, 'utf8').matchAll(/id: '([^']+)'/g)].map((m) => m[1]);
+const CLEARED = allIds[0];
 store.set('exact-cover.cleared', JSON.stringify([CLEARED]));
 
 /* ── 실행 ── */
@@ -217,6 +218,21 @@ const cardDepth = (b) => {
     return badge && Number(badge.textContent) === cardsOf(sub).length;
   });
   check('소분류 개수 표시', counts);
+}
+
+check('퍼즐 카드', cards.length > 0, `${cards.length}개`);
+check('진행 표시', /\d+ \/ \d+/.test(nodes.progress.textContent), nodes.progress.textContent);
+
+// id 가 겹치면 한 퍼즐을 깼을 때 다른 퍼즐까지 클리어로 뜬다
+check('id 고유', new Set(allIds).size === allIds.length && allIds.length === cards.length,
+  `${new Set(allIds).size}/${allIds.length} 고유, 카드 ${cards.length}개`);
+
+{
+  const done = cards.filter((b) => b.classList.contains('done'));
+  check('클리어한 퍼즐 표시', done.length === 1, `${done.length}개`);
+  // 숨기거나 잠그지 않는다. 다시 눌러 풀 수 있어야 한다
+  check('클리어해도 다시 누를 수 있음',
+    done.length === 1 && (done[0].handlers.click || []).length > 0);
 }
 
 check('카드마다 난이도', cards.every((b) => Number.isFinite(cardDiff(b))));
