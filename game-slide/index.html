@@ -170,7 +170,7 @@
       <div class="board" id="board"></div>
     </div>
 
-    <p class="hint" id="hint">스와이프 · 방향키 / WASD 로 이동 · 길게 하면 공격</p>
+    <p class="hint" id="hint">스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격</p>
   </main>
 
 <script>
@@ -190,10 +190,7 @@
   const GOBLIN_ATK = 1;
   const PLAYER_ATK = 1;         // 규칙에 숫자가 없어서 정했다. 고블린 체력 3 이라 세 번 쳐야 죽는다
 
-  // 이동과 공격을 같은 방향 입력 하나로 가른다. 짧으면 이동, 길면 공격
   const SWIPE_MOVE = 24;        // 이만큼은 움직여야 입력으로 친다
-  const SWIPE_ATTACK = 90;      // 이 이상 끌면 공격
-  const HOLD_MS = 300;          // 이만큼 누르고 있으면 공격
   const TINY_TOKEN = 30;        // 토큰이 이보다 작으면 체력 숫자를 감춘다
 
   // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
@@ -256,7 +253,7 @@
   const RIDER_CHANCE = 0.25;
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
-  const HINT_DEFAULT = '스와이프 · 방향키 / WASD 로 이동 · 길게 하면 공격';
+  const HINT_DEFAULT = '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격';
 
   const boardEl = document.getElementById('board');
   const stageEl = document.getElementById('stage');
@@ -638,63 +635,40 @@
     playSwing(el.classList.contains('player') ? 1 : 0.72);
   }
 
-  // 쓰러지거나 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서
-  // 멈춘 것인지 고장인지 화면상 구분이 안 되므로 상태를 적어 준다
+  // 쓰러지면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서 멈춘 것인지
+  // 고장인지 화면상 구분이 안 되므로 상태를 적어 준다.
+  //
+  // 갇힘 표시는 없앴다. 몬스터가 있는 칸은 이제 공격이 되므로, 내부 6*6 안에서는
+  // 어느 칸에 서 있어도 이웃이 최소 둘이고 그 둘은 빈 칸(이동)이거나
+  // 몬스터(공격)다. 즉 할 수 있는 것이 없는 상태가 생기지 않는다
   function updateStatus() {
     renderHp(player);
     playEl.classList.toggle('over', over);
-    if (over) {
-      hintEl.textContent = '쓰러졌다. 다시 를 눌러라';
-      return;
-    }
-    const canMove = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
-      const x = player.x + dx, y = player.y + dy;
-      return isInner(x, y) && !occupied(x, y);
-    });
-    hintEl.textContent = canMove
-      ? HINT_DEFAULT
-      : '갇혔다. 다시 를 눌러라';
+    hintEl.textContent = over ? '쓰러졌다. 다시 를 눌러라' : HINT_DEFAULT;
   }
 
   // ── 입력 ───────────────────────────────────────────────────
-  // 방향은 하나, 길이로 이동과 공격을 가른다.
-  //   스와이프: 짧으면 이동, 길면 공격
-  //   키:       짧게 누르면 이동, 길게 누르고 있으면 공격
+  // 방향 하나만 받는다. 무엇을 할지는 그 칸에 무엇이 있느냐가 정한다.
+  //   몬스터가 있으면 공격, 빈 칸이면 이동, 벽이면 아무 일도 없음
   const DIRS = {
     arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0],
     w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
   };
 
-  // 짧게 눌렀는지 길게 눌렀는지는 뗄 때까지 알 수 없다. 그래서 이동은 keyup 에,
-  // 공격은 HOLD_MS 가 지나는 순간에 낸다. 한 번 누르면 둘 중 하나만 나간다
-  let holdKey = null;
+  function act(dx, dy) {
+    const x = player.x + dx, y = player.y + dy;
+    // 벽 너머라도 몬스터가 있으면 친다. 플레이어가 못 가는 것이지 못 치는 것이 아니다
+    if (monsterAt(x, y)) return attack(dx, dy);
+    if (isInner(x, y)) return move(dx, dy);
+  }
 
   window.addEventListener('keydown', e => {
-    const key = e.key.toLowerCase();
-    const dir = DIRS[key];
+    const dir = DIRS[e.key.toLowerCase()];
     if (!dir) return;
     e.preventDefault();
-    if (e.repeat || holdKey || busy) return;   // 자동 반복·동시 입력·연출 중에는 안 받는다
-    holdKey = { key, dir, fired: false };
-    holdKey.timer = setTimeout(() => {
-      holdKey.fired = true;
-      attack(dir[0], dir[1]);
-    }, HOLD_MS);
-  });
-
-  window.addEventListener('keyup', e => {
-    const key = e.key.toLowerCase();
-    if (!holdKey || holdKey.key !== key) return;
-    clearTimeout(holdKey.timer);
-    if (!holdKey.fired) move(holdKey.dir[0], holdKey.dir[1]);
-    holdKey = null;
-  });
-
-  // 창을 벗어나면 누르고 있던 키의 keyup 을 못 받는다. 잡힌 채로 두면 입력이 죽는다
-  window.addEventListener('blur', () => {
-    if (!holdKey) return;
-    clearTimeout(holdKey.timer);
-    holdKey = null;
+    // 자동 반복은 무시한다. 한 번 누르면 한 번만 움직인다
+    if (e.repeat || busy) return;
+    act(dir[0], dir[1]);
   });
 
   // 스와이프는 판이 아니라 화면 전체에서 받는다
@@ -714,9 +688,8 @@
     const reach = horizontal ? Math.abs(dx) : Math.abs(dy);
     if (reach < SWIPE_MOVE) return;
 
-    const dir = horizontal ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
-    if (reach >= SWIPE_ATTACK) attack(dir[0], dir[1]);
-    else move(dir[0], dir[1]);
+    if (horizontal) act(Math.sign(dx), 0);
+    else act(0, Math.sign(dy));
   });
   window.addEventListener('pointercancel', () => { start = null; });
 
@@ -761,13 +734,13 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, killMonster, actOrder, KINDS, KNIGHT,
+    attack, act, killMonster, actOrder, KINDS, KNIGHT,
     isBusy: () => busy,
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
     limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
-              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, RIDER_AGI,
+              SWIPE_MOVE, PLAYER_AGI, GOBLIN_AGI, RIDER_AGI,
               TINY_TOKEN, HIT_DELAY, ATTACK_GAP, RIDER_CHANCE },
   };
 })();
