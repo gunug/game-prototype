@@ -76,21 +76,30 @@
 
   /* 384px 원본을 칸 크기(보통 30~60px)로 줄여 쓴다. 축소라서 image-rendering 은
      기본값(부드럽게)이 낫다. pixelated 는 픽셀을 10칸에 하나씩 버려 실루엣이 깨진다.
-     체력바 자리를 남기려고 높이는 86% */
+     아래쪽은 체력 표시 자리로 비워 둔다 */
   .token .glyph{
-    position:absolute;left:0;top:0;width:100%;height:86%;
+    position:absolute;left:0;top:0;width:100%;height:72%;
     object-fit:contain;object-position:center bottom;
     pointer-events:none;
   }
+  /* 체력바 안에 숫자를 얹는다. 따로 줄을 만들면 칸이 좁아 둘 다 못 읽는다 */
   .token .hp{
-    position:absolute;left:12%;right:12%;bottom:6%;height:.22em;
-    background:rgba(0,0,0,.5);border-radius:.11em;overflow:hidden;
+    position:absolute;left:6%;right:6%;bottom:5%;height:.42em;
+    background:rgba(0,0,0,.62);border-radius:.1em;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
   }
-  .token .hp i{display:block;height:100%;width:100%;transition:width .18s;}
+  .token .hp i{position:absolute;left:0;top:0;height:100%;width:100%;transition:width .18s;}
+  .token .hp b{
+    position:relative;font-size:.3em;line-height:1;font-weight:700;
+    color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.95);
+    font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
   .player .hp i{background:#1E5E20;}
-  .monster .hp i{background:#FF8A73;}
-  /* 가득 찬 체력바는 알려 주는 것이 없다. 다친 놈만 눈에 띄게 */
-  .token.full .hp{display:none;}
+  .monster .hp i{background:#A8352A;}
+  /* 외부 띠의 토큰은 17px 쯤이라 숫자가 안 읽힌다. 바만 남긴다 */
+  .token.tiny .glyph{height:86%;}
+  .token.tiny .hp{left:12%;right:12%;bottom:6%;height:.22em;}
+  .token.tiny .hp b{display:none;}
   /* 토큰의 transform 은 자리를 잡는 데 쓰고 있다. 그래서 연출은 전부
      안쪽 .glyph 를 움직이거나, 토큰에는 transform 아닌 속성만 쓴다 */
   .token.hit{animation:hit .25s ease-out;}
@@ -157,6 +166,11 @@
   const SWIPE_MOVE = 24;        // 이만큼은 움직여야 입력으로 친다
   const SWIPE_ATTACK = 90;      // 이 이상 끌면 공격
   const HOLD_MS = 300;          // 이만큼 누르고 있으면 공격
+  const TINY_TOKEN = 30;        // 토큰이 이보다 작으면 체력 숫자를 감춘다
+
+  // 민첩: 높을수록 먼저 행동한다. 규칙에 숫자가 없어서 정했다
+  const PLAYER_AGI = 10;
+  const GOBLIN_AGI = 8;
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
   const HINT_DEFAULT = '스와이프 · 방향키 / WASD 로 이동 · 길게 하면 공격';
@@ -175,7 +189,11 @@
   const OUTER_SCALE = 1 / 3;
   let gapPx = 2;
   let axis = { size: [], pos: [], total: 0 };
-  const player = { x: START.x, y: START.y, hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP, el: null };
+  let nextSeq = 0;              // 생성 순서. 민첩이 같으면 이것으로 가른다
+  const player = {
+    x: START.x, y: START.y, hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP,
+    agi: PLAYER_AGI, seq: nextSeq++, el: null,
+  };
   const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
   let over = false;             // 플레이어가 쓰러졌다
@@ -204,12 +222,13 @@
 
   const tokenInner = (src, alt) =>
     '<img class="glyph" src="images/' + src + '" alt="' + alt + '">' +
-    '<span class="hp"><i></i></span>';
+    '<span class="hp"><i></i><b></b></span>';
 
-  // 체력바 폭과 `full` 표시를 현재 체력에 맞춘다
+  // 체력바 폭과 숫자를 현재 체력에 맞춘다
   function renderHp(ent) {
-    ent.el.querySelector('.hp i').style.width =
-      (100 * Math.max(0, ent.hp) / ent.maxHp) + '%';
+    const hp = Math.max(0, ent.hp);
+    ent.el.querySelector('.hp i').style.width = (100 * hp / ent.maxHp) + '%';
+    ent.el.querySelector('.hp b').textContent = hp + '/' + ent.maxHp;
     ent.el.classList.toggle('full', ent.hp >= ent.maxHp);
   }
 
@@ -276,6 +295,7 @@
     el.style.left = ((w - s) / 2) + 'px';
     el.style.top = ((h - s) / 2) + 'px';
     el.style.fontSize = Math.max(7, Math.floor(s * 0.55)) + 'px';
+    el.classList.toggle('tiny', s < TINY_TOKEN);   // 외부 띠에서는 숫자가 안 읽힌다
     el.style.transform = 'translate(' + axis.pos[x] + 'px,' + axis.pos[y] + 'px)';
   }
 
@@ -315,7 +335,11 @@
     boardEl.appendChild(el);
     place(el, x, y);
 
-    const m = { kind: 'goblin', x, y, hp: GOBLIN_MAX_HP, maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, el };
+    const m = {
+      kind: 'goblin', x, y,
+      hp: GOBLIN_MAX_HP, maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK,
+      agi: GOBLIN_AGI, seq: nextSeq++, el,
+    };
     monsters.push(m);
     renderHp(m);
     countEl.textContent = monsters.length;
@@ -353,16 +377,12 @@
   // 고블린의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
   // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
   function goblinAct(m) {
-    if (adjacent4(m, player)) { damage(player, m.atk); return; }
-    goblinStep(m);
-  }
-
-  // 한 마리씩 차례로 처리한다. 앞 마리가 비운 칸은 뒷 마리가 쓸 수 있다.
-  // 도는 동안 목록이 바뀔 수 있으니 사본을 돈다
-  function monstersTurn() {
-    for (const m of [...monsters]) {
-      if (m.hp > 0) goblinAct(m);
+    if (adjacent4(m, player)) {
+      lunge(m.el, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
+      damage(player, m.atk);
+      return;
     }
+    goblinStep(m);
   }
 
   function killMonster(m) {
@@ -374,25 +394,41 @@
   }
 
   // ── 페이즈 ─────────────────────────────────────────────────
-  // 플레이어 행동 → 몬스터 행동. 저마다 한 가지만 하고 끝난다
-  function endPhase() {
+  // 민첩이 높은 쪽부터 행동한다. 같으면 생성된 순서대로.
+  // 플레이어의 민첩이 제일 높으면 지금까지처럼 플레이어가 먼저다
+  function actOrder() {
+    return [player, ...monsters].sort((a, b) => b.agi - a.agi || a.seq - b.seq);
+  }
+
+  // 플레이어의 행동은 입력할 때 정해지지만, 실제로 나가는 것은 제 차례가 왔을 때다.
+  // 그 사이에 더 빠른 몬스터가 칸을 채우거나 비울 수 있어서 다시 확인한다
+  function runPhase(playerAction) {
+    for (const actor of actOrder()) {
+      if (over) break;
+      if (actor === player) playerAction();
+      else if (actor.hp > 0 && monsters.includes(actor)) goblinAct(actor);
+    }
     movesEl.textContent = ++moves;
-    monstersTurn();
     if (player.hp <= 0) over = true;
     else spawnMonster();
     updateStatus();
   }
 
+  const canStep = (dx, dy) => {
+    const x = player.x + dx, y = player.y + dy;
+    return isInner(x, y) && !occupied(x, y);
+  };
+
   // 플레이어의 행동 1: 이동. 벽이거나 다른 물체가 있으면 페이즈가 시작도 안 한다
   function move(dx, dy) {
-    if (over) return;
-    const x = player.x + dx, y = player.y + dy;
-    if (!isInner(x, y)) return;
-    if (occupied(x, y)) return;
-
-    player.x = x; player.y = y;
-    place(player.el, x, y);
-    endPhase();
+    if (over || !canStep(dx, dy)) return;
+    runPhase(() => {
+      // 더 빠른 몬스터가 먼저 그 칸에 들어왔으면 이동은 불발이다.
+      // 페이즈는 이미 시작했으므로 행동만 날아간다
+      if (!canStep(dx, dy)) return;
+      player.x += dx; player.y += dy;
+      place(player.el, player.x, player.y);
+    });
   }
 
   // 플레이어의 행동 2: 공격. 바로 옆 한 칸을 친다.
@@ -401,14 +437,14 @@
   // 떨어져서 치는 직업이 들어오면 이동 가능 여부와 공격이 무관해지기 때문이다
   function attack(dx, dy) {
     if (over) return;
-    lunge(player.el, dx, dy);
-
-    const target = monsterAt(player.x + dx, player.y + dy);
-    if (target) {
-      damage(target, PLAYER_ATK);
-      if (target.hp <= 0) killMonster(target);
-    }
-    endPhase();
+    runPhase(() => {
+      lunge(player.el, dx, dy);
+      const target = monsterAt(player.x + dx, player.y + dy);
+      if (target) {
+        damage(target, PLAYER_ATK);
+        if (target.hp <= 0) killMonster(target);
+      }
+    });
   }
 
   const DIR_NAME = { '1,0': 'right', '-1,0': 'left', '0,1': 'down', '0,-1': 'up' };
@@ -503,6 +539,7 @@
   function reset() {
     for (const m of monsters) m.el.remove();
     monsters.length = 0;
+    nextSeq = 1;                // 0 은 플레이어 몫이다
     player.x = START.x; player.y = START.y;
     player.hp = player.maxHp;
     renderHp(player);
@@ -527,9 +564,9 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, killMonster,
+    attack, killMonster, actOrder,
     limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
-              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS },
+              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, TINY_TOKEN },
   };
 })();
 </script>
