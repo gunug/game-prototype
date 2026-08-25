@@ -110,19 +110,29 @@
   .token.hit .glyph{animation:struck .25s ease-out;}
   @keyframes struck{0%,100%{transform:scale(1);}40%{transform:scale(.72);}}
 
-  /* 입은 피해를 머리 위에 띄운다. 토큰 밖으로 나가야 해서 overflow 를 막지 않는다 */
-  .token .dmg{
-    position:absolute;left:50%;top:0;
+  /* 입은 피해를 머리 위에 띄운다. 토큰 안이 아니라 판에 직접 붙인다.
+     토큰은 will-change:transform 으로 쌓임 맥락을 만들기 때문에, 그 안에 두면
+     z-index 를 아무리 올려도 옆 토큰 위로 못 올라온다 */
+  .dmg{
+    position:absolute;z-index:50;
     font-weight:800;line-height:1;white-space:nowrap;pointer-events:none;
-    text-shadow:0 1px 2px #000, 0 0 6px rgba(0,0,0,.9);
+    /* 스프라이트 위든 남의 체력바 위든 읽혀야 해서 검은 테를 둘러 준다 */
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+      0 2px 4px rgba(0,0,0,.95);
     animation:dmgfloat .9s ease-out forwards;
   }
-  .player .dmg{color:#FF6B57;}
-  .monster .dmg{color:#FFD400;}
+  .dmg.on-player{color:#FF6B57;}
+  .dmg.on-monster{color:#FFD400;}
+  /* 띄우는 거리는 em 으로 잡는다. % 는 글자 상자(16px 남짓) 기준이라
+     아무리 키워도 몇 px 밖에 안 올라간다.
+     제일 잘 보이는 구간이 제 칸 안(머리 근처)에 오도록 잡았다. 칸 밖으로 나가는
+     것은 흐려진 뒤라, 위 칸 토큰의 체력바와 겹쳐 읽히는 일이 없다 */
   @keyframes dmgfloat{
-    0%  {opacity:0;transform:translate(-50%, 10%) scale(.8);}
-    18% {opacity:1;transform:translate(-50%,-35%) scale(1.15);}
-    100%{opacity:0;transform:translate(-50%,-135%) scale(1);}
+    0%  {opacity:0;transform:translate(-50%, .3em)  scale(.8);}
+    12% {opacity:1;transform:translate(-50%,-.2em)  scale(1.15);}
+    55% {opacity:1;transform:translate(-50%,-1.1em) scale(1);}
+    100%{opacity:0;transform:translate(-50%,-2.4em) scale(1);}
   }
 
   /* 공격: 치는 방향으로 조금 나갔다 제자리로 */
@@ -151,6 +161,8 @@
       <span class="stat">체력 <b id="hp">10/10</b></span>
       <span class="stat">턴 <b id="moves">0</b></span>
       <span class="stat">몬스터 <b id="mcount">0</b></span>
+      <button class="btn btn-secondary btn-sm" id="sound" type="button"
+              aria-label="소리 끄기" aria-pressed="true">🔊</button>
       <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
     </div>
 
@@ -188,6 +200,52 @@
   const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
   const ATTACK_GAP = 260;       // 한 대와 다음 한 대 사이
   const tuning = { hit: HIT_DELAY, gap: ATTACK_GAP };   // 검사할 때 0 으로 낮춘다
+
+  // ── 소리 ───────────────────────────────────────────────────
+  // 음원 파일 없이 그때그때 만든다. 받아 올 것이 없어 한 파일로 그대로 돌아간다
+  let audioCtx = null;
+  let soundOn = true;
+
+  function ensureAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;                       // 오래된 브라우저·검사 환경
+    if (!audioCtx) audioCtx = new AC();
+    // 소리는 사용자가 건드린 뒤에만 난다. 공격은 늘 입력 뒤라 여기서 풀어도 된다
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  // 휘두르는 소리. 감쇠하는 잡음을 대역 필터로 위에서 아래로 훑는다
+  function playSwing(pitch) {
+    if (!soundOn) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+
+    const dur = 0.17;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const fade = 1 - i / data.length;
+      data[i] = (Math.random() * 2 - 1) * fade * fade;
+    }
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.Q.value = 1.1;
+    band.frequency.setValueAtTime(1600 * pitch, ctx.currentTime);
+    band.frequency.exponentialRampToValueAtTime(360 * pitch, ctx.currentTime + dur);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0008, ctx.currentTime + dur);
+
+    src.connect(band).connect(gain).connect(ctx.destination);
+    src.start();
+    src.stop(ctx.currentTime + dur);
+  }
 
   // 민첩: 높을수록 먼저 행동한다. 규칙에 숫자가 없어서 정했다
   const PLAYER_AGI = 10;
@@ -357,13 +415,18 @@
     target.el.classList.add('hit');
   }
 
-  // 입은 피해를 머리 위에 띄운다. 칸 크기를 따라가되 너무 작아지지는 않게 한다
+  // 입은 피해를 머리 위에 띄운다. 칸 크기를 따라가되 너무 작아지지는 않게 한다.
+  // 토큰이 아니라 판에 붙여야 다른 토큰 위로 올라온다
   function floatDamage(ent, amount) {
     const el = document.createElement('span');
-    el.className = 'dmg';
+    el.className = 'dmg ' + (ent === player ? 'on-player' : 'on-monster');
     el.textContent = '-' + amount;
-    el.style.fontSize = Math.max(11, Math.round(innerCell * 0.3)) + 'px';
-    ent.el.appendChild(el);
+    el.style.fontSize = Math.max(11, Math.round(innerCell * 0.34)) + 'px';
+    el.style.left = (axis.pos[ent.x] + axis.size[ent.x] / 2) + 'px';
+    // 칸 위끝이 아니라 조금 아래에서 시작한다. 그래야 제일 진할 때가
+    // 제 칸 안(머리 언저리)에 오고, 위 칸 체력바 위에서 읽히지 않는다
+    el.style.top = (axis.pos[ent.y] + axis.size[ent.y] * 0.3) + 'px';
+    boardEl.appendChild(el);
     setTimeout(() => el.remove(), 900);
   }
 
@@ -527,6 +590,8 @@
     for (const n of ['up', 'down', 'left', 'right']) el.classList.remove('atk-' + n);
     void el.offsetWidth;
     el.classList.add('atk-' + DIR_NAME[dx + ',' + dy]);
+    // 헛치는 것도 lunge 를 거치므로 소리는 여기 한 곳에만 두면 된다
+    playSwing(el.classList.contains('player') ? 1 : 0.72);
   }
 
   // 쓰러지거나 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서
@@ -631,6 +696,15 @@
     updateStatus();
   }
 
+  const soundBtn = document.getElementById('sound');
+  soundBtn.addEventListener('click', () => {
+    soundOn = !soundOn;
+    soundBtn.textContent = soundOn ? '🔊' : '🔇';
+    soundBtn.setAttribute('aria-pressed', String(soundOn));
+    soundBtn.setAttribute('aria-label', soundOn ? '소리 끄기' : '소리 켜기');
+    if (soundOn) playSwing(1);          // 켠 것이 들리게 한 번 낸다
+  });
+
   document.getElementById('reset').addEventListener('click', reset);
   window.addEventListener('resize', layout);
 
@@ -645,6 +719,7 @@
     isOver: () => over,
     attack, killMonster, actOrder,
     isBusy: () => busy,
+    isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
     limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
