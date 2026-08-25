@@ -261,6 +261,18 @@
   // 플레이어와 몬스터가 물체다. 둘 다 남의 칸으로는 못 들어간다
   const occupied = (x, y) => (player.x === x && player.y === y) || !!monsterAt(x, y);
 
+  // ── 전투 ───────────────────────────────────────────────────
+  const adjacent4 = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+
+  function damage(target, amount) {
+    target.hp = Math.max(0, target.hp - amount);
+    renderHp(target);
+    // transform 은 자리 잡는 데 쓰고 있어서 흔들 수가 없다. class 를 다시 붙여 재생한다
+    target.el.classList.remove('hit');
+    void target.el.offsetWidth;
+    target.el.classList.add('hit');
+  }
+
   // ── 몬스터 ─────────────────────────────────────────────────
   function outerCells() {
     const out = [];
@@ -314,47 +326,32 @@
     }
   }
 
-  // 한 마리씩 차례로 옮긴다. 앞 마리가 비운 칸은 뒷 마리가 쓸 수 있다
+  // 고블린의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
+  // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
+  function goblinAct(m) {
+    if (adjacent4(m, player)) { damage(player, m.atk); return; }
+    goblinStep(m);
+  }
+
+  // 한 마리씩 차례로 처리한다. 앞 마리가 비운 칸은 뒷 마리가 쓸 수 있다
   function monstersTurn() {
-    for (const m of monsters) goblinStep(m);
-  }
-
-  // ── 전투 ───────────────────────────────────────────────────
-  const adjacent4 = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
-
-  function damage(target, amount) {
-    target.hp = Math.max(0, target.hp - amount);
-    renderHp(target);
-    // transform 은 자리 잡는 데 쓰고 있어서 흔들 수가 없다. class 를 다시 붙여 재생한다
-    target.el.classList.remove('hit');
-    void target.el.offsetWidth;
-    target.el.classList.add('hit');
-  }
-
-  // 공격 페이즈. 플레이어에 4방향으로 붙은 고블린이 때린다.
-  // 플레이어 쪽 공격은 규칙(발동 조건·피해량·조작)이 아직 없어서 비워 뒀다
-  function attackPhase() {
-    for (const m of monsters) {
-      if (adjacent4(m, player)) damage(player, m.atk);
-    }
+    for (const m of monsters) goblinAct(m);
   }
 
   // ── 턴 ─────────────────────────────────────────────────────
-  // 한 턴은 이동 페이즈 -> 공격 페이즈. 각 페이즈에 저마다 한 가지 행동
+  // 한 턴에 저마다 한 가지 행동만 한다. 이동 아니면 공격.
+  // 플레이어의 공격은 규칙(발동 조건·피해량·조작)이 아직 없어서 이동뿐이다
   function move(dx, dy) {
     if (over) return;
     const x = player.x + dx, y = player.y + dy;
     if (!isInner(x, y)) return;
     if (occupied(x, y)) return;
 
-    // 이동 페이즈
     player.x = x; player.y = y;
     place(player.el, x, y);
     movesEl.textContent = ++moves;
-    monstersTurn();
 
-    // 공격 페이즈
-    attackPhase();
+    monstersTurn();
 
     if (player.hp <= 0) over = true;
     else spawnMonster();
