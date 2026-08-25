@@ -250,6 +250,10 @@
   // 민첩: 높을수록 먼저 행동한다. 규칙에 숫자가 없어서 정했다
   const PLAYER_AGI = 10;
   const GOBLIN_AGI = 8;
+  const RIDER_AGI = 9;          // 말을 탔으니 걸어오는 고블린보다는 빠르다
+
+  // 라이더가 섞여 나오는 비율. 규칙에 없어서 정했다
+  const RIDER_CHANCE = 0.25;
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
   const HINT_DEFAULT = '스와이프 · 방향키 / WASD 로 이동 · 길게 하면 공격';
@@ -441,17 +445,32 @@
     return out;
   }
 
-  function addMonster(x, y) {
+  // 종류마다 다른 것은 여기에만 모은다. 늘어나도 addMonster 는 그대로다
+  const KINDS = {
+    goblin: {
+      img: 'goblin.png', name: '고블린',
+      maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, agi: GOBLIN_AGI,
+      step: stepToward,
+    },
+    rider: {
+      img: 'goblin_rider.png', name: '고블린 라이더',
+      maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, agi: RIDER_AGI,
+      step: stepKnight,
+    },
+  };
+
+  function addMonster(x, y, kind = 'goblin') {
+    const spec = KINDS[kind];
     const el = document.createElement('div');
-    el.className = 'token monster';
-    el.innerHTML = tokenInner('goblin.png', '고블린');
+    el.className = 'token monster ' + kind;
+    el.innerHTML = tokenInner(spec.img, spec.name);
     boardEl.appendChild(el);
     place(el, x, y);
 
     const m = {
-      kind: 'goblin', x, y,
-      hp: GOBLIN_MAX_HP, maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK,
-      agi: GOBLIN_AGI, seq: nextSeq++, el,
+      kind, x, y,
+      hp: spec.maxHp, maxHp: spec.maxHp, atk: spec.atk,
+      agi: spec.agi, seq: nextSeq++, el,
     };
     monsters.push(m);
     renderHp(m);
@@ -463,14 +482,17 @@
     const free = outerCells().filter(c => !occupied(c.x, c.y));
     if (!free.length) return false;               // 외부에 빈 칸이 없다
     const spot = free[Math.floor(Math.random() * free.length)];
-    addMonster(spot.x, spot.y);
+    addMonster(spot.x, spot.y, Math.random() < RIDER_CHANCE ? 'rider' : 'goblin');
     return true;
   }
+
+  const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  const canEnter = (x, y) => onBoard(x, y) && !occupied(x, y);
 
   // 고블린: 매 턴 플레이어를 향해 상하좌우 한 칸.
   // 차이가 큰 축을 먼저 시도하고, 막혔으면 다른 축으로. 둘 다 막혔으면 그 자리에 선다.
   // 가로세로 차이가 같으면 가로를 먼저 본다 (규칙에 없어서 정한 것)
-  function goblinStep(m) {
+  function stepToward(m) {
     const dx = player.x - m.x, dy = player.y - m.y;
     const h = dx ? [Math.sign(dx), 0] : null;
     const v = dy ? [0, Math.sign(dy)] : null;
@@ -487,15 +509,37 @@
     }
   }
 
-  // 고블린의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
+  // 고블린 라이더: 체스의 나이트처럼 움직인다. 사이에 무엇이 있든 뛰어넘는다.
+  // 갈 수 있는 여덟 칸 중에서 "플레이어에 인접" 에 가장 가까운 칸을 고른다.
+  // 인접이 목표라 거리 1 이 최고점이다. 거리 0 은 플레이어가 서 있어 갈 수 없다.
+  // 점수가 같으면 아래 차례에서 먼저 나온 칸을 쓴다 (규칙에 없어서 정한 것)
+  const KNIGHT = [
+    [1, -2], [2, -1], [2, 1], [1, 2],
+    [-1, 2], [-2, 1], [-2, -1], [-1, -2],
+  ];
+
+  function stepKnight(m) {
+    let best = null, bestScore = Infinity;
+    for (const [dx, dy] of KNIGHT) {
+      const nx = m.x + dx, ny = m.y + dy;
+      if (!canEnter(nx, ny)) continue;
+      const score = Math.abs(dist({ x: nx, y: ny }, player) - 1);
+      if (score < bestScore) { bestScore = score; best = [nx, ny]; }
+    }
+    if (!best) return;                    // 여덟 칸이 다 막혔으면 그 자리에 선다
+    m.x = best[0]; m.y = best[1];
+    place(m.el, m.x, m.y);
+  }
+
+  // 몬스터의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
   // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
   // 때렸으면 true. 부른 쪽은 그만큼 뜸을 들인다
-  async function goblinAct(m) {
+  async function monsterAct(m) {
     if (adjacent4(m, player)) {
       await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y), m.atk);
       return true;
     }
-    goblinStep(m);
+    KINDS[m.kind].step(m);
     return false;
   }
 
@@ -530,7 +574,7 @@
         if (actor === player) {
           struck = await playerAction();
         } else if (actor.hp > 0 && monsters.includes(actor)) {
-          struck = await goblinAct(actor);
+          struck = await monsterAct(actor);
         }
         if (phaseId !== mine) return;
         if (struck) {
@@ -717,14 +761,14 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, killMonster, actOrder,
+    attack, killMonster, actOrder, KINDS, KNIGHT,
     isBusy: () => busy,
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
     limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
-              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, TINY_TOKEN,
-              HIT_DELAY, ATTACK_GAP },
+              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, RIDER_AGI,
+              TINY_TOKEN, HIT_DELAY, ATTACK_GAP, RIDER_CHANCE },
   };
 })();
 </script>
