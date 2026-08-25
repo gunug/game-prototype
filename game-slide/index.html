@@ -58,37 +58,25 @@
   /* 다음 턴에 맞을 수 있는 빈 칸. 지금 몬스터가 바로 옆에 붙어 있는 칸이다 */
   .cell.inner.danger{background:#38201D;box-shadow:inset 0 0 0 1px #6B322B;}
 
-  /* 그 칸으로 갔을 때 받을 피해. 뾰족뾰족한 타격 딱지.
-     별 두 겹으로 만든다. 바깥이 테두리 색, 안쪽이 채움. 바깥의 padding 이 테두리 두께다.
-     filter: drop-shadow 로 테두리를 내면 안 된다. clip-path 가 filter 뒤에 걸려
-     그림자까지 같은 모양으로 잘라 먹어서 아무것도 안 남는다 */
+  /* 그 칸으로 갔을 때 받을 피해. 타격 이펙트 그림 위에 숫자를 얹는다.
+     예전에는 별 두 겹을 clip-path 로 잘라 만들었는데, 그림 한 장이면 끝난다 */
   .hit-mark{
-    display:none;padding:1.5px;
-    background:#FF8A73;
-    /* 두 겹이라 색을 각각 반투명하게 하면 바깥 색이 안쪽에 배어 지저분해진다.
-       딱지 전체에 한 번만 건다 */
-    opacity:.85;
-    clip-path:polygon(
-      50% 0%, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
-      100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
-      50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
-      0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%);
+    display:none;
+    width:2.2em;height:2.2em;
+    align-items:center;justify-content:center;
+    background:url(images/icon/hit.png) center/contain no-repeat;
+    opacity:.9;
     pointer-events:none;
   }
   .hit-mark i{
-    display:block;
-    min-width:1.62em;padding:.32em .2em;
-    background:#3A1F1B;
-    color:#FFC8BC;
-    font-style:normal;font-weight:800;line-height:1;text-align:center;
-    font-variant-numeric:tabular-nums;
-    clip-path:polygon(
-      50% 0%, 59.8% 13.3%, 75% 6.7%, 76.9% 23.1%, 93.3% 25%, 86.7% 40.2%,
-      100% 50%, 86.7% 59.8%, 93.3% 75%, 76.9% 76.9%, 75% 93.3%, 59.8% 86.7%,
-      50% 100%, 40.2% 86.7%, 25% 93.3%, 23.1% 76.9%, 6.7% 75%, 13.3% 59.8%,
-      0% 50%, 13.3% 40.2%, 6.7% 25%, 23.1% 23.1%, 25% 6.7%, 40.2% 13.3%);
+    font-style:normal;font-weight:800;line-height:1;
+    color:#fff;
+    /* 붉은 이펙트 위에 흰 글씨라 검은 테를 둘러야 읽힌다 */
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+      0 1px 2px rgba(0,0,0,.9);
   }
-  .cell.danger .hit-mark{display:block;}
+  .cell.danger .hit-mark{display:flex;}
   /* 플레이어 것은 토큰 한가운데에 얹는다. 그대로 서 있으면 얼마나 맞는지를 알린다 */
   .player .hit-mark{
     position:absolute;left:50%;top:50%;
@@ -96,7 +84,7 @@
     font-size:var(--mark, 14px);
     z-index:2;
   }
-  .player.threatened .hit-mark{display:block;}
+  .player.threatened .hit-mark{display:flex;}
 
   /* 내부 6*6 의 테두리. 플레이어가 갈 수 있는 범위가 보이게 */
   .fence{
