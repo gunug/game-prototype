@@ -162,23 +162,49 @@
     flex:none;margin:0 auto;padding:var(--s3) var(--s4) 0;
     width:100%;max-width:520px;
   }
-  .q-head{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:6px;}
+  .q-head{display:flex;align-items:center;gap:var(--s2);margin-bottom:8px;}
   .q-step{
     color:var(--brand-yellow);background:#161613;border-radius:var(--r-pill);
     font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 9px;flex:none;
   }
-  .q-title{color:var(--ink);font-weight:700;font-size:14px;flex:1;min-width:0;
+  .q-note{color:var(--muted);font-size:11px;margin:0;flex:1;min-width:0;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .q-count{color:var(--body);font-size:13px;font-variant-numeric:tabular-nums;flex:none;}
-  .q-bar{height:8px;border-radius:4px;background:var(--surface);overflow:hidden;
-    box-shadow:inset 0 0 0 1px var(--hairline);}
-  .q-bar i{display:block;height:100%;width:0;border-radius:4px;
-    background:var(--brand-yellow);transition:width .35s cubic-bezier(.2,.7,.3,1);}
-  .q-note{color:var(--muted);font-size:11px;margin:6px 0 0;}
 
-  /* 깬 순간 잠깐 알린다. 다음 퀘스트로 넘어가기 전에 눈이 따라올 시간을 준다 */
-  .quest.done .q-bar i{background:#4CD07A;}
-  .quest.done .q-title{color:#4CD07A;}
+  .q-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;}
+  .q-item{
+    display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+    column-gap:8px;row-gap:4px;
+  }
+  .q-check{
+    width:15px;height:15px;border-radius:4px;flex:none;
+    box-shadow:inset 0 0 0 1px var(--hairline);background:var(--surface);
+    position:relative;
+  }
+  /* 체크 표시는 가상 요소로. 다 깬 줄만 보인다 */
+  .q-check::after{
+    content:'✓';position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;color:var(--on-brand);opacity:0;
+  }
+  .q-name{color:var(--body);font-size:13px;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .q-num{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;flex:none;}
+  /* 한 번에 끝나는 항목은 막대가 체크와 같은 말을 반복한다. 여러 번 걸리는 것만 둔다 */
+  .q-item.binary .q-track{display:none;}
+  .q-item.binary{row-gap:0;}
+  .q-track{
+    grid-column:2 / -1;height:4px;border-radius:2px;
+    background:var(--surface);box-shadow:inset 0 0 0 1px var(--hairline);overflow:hidden;
+  }
+  .q-track i{display:block;height:100%;width:0;border-radius:2px;
+    background:var(--brand-yellow);transition:width .35s cubic-bezier(.2,.7,.3,1);}
+
+  .q-item.done .q-check{background:#4CD07A;box-shadow:none;}
+  .q-item.done .q-check::after{opacity:1;}
+  .q-item.done .q-name{color:var(--ink);}
+  .q-item.done .q-track i{background:#4CD07A;}
+
+  /* 묶음을 다 깬 순간 잠깐 알린다. 다음으로 넘어가기 전에 눈이 따라올 시간을 준다 */
   .quest.done{animation:qdone .5s ease-out;}
   @keyframes qdone{0%,100%{transform:none;}30%{transform:scale(1.035);}}
   .quest.all-done .q-step{background:var(--brand-yellow);color:var(--on-brand);}
@@ -210,11 +236,9 @@
     <section class="quest" id="quest">
       <div class="q-head">
         <span class="q-step" id="qstep">퀘스트 1/3</span>
-        <span class="q-title" id="qtitle">—</span>
-        <span class="q-count" id="qcount">0/0</span>
+        <p class="q-note" id="qnote"></p>
       </div>
-      <div class="q-bar"><i id="qfill"></i></div>
-      <p class="q-note" id="qnote"></p>
+      <ul class="q-list" id="qlist"></ul>
     </section>
 
     <p class="hint" id="hint">스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격</p>
@@ -300,26 +324,33 @@
   const HINT_DEFAULT = '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격';
 
   // ── 퀘스트 ─────────────────────────────────────────────────
-  // 몬스터가 언제 몇 마리 나오는지는 전부 여기서 정한다.
-  //   dirs: 상하좌우를 한 번씩 다 움직이면 깬다
-  //   kill: 그 종류를 goal 마리 잡으면 깬다
-  const QUESTS = [
+  // 한 묶음이 한꺼번에 뜨고, 안의 항목을 각각 따로 깬다. 다 깨면 다음 묶음으로.
+  // 몬스터가 언제 몇 마리 나오는지도 묶음이 정한다 (묶음 하나에 출현 규칙 하나라야
+  // 고블린 묶음과 라이더 묶음이 섞여 나오는 일이 없다)
+  const QUEST_GROUPS = [
     {
-      title: '상하좌우 이동하기', type: 'dirs', goal: 4,
-      note: '스와이프나 WASD 로 네 방향을 한 번씩. 몬스터는 나오지 않는다',
+      note: '스와이프나 WASD 로. 몬스터는 나오지 않는다',
       spawn: null,
+      items: [
+        { title: '위로 움직이기', type: 'dir', dir: '0,-1' },
+        { title: '왼쪽으로 움직이기', type: 'dir', dir: '-1,0' },
+        { title: '오른쪽으로 움직이기', type: 'dir', dir: '1,0' },
+        { title: '아래로 움직이기', type: 'dir', dir: '0,1' },
+      ],
     },
     {
-      title: '고블린 5마리 잡기', type: 'kill', kind: 'goblin', goal: 5,
       note: '3턴에 한 마리씩, 모두 10마리가 나온다',
       spawn: { kind: 'goblin', every: 3, max: 10 },
+      items: [{ title: '고블린 5마리 잡기', type: 'kill', kind: 'goblin', goal: 5 }],
     },
     {
-      title: '고블린 라이더 5마리 잡기', type: 'kill', kind: 'rider', goal: 5,
       note: '3턴에 한 마리씩, 모두 10마리가 나온다',
       spawn: { kind: 'rider', every: 3, max: 10 },
+      items: [{ title: '고블린 라이더 5마리 잡기', type: 'kill', kind: 'rider', goal: 5 }],
     },
   ];
+  const itemGoal = it => (it.type === 'dir' ? 1 : it.goal);
+
   const QUEST_CLEAR_MS = 900;   // 깬 것을 보여 주고 다음으로 넘어가기까지
 
   const boardEl = document.getElementById('board');
@@ -329,10 +360,8 @@
   const hpEl = document.getElementById('hp');
   const questEl = document.getElementById('quest');
   const qStepEl = document.getElementById('qstep');
-  const qTitleEl = document.getElementById('qtitle');
-  const qCountEl = document.getElementById('qcount');
-  const qFillEl = document.getElementById('qfill');
   const qNoteEl = document.getElementById('qnote');
+  const qListEl = document.getElementById('qlist');
   const hintEl = document.querySelector('.hint');
   const playEl = document.querySelector('.play');
   const fenceEl = document.createElement('div');
@@ -354,12 +383,15 @@
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
 
-  let questIndex = 0;
-  let questTurns = 0;           // 이 퀘스트에서 지난 턴
-  let questSpawned = 0;         // 이 퀘스트에서 내보낸 마릿수
-  let questKills = 0;           // 이 퀘스트에서 잡은 마릿수 (해당 종류만)
-  const questDirs = new Set();  // 이 퀘스트에서 움직여 본 방향
+  let groupIndex = 0;
+  let groupTurns = 0;           // 이 묶음에서 지난 턴
+  let groupSpawned = 0;         // 이 묶음에서 내보낸 마릿수
+  const groupKills = {};        // 이 묶음에서 잡은 마릿수, 종류별
+  const groupDirs = new Set();  // 이 묶음에서 움직여 본 방향
   let allDone = false;
+
+  // 퀘스트 줄은 묶음 크기에 맞춰 그때그때 만든다
+  const qRows = [];
 
   const isInner = (x, y) => x >= MIN && x <= MAX && y >= MIN && y <= MAX;
 
@@ -565,11 +597,11 @@
 
   // 퀘스트가 정한 대로만 내보낸다. 퀘스트에 spawn 이 없으면 아무것도 안 나온다
   function questSpawn() {
-    const q = QUESTS[questIndex];
-    if (allDone || !q || !q.spawn) return;
-    if (questSpawned >= q.spawn.max) return;
-    if (questTurns % q.spawn.every !== 0) return;
-    if (spawnMonster(q.spawn.kind)) questSpawned++;
+    const g = group();
+    if (!g || !g.spawn) return;
+    if (groupSpawned >= g.spawn.max) return;
+    if (groupTurns % g.spawn.every !== 0) return;
+    if (spawnMonster(g.spawn.kind)) groupSpawned++;
   }
 
   const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -638,10 +670,37 @@
   }
 
   // ── 퀘스트 진행 ────────────────────────────────────────────
-  const questGoal = () => (allDone ? 0 : QUESTS[questIndex].goal);
-  function questProgress() {
-    if (allDone) return 0;
-    return QUESTS[questIndex].type === 'dirs' ? questDirs.size : questKills;
+  const group = () => (allDone ? null : QUEST_GROUPS[groupIndex]);
+
+  function itemProgress(it) {
+    if (it.type === 'dir') return groupDirs.has(it.dir) ? 1 : 0;
+    return Math.min(groupKills[it.kind] || 0, it.goal);
+  }
+  const itemDone = it => itemProgress(it) >= itemGoal(it);
+  const groupDone = () => {
+    const g = group();
+    return !!g && g.items.every(itemDone);
+  };
+
+  // 묶음마다 항목 수가 다르다. 줄을 새로 만들고 나서 값만 갈아 끼운다
+  function buildQuestRows() {
+    qListEl.textContent = '';
+    qRows.length = 0;
+    const g = group();
+    if (!g) return;
+    for (const it of g.items) {
+      const li = document.createElement('li');
+      li.className = 'q-item';
+      li.innerHTML =
+        '<span class="q-check"></span>' +
+        '<span class="q-name"></span>' +
+        '<span class="q-num"></span>' +
+        '<span class="q-track"><i></i></span>';
+      li.querySelector('.q-name').textContent = it.title;
+      if (itemGoal(it) === 1) li.classList.add('binary');
+      qListEl.appendChild(li);
+      qRows.push({ it, li, num: li.querySelector('.q-num'), fill: li.querySelector('.q-track i') });
+    }
   }
 
   function renderQuest() {
@@ -649,31 +708,31 @@
       questEl.classList.add('all-done');
       questEl.classList.remove('done');
       qStepEl.textContent = '완료';
-      qTitleEl.textContent = '모든 퀘스트를 깼다';
-      qCountEl.textContent = QUESTS.length + '/' + QUESTS.length;
-      qFillEl.style.width = '100%';
-      qNoteEl.textContent = '더 나올 몬스터는 없다';
+      qNoteEl.textContent = '모든 퀘스트를 깼다. 더 나올 몬스터는 없다';
       return;
     }
-    const q = QUESTS[questIndex];
-    const now = questProgress();
-    qStepEl.textContent = '퀘스트 ' + (questIndex + 1) + '/' + QUESTS.length;
-    qTitleEl.textContent = q.title;
-    qCountEl.textContent = now + '/' + q.goal;
-    qFillEl.style.width = (100 * Math.min(now, q.goal) / q.goal) + '%';
-    qNoteEl.textContent = q.spawn
-      ? q.note + ' · 남은 출현 ' + Math.max(0, q.spawn.max - questSpawned) + '마리'
-      : q.note;
+    const g = group();
+    qStepEl.textContent = '퀘스트 ' + (groupIndex + 1) + '/' + QUEST_GROUPS.length;
+    qNoteEl.textContent = g.spawn
+      ? g.note + ' · 남은 출현 ' + Math.max(0, g.spawn.max - groupSpawned) + '마리'
+      : g.note;
+    for (const row of qRows) {
+      const now = itemProgress(row.it), goal = itemGoal(row.it);
+      row.num.textContent = now + '/' + goal;
+      row.fill.style.width = (100 * now / goal) + '%';
+      row.li.classList.toggle('done', now >= goal);
+    }
   }
 
-  function startQuest(i) {
-    questIndex = i;
-    questTurns = 0;
-    questSpawned = 0;
-    questKills = 0;
-    questDirs.clear();
-    allDone = i >= QUESTS.length;
+  function startGroup(i) {
+    groupIndex = i;
+    groupTurns = 0;
+    groupSpawned = 0;
+    for (const k of Object.keys(groupKills)) delete groupKills[k];
+    groupDirs.clear();
+    allDone = i >= QUEST_GROUPS.length;
     questEl.classList.remove('done', 'all-done');
+    buildQuestRows();
     renderQuest();
   }
 
@@ -685,7 +744,7 @@
     renderQuest();
     await sleep(QUEST_CLEAR_MS);
     if (phaseId !== mine) return;
-    startQuest(questIndex + 1);
+    startGroup(groupIndex + 1);
   }
 
   // ── 페이즈 ─────────────────────────────────────────────────
@@ -723,10 +782,10 @@
       if (player.hp <= 0) over = true;
 
       if (!over) {
-        questTurns++;
+        groupTurns++;
         questSpawn();
         renderQuest();
-        if (!allDone && questProgress() >= questGoal()) await advanceQuest();
+        if (groupDone()) await advanceQuest();
       }
       updateStatus();
     } finally {
@@ -750,7 +809,7 @@
       if (!canStep(dx, dy)) return false;
       player.x += dx; player.y += dy;
       place(player.el, player.x, player.y);
-      questDirs.add(dx + ',' + dy);   // '상하좌우 이동하기' 는 이걸로 센다
+      groupDirs.add(dx + ',' + dy);   // 방향 퀘스트는 이걸로 센다
       return false;               // 이동은 뜸 들일 것이 없다
     });
   }
@@ -769,8 +828,7 @@
       }
       await strike(player, target, dx, dy, PLAYER_ATK);
       if (target.hp <= 0) {
-        const q = QUESTS[questIndex];
-        if (!allDone && q.type === 'kill' && target.kind === q.kind) questKills++;
+        groupKills[target.kind] = (groupKills[target.kind] || 0) + 1;
         killMonster(target);
       }
       return true;
@@ -860,7 +918,7 @@
     movesEl.textContent = '0';
     countEl.textContent = '0';
     place(player.el, player.x, player.y);
-    startQuest(allDone ? QUESTS.length : questIndex);   // 지금 퀘스트를 처음부터
+    startGroup(allDone ? QUEST_GROUPS.length : groupIndex);   // 지금 묶음을 처음부터
     updateStatus();
   }
 
@@ -886,11 +944,14 @@
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
     attack, act, killMonster, actOrder, KINDS, KNIGHT,
-    QUESTS, startQuest, spawnMonster,
+    QUEST_GROUPS, startGroup, spawnMonster,
     quest: () => ({
-      index: questIndex, turns: questTurns, spawned: questSpawned,
-      kills: questKills, dirs: questDirs.size,
-      progress: questProgress(), goal: questGoal(), allDone,
+      index: groupIndex, turns: groupTurns, spawned: groupSpawned,
+      kills: { ...groupKills }, dirs: groupDirs.size, allDone,
+      items: allDone ? [] : QUEST_GROUPS[groupIndex].items.map(it => ({
+        title: it.title, progress: itemProgress(it), goal: itemGoal(it), done: itemDone(it),
+      })),
+      done: groupDone(),
     }),
     isBusy: () => busy,
     isSoundOn: () => soundOn,
