@@ -188,8 +188,12 @@
       -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
       0 1px 2px rgba(0,0,0,.9);
   }
-  .token .stat-mark .a{background-image:url(images/icon/onesword.png);}
-  .token .stat-mark .d{background-image:url(images/icon/defence.png);}
+  /* 어떤 그림이 뜨는지는 상태가 정한다.
+     공격: 한 번(칼 하나) / 두 번(칼 둘)   방어: 그냥(민 방패) / 반사(가시 방패) */
+  .token .stat-mark .a.atk-single{background-image:url(images/icon/attack1.png);}
+  .token .stat-mark .a.atk-double{background-image:url(images/icon/attack2.png);}
+  .token .stat-mark .d.def-plain{background-image:url(images/icon/defence.png);}
+  .token .stat-mark .d.def-reflect{background-image:url(images/icon/defence_reflect.png);}
 
   /* 외부 띠의 토큰은 17px 쯤이라 숫자가 안 읽힌다. 바만 남긴다 */
   /* 경험치. 체력 바로 밑에 얇은 하늘색 띠. 수치는 안 적는다 */
@@ -378,6 +382,11 @@
   // 최종 공격력 = 공격자의 공격력 - 방어자의 방어력. 1 보다 작아지면 1 로 친다
   const damageTo = (attacker, target) => Math.max(1, attacker.atk - target.def);
 
+  // 공격·방어의 모드. 지금은 아이콘만 갈아 끼운다.
+  // 두 번 공격과 반사의 실제 효과는 규칙에 아직 없다
+  const ATK_MODES = ['single', 'double'];
+  const DEF_MODES = ['plain', 'reflect'];
+
   // 레벨 n 에서 다음 레벨까지 필요한 경험치.
   //   증가량 = 5*n  →  요구량(n) = 20 + 5*(1+2+...+(n-1)) = 20 + 5*n*(n-1)/2
   // 규칙에 적힌 20,25,35,50,70,95,125 와 그대로 맞는다. n*(n-1) 은 늘 짝수라 정수다.
@@ -394,6 +403,9 @@
       agi: s.agi, seq: nextSeq++,
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
+      // 처음은 한 번 공격에 그냥 방어
+      atkMode: s.atkMode || 'single',
+      defMode: s.defMode || 'plain',
     };
   }
 
@@ -573,8 +585,12 @@
     ent.el.classList.toggle('full', ent.hp >= ent.maxHp);
     // 공격·방어도 여기서 같이 고친다. 지금은 안 변하는 값이지만 버프가 들어오면
     // 체력과 같은 때에 갱신되어야 한다. 부르는 곳을 늘리지 않는다
-    ent.el.querySelector('.stat-mark .a').textContent = ent.atk;
-    ent.el.querySelector('.stat-mark .d').textContent = ent.def;
+    const a = ent.el.querySelector('.stat-mark .a');
+    const d = ent.el.querySelector('.stat-mark .d');
+    a.textContent = ent.atk;
+    d.textContent = ent.def;
+    for (const m of ATK_MODES) a.classList.toggle('atk-' + m, ent.atkMode === m);
+    for (const m of DEF_MODES) d.classList.toggle('def-' + m, ent.defMode === m);
     if (ent === player) hpEl.textContent = hp + '/' + ent.maxHp;
   }
 
@@ -1152,7 +1168,7 @@
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
     attack, act, killMonster, actOrder, BEINGS, KNIGHT, damageTo, makeBeing,
-    expNeeded, gainExp, renderExp,
+    expNeeded, gainExp, renderExp, ATK_MODES, DEF_MODES,
     QUEST_GROUPS, startGroup, spawnMonster,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
