@@ -371,7 +371,10 @@
   // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
   const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
   const ATTACK_GAP = 260;       // 한 대와 다음 한 대 사이
-  const tuning = { hit: HIT_DELAY, gap: ATTACK_GAP };   // 검사할 때 0 으로 낮춘다
+  const MOVE_GAP = 130;         // 한 걸음과 다음 걸음 사이. 이동 연출이 .13s 라 그만큼
+  const MOVE_GAP_MIN = 55;      // 많이 몰렸을 때의 하한. 이보다 짧으면 순서가 안 보인다
+  const MOVE_BUDGET = 900;      // 한 페이즈에서 걸음 연출에 쓰는 시간 총량
+  const tuning = { hit: HIT_DELAY, gap: ATTACK_GAP, move: MOVE_GAP };   // 검사할 때 0 으로 낮춘다
 
   // ── 소리 ───────────────────────────────────────────────────
   // 음원 파일 없이 그때그때 만든다. 받아 올 것이 없어 한 파일로 그대로 돌아간다
@@ -702,6 +705,8 @@
   // 고블린: 매 턴 플레이어를 향해 상하좌우 한 칸.
   // 차이가 큰 축을 먼저 시도하고, 막혔으면 다른 축으로. 둘 다 막혔으면 그 자리에 선다.
   // 가로세로 차이가 같으면 가로를 먼저 본다 (규칙에 없어서 정한 것)
+  // 실제로 한 칸 옮겼으면 true. 막혀서 제자리면 false.
+  // 부르는 쪽이 "걸음이 났는지" 를 알아야 그만큼 뜸을 들일 수 있다
   function stepToward(m) {
     const dx = player.x - m.x, dy = player.y - m.y;
     const h = dx ? [Math.sign(dx), 0] : null;
@@ -715,8 +720,9 @@
       if (!onBoard(nx, ny) || occupied(nx, ny)) continue;
       m.x = nx; m.y = ny;
       place(m.el, nx, ny);
-      return;
+      return true;
     }
+    return false;
   }
 
   // 고블린 라이더: 체스의 나이트처럼 움직인다. 사이에 무엇이 있든 뛰어넘는다.
@@ -736,21 +742,22 @@
       const score = Math.abs(dist({ x: nx, y: ny }, player) - 1);
       if (score < bestScore) { bestScore = score; best = [nx, ny]; }
     }
-    if (!best) return;                    // 여덟 칸이 다 막혔으면 그 자리에 선다
+    if (!best) return false;              // 여덟 칸이 다 막혔으면 그 자리에 선다
     m.x = best[0]; m.y = best[1];
     place(m.el, m.x, m.y);
+    return true;
   }
 
   // 몬스터의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
   // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
-  // 때렸으면 true. 부른 쪽은 그만큼 뜸을 들인다
+  // 무엇을 했는지 돌려준다: 'attack' | 'move' | null.
+  // 부른 쪽이 그에 맞는 만큼 뜸을 들인다. 아무것도 못 했으면 기다릴 것도 없다
   async function monsterAct(m) {
     if (adjacent4(m, player)) {
       await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
-      return true;
+      return 'attack';
     }
-    BEINGS[m.kind].step(m);
-    return false;
+    return BEINGS[m.kind].step(m) ? 'move' : null;
   }
 
   function killMonster(m) {
@@ -885,15 +892,17 @@
     try {
       for (const actor of actOrder()) {
         if (over || phaseId !== mine) return;
-        let struck;
+        let did = null;
         if (actor === player) {
-          struck = await playerAction();
+          did = await playerAction();
         } else if (actor.hp > 0 && monsters.includes(actor)) {
-          struck = await monsterAct(actor);
+          did = await monsterAct(actor);
         }
         if (phaseId !== mine) return;
-        if (struck) {
-          await sleep(tuning.gap);
+        // 한 놈이 끝나야 다음 놈이 움직인다. 걸음은 짧게, 공격은 길게 쉰다.
+        // 아무것도 못 한 놈(막힌 놈)은 보여 줄 것이 없으니 안 쉰다
+        if (did) {
+          await sleep(did === 'attack' ? tuning.gap : moveGap());
           if (phaseId !== mine) return;
         }
       }
@@ -914,6 +923,14 @@
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+  // 몰릴수록 걸음 간격을 좁힌다. 10마리가 130ms 씩 걸으면 한 페이즈가 1.5초라
+  // 늘어진다. 순서는 그대로 보이면서 전체 길이만 900ms 언저리로 묶는다
+  function moveGap() {
+    if (!tuning.move) return 0;                 // 검사에서는 0
+    const movers = monsters.length + 1;         // 플레이어까지
+    return Math.min(tuning.move, Math.max(MOVE_GAP_MIN, Math.round(MOVE_BUDGET / movers)));
+  }
+
   const canStep = (dx, dy) => {
     const x = player.x + dx, y = player.y + dy;
     return isInner(x, y) && !occupied(x, y);
@@ -925,11 +942,11 @@
     return runPhase(() => {
       // 더 빠른 몬스터가 먼저 그 칸에 들어왔으면 이동은 불발이다.
       // 페이즈는 이미 시작했으므로 행동만 날아간다
-      if (!canStep(dx, dy)) return false;
+      if (!canStep(dx, dy)) return null;
       player.x += dx; player.y += dy;
       place(player.el, player.x, player.y);
       groupDirs.add(dx + ',' + dy);   // 방향 퀘스트는 이걸로 센다
-      return false;               // 이동은 뜸 들일 것이 없다
+      return 'move';
     });
   }
 
@@ -943,14 +960,14 @@
       const target = monsterAt(player.x + dx, player.y + dy);
       if (!target) {
         lunge(player.el, dx, dy);   // 헛치는 것도 보여 준다
-        return false;
+        return 'attack';
       }
       await strike(player, target, dx, dy);
       if (target.hp <= 0) {
         groupKills[target.kind] = (groupKills[target.kind] || 0) + 1;
         killMonster(target);
       }
-      return true;
+      return 'attack';
     });
   }
 
@@ -1074,13 +1091,18 @@
       done: groupDone(),
     }),
     isBusy: () => busy,
-    renderDanger, threatened, threatDamage,
+    renderDanger, threatened, threatDamage, moveGap,
     limitsExtra: { HIT_MARK_SCALE },
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
-    setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
+    setTiming: t => {
+      if ('gap' in t) tuning.gap = t.gap;
+      if ('hit' in t) tuning.hit = t.hit;
+      if ('move' in t) tuning.move = t.move;
+    },
     limits: {
-      SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP, QUEST_CLEAR_MS,
+      SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
+      MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, QUEST_CLEAR_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
       PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
