@@ -312,50 +312,83 @@
   @keyframes qdone{0%,100%{transform:none;}30%{transform:scale(1.035);}}
   .quest.all-done .q-step{background:var(--brand-yellow);color:var(--on-brand);}
 
-  /* 드래프트: 플레이어를 가운데 두고 카드가 좌·상·우, 아래는 리롤(잠김) */
+  /* 드래프트: 게임판과 같은 격자에 같은 블럭.
+     칸은 정사각, 간격과 모서리도 판과 같은 비율로 맞춰 조작이 같게 느껴지도록 */
   .draft{
     position:fixed;inset:0;z-index:100;
     display:flex;align-items:center;justify-content:center;
-    background:rgba(8,8,6,.82);
+    background:rgba(8,8,6,.86);
     padding:var(--s4);
   }
   /* 브라우저 기본 [hidden]{display:none} 은 .draft{display:flex} 에 진다 */
   .draft[hidden]{display:none;}
-  .draft-inner{width:100%;max-width:460px;}
+  .draft-inner{width:100%;max-width:360px;}
   .d-head{
     color:var(--brand-yellow);font-weight:800;font-size:15px;
     text-align:center;margin:0 0 var(--s4);letter-spacing:.02em;
   }
+
   .draft-grid{
-    display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:var(--s2);
-    align-items:stretch;
+    display:grid;grid-template-columns:repeat(3,1fr);
+    /* 판의 간격/칸 = 2/52 = 0.0385 를 그대로. grid 의 % 간격은 격자 전체 너비
+       기준이라, 칸 기준 비율로 환산하면 0.0385/3.077 = 1.25% 다 */
+    gap:1.25%;
+    width:100%;margin:0 auto;position:relative;
   }
   .d-up{grid-area:1/2;} .d-left{grid-area:2/1;}
   .d-mid{grid-area:2/2;} .d-right{grid-area:2/3;} .d-down{grid-area:3/2;}
 
-  .d-slot{
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-    min-height:76px;padding:var(--s3) var(--s2);
-    background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-md);
-    color:var(--body);font-family:var(--font);text-align:center;
+  .d-cell{
+    aspect-ratio:1;                /* 판의 칸과 같은 정사각 */
+    border-radius:6%;              /* 판은 3px/52px ≈ 6% */
+    background:var(--surface-soft);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2%;padding:6%;
+    text-align:center;position:relative;
   }
-  .d-slot b{color:var(--ink);font-size:14px;font-weight:800;line-height:1.2;}
-  .d-slot span{color:var(--muted);font-size:11px;line-height:1.3;}
-  .d-slot i{
-    font-style:normal;color:var(--brand-yellow);font-size:11px;font-weight:700;
-    letter-spacing:.08em;
+  /* 고를 수 있는 칸은 판의 플레이어 칸처럼 노란 테를 두른다 */
+  .d-card{box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);}
+  .d-card b{color:var(--ink);font-size:14px;font-weight:800;line-height:1.15;}
+  .d-card span{color:var(--muted);font-size:10px;line-height:1.25;}
+  .d-card i{
+    font-style:normal;color:var(--brand-yellow);font-size:10px;font-weight:700;
+    letter-spacing:.1em;
   }
-  button.d-slot{cursor:default;border-color:var(--brand-yellow-deep);}
-  .d-slot.locked{opacity:.4;}
-  .d-mid{
-    display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(ellipse at 50% 60%,
-      rgba(255,212,0,.22), rgba(255,212,0,.06) 55%, transparent 72%);
+  /* 리롤 칸은 판의 바깥 칸처럼 어둡게. 잠겨 있다 */
+  .d-down{
+    background:#161613;box-shadow:inset 0 0 0 1px var(--hairline);opacity:.45;
   }
-  .d-mid img{
-    width:100%;max-width:96px;height:auto;
-    image-rendering:pixelated;
+  .d-down b{color:var(--body);font-size:13px;font-weight:700;}
+  .d-down span{color:var(--muted);font-size:10px;}
+
+  /* 가운데는 판에 서 있는 그 블럭 그대로 */
+  .d-mid{padding:0;background:var(--surface-soft);}
+  .draft-token{
+    position:static;width:100%;height:100%;
+    background:radial-gradient(ellipse at 50% 78%,
+      rgba(255,212,0,.42), rgba(255,212,0,.10) 55%, transparent 72%);
+    box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);
+    border-radius:6%;
   }
+
+  /* 고른 카드에서 공격력 쪽으로 날아가는 수치 */
+  .d-fly{
+    position:absolute;z-index:2;
+    font-weight:800;line-height:1;white-space:nowrap;
+    color:#FFC8BC;
+    text-shadow:-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    pointer-events:none;
+    transition:transform var(--fly) cubic-bezier(.4,.05,.3,1), opacity var(--fly);
+  }
+  /* 도착해서 사라진 뒤, 실제 수치가 오르는 순간 */
+  .stat-mark i.bump{animation:statbump .26s ease-out;}
+  @keyframes statbump{
+    0%{transform:scale(1);}
+    35%{transform:scale(1.55);filter:brightness(1.8);}
+    100%{transform:scale(1);}
+  }
+
   .d-hint{color:var(--muted);font-size:11px;text-align:center;margin:var(--s4) 0 0;}
 
   .hint{
@@ -394,12 +427,13 @@
     <div class="draft" id="draft" hidden>
       <div class="draft-inner">
         <p class="d-head" id="dhead">레벨 2 — 하나 고르기</p>
-        <div class="draft-grid">
-          <button class="d-slot d-up" type="button" data-slot="0"></button>
-          <button class="d-slot d-left" type="button" data-slot="1"></button>
-          <div class="d-mid"><img src="images/player.png" alt="플레이어"></div>
-          <button class="d-slot d-right" type="button" data-slot="2"></button>
-          <div class="d-slot d-down locked"><b>리롤</b><span>잠김</span></div>
+        <!-- 게임판과 같은 격자·같은 블럭. 조작도 같은 방향 입력이다 -->
+        <div class="draft-grid" id="dgrid">
+          <div class="d-cell d-card d-up" data-slot="0"></div>
+          <div class="d-cell d-card d-left" data-slot="1"></div>
+          <div class="d-cell d-mid" id="dmid"></div>
+          <div class="d-cell d-card d-right" data-slot="2"></div>
+          <div class="d-cell d-down"><b>리롤</b><span>잠김</span></div>
         </div>
         <p class="d-hint">위 · 왼쪽 · 오른쪽 으로 고른다 (스와이프 / WASD / 방향키)</p>
       </div>
@@ -451,6 +485,8 @@
     },
   ];
   const DRAFT_SLOTS = 3;
+  const FLY_MS = 480;           // 수치가 공격력 쪽으로 날아가는 시간
+  const BUMP_MS = 260;          // 닿은 뒤 실제로 오르는 순간
 
   // 공격·방어의 모드. 지금은 아이콘만 갈아 끼운다.
   // 두 번 공격과 반사의 실제 효과는 규칙에 아직 없다
@@ -492,7 +528,9 @@
   const DANGER_FADE = 90;       // 위험 표시가 사라지고 다시 뜨는 데 걸리는 시간
                                 // (CSS 의 .09s 와 같아야 한다)
   // 검사할 때 0 으로 낮춘다
-  const tuning = { hit: HIT_DELAY, gap: ATTACK_GAP, move: MOVE_GAP, fade: DANGER_FADE };
+  const tuning = {
+    hit: HIT_DELAY, gap: ATTACK_GAP, move: MOVE_GAP, fade: DANGER_FADE, draft: FLY_MS,
+  };
 
   // ── 소리 ───────────────────────────────────────────────────
   // 음원 파일 없이 그때그때 만든다. 받아 올 것이 없어 한 파일로 그대로 돌아간다
@@ -582,6 +620,8 @@
   const levelEl = document.getElementById('level');
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
+  const dGridEl = document.getElementById('dgrid');
+  const dMidEl = document.getElementById('dmid');
   const questEl = document.getElementById('quest');
   const qStepEl = document.getElementById('qstep');
   const qNoteEl = document.getElementById('qnote');
@@ -1008,32 +1048,106 @@
 
   const DRAFT_DIRS = { '0,-1': 0, '-1,0': 1, '1,0': 2 };   // 위·왼쪽·오른쪽
 
+  // 가운데 칸에는 판에 서 있는 그 블럭을 그대로 세운다.
+  // 같은 class 를 쓰므로 스프라이트·공방 딱지·체력·경험치가 저절로 같은 모양이 된다
+  function renderDraftPlayer() {
+    dMidEl.innerHTML =
+      '<div class="token player draft-token">'
+      + '<span class="stat-mark"><i class="a"></i><i class="d"></i></span>'
+      + tokenInner(BEINGS.player.img, BEINGS.player.name)
+      + '<span class="exp"><i></i></span>'
+      + '</div>';
+    const tok = dMidEl.firstElementChild;
+    // 토큰 안의 크기는 em 이라 font-size 하나로 판과 같은 비율이 된다
+    tok.style.fontSize = Math.max(9, Math.round(dMidEl.clientWidth * 0.55)) + 'px';
+    const hp = Math.max(0, player.hp);
+    tok.querySelector('.hp i').style.width = (100 * hp / player.maxHp) + '%';
+    tok.querySelector('.hp b').textContent = hp + '/' + player.maxHp;
+    tok.classList.toggle('full', player.hp >= player.maxHp);
+    tok.querySelector('.exp i').style.width =
+      (100 * player.xp / expNeeded(player.level)) + '%';
+    const a = tok.querySelector('.stat-mark .a');
+    const d = tok.querySelector('.stat-mark .d');
+    a.textContent = player.atk;
+    d.textContent = player.def;
+    a.classList.add('atk-' + player.atkMode);
+    d.classList.add('def-' + player.defMode);
+    return tok;
+  }
+
   function renderDraft() {
     dHeadEl.textContent = '레벨 ' + player.level + ' — 하나 고르기';
     drafting.cards.forEach((card, i) => {
-      const el = draftEl.querySelector('.d-slot[data-slot="' + i + '"]');
+      const el = dGridEl.querySelector('.d-cell[data-slot="' + i + '"]');
       el.innerHTML = '<i></i><b></b><span></span>';
       el.querySelector('i').textContent = ['위', '왼쪽', '오른쪽'][i];
       el.querySelector('b').textContent = card.title;
       el.querySelector('span').textContent = card.note;
     });
+    drafting.token = renderDraftPlayer();
   }
 
   // 고를 때까지 기다린다. 페이즈 안에서 await 하므로 그동안 판은 멈춰 있다
   function openDraft() {
     return new Promise(resolve => {
-      drafting = { cards: pickCards(DRAFT_SLOTS), resolve };
-      renderDraft();
+      drafting = { cards: pickCards(DRAFT_SLOTS), resolve, busy: false };
       draftEl.hidden = false;
+      renderDraft();
     });
   }
 
-  function chooseDraft(dx, dy) {
-    if (!drafting) return;
+  // 고른 카드에서 공격력 딱지로 수치가 날아가고, 닿아 사라진 뒤에 실제로 오른다
+  async function flyToStat(fromEl, toEl, text) {
+    const grid = dGridEl.getBoundingClientRect();
+    const from = fromEl.getBoundingClientRect();
+    const to = toEl.getBoundingClientRect();
+
+    const fly = document.createElement('span');
+    fly.className = 'd-fly';
+    fly.textContent = text;
+    fly.style.fontSize = Math.max(12, Math.round(grid.width * 0.075)) + 'px';
+    fly.style.setProperty('--fly', tuning.draft + 'ms');
+    dGridEl.appendChild(fly);
+
+    // 시작 자리에 놓고 한 프레임 뒤에 목적지로 민다. 안 그러면 전환이 안 걸린다
+    const size = fly.getBoundingClientRect();
+    fly.style.left = (from.left - grid.left + from.width / 2 - size.width / 2) + 'px';
+    fly.style.top = (from.top - grid.top + from.height / 2 - size.height / 2) + 'px';
+    const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
+    const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
+
+    if (tuning.draft) {
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      fly.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.6)';
+      fly.style.opacity = '0';
+      await sleep(tuning.draft);
+    }
+    fly.remove();
+  }
+
+  async function chooseDraft(dx, dy) {
+    if (!drafting || drafting.busy) return;
     const slot = DRAFT_DIRS[dx + ',' + dy];
     if (slot === undefined) return;      // 아래는 리롤 자리, 아직 잠겨 있다
-    drafting.cards[slot].apply(player);
-    renderHp(player);                    // 바뀐 공격력을 좌상단에 바로 반영한다
+    drafting.busy = true;                // 날아가는 동안 두 번 고르지 못하게
+
+    const card = drafting.cards[slot];
+    const mine = phaseId;
+    const cell = dGridEl.querySelector('.d-cell[data-slot="' + slot + '"]');
+    const statEl = drafting.token.querySelector('.stat-mark .a');
+
+    await flyToStat(cell, statEl, '+5');
+    if (!drafting || phaseId !== mine) return;
+
+    // 수치가 사라진 뒤에 실제로 오른다
+    card.apply(player);
+    renderHp(player);                    // 판 위의 블럭
+    statEl.textContent = player.atk;     // 모달 안의 블럭
+    statEl.classList.remove('bump');
+    void statEl.offsetWidth;
+    statEl.classList.add('bump');
+    if (tuning.draft) await sleep(BUMP_MS);
+    if (!drafting || phaseId !== mine) return;
     closeDraft();
   }
 
@@ -1335,10 +1449,12 @@
       if ('hit' in t) tuning.hit = t.hit;
       if ('move' in t) tuning.move = t.move;
       if ('fade' in t) tuning.fade = t.fade;
+      if ('draft' in t) tuning.draft = t.draft;
     },
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
       MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
+              FLY_MS, BUMP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
       PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
