@@ -24,7 +24,7 @@
       플레이어도 몬스터도 같은 길로 만들어진다
 - [x] 각 블럭 좌상단에 공격, 우상단에 방어를 표시
   - 칼 아이콘 위에 공격력, 방패 아이콘 위에 방어력.
-    `images/icon/attack.png`, `images/icon/defence.png` 를 배경으로 깐다
+    `images/icon/onesword.png`, `images/icon/defence.png` 를 배경으로 깐다
   - 양 끝으로 갈라 놓으니 가운데가 비어 스프라이트의 머리가 보인다
   - 체력은 아래, 공·방은 위. 서로 안 겹친다
   - 외부 띠의 작은 토큰(17px)에서는 감춘다. 글자가 2.5px 라 못 읽는다
