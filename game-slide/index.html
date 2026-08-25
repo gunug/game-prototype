@@ -302,10 +302,39 @@
   const MAX = N - 1 - BORDER;   // 내부 최대 좌표 = 7  → 내부 6*6
   const START = { x: 4, y: 4 }; // 내부 6*6 (2~7) 의 가운데
   // 체력·피해량은 규칙에 숫자가 없어서 정한 값이다
-  const PLAYER_MAX_HP = 10;
-  const GOBLIN_MAX_HP = 3;
-  const GOBLIN_ATK = 1;
-  const PLAYER_ATK = 1;         // 규칙에 숫자가 없어서 정했다. 고블린 체력 3 이라 세 번 쳐야 죽는다
+  // ── 살아 있는 것들 ─────────────────────────────────────────
+  // 플레이어든 몬스터든 공·방·체를 갖는다. 종류마다 다른 것은 전부 이 표에만 있다.
+  // 새 종류를 넣을 때 손댈 곳이 한 군데다
+  const BEINGS = {
+    player: {
+      name: '플레이어', img: 'player.png',
+      atk: 10, def: 5, maxHp: 100, agi: 10,
+    },
+    goblin: {
+      name: '고블린', img: 'goblin.png',
+      atk: 2, def: 5, maxHp: 12, agi: 8,
+      step: stepToward,
+    },
+    rider: {
+      name: '고블린 라이더', img: 'goblin_rider.png',
+      atk: 5, def: 5, maxHp: 24, agi: 9,   // 말을 탔으니 걸어오는 고블린보다 빠르다
+      step: stepKnight,
+    },
+  };
+
+  // 최종 공격력 = 공격자의 공격력 - 방어자의 방어력. 1 보다 작아지면 1 로 친다
+  const damageTo = (attacker, target) => Math.max(1, attacker.atk - target.def);
+
+  // 살아 있는 것 하나를 만든다. 자리와 그림 말고는 표에서 그대로 베낀다
+  let nextSeq = 0;              // 생성 순서. 민첩이 같으면 이것으로 가른다
+  function makeBeing(kind, x, y) {
+    const s = BEINGS[kind];
+    return {
+      kind, x, y, el: null,
+      atk: s.atk, def: s.def, maxHp: s.maxHp, hp: s.maxHp,
+      agi: s.agi, seq: nextSeq++,
+    };
+  }
 
   const SWIPE_MOVE = 24;        // 이만큼은 움직여야 입력으로 친다
   const TINY_TOKEN = 30;        // 토큰이 이보다 작으면 체력 숫자를 감춘다
@@ -362,11 +391,6 @@
     src.stop(ctx.currentTime + dur);
   }
 
-  // 민첩: 높을수록 먼저 행동한다. 규칙에 숫자가 없어서 정했다
-  const PLAYER_AGI = 10;
-  const GOBLIN_AGI = 8;
-  const RIDER_AGI = 9;          // 말을 탔으니 걸어오는 고블린보다는 빠르다
-
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
   const HINT_DEFAULT = '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격';
@@ -419,11 +443,7 @@
   const OUTER_SCALE = 1 / 3;
   let gapPx = 2;
   let axis = { size: [], pos: [], total: 0 };
-  let nextSeq = 0;              // 생성 순서. 민첩이 같으면 이것으로 가른다
-  const player = {
-    x: START.x, y: START.y, hp: PLAYER_MAX_HP, maxHp: PLAYER_MAX_HP,
-    agi: PLAYER_AGI, seq: nextSeq++, el: null,
-  };
+  const player = makeBeing('player', START.x, START.y);
   const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
   let over = false;             // 플레이어가 쓰러졌다
@@ -565,13 +585,13 @@
 
   // 때리는 쪽이 뻗고 → 잠깐 뒤에 맞는 쪽이 반응한다. 둘이 동시에 일어나면
   // 누가 누구를 쳤는지 안 읽힌다
-  async function strike(attacker, target, dx, dy, amount) {
+  async function strike(attacker, target, dx, dy) {
     const mine = phaseId;
     lunge(attacker.el, dx, dy);
     await sleep(tuning.hit);
     // 기다리는 사이에 `다시` 를 눌렀으면 새 판을 때리게 된다
     if (phaseId !== mine || over) return;
-    damage(target, amount);
+    damage(target, damageTo(attacker, target));
   }
 
   function damage(target, amount) {
@@ -610,33 +630,16 @@
     return out;
   }
 
-  // 종류마다 다른 것은 여기에만 모은다. 늘어나도 addMonster 는 그대로다
-  const KINDS = {
-    goblin: {
-      img: 'goblin.png', name: '고블린',
-      maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, agi: GOBLIN_AGI,
-      step: stepToward,
-    },
-    rider: {
-      img: 'goblin_rider.png', name: '고블린 라이더',
-      maxHp: GOBLIN_MAX_HP, atk: GOBLIN_ATK, agi: RIDER_AGI,
-      step: stepKnight,
-    },
-  };
-
   function addMonster(x, y, kind = 'goblin') {
-    const spec = KINDS[kind];
+    const spec = BEINGS[kind];
     const el = document.createElement('div');
     el.className = 'token monster ' + kind;
     el.innerHTML = tokenInner(spec.img, spec.name);
     boardEl.appendChild(el);
     place(el, x, y);
 
-    const m = {
-      kind, x, y,
-      hp: spec.maxHp, maxHp: spec.maxHp, atk: spec.atk,
-      agi: spec.agi, seq: nextSeq++, el,
-    };
+    const m = makeBeing(kind, x, y);
+    m.el = el;
     monsters.push(m);
     renderHp(m);
     countEl.textContent = monsters.length;
@@ -710,10 +713,10 @@
   // 때렸으면 true. 부른 쪽은 그만큼 뜸을 들인다
   async function monsterAct(m) {
     if (adjacent4(m, player)) {
-      await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y), m.atk);
+      await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
       return true;
     }
-    KINDS[m.kind].step(m);
+    BEINGS[m.kind].step(m);
     return false;
   }
 
@@ -809,7 +812,7 @@
   // 두 칸 떨어진 놈은 다가오는 데 행동을 다 쓰므로 그 턴에는 못 때린다
   // 그 칸으로 가면 얼마나 맞는지. 붙어 있는 놈들의 공격력을 다 더한다
   const threatDamage = (x, y) => monsters.reduce(
-    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? m.atk : 0), 0);
+    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? damageTo(m, player) : 0), 0);
   const threatened = (x, y) => threatDamage(x, y) > 0;
 
   // 빈 칸에만 칠한다. 누가 서 있는 칸은 그림이 이미 자리를 차지하고 있다
@@ -909,7 +912,7 @@
         lunge(player.el, dx, dy);   // 헛치는 것도 보여 준다
         return false;
       }
-      await strike(player, target, dx, dy, PLAYER_ATK);
+      await strike(player, target, dx, dy);
       if (target.hp <= 0) {
         groupKills[target.kind] = (groupKills[target.kind] || 0) + 1;
         killMonster(target);
@@ -1027,7 +1030,7 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, act, killMonster, actOrder, KINDS, KNIGHT,
+    attack, act, killMonster, actOrder, BEINGS, KNIGHT, damageTo, makeBeing,
     QUEST_GROUPS, startGroup, spawnMonster,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
@@ -1043,9 +1046,14 @@
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
-    limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
-              SWIPE_MOVE, PLAYER_AGI, GOBLIN_AGI, RIDER_AGI,
-              TINY_TOKEN, HIT_DELAY, ATTACK_GAP, QUEST_CLEAR_MS },
+    limits: {
+      SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP, QUEST_CLEAR_MS,
+      // 예전 이름들. 표에서 그대로 끌어 쓴다
+      PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
+      PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
+      PLAYER_AGI: BEINGS.player.agi, GOBLIN_AGI: BEINGS.goblin.agi,
+      RIDER_AGI: BEINGS.rider.agi,
+    },
   };
 })();
 </script>
