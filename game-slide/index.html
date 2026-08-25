@@ -49,10 +49,20 @@
   /* 칸은 배경으로만 깔린다. 움직이는 것(플레이어/몬스터)은 그 위에 얹는다 */
   .cell{position:absolute;border-radius:3px;}
   .cell.outer{background:#161613;box-shadow:inset 0 0 0 1px var(--hairline);}
-  .cell.inner{background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--hairline);
-    transition:background .18s, box-shadow .18s;}
+  .cell.inner{
+    background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--hairline);
+    transition:background .18s, box-shadow .18s, color .18s;
+    /* 그 칸으로 갔을 때 받을 피해를 가운데에 크게 적는다. 칸 크기를 따라가야 해서
+       글자 크기는 layout() 이 px 로 넣어 준다 */
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;line-height:1;color:transparent;
+    font-variant-numeric:tabular-nums;
+  }
   /* 다음 턴에 맞을 수 있는 빈 칸. 지금 몬스터가 바로 옆에 붙어 있는 칸이다 */
-  .cell.inner.danger{background:#38201D;box-shadow:inset 0 0 0 1px #6B322B;}
+  .cell.inner.danger{
+    background:#38201D;box-shadow:inset 0 0 0 1px #6B322B;
+    color:rgba(255,138,115,.42);
+  }
 
   /* 내부 6*6 의 테두리. 플레이어가 갈 수 있는 범위가 보이게 */
   .fence{
@@ -474,6 +484,9 @@
       c.style.height = axis.size[y] + 'px';
       c.style.left = axis.pos[x] + 'px';
       c.style.top = axis.pos[y] + 'px';
+      if (c.classList.contains('inner')) {
+        c.style.fontSize = Math.round(axis.size[x] * 0.62) + 'px';
+      }
     }
 
     const span = axis.pos[MAX] + axis.size[MAX] - axis.pos[MIN];
@@ -756,15 +769,19 @@
   // 몬스터는 플레이어가 움직인 뒤에 행동하고, 그때 붙어 있으면 때리고 아니면 옮긴다.
   // 즉 "다음 턴에 맞는 칸" = 지금 몬스터가 바로 옆에 있는 칸이다.
   // 두 칸 떨어진 놈은 다가오는 데 행동을 다 쓰므로 그 턴에는 못 때린다
-  const threatened = (x, y) =>
-    monsters.some(m => Math.abs(m.x - x) + Math.abs(m.y - y) === 1);
+  // 그 칸으로 가면 얼마나 맞는지. 붙어 있는 놈들의 공격력을 다 더한다
+  const threatDamage = (x, y) => monsters.reduce(
+    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? m.atk : 0), 0);
+  const threatened = (x, y) => threatDamage(x, y) > 0;
 
   // 빈 칸에만 칠한다. 누가 서 있는 칸은 그림이 이미 자리를 차지하고 있다
   function renderDanger() {
     for (let y = MIN; y <= MAX; y++) {
       for (let x = MIN; x <= MAX; x++) {
-        const risky = !occupied(x, y) && threatened(x, y);
-        cellAt[y * N + x].classList.toggle('danger', risky);
+        const dmg = occupied(x, y) ? 0 : threatDamage(x, y);
+        const cell = cellAt[y * N + x];
+        cell.classList.toggle('danger', dmg > 0);
+        cell.textContent = dmg > 0 ? dmg : '';
       }
     }
   }
@@ -977,7 +994,7 @@
       done: groupDone(),
     }),
     isBusy: () => busy,
-    renderDanger, threatened,
+    renderDanger, threatened, threatDamage,
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
