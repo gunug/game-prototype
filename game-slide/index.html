@@ -51,18 +51,34 @@
   .cell.outer{background:#161613;box-shadow:inset 0 0 0 1px var(--hairline);}
   .cell.inner{
     background:var(--surface-soft);box-shadow:inset 0 0 0 1px var(--hairline);
-    transition:background .18s, box-shadow .18s, color .18s;
-    /* 그 칸으로 갔을 때 받을 피해를 가운데에 크게 적는다. 칸 크기를 따라가야 해서
-       글자 크기는 layout() 이 px 로 넣어 준다 */
+    transition:background .18s, box-shadow .18s;
     display:flex;align-items:center;justify-content:center;
-    font-weight:800;line-height:1;color:transparent;
-    font-variant-numeric:tabular-nums;
+    /* 글자 크기는 칸을 따라가야 해서 layout() 이 px 로 넣어 준다 */
   }
   /* 다음 턴에 맞을 수 있는 빈 칸. 지금 몬스터가 바로 옆에 붙어 있는 칸이다 */
-  .cell.inner.danger{
-    background:#38201D;box-shadow:inset 0 0 0 1px #6B322B;
-    color:rgba(255,138,115,.42);
+  .cell.inner.danger{background:#38201D;box-shadow:inset 0 0 0 1px #6B322B;}
+
+  /* 그 칸으로 갔을 때 받을 피해. 테두리를 두른 반투명 딱지 */
+  .hit-mark{
+    display:none;
+    min-width:1.5em;padding:.1em .28em;
+    border:.14em solid rgba(255,120,100,.8);
+    border-radius:.42em;
+    background:rgba(46,24,21,.62);
+    color:rgba(255,190,178,.92);
+    font-weight:800;line-height:1.05;text-align:center;
+    font-variant-numeric:tabular-nums;
+    pointer-events:none;
   }
+  .cell.danger .hit-mark{display:block;}
+  /* 플레이어 것은 토큰 위에 얹는다. 그대로 서 있으면 얼마나 맞는지를 알린다 */
+  .player .hit-mark{
+    position:absolute;left:50%;top:2%;
+    transform:translateX(-50%);
+    font-size:var(--mark, 14px);
+    z-index:2;
+  }
+  .player.threatened .hit-mark{display:block;}
 
   /* 내부 6*6 의 테두리. 플레이어가 갈 수 있는 범위가 보이게 */
   .fence{
@@ -275,6 +291,7 @@
 
   const SWIPE_MOVE = 24;        // 이만큼은 움직여야 입력으로 친다
   const TINY_TOKEN = 30;        // 토큰이 이보다 작으면 체력 숫자를 감춘다
+  const HIT_MARK_SCALE = 0.30;  // 피해 딱지 글자 크기 = 칸 크기 * 이 값
 
   // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
   const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
@@ -417,6 +434,7 @@
         c.className = 'cell ' + (isInner(x, y) ? 'inner' : 'outer');
         c.dataset.x = x;
         c.dataset.y = y;
+        if (isInner(x, y)) c.innerHTML = '<span class="hit-mark"></span>';
         cellAt[y * N + x] = c;      // 위험 표시를 매 페이즈 고쳐야 해서 들고 있는다
         boardEl.appendChild(c);
       }
@@ -426,7 +444,8 @@
 
     player.el = document.createElement('div');
     player.el.className = 'token player';
-    player.el.innerHTML = tokenInner('player.png', '플레이어');
+    player.el.innerHTML = tokenInner('player.png', '플레이어')
+      + '<span class="hit-mark"></span>';
     boardEl.appendChild(player.el);
   }
 
@@ -485,7 +504,7 @@
       c.style.left = axis.pos[x] + 'px';
       c.style.top = axis.pos[y] + 'px';
       if (c.classList.contains('inner')) {
-        c.style.fontSize = Math.round(axis.size[x] * 0.62) + 'px';
+        c.style.fontSize = Math.round(axis.size[x] * HIT_MARK_SCALE) + 'px';
       }
     }
 
@@ -497,6 +516,7 @@
 
     place(player.el, player.x, player.y);
     for (const m of monsters) place(m.el, m.x, m.y);
+    renderDanger();   // 딱지 글자 크기가 칸을 따라가야 해서 여기서도 부른다
   }
 
   // 자리와 크기를 같이 잡는다. 띠를 넘나들면 칸 크기가 바뀌므로 둘을 떼면 안 된다.
@@ -781,9 +801,15 @@
         const dmg = occupied(x, y) ? 0 : threatDamage(x, y);
         const cell = cellAt[y * N + x];
         cell.classList.toggle('danger', dmg > 0);
-        cell.textContent = dmg > 0 ? dmg : '';
+        cell.querySelector('.hit-mark').textContent = dmg > 0 ? dmg : '';
       }
     }
+    // 플레이어가 선 칸은 비어 있지 않아 칠하지 않는다. 대신 토큰 위에 딱지를 얹어
+    // "그대로 있으면 얼마나 맞는지" 를 알린다
+    const here = threatDamage(player.x, player.y);
+    player.el.classList.toggle('threatened', here > 0);
+    player.el.querySelector('.hit-mark').textContent = here > 0 ? here : '';
+    player.el.style.setProperty('--mark', Math.round(innerCell * HIT_MARK_SCALE) + 'px');
   }
 
   // ── 페이즈 ─────────────────────────────────────────────────
@@ -995,6 +1021,7 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage,
+    limitsExtra: { HIT_MARK_SCALE },
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
     setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
