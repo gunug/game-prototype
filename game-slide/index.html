@@ -88,7 +88,8 @@
     background:rgba(0,0,0,.62);border-radius:.1em;overflow:hidden;
     display:flex;align-items:center;justify-content:center;
   }
-  .token .hp i{position:absolute;left:0;top:0;height:100%;width:100%;transition:width .18s;}
+  .token .hp i{position:absolute;left:0;top:0;height:100%;width:100%;
+    transition:width .32s cubic-bezier(.2,.7,.3,1);}
   .token .hp b{
     position:relative;font-size:.3em;line-height:1;font-weight:700;
     color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.95);
@@ -108,6 +109,21 @@
   /* 피격: 빠르게 조금 작아졌다 본래 크기로 */
   .token.hit .glyph{animation:struck .25s ease-out;}
   @keyframes struck{0%,100%{transform:scale(1);}40%{transform:scale(.72);}}
+
+  /* 입은 피해를 머리 위에 띄운다. 토큰 밖으로 나가야 해서 overflow 를 막지 않는다 */
+  .token .dmg{
+    position:absolute;left:50%;top:0;
+    font-weight:800;line-height:1;white-space:nowrap;pointer-events:none;
+    text-shadow:0 1px 2px #000, 0 0 6px rgba(0,0,0,.9);
+    animation:dmgfloat .9s ease-out forwards;
+  }
+  .player .dmg{color:#FF6B57;}
+  .monster .dmg{color:#FFD400;}
+  @keyframes dmgfloat{
+    0%  {opacity:0;transform:translate(-50%, 10%) scale(.8);}
+    18% {opacity:1;transform:translate(-50%,-35%) scale(1.15);}
+    100%{opacity:0;transform:translate(-50%,-135%) scale(1);}
+  }
 
   /* 공격: 치는 방향으로 조금 나갔다 제자리로 */
   .token.atk-up    .glyph{animation:lunge-up .2s ease-out;}
@@ -168,6 +184,11 @@
   const HOLD_MS = 300;          // 이만큼 누르고 있으면 공격
   const TINY_TOKEN = 30;        // 토큰이 이보다 작으면 체력 숫자를 감춘다
 
+  // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
+  const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
+  const ATTACK_GAP = 260;       // 한 대와 다음 한 대 사이
+  const tuning = { hit: HIT_DELAY, gap: ATTACK_GAP };   // 검사할 때 0 으로 낮춘다
+
   // 민첩: 높을수록 먼저 행동한다. 규칙에 숫자가 없어서 정했다
   const PLAYER_AGI = 10;
   const GOBLIN_AGI = 8;
@@ -197,6 +218,9 @@
   const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
   let over = false;             // 플레이어가 쓰러졌다
+  let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
+  let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
+  let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
 
   const isInner = (x, y) => x >= MIN && x <= MAX && y >= MIN && y <= MAX;
 
@@ -224,12 +248,15 @@
     '<img class="glyph" src="images/' + src + '" alt="' + alt + '">' +
     '<span class="hp"><i></i><b></b></span>';
 
-  // 체력바 폭과 숫자를 현재 체력에 맞춘다
+  // 체력바 폭과 숫자를 현재 체력에 맞춘다.
+  // 상단 바 숫자도 여기서 같이 고친다. 페이즈 끝에만 고치면 한 대씩 끊어 때리는
+  // 동안 상단 바만 옛 값에 머물러, 정작 체력이 언제 깎였는지가 안 보인다
   function renderHp(ent) {
     const hp = Math.max(0, ent.hp);
     ent.el.querySelector('.hp i').style.width = (100 * hp / ent.maxHp) + '%';
     ent.el.querySelector('.hp b').textContent = hp + '/' + ent.maxHp;
     ent.el.classList.toggle('full', ent.hp >= ent.maxHp);
+    if (ent === player) hpEl.textContent = hp + '/' + ent.maxHp;
   }
 
   // 한 축의 칸 크기와 시작 위치를 미리 구한다. 내부 칸은 C, 외부 칸은 C/3 이라
@@ -259,6 +286,7 @@
     const side = Math.max(140, Math.min(w, h));
     gapPx = side < 340 ? 1 : 2;
     axis = computeAxis(side, gapPx);
+    innerCell = axis.size[MIN];
 
     boardEl.style.width = axis.total + 'px';
     boardEl.style.height = axis.total + 'px';
@@ -308,13 +336,35 @@
   // ── 전투 ───────────────────────────────────────────────────
   const adjacent4 = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
 
+  // 때리는 쪽이 뻗고 → 잠깐 뒤에 맞는 쪽이 반응한다. 둘이 동시에 일어나면
+  // 누가 누구를 쳤는지 안 읽힌다
+  async function strike(attacker, target, dx, dy, amount) {
+    const mine = phaseId;
+    lunge(attacker.el, dx, dy);
+    await sleep(tuning.hit);
+    // 기다리는 사이에 `다시` 를 눌렀으면 새 판을 때리게 된다
+    if (phaseId !== mine || over) return;
+    damage(target, amount);
+  }
+
   function damage(target, amount) {
     target.hp = Math.max(0, target.hp - amount);
     renderHp(target);
+    floatDamage(target, amount);
     // transform 은 자리 잡는 데 쓰고 있어서 흔들 수가 없다. class 를 다시 붙여 재생한다
     target.el.classList.remove('hit');
     void target.el.offsetWidth;
     target.el.classList.add('hit');
+  }
+
+  // 입은 피해를 머리 위에 띄운다. 칸 크기를 따라가되 너무 작아지지는 않게 한다
+  function floatDamage(ent, amount) {
+    const el = document.createElement('span');
+    el.className = 'dmg';
+    el.textContent = '-' + amount;
+    el.style.fontSize = Math.max(11, Math.round(innerCell * 0.3)) + 'px';
+    ent.el.appendChild(el);
+    setTimeout(() => el.remove(), 900);
   }
 
   // ── 몬스터 ─────────────────────────────────────────────────
@@ -376,13 +426,14 @@
 
   // 고블린의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
   // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
-  function goblinAct(m) {
+  // 때렸으면 true. 부른 쪽은 그만큼 뜸을 들인다
+  async function goblinAct(m) {
     if (adjacent4(m, player)) {
-      lunge(m.el, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
-      damage(player, m.atk);
-      return;
+      await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y), m.atk);
+      return true;
     }
     goblinStep(m);
+    return false;
   }
 
   function killMonster(m) {
@@ -401,18 +452,39 @@
   }
 
   // 플레이어의 행동은 입력할 때 정해지지만, 실제로 나가는 것은 제 차례가 왔을 때다.
-  // 그 사이에 더 빠른 몬스터가 칸을 채우거나 비울 수 있어서 다시 확인한다
-  function runPhase(playerAction) {
-    for (const actor of actOrder()) {
-      if (over) break;
-      if (actor === player) playerAction();
-      else if (actor.hp > 0 && monsters.includes(actor)) goblinAct(actor);
+  // 그 사이에 더 빠른 몬스터가 칸을 채우거나 비울 수 있어서 다시 확인한다.
+  //
+  // 공격이 하나 끝날 때마다 ATTACK_GAP 만큼 쉰다. 이동은 안 쉰다 - 여러 마리가
+  // 같이 걸어오는 것은 읽는 데 지장이 없고, 마리 수만큼 기다리면 한 판이 너무 길다.
+  // 페이즈가 도는 동안 입력은 막는다. 안 막으면 연출 중에 다음 페이즈가 겹쳐 든다
+  async function runPhase(playerAction) {
+    busy = true;
+    const mine = ++phaseId;
+    try {
+      for (const actor of actOrder()) {
+        if (over || phaseId !== mine) return;
+        let struck;
+        if (actor === player) {
+          struck = await playerAction();
+        } else if (actor.hp > 0 && monsters.includes(actor)) {
+          struck = await goblinAct(actor);
+        }
+        if (phaseId !== mine) return;
+        if (struck) {
+          await sleep(tuning.gap);
+          if (phaseId !== mine) return;
+        }
+      }
+      movesEl.textContent = ++moves;
+      if (player.hp <= 0) over = true;
+      else spawnMonster();
+      updateStatus();
+    } finally {
+      if (phaseId === mine) busy = false;
     }
-    movesEl.textContent = ++moves;
-    if (player.hp <= 0) over = true;
-    else spawnMonster();
-    updateStatus();
   }
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   const canStep = (dx, dy) => {
     const x = player.x + dx, y = player.y + dy;
@@ -421,13 +493,14 @@
 
   // 플레이어의 행동 1: 이동. 벽이거나 다른 물체가 있으면 페이즈가 시작도 안 한다
   function move(dx, dy) {
-    if (over || !canStep(dx, dy)) return;
-    runPhase(() => {
+    if (busy || over || !canStep(dx, dy)) return;
+    return runPhase(() => {
       // 더 빠른 몬스터가 먼저 그 칸에 들어왔으면 이동은 불발이다.
       // 페이즈는 이미 시작했으므로 행동만 날아간다
-      if (!canStep(dx, dy)) return;
+      if (!canStep(dx, dy)) return false;
       player.x += dx; player.y += dy;
       place(player.el, player.x, player.y);
+      return false;               // 이동은 뜸 들일 것이 없다
     });
   }
 
@@ -436,14 +509,16 @@
   // '이동 못하면 공격' 으로 묶지 않고 입력을 따로 둔 것은, 나중에 궁수·마법사처럼
   // 떨어져서 치는 직업이 들어오면 이동 가능 여부와 공격이 무관해지기 때문이다
   function attack(dx, dy) {
-    if (over) return;
-    runPhase(() => {
-      lunge(player.el, dx, dy);
+    if (busy || over) return;
+    return runPhase(async () => {
       const target = monsterAt(player.x + dx, player.y + dy);
-      if (target) {
-        damage(target, PLAYER_ATK);
-        if (target.hp <= 0) killMonster(target);
+      if (!target) {
+        lunge(player.el, dx, dy);   // 헛치는 것도 보여 준다
+        return false;
       }
+      await strike(player, target, dx, dy, PLAYER_ATK);
+      if (target.hp <= 0) killMonster(target);
+      return true;
     });
   }
 
@@ -457,7 +532,7 @@
   // 쓰러지거나 갇히면 어떤 입력도 안 먹는다. 승패 규칙이 아직 없어서
   // 멈춘 것인지 고장인지 화면상 구분이 안 되므로 상태를 적어 준다
   function updateStatus() {
-    hpEl.textContent = Math.max(0, player.hp) + '/' + player.maxHp;
+    renderHp(player);
     playEl.classList.toggle('over', over);
     if (over) {
       hintEl.textContent = '쓰러졌다. 다시 를 눌러라';
@@ -490,7 +565,7 @@
     const dir = DIRS[key];
     if (!dir) return;
     e.preventDefault();
-    if (e.repeat || holdKey) return;      // 자동 반복과 동시 입력은 무시한다
+    if (e.repeat || holdKey || busy) return;   // 자동 반복·동시 입력·연출 중에는 안 받는다
     holdKey = { key, dir, fired: false };
     holdKey.timer = setTimeout(() => {
       holdKey.fired = true;
@@ -518,6 +593,7 @@
   window.addEventListener('pointerdown', e => {
     // 상단 바 조작은 그대로 둔다. target 이 Element 가 아닐 수도 있어 closest 유무를 먼저 본다
     if (e.target && e.target.closest && e.target.closest('a,button')) return;
+    if (busy) return;                     // 연출이 도는 중에는 안 받는다
     start = { x: e.clientX, y: e.clientY };
   });
   window.addEventListener('pointerup', e => {
@@ -537,7 +613,10 @@
 
   // ── 시작 / 다시 ────────────────────────────────────────────
   function reset() {
+    phaseId++;                  // 돌고 있던 페이즈는 여기서 손을 뗀다
+    busy = false;
     for (const m of monsters) m.el.remove();
+    for (const d of boardEl.querySelectorAll('.dmg')) d.remove();
     monsters.length = 0;
     nextSeq = 1;                // 0 은 플레이어 몫이다
     player.x = START.x; player.y = START.y;
@@ -565,8 +644,12 @@
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
     attack, killMonster, actOrder,
+    isBusy: () => busy,
+    // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
+    setTiming: t => { if ('gap' in t) tuning.gap = t.gap; if ('hit' in t) tuning.hit = t.hit; },
     limits: { PLAYER_MAX_HP, GOBLIN_MAX_HP, GOBLIN_ATK, PLAYER_ATK,
-              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, TINY_TOKEN },
+              SWIPE_MOVE, SWIPE_ATTACK, HOLD_MS, PLAYER_AGI, GOBLIN_AGI, TINY_TOKEN,
+              HIT_DELAY, ATTACK_GAP },
   };
 })();
 </script>
