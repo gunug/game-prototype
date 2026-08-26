@@ -163,11 +163,10 @@
   }
   .player .hp i{background:#1E5E20;}
   .monster .hp i{background:#A8352A;}
-  /* 공격은 좌상단, 방어는 우상단. 칼이 공격, 방패가 방어.
-     띠를 토큰 너비에 걸쳐 놓고 양 끝으로 민다 */
+  /* 좌상단에 공격력. 칼 아이콘 위에 숫자를 얹는다 */
   .token .stat-mark{
-    position:absolute;left:4%;right:4%;top:2%;
-    display:flex;justify-content:space-between;
+    position:absolute;left:4%;top:2%;
+    display:flex;
     font-size:.26em;line-height:1;font-weight:800;
     font-variant-numeric:tabular-nums;
     pointer-events:none;
@@ -188,12 +187,9 @@
       -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
       0 1px 2px rgba(0,0,0,.9);
   }
-  /* 어떤 그림이 뜨는지는 상태가 정한다.
-     공격: 한 번(칼 하나) / 두 번(칼 둘)   방어: 그냥(민 방패) / 반사(가시 방패) */
+  /* 어떤 그림이 뜨는지는 상태가 정한다. 한 번(칼 하나) / 두 번(칼 둘) */
   .token .stat-mark .a.atk-single{background-image:url(images/icon/attack1.png);}
   .token .stat-mark .a.atk-double{background-image:url(images/icon/attack2.png);}
-  .token .stat-mark .d.def-plain{background-image:url(images/icon/defence.png);}
-  .token .stat-mark .d.def-reflect{background-image:url(images/icon/defence_reflect.png);}
 
   /* 외부 띠의 토큰은 17px 쯤이라 숫자가 안 읽힌다. 바만 남긴다 */
   /* 경험치. 체력 바로 밑에 얇은 하늘색 띠. 수치는 안 적는다 */
@@ -500,22 +496,23 @@
   const BEINGS = {
     player: {
       name: '플레이어', img: 'player.png',
-      atk: 10, def: 5, maxHp: 100, agi: 10,
+      atk: 10, maxHp: 100, agi: 10,
     },
     goblin: {
       name: '고블린', img: 'goblin.png',
-      atk: 2, def: 5, maxHp: 12, agi: 8, exp: 10,
+      atk: 2, maxHp: 12, agi: 8, exp: 10,
       step: stepToward,
     },
     rider: {
       name: '고블린 라이더', img: 'goblin_rider.png',
-      atk: 5, def: 5, maxHp: 24, agi: 9, exp: 15,   // 말을 탔으니 걸어오는 고블린보다 빠르다
+      atk: 5, maxHp: 24, agi: 9, exp: 15,   // 말을 탔으니 걸어오는 고블린보다 빠르다
       step: stepKnight,
     },
   };
 
-  // 최종 공격력 = 공격자의 공격력 - 방어자의 방어력. 1 보다 작아지면 1 로 친다
-  const damageTo = (attacker, target) => Math.max(1, attacker.atk - target.def);
+  // 최종 공격력 = 공격자의 공격력. 1 보다 작아지면 1 로 친다
+  // (지금은 깎을 것이 없지만, 공격력 감쇠 같은 것이 붙으면 여기서 처리한다)
+  const damageTo = attacker => Math.max(1, attacker.atk);
 
   // 레벨업 소리. 짧은 음 셋을 위로 쌓아 올린다
   function playLevelUp() {
@@ -561,7 +558,6 @@
   // 공격·방어의 모드. 지금은 아이콘만 갈아 끼운다.
   // 두 번 공격과 반사의 실제 효과는 규칙에 아직 없다
   const ATK_MODES = ['single', 'double'];
-  const DEF_MODES = ['plain', 'reflect'];
 
   // 레벨 n 에서 다음 레벨까지 필요한 경험치.
   //   증가량 = 5*n  →  요구량(n) = 20 + 5*(1+2+...+(n-1)) = 20 + 5*n*(n-1)/2
@@ -575,13 +571,11 @@
     const s = BEINGS[kind];
     return {
       kind, x, y, el: null,
-      atk: s.atk, def: s.def, maxHp: s.maxHp, hp: s.maxHp,
+      atk: s.atk, maxHp: s.maxHp, hp: s.maxHp,
       agi: s.agi, seq: nextSeq++,
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
-      // 처음은 한 번 공격에 그냥 방어
-      atkMode: s.atkMode || 'single',
-      defMode: s.defMode || 'plain',
+      atkMode: s.atkMode || 'single',   // 처음은 한 번 공격
     };
   }
 
@@ -757,7 +751,7 @@
 
   const tokenInner = (src, alt) =>
     '<img class="glyph" src="images/' + src + '" alt="' + alt + '">' +
-    '<span class="stat-mark"><i class="a"></i><i class="d"></i></span>' +
+    '<span class="stat-mark"><i class="a"></i></span>' +
     '<span class="hp"><i></i><b></b></span>';
 
   // 체력바 폭과 숫자를 현재 체력에 맞춘다.
@@ -771,11 +765,8 @@
     // 공격·방어도 여기서 같이 고친다. 지금은 안 변하는 값이지만 버프가 들어오면
     // 체력과 같은 때에 갱신되어야 한다. 부르는 곳을 늘리지 않는다
     const a = ent.el.querySelector('.stat-mark .a');
-    const d = ent.el.querySelector('.stat-mark .d');
     a.textContent = ent.atk;
-    d.textContent = ent.def;
     for (const m of ATK_MODES) a.classList.toggle('atk-' + m, ent.atkMode === m);
-    for (const m of DEF_MODES) d.classList.toggle('def-' + m, ent.defMode === m);
     if (ent === player) hpEl.textContent = hp + '/' + ent.maxHp;
   }
 
@@ -868,7 +859,7 @@
     await sleep(tuning.hit);
     // 기다리는 사이에 `다시` 를 눌렀으면 새 판을 때리게 된다
     if (phaseId !== mine || over) return;
-    damage(target, damageTo(attacker, target));
+    damage(target, damageTo(attacker));
   }
 
   function damage(target, amount) {
@@ -1124,7 +1115,7 @@
   function renderDraftPlayer() {
     dMidEl.innerHTML =
       '<div class="token player draft-token">'
-      + '<span class="stat-mark"><i class="a"></i><i class="d"></i></span>'
+      + '<span class="stat-mark"><i class="a"></i></span>'
       + tokenInner(BEINGS.player.img, BEINGS.player.name)
       + '<span class="exp"><i></i></span>'
       + '</div>';
@@ -1138,11 +1129,8 @@
     tok.querySelector('.exp i').style.width =
       (100 * player.xp / expNeeded(player.level)) + '%';
     const a = tok.querySelector('.stat-mark .a');
-    const d = tok.querySelector('.stat-mark .d');
     a.textContent = player.atk;
-    d.textContent = player.def;
     a.classList.add('atk-' + player.atkMode);
-    d.classList.add('def-' + player.defMode);
     return tok;
   }
 
@@ -1257,7 +1245,7 @@
   // 두 칸 떨어진 놈은 다가오는 데 행동을 다 쓰므로 그 턴에는 못 때린다
   // 그 칸으로 가면 얼마나 맞는지. 붙어 있는 놈들의 공격력을 다 더한다
   const threatDamage = (x, y) => monsters.reduce(
-    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? damageTo(m, player) : 0), 0);
+    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? damageTo(m) : 0), 0);
   const threatened = (x, y) => threatDamage(x, y) > 0;
 
   // 빈 칸에만 칠한다. 누가 서 있는 칸은 그림이 이미 자리를 차지하고 있다
@@ -1482,8 +1470,8 @@
     pendingDrafts = 0;
     // 드래프트로 올려 둔 스텟도 표에서 다시 베낀다
     const base = BEINGS.player;
-    player.atk = base.atk; player.def = base.def; player.maxHp = base.maxHp;
-    player.atkMode = 'single'; player.defMode = 'plain';
+    player.atk = base.atk; player.maxHp = base.maxHp;
+    player.atkMode = 'single';
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     renderHp(player);
@@ -1519,7 +1507,7 @@
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
     attack, act, killMonster, actOrder, BEINGS, KNIGHT, damageTo, makeBeing,
-    expNeeded, gainExp, renderExp, ATK_MODES, DEF_MODES,
+    expNeeded, gainExp, renderExp, ATK_MODES,
     DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft,
     isDrafting: () => !!drafting,
     announceLevelUp,
