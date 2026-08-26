@@ -217,8 +217,18 @@
   .token.tiny .stat-mark{display:none;}
   /* 토큰의 transform 은 자리를 잡는 데 쓰고 있다. 그래서 연출은 전부
      안쪽 .glyph 를 움직이거나, 토큰에는 transform 아닌 속성만 쓴다 */
+  /* 피격은 붉게 번쩍인다. 흰빛으로 밝히면 무엇에 맞았는지가 아니라
+     그냥 밝아진 것으로 보인다. 붉은 겹을 한 장 덮어 색으로 알린다 */
   .token.hit{animation:hit .25s ease-out;}
-  @keyframes hit{0%,100%{filter:none;}25%{filter:brightness(2.4);}}
+  @keyframes hit{0%,100%{filter:none;}25%{filter:brightness(1.5) saturate(1.4);}}
+  .token.hit::after,
+  .d-cell.hit::after{
+    content:'';position:absolute;inset:0;border-radius:inherit;
+    background:rgba(255,52,32,.55);
+    animation:hitred .25s ease-out;
+    pointer-events:none;
+  }
+  @keyframes hitred{0%,100%{opacity:0;}25%{opacity:1;}}
 
   /* 피격: 빠르게 조금 작아졌다 본래 크기로 */
   .token.hit .glyph{animation:struck .25s ease-out;}
@@ -389,6 +399,32 @@
     100%{transform:scale(1);}
   }
 
+  /* 고른 카드는 맞은 것처럼 움츠러들며 붉게 번쩍인다 (토큰의 피격과 같은 결) */
+  .d-cell.hit{animation:cardhit .26s ease-out;}
+  @keyframes cardhit{0%,100%{transform:scale(1);}40%{transform:scale(.9);}}
+
+  /* 레벨업 알림. 모달보다 먼저 뜬다 */
+  .levelup{
+    position:fixed;inset:0;z-index:110;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(8,8,6,.72);
+    pointer-events:none;
+  }
+  .levelup[hidden]{display:none;}
+  .levelup b{
+    color:var(--brand-yellow);font-weight:800;letter-spacing:.14em;
+    font-size:34px;line-height:1;
+    text-shadow:0 2px 0 #7a5f00, 0 0 24px rgba(255,212,0,.55);
+    animation:levelpop .9s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes levelpop{
+    0%  {opacity:0;transform:scale(.6);}
+    18% {opacity:1;transform:scale(1.12);}
+    32% {transform:scale(1);}
+    78% {opacity:1;transform:scale(1);}
+    100%{opacity:0;transform:scale(1.06);}
+  }
+
   .d-hint{color:var(--muted);font-size:11px;text-align:center;margin:var(--s4) 0 0;}
 
   .hint{
@@ -423,6 +459,8 @@
       </div>
       <ul class="q-list" id="qlist"></ul>
     </section>
+
+    <div class="levelup" id="levelup" hidden><b>LEVEL UP</b></div>
 
     <div class="draft" id="draft" hidden>
       <div class="draft-inner">
@@ -476,15 +514,43 @@
   // 최종 공격력 = 공격자의 공격력 - 방어자의 방어력. 1 보다 작아지면 1 로 친다
   const damageTo = (attacker, target) => Math.max(1, attacker.atk - target.def);
 
+  // 레벨업 소리. 짧은 음 셋을 위로 쌓아 올린다
+  function playLevelUp() {
+    if (!soundOn) return;
+    const ctx = ensureAudio();
+    if (!ctx) return;
+
+    // 도-미-솔-도. 한 음씩 조금씩 늦게 시작해 올라가는 느낌을 낸다
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((hz, i) => {
+      const at = ctx.currentTime + i * 0.085;
+      const dur = i === notes.length - 1 ? 0.42 : 0.16;
+
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(hz, at);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.22, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0008, at + dur);
+
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + dur + 0.02);
+    });
+  }
+
   // ── 드래프트 카드 ──────────────────────────────────────────
   // 구현된 것만 여기 둔다. 규칙의 나머지 카드는 아직 효과가 안 정해졌다
   const DRAFT_CARDS = [
     {
-      id: 'atk5', title: '공격력+5', note: '공격력이 5 오른다',
+      id: 'atk5', title: '공격력+5', note: '공격력 +5',
       apply: p => { p.atk += 5; },
     },
   ];
   const DRAFT_SLOTS = 3;
+  const LEVELUP_MS = 900;       // 레벨업 알림. CSS 의 levelpop .9s 와 같아야 한다
   const LUNGE_MS = 200;         // 치는 모션. CSS 의 lunge-* .2s 와 같아야 한다
   const FLY_MS = 480;           // 수치가 공격력 쪽으로 날아가는 시간
   const BUMP_MS = 260;          // 닿은 뒤 실제로 오르는 순간
@@ -622,6 +688,7 @@
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
   const dGridEl = document.getElementById('dgrid');
+  const levelupEl = document.getElementById('levelup');
   const dMidEl = document.getElementById('dmid');
   const questEl = document.getElementById('quest');
   const qStepEl = document.getElementById('qstep');
@@ -1080,10 +1147,12 @@
     dHeadEl.textContent = '레벨 ' + player.level + ' — 하나 고르기';
     drafting.cards.forEach((card, i) => {
       const el = dGridEl.querySelector('.d-cell[data-slot="' + i + '"]');
-      el.innerHTML = '<i></i><b></b><span></span>';
-      el.querySelector('i').textContent = ['위', '왼쪽', '오른쪽'][i];
+      el.classList.remove('hit');   // 지난번에 고른 카드의 붉은 자국을 지운다
+      el.innerHTML = '<b></b><span></span>';
       el.querySelector('b').textContent = card.title;
-      el.querySelector('span').textContent = card.note;
+      // 설명이 제목과 같은 말이면 두 번 적지 않는다 (`공격력+5` / `공격력 +5`)
+      const same = card.note.replace(/\s/g, '') === card.title.replace(/\s/g, '');
+      el.querySelector('span').textContent = same ? '' : card.note;
     });
     drafting.token = renderDraftPlayer();
   }
@@ -1095,6 +1164,15 @@
       draftEl.hidden = false;
       renderDraft();
     });
+  }
+
+  // 모달보다 먼저 레벨업을 알린다
+  async function announceLevelUp() {
+    playLevelUp();
+    if (!tuning.draft) return;
+    levelupEl.hidden = false;
+    await sleep(LEVELUP_MS);
+    levelupEl.hidden = true;
   }
 
   // 고른 카드에서 공격력 딱지로 수치가 날아가고, 닿아 사라진 뒤에 실제로 오른다
@@ -1140,6 +1218,10 @@
     // 판에서 때릴 때와 똑같이 그 방향으로 친다. lunge 안에서 소리도 같이 난다.
     // 고른다는 것이 곧 그 카드를 치는 것으로 보이게
     lunge(drafting.token, dx, dy);
+    // 맞는 쪽은 카드다. 판에서 몬스터가 맞을 때와 같은 결로 움츠러들며 붉게 번쩍인다
+    cell.classList.remove('hit');
+    void cell.offsetWidth;
+    cell.classList.add('hit');
     if (tuning.draft) await sleep(LUNGE_MS);
     if (!drafting || phaseId !== mine) return;
 
@@ -1248,6 +1330,8 @@
       // 판이 어떤 꼴인지 보고 고르게 된다
       while (!over && pendingDrafts > 0 && phaseId === mine) {
         pendingDrafts--;
+        await announceLevelUp();
+        if (phaseId !== mine) return;
         await openDraft();
       }
     } finally {
@@ -1435,6 +1519,7 @@
     expNeeded, gainExp, renderExp, ATK_MODES, DEF_MODES,
     DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft,
     isDrafting: () => !!drafting,
+    announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
     pending: () => pendingDrafts,
     QUEST_GROUPS, startGroup, spawnMonster,
@@ -1461,7 +1546,7 @@
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
       MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
-              LUNGE_MS, FLY_MS, BUMP_MS,
+              LEVELUP_MS, LUNGE_MS, FLY_MS, BUMP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
       PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
