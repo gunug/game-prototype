@@ -213,26 +213,24 @@
        그림 크기(--sk)로 띄우면 그림을 줄일 때 체력바 위로 내려앉는다 */
     position:absolute;left:4%;right:4%;bottom:calc(14% + .44em);
     height:var(--sk);
-    display:flex;justify-content:center;align-items:flex-end;gap:.04em;
-    pointer-events:none;
+    display:flex;justify-content:flex-start;align-items:flex-end;gap:.06em;
+    pointer-events:none;overflow:hidden;
+  }
+  /* 그림 하나와 그 옆의 숫자가 한 짝이다 */
+  .player .skill-row > span{
+    display:flex;align-items:flex-end;gap:.02em;flex:none;
   }
   .player .skill-row i{
-    position:relative;width:var(--sk);height:var(--sk);flex:none;
+    width:var(--sk);height:var(--sk);flex:none;
     background:center/contain no-repeat;
     image-rendering:pixelated;
   }
-  /* 누적 횟수. 그림 오른아래 모서리에 딱지처럼 걸친다.
-     검은 테를 두른 맨 글씨로 두면 획이 가는 I 가 테에 먹혀 검은 덩어리로 보인다 */
-  .player .skill-row i b{
-    /* em 은 제 글씨 크기 기준이다. i 에는 font-size 를 안 준다.
-       주면 i 의 width 까지 같이 줄어들어 그림이 작아진다 */
-    /* 그림이 절반쯤 가려지지 않게 모서리 바깥으로 밀어 둔다 */
-    position:absolute;right:-.34em;bottom:-.36em;
-    padding:0 .16em;
-    font-size:calc(var(--sk) * .5);
-    line-height:1.25;font-weight:800;text-align:center;
-    color:var(--brand-yellow);background:rgba(8,8,6,.9);
-    border-radius:.3em;
+  /* 누적 횟수. 그림 위에 얹으면 그림이 안 보인다. 그림이 이미 작아서
+     모서리 딱지로도 절반이 가려진다. 옆에 세운다 */
+  .player .skill-row b{
+    font-size:calc(var(--sk) * .7);line-height:1.1;font-weight:800;
+    color:var(--brand-yellow);
+    text-shadow:0 1px 2px #000, 0 0 2px #000;
   }
   /* 외부 띠의 작은 토큰에서는 감춘다. 딱지·숫자와 같은 이유다 */
   .token.tiny .skill-row{display:none;}
@@ -1353,10 +1351,17 @@
     for (const card of DRAFT_CARDS) {
       const n = player.cards.get(card.id) || 0;
       if (!n || !card.img) continue;
+      const slot = document.createElement('span');
       const i = document.createElement('i');
       i.style.backgroundImage = 'url(images/' + card.img + ')';
-      if (!card.once) i.innerHTML = '<b>' + roman(n) + '</b>';
-      row.appendChild(i);
+      slot.appendChild(i);
+      // 누적형만 몇 번 쌓였는지 적는다. 기능형은 늘 한 번이라 안 적는다
+      if (!card.once) {
+        const b = document.createElement('b');
+        b.textContent = roman(n);
+        slot.appendChild(b);
+      }
+      row.appendChild(slot);
     }
   }
 
