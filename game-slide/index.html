@@ -485,6 +485,7 @@
     },
   ];
   const DRAFT_SLOTS = 3;
+  const LUNGE_MS = 200;         // 치는 모션. CSS 의 lunge-* .2s 와 같아야 한다
   const FLY_MS = 480;           // 수치가 공격력 쪽으로 날아가는 시간
   const BUMP_MS = 260;          // 닿은 뒤 실제로 오르는 순간
 
@@ -1136,6 +1137,12 @@
     const cell = dGridEl.querySelector('.d-cell[data-slot="' + slot + '"]');
     const statEl = drafting.token.querySelector('.stat-mark .a');
 
+    // 판에서 때릴 때와 똑같이 그 방향으로 친다. lunge 안에서 소리도 같이 난다.
+    // 고른다는 것이 곧 그 카드를 치는 것으로 보이게
+    lunge(drafting.token, dx, dy);
+    if (tuning.draft) await sleep(LUNGE_MS);
+    if (!drafting || phaseId !== mine) return;
+
     await flyToStat(cell, statEl, '+5');
     if (!drafting || phaseId !== mine) return;
 
@@ -1454,7 +1461,7 @@
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
       MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
-              FLY_MS, BUMP_MS,
+              LUNGE_MS, FLY_MS, BUMP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
       PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
