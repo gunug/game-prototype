@@ -204,30 +204,38 @@
   }
   .token.tiny .exp{display:none;}
 
-  /* 가진 카드의 그림. 체력바 바로 위에 한 줄. 모달의 블럭에만 깐다.
-     판 위의 블럭은 40px 남짓이라 이 줄을 깔면 아무것도 안 읽힌다 */
-  .draft-token .skill-row{
-    position:absolute;left:4%;right:4%;bottom:calc(14% + .46em);
-    height:.46em;
-    display:flex;justify-content:center;align-items:flex-end;gap:.06em;
+  /* 가진 카드의 그림. 체력바 바로 위에 한 줄.
+     판 위 블럭과 모달 안 블럭이 같은 규칙을 탄다. 크기는 em 이라 블럭이
+     작아지면 같이 작아진다 */
+  .player .skill-row{
+    --sk:.23em;                    /* 그림 한 칸. 숫자도 이걸 따라간다 */
+    /* 체력바 위. 띄우는 높이는 체력바 높이(.38em)를 넘겨야 한다.
+       그림 크기(--sk)로 띄우면 그림을 줄일 때 체력바 위로 내려앉는다 */
+    position:absolute;left:4%;right:4%;bottom:calc(14% + .44em);
+    height:var(--sk);
+    display:flex;justify-content:center;align-items:flex-end;gap:.04em;
     pointer-events:none;
   }
-  .draft-token .skill-row i{
-    position:relative;width:.46em;height:.46em;flex:none;
+  .player .skill-row i{
+    position:relative;width:var(--sk);height:var(--sk);flex:none;
     background:center/contain no-repeat;
     image-rendering:pixelated;
   }
   /* 누적 횟수. 그림 오른아래 모서리에 딱지처럼 걸친다.
      검은 테를 두른 맨 글씨로 두면 획이 가는 I 가 테에 먹혀 검은 덩어리로 보인다 */
-  .draft-token .skill-row i b{
+  .player .skill-row i b{
     /* em 은 제 글씨 크기 기준이다. i 에는 font-size 를 안 준다.
-       주면 i 의 width:.46em 까지 같이 줄어들어 그림이 작아진다 */
-    position:absolute;right:-.02em;bottom:-.04em;
-    padding:0 .18em;
-    font-size:.15em;line-height:1.25;font-weight:800;text-align:center;
+       주면 i 의 width 까지 같이 줄어들어 그림이 작아진다 */
+    /* 그림이 절반쯤 가려지지 않게 모서리 바깥으로 밀어 둔다 */
+    position:absolute;right:-.34em;bottom:-.36em;
+    padding:0 .16em;
+    font-size:calc(var(--sk) * .5);
+    line-height:1.25;font-weight:800;text-align:center;
     color:var(--brand-yellow);background:rgba(8,8,6,.9);
     border-radius:.3em;
   }
+  /* 외부 띠의 작은 토큰에서는 감춘다. 딱지·숫자와 같은 이유다 */
+  .token.tiny .skill-row{display:none;}
 
   .token.tiny .glyph{height:86%;}
   .token.tiny .hp{left:12%;right:12%;bottom:6%;height:.22em;}
@@ -445,7 +453,7 @@
   /* 도착해서 사라진 뒤, 실제로 붙는 순간 */
   .stat-mark i.bump,
   .draft-token.bump,
-  .draft-token .skill-row.bump{animation:statbump .26s ease-out;}
+  .player .skill-row.bump{animation:statbump .26s ease-out;}
   @keyframes statbump{
     0%{transform:scale(1);}
     35%{transform:scale(1.55);filter:brightness(1.8);}
@@ -839,6 +847,7 @@
     player.el.className = 'token player';
     player.el.innerHTML = tokenInner('player.png', '플레이어')
       + '<span class="hit-mark"><i></i></span>'
+      + '<span class="skill-row"></span>'
       + '<span class="exp"><i></i></span>';
     boardEl.appendChild(player.el);
     expFillEl = player.el.querySelector('.exp i');
@@ -1351,6 +1360,14 @@
     }
   }
 
+  // 판 위 블럭과 모달 안 블럭이 같은 것을 보여 준다. 모달이 안 떠 있으면
+  // 판 위 것 하나뿐이라 저절로 하나만 그린다
+  function renderSkills() {
+    for (const row of document.querySelectorAll('.player .skill-row')) {
+      renderSkillRow(row.parentElement);
+    }
+  }
+
   function renderDraftPlayer() {
     dMidEl.innerHTML =
       '<div class="token player draft-token">'
@@ -1480,7 +1497,7 @@
     // 그림이 사라진 뒤에 실제로 붙는다
     takeCard(card);
     renderHp(player);                              // 판 위의 블럭
-    renderSkillRow(drafting.token);                // 아이콘 줄에 그대로 쌓인다
+    renderSkills();                                // 두 블럭에 그대로 쌓인다
     if (card.bump === 'atk') {
       drafting.token.querySelector('.stat-mark .a').textContent = player.atk;
     }
@@ -1746,6 +1763,7 @@
     player.atkMode = 'single';
     player.cards.clear();
     player.expBonus = 0;
+    renderSkills();             // 판 위 블럭에 남아 있던 그림도 지운다
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     renderHp(player);
@@ -1784,7 +1802,7 @@
     damageTo, makeBeing,
     expNeeded, gainExp, addXp, expGain, orbSplit, renderExp, ATK_MODES,
     DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft, availableCards,
-    takeCard, renderSkillRow, roman,
+    takeCard, renderSkillRow, renderSkills, roman,
     isDrafting: () => !!drafting,
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
