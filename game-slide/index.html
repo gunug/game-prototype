@@ -204,6 +204,31 @@
   }
   .token.tiny .exp{display:none;}
 
+  /* 가진 카드의 그림. 체력바 바로 위에 한 줄. 모달의 블럭에만 깐다.
+     판 위의 블럭은 40px 남짓이라 이 줄을 깔면 아무것도 안 읽힌다 */
+  .draft-token .skill-row{
+    position:absolute;left:4%;right:4%;bottom:calc(14% + .46em);
+    height:.46em;
+    display:flex;justify-content:center;align-items:flex-end;gap:.06em;
+    pointer-events:none;
+  }
+  .draft-token .skill-row i{
+    position:relative;width:.46em;height:.46em;flex:none;
+    background:center/contain no-repeat;
+    image-rendering:pixelated;
+  }
+  /* 누적 횟수. 그림 오른아래 모서리에 딱지처럼 걸친다.
+     검은 테를 두른 맨 글씨로 두면 획이 가는 I 가 테에 먹혀 검은 덩어리로 보인다 */
+  .draft-token .skill-row i b{
+    /* em 은 제 글씨 크기 기준이다. i 에는 font-size 를 안 준다.
+       주면 i 의 width:.46em 까지 같이 줄어들어 그림이 작아진다 */
+    position:absolute;right:-.02em;bottom:-.04em;
+    padding:0 .18em;
+    font-size:.15em;line-height:1.25;font-weight:800;text-align:center;
+    color:var(--brand-yellow);background:rgba(8,8,6,.9);
+    border-radius:.3em;
+  }
+
   .token.tiny .glyph{height:86%;}
   .token.tiny .hp{left:12%;right:12%;bottom:6%;height:.22em;}
   /* 경험치 바는 플레이어만 있다. 몬스터는 체력 바를 바닥에 그대로 둔다 */
@@ -397,9 +422,15 @@
     pointer-events:none;
     transition:transform var(--fly) cubic-bezier(.4,.05,.3,1), opacity var(--fly);
   }
+  /* 그림이 날아갈 때는 글씨가 아니라 그림이다 */
+  .d-fly.img{
+    background:center/contain no-repeat;
+    image-rendering:pixelated;
+  }
   /* 도착해서 사라진 뒤, 실제로 붙는 순간 */
   .stat-mark i.bump,
-  .draft-token.bump{animation:statbump .26s ease-out;}
+  .draft-token.bump,
+  .draft-token .skill-row.bump{animation:statbump .26s ease-out;}
   @keyframes statbump{
     0%{transform:scale(1);}
     35%{transform:scale(1.55);filter:brightness(1.8);}
@@ -554,25 +585,45 @@
   //   누적형 : 다시 나오고, 고를 때마다 수치가 쌓인다
   //   기능형 : `once`. 한 번 배우면 다시 안 나온다.
   //            `need` 가 있으면 그 기술을 배운 뒤에야 나온다 (연계)
+  // `bump` 는 닿았을 때 무엇이 튀느냐다. 날아가는 것은 늘 그림이고 닿는 곳도 늘
+  // 블럭의 아이콘 줄이라, 수치 카드만 그 수치 딱지를 따로 튀게 한다
   const DRAFT_CARDS = [
     {
       id: 'atk5', title: '공격력+5', note: '공격력 +5',
-      fly: '+5', flyTo: 'atk',
+      img: 'icon/skill_attack_up.png', bump: 'atk',
+      fly: '+5',
       apply: p => { p.atk += 5; },
+    },
+    {
+      id: 'exp10', title: '경험치+10%', note: '얻는 경험치 +10%',
+      img: 'icon/skill_exp_up.png',
+      fly: '+10%',
+      apply: p => { p.expBonus += 10; },     // 더해서 쌓인다. 두 번이면 +20%
     },
     {
       id: 'push', title: '밀치기', note: '공격 방향의 적을 민다',
       img: 'icon/skill_push.png', once: true,
-      fly: '밀치기', flyTo: 'token',
-      apply: p => { p.skills.add('push'); },
+      fly: '밀치기',
+      // 기능형은 가졌다는 사실만으로 동작한다. 따로 올릴 수치가 없다
+      apply: () => {},
     },
     {
       id: 'pushMove', title: '밀고가기', note: '밀고 그 칸으로 간다',
       img: 'icon/skill_push_move.png', once: true, need: 'push',
-      fly: '밀고가기', flyTo: 'token',
-      apply: p => { p.skills.add('pushMove'); },
+      fly: '밀고가기',
+      apply: () => {},
     },
   ];
+
+  // 누적 횟수는 로마자로 적는다. 드래프트가 무한이라 큰 수도 나올 수 있다
+  const ROMAN = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'],
+                 [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'],
+                 [5, 'V'], [4, 'IV'], [1, 'I']];
+  function roman(n) {
+    let out = '';
+    for (const [v, sign] of ROMAN) while (n >= v) { out += sign; n -= v; }
+    return out;
+  }
   const DRAFT_SLOTS = 3;
   const LEVELUP_MS = 900;       // 레벨업 알림. CSS 의 levelpop .9s 와 같아야 한다
   const LUNGE_MS = 200;         // 치는 모션. CSS 의 lunge-* .2s 와 같아야 한다
@@ -600,7 +651,8 @@
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
       atkMode: s.atkMode || 'single',   // 처음은 한 번 공격
-      skills: new Set(),                // 드래프트로 배운 기능형 카드의 id
+      cards: new Map(),                 // 드래프트로 가진 카드. id → 고른 횟수
+      expBonus: 0,                      // 얻는 경험치 증가율(%). 누적형
     };
   }
 
@@ -1027,7 +1079,7 @@
   // 공격 방향 한 줄에 있는 적을 전부 한 칸씩 밀어낸다. 판 밖으로 나가면 죽는다.
   // 기능형이라 쌓이지 않는다. 두 번 배울 일도 없다
   function pushLine(dx, dy) {
-    if (!player.skills.has('push')) return false;
+    if (!player.cards.has('push')) return false;
     const dist = 1;
 
     const line = [];
@@ -1137,7 +1189,9 @@
   // ── 경험치 ─────────────────────────────────────────────────
   // 남는 경험치는 다음 레벨로 넘긴다. 한 번에 여러 레벨이 오를 수도 있다
   function gainExp(amount) {
-    player.xp += amount;
+    // 증가율은 여기 한 곳에서 먹인다. 경험치가 어디서 들어오든 같이 적용된다.
+    // 반올림이다. 15 * 1.1 = 16.5 → 17
+    player.xp += Math.round(amount * (1 + player.expBonus / 100));
     while (player.xp >= expNeeded(player.level)) {
       player.xp -= expNeeded(player.level);
       player.level++;
@@ -1156,8 +1210,8 @@
   // 열리는 것은 그때까지 안 나온다. 누적형(`once` 없음)은 늘 남아 있다
   function availableCards() {
     return DRAFT_CARDS.filter(c =>
-      (!c.once || !player.skills.has(c.id))
-      && (!c.need || player.skills.has(c.need)));
+      (!c.once || !player.cards.has(c.id))
+      && (!c.need || player.cards.has(c.need)));
   }
 
   // 카드가 모자라면 같은 카드가 여러 칸에 온다.
@@ -1165,6 +1219,7 @@
   function pickCards(n) {
     const out = [];
     const pool = availableCards();
+    if (!pool.length) return out;   // 더 가질 것이 없다. 누적형이 있어 실제로는 안 온다
     let bag = [];
     while (out.length < n) {
       if (!bag.length) bag = [...pool];
@@ -1173,15 +1228,38 @@
     return out;
   }
 
+  // 카드 한 장을 실제로 갖는다. 세는 곳이 여기 하나뿐이라 아이콘 줄의 로마자와
+  // "가졌나" 판정이 어긋날 수가 없다
+  function takeCard(card) {
+    player.cards.set(card.id, (player.cards.get(card.id) || 0) + 1);
+    card.apply(player);
+  }
+
   const DRAFT_DIRS = { '0,-1': 0, '-1,0': 1, '1,0': 2 };   // 위·왼쪽·오른쪽
 
   // 가운데 칸에는 판에 서 있는 그 블럭을 그대로 세운다.
   // 같은 class 를 쓰므로 스프라이트·공방 딱지·체력·경험치가 저절로 같은 모양이 된다
+  // 가진 카드의 그림을 체력바 바로 위에 한 줄로 깐다. 표 순서라 자리가 안 흔들린다.
+  // 누적형은 몇 번 쌓였는지 로마자로 적고, 기능형은 늘 한 번이라 안 적는다
+  function renderSkillRow(tok) {
+    const row = tok.querySelector('.skill-row');
+    row.innerHTML = '';
+    for (const card of DRAFT_CARDS) {
+      const n = player.cards.get(card.id) || 0;
+      if (!n || !card.img) continue;
+      const i = document.createElement('i');
+      i.style.backgroundImage = 'url(images/' + card.img + ')';
+      if (!card.once) i.innerHTML = '<b>' + roman(n) + '</b>';
+      row.appendChild(i);
+    }
+  }
+
   function renderDraftPlayer() {
     dMidEl.innerHTML =
       '<div class="token player draft-token">'
       + '<span class="stat-mark"><i class="a"></i></span>'
       + tokenInner(BEINGS.player.img, BEINGS.player.name)
+      + '<span class="skill-row"></span>'
       + '<span class="exp"><i></i></span>'
       + '</div>';
     const tok = dMidEl.firstElementChild;
@@ -1196,6 +1274,7 @@
     const a = tok.querySelector('.stat-mark .a');
     a.textContent = player.atk;
     a.classList.add('atk-' + player.atkMode);
+    renderSkillRow(tok);
     return tok;
   }
 
@@ -1218,7 +1297,9 @@
   // 고를 때까지 기다린다. 페이즈 안에서 await 하므로 그동안 판은 멈춰 있다
   function openDraft() {
     return new Promise(resolve => {
-      drafting = { cards: pickCards(DRAFT_SLOTS), resolve, busy: false };
+      const cards = pickCards(DRAFT_SLOTS);
+      if (!cards.length) { resolve(); return; }   // 깔 것이 없으면 그냥 넘어간다
+      drafting = { cards, resolve, busy: false };
       draftEl.hidden = false;
       renderDraft();
     });
@@ -1233,15 +1314,23 @@
     levelupEl.hidden = true;
   }
 
-  // 고른 카드에서 공격력 딱지로 수치가 날아가고, 닿아 사라진 뒤에 실제로 오른다
-  async function flyToStat(fromEl, toEl, text) {
+  // 고른 카드가 블럭의 아이콘 줄로 날아가고, 닿아 사라진 뒤에 실제로 붙는다.
+  // 그림이 있으면 그림이, 없으면 글씨가 난다
+  async function flyToStat(fromEl, toEl, card) {
     const grid = dGridEl.getBoundingClientRect();
     const from = fromEl.getBoundingClientRect();
     const to = toEl.getBoundingClientRect();
 
     const fly = document.createElement('span');
-    fly.className = 'd-fly';
-    fly.textContent = text;
+    fly.className = 'd-fly' + (card.img ? ' img' : '');
+    if (card.img) {
+      const w = Math.max(18, Math.round(grid.width * 0.11));
+      fly.style.backgroundImage = 'url(images/' + card.img + ')';
+      fly.style.width = w + 'px';
+      fly.style.height = w + 'px';
+    } else {
+      fly.textContent = card.fly;
+    }
     fly.style.fontSize = Math.max(12, Math.round(grid.width * 0.075)) + 'px';
     fly.style.setProperty('--fly', tuning.draft + 'ms');
     dGridEl.appendChild(fly);
@@ -1271,10 +1360,12 @@
     const card = drafting.cards[slot];
     const mine = phaseId;
     const cell = dGridEl.querySelector('.d-cell[data-slot="' + slot + '"]');
-    // 수치를 올리는 카드는 그 수치 쪽으로, 아닌 카드는 블럭 자체로 날아간다
-    const statEl = card.flyTo === 'atk'
+    // 날아가 닿는 곳은 늘 아이콘 줄이다. 거기 그대로 쌓인다
+    const rowEl = drafting.token.querySelector('.skill-row');
+    // 닿은 뒤 튀는 것은 카드가 정한다. 수치 카드는 그 수치 딱지가 튄다
+    const bumpEl = card.bump === 'atk'
       ? drafting.token.querySelector('.stat-mark .a')
-      : drafting.token;
+      : rowEl;
 
     // 판에서 때릴 때와 똑같이 그 방향으로 친다. lunge 안에서 소리도 같이 난다.
     // 고른다는 것이 곧 그 카드를 치는 것으로 보이게
@@ -1286,16 +1377,19 @@
     if (tuning.draft) await sleep(LUNGE_MS);
     if (!drafting || phaseId !== mine) return;
 
-    await flyToStat(cell, statEl, card.fly);
+    await flyToStat(cell, rowEl, card);
     if (!drafting || phaseId !== mine) return;
 
-    // 수치가 사라진 뒤에 실제로 오른다
-    card.apply(player);
+    // 그림이 사라진 뒤에 실제로 붙는다
+    takeCard(card);
     renderHp(player);                              // 판 위의 블럭
-    if (card.flyTo === 'atk') statEl.textContent = player.atk;   // 모달 안의 블럭
-    statEl.classList.remove('bump');
-    void statEl.offsetWidth;
-    statEl.classList.add('bump');
+    renderSkillRow(drafting.token);                // 아이콘 줄에 그대로 쌓인다
+    if (card.bump === 'atk') {
+      drafting.token.querySelector('.stat-mark .a').textContent = player.atk;
+    }
+    bumpEl.classList.remove('bump');
+    void bumpEl.offsetWidth;
+    bumpEl.classList.add('bump');
     if (tuning.draft) await sleep(BUMP_MS);
     if (!drafting || phaseId !== mine) return;
     closeDraft();
@@ -1452,7 +1546,7 @@
       // 밀고가기: 앞칸이 비었으면 그 칸으로 간다. 밀어서 비웠든 때려 죽여서
       // 비웠든 같다. 헛친 빈 칸은 위에서 이미 돌아갔으므로 여기까지 안 온다.
       // canStep 을 그대로 쓰므로 이동과 같은 규칙(내부 필드, 빈 칸)을 탄다
-      if (player.skills.has('pushMove') && canStep(dx, dy)) {
+      if (player.cards.has('pushMove') && canStep(dx, dy)) {
         player.x += dx; player.y += dy;
         place(player.el, player.x, player.y);
         if (tuning.move) await sleep(tuning.move);
@@ -1548,7 +1642,8 @@
     const base = BEINGS.player;
     player.atk = base.atk; player.maxHp = base.maxHp;
     player.atkMode = 'single';
-    player.skills.clear();
+    player.cards.clear();
+    player.expBonus = 0;
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     renderHp(player);
@@ -1587,6 +1682,7 @@
     damageTo, makeBeing,
     expNeeded, gainExp, renderExp, ATK_MODES,
     DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft, availableCards,
+    takeCard, renderSkillRow, roman,
     isDrafting: () => !!drafting,
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
