@@ -1076,8 +1076,10 @@
     killMonster(m);
   }
 
-  // 공격 방향 한 줄에 있는 적을 전부 한 칸씩 밀어낸다. 판 밖으로 나가면 죽는다.
-  // 기능형이라 쌓이지 않는다. 두 번 배울 일도 없다
+  // 공격 방향으로 붙어 있는 적을 한 칸씩 밀어낸다. 판 밖으로 나가면 죽는다.
+  // 사이가 뜨면 거기서 끊긴다. 미는 힘이 앞 놈을 타고 전해지는 것이라,
+  // 빈 칸을 건너뛰고 저 뒤의 놈까지 밀 수는 없다.
+  // 기능형이라 쌓이지 않는다. 두 번 가질 일도 없다
   function pushLine(dx, dy) {
     if (!player.cards.has('push')) return false;
     const dist = 1;
@@ -1085,7 +1087,8 @@
     const line = [];
     for (let x = player.x + dx, y = player.y + dy; onBoard(x, y); x += dx, y += dy) {
       const m = monsterAt(x, y);
-      if (m) line.push(m);
+      if (!m) break;              // 빈 칸에서 끊긴다. 그 너머는 안 밀린다
+      line.push(m);
     }
     if (!line.length) return false;
 
