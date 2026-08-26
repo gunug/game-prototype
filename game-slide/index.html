@@ -360,6 +360,13 @@
   .d-card{box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);}
   .d-card b{color:var(--ink);font-size:14px;font-weight:800;line-height:1.15;}
   .d-card span{color:var(--muted);font-size:10px;line-height:1.25;}
+  /* 기술 카드의 그림. 스프라이트와 같이 픽셀을 살려 키운다.
+     그림·이름·설명 셋이 한 칸에 들어가야 해서 그림은 3분의 1로 묶어 둔다 */
+  .d-card .d-img{
+    width:34%;aspect-ratio:1;flex:none;
+    background:center/contain no-repeat;
+    image-rendering:pixelated;
+  }
   .d-card i{
     font-style:normal;color:var(--brand-yellow);font-size:10px;font-weight:700;
     letter-spacing:.1em;
@@ -543,7 +550,10 @@
   }
 
   // ── 드래프트 카드 ──────────────────────────────────────────
-  // 구현된 것만 여기 둔다. 규칙의 나머지 카드는 아직 효과가 안 정해졌다
+  // 구현된 것만 여기 둔다. 규칙의 나머지 카드는 아직 효과가 안 정해졌다.
+  //   누적형 : 다시 나오고, 고를 때마다 수치가 쌓인다
+  //   기능형 : `once`. 한 번 배우면 다시 안 나온다.
+  //            `need` 가 있으면 그 기술을 배운 뒤에야 나온다 (연계)
   const DRAFT_CARDS = [
     {
       id: 'atk5', title: '공격력+5', note: '공격력 +5',
@@ -551,9 +561,16 @@
       apply: p => { p.atk += 5; },
     },
     {
-      id: 'push', title: '밀치기', note: '공격 방향의 적을 밀어낸다',
+      id: 'push', title: '밀치기', note: '공격 방향의 적을 민다',
+      img: 'icon/skill_push.png', once: true,
       fly: '밀치기', flyTo: 'token',
-      apply: p => { p.push += 1; },     // 또 고르면 한 칸씩 더 밀린다
+      apply: p => { p.skills.add('push'); },
+    },
+    {
+      id: 'pushMove', title: '밀고가기', note: '밀고 그 칸으로 간다',
+      img: 'icon/skill_push_move.png', once: true, need: 'push',
+      fly: '밀고가기', flyTo: 'token',
+      apply: p => { p.skills.add('pushMove'); },
     },
   ];
   const DRAFT_SLOTS = 3;
@@ -583,7 +600,7 @@
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
       atkMode: s.atkMode || 'single',   // 처음은 한 번 공격
-      push: 0,                          // 밀치기 칸 수. 드래프트로 오른다
+      skills: new Set(),                // 드래프트로 배운 기능형 카드의 id
     };
   }
 
@@ -1007,11 +1024,11 @@
     killMonster(m);
   }
 
-  // 공격 방향 한 줄에 있는 적을 전부 밀어낸다. 판 밖으로 나가면 죽는다.
-  // 밀리는 칸 수는 밀치기를 고른 횟수. 내부 필드 크기를 넘지는 않는다
+  // 공격 방향 한 줄에 있는 적을 전부 한 칸씩 밀어낸다. 판 밖으로 나가면 죽는다.
+  // 기능형이라 쌓이지 않는다. 두 번 배울 일도 없다
   function pushLine(dx, dy) {
-    const dist = Math.min(player.push, MAX - MIN + 1);
-    if (dist <= 0) return false;
+    if (!player.skills.has('push')) return false;
+    const dist = 1;
 
     const line = [];
     for (let x = player.x + dx, y = player.y + dy; onBoard(x, y); x += dx, y += dy) {
@@ -1135,13 +1152,22 @@
   }
 
   // ── 드래프트 ───────────────────────────────────────────────
-  // 카드가 모자라면 같은 카드가 여러 칸에 온다. 지금은 한 종류뿐이라 세 칸이 다 같다.
+  // 지금 나올 수 있는 카드. 기능형은 배우고 나면 빠지고, 앞 기술을 배워야
+  // 열리는 것은 그때까지 안 나온다. 누적형(`once` 없음)은 늘 남아 있다
+  function availableCards() {
+    return DRAFT_CARDS.filter(c =>
+      (!c.once || !player.skills.has(c.id))
+      && (!c.need || player.skills.has(c.need)));
+  }
+
+  // 카드가 모자라면 같은 카드가 여러 칸에 온다.
   // 카드가 늘면 손 안 대고 저절로 서로 다른 카드가 차오른다
   function pickCards(n) {
     const out = [];
+    const pool = availableCards();
     let bag = [];
     while (out.length < n) {
-      if (!bag.length) bag = [...DRAFT_CARDS];
+      if (!bag.length) bag = [...pool];
       out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
     }
     return out;
@@ -1178,7 +1204,9 @@
     drafting.cards.forEach((card, i) => {
       const el = dGridEl.querySelector('.d-cell[data-slot="' + i + '"]');
       el.classList.remove('hit');   // 지난번에 고른 카드의 붉은 자국을 지운다
-      el.innerHTML = '<b></b><span></span>';
+      el.innerHTML = (card.img ? '<i class="d-img"></i>' : '') + '<b></b><span></span>';
+      if (card.img) el.querySelector('.d-img').style.backgroundImage =
+        'url(images/' + card.img + ')';
       el.querySelector('b').textContent = card.title;
       // 설명이 제목과 같은 말이면 두 번 적지 않는다 (`공격력+5` / `공격력 +5`)
       const same = card.note.replace(/\s/g, '') === card.title.replace(/\s/g, '');
@@ -1421,6 +1449,14 @@
       if (target.hp <= 0) defeat(target);
       // 때린 다음에 민다. 맞고 죽은 놈은 이미 빠졌으므로 밀 것도 없다
       if (pushLine(dx, dy) && tuning.move) await sleep(tuning.move);
+      // 밀고가기: 앞칸이 비었으면 그 칸으로 간다. 밀어서 비웠든 때려 죽여서
+      // 비웠든 같다. 헛친 빈 칸은 위에서 이미 돌아갔으므로 여기까지 안 온다.
+      // canStep 을 그대로 쓰므로 이동과 같은 규칙(내부 필드, 빈 칸)을 탄다
+      if (player.skills.has('pushMove') && canStep(dx, dy)) {
+        player.x += dx; player.y += dy;
+        place(player.el, player.x, player.y);
+        if (tuning.move) await sleep(tuning.move);
+      }
       return 'attack';
     });
   }
@@ -1512,7 +1548,7 @@
     const base = BEINGS.player;
     player.atk = base.atk; player.maxHp = base.maxHp;
     player.atkMode = 'single';
-    player.push = 0;
+    player.skills.clear();
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     renderHp(player);
@@ -1550,7 +1586,7 @@
     attack, act, killMonster, defeat, pushLine, actOrder, BEINGS, KNIGHT,
     damageTo, makeBeing,
     expNeeded, gainExp, renderExp, ATK_MODES,
-    DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft,
+    DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft, availableCards,
     isDrafting: () => !!drafting,
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
