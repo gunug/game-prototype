@@ -390,8 +390,9 @@
     pointer-events:none;
     transition:transform var(--fly) cubic-bezier(.4,.05,.3,1), opacity var(--fly);
   }
-  /* 도착해서 사라진 뒤, 실제 수치가 오르는 순간 */
-  .stat-mark i.bump{animation:statbump .26s ease-out;}
+  /* 도착해서 사라진 뒤, 실제로 붙는 순간 */
+  .stat-mark i.bump,
+  .draft-token.bump{animation:statbump .26s ease-out;}
   @keyframes statbump{
     0%{transform:scale(1);}
     35%{transform:scale(1.55);filter:brightness(1.8);}
@@ -546,7 +547,13 @@
   const DRAFT_CARDS = [
     {
       id: 'atk5', title: '공격력+5', note: '공격력 +5',
+      fly: '+5', flyTo: 'atk',
       apply: p => { p.atk += 5; },
+    },
+    {
+      id: 'push', title: '밀치기', note: '공격 방향의 적을 밀어낸다',
+      fly: '밀치기', flyTo: 'token',
+      apply: p => { p.push += 1; },     // 또 고르면 한 칸씩 더 밀린다
     },
   ];
   const DRAFT_SLOTS = 3;
@@ -576,6 +583,7 @@
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
       atkMode: s.atkMode || 'single',   // 처음은 한 번 공격
+      push: 0,                          // 밀치기 칸 수. 드래프트로 오른다
     };
   }
 
@@ -992,6 +1000,37 @@
     return BEINGS[m.kind].step(m) ? 'move' : null;
   }
 
+  // 잡았을 때 딸려 오는 것들. 때려서든 밀어내서든 같다
+  function defeat(m) {
+    groupKills[m.kind] = (groupKills[m.kind] || 0) + 1;
+    gainExp(m.exp);
+    killMonster(m);
+  }
+
+  // 공격 방향 한 줄에 있는 적을 전부 밀어낸다. 판 밖으로 나가면 죽는다.
+  // 밀리는 칸 수는 밀치기를 고른 횟수. 내부 필드 크기를 넘지는 않는다
+  function pushLine(dx, dy) {
+    const dist = Math.min(player.push, MAX - MIN + 1);
+    if (dist <= 0) return false;
+
+    const line = [];
+    for (let x = player.x + dx, y = player.y + dy; onBoard(x, y); x += dx, y += dy) {
+      const m = monsterAt(x, y);
+      if (m) line.push(m);
+    }
+    if (!line.length) return false;
+
+    // 먼 놈부터 옮긴다. 다 같은 방향으로 같은 칸만큼 가므로 서로 밟을 일은 없지만,
+    // 먼 쪽을 먼저 비워 두는 편이 읽기 쉽다
+    for (const m of line.reverse()) {
+      const nx = m.x + dx * dist, ny = m.y + dy * dist;
+      if (!onBoard(nx, ny)) { defeat(m); continue; }
+      m.x = nx; m.y = ny;
+      place(m.el, nx, ny);
+    }
+    return true;
+  }
+
   function killMonster(m) {
     const i = monsters.indexOf(m);
     if (i < 0) return;
@@ -1204,7 +1243,10 @@
     const card = drafting.cards[slot];
     const mine = phaseId;
     const cell = dGridEl.querySelector('.d-cell[data-slot="' + slot + '"]');
-    const statEl = drafting.token.querySelector('.stat-mark .a');
+    // 수치를 올리는 카드는 그 수치 쪽으로, 아닌 카드는 블럭 자체로 날아간다
+    const statEl = card.flyTo === 'atk'
+      ? drafting.token.querySelector('.stat-mark .a')
+      : drafting.token;
 
     // 판에서 때릴 때와 똑같이 그 방향으로 친다. lunge 안에서 소리도 같이 난다.
     // 고른다는 것이 곧 그 카드를 치는 것으로 보이게
@@ -1216,13 +1258,13 @@
     if (tuning.draft) await sleep(LUNGE_MS);
     if (!drafting || phaseId !== mine) return;
 
-    await flyToStat(cell, statEl, '+5');
+    await flyToStat(cell, statEl, card.fly);
     if (!drafting || phaseId !== mine) return;
 
     // 수치가 사라진 뒤에 실제로 오른다
     card.apply(player);
-    renderHp(player);                    // 판 위의 블럭
-    statEl.textContent = player.atk;     // 모달 안의 블럭
+    renderHp(player);                              // 판 위의 블럭
+    if (card.flyTo === 'atk') statEl.textContent = player.atk;   // 모달 안의 블럭
     statEl.classList.remove('bump');
     void statEl.offsetWidth;
     statEl.classList.add('bump');
@@ -1376,11 +1418,9 @@
         return 'attack';
       }
       await strike(player, target, dx, dy);
-      if (target.hp <= 0) {
-        groupKills[target.kind] = (groupKills[target.kind] || 0) + 1;
-        gainExp(target.exp);
-        killMonster(target);
-      }
+      if (target.hp <= 0) defeat(target);
+      // 때린 다음에 민다. 맞고 죽은 놈은 이미 빠졌으므로 밀 것도 없다
+      if (pushLine(dx, dy) && tuning.move) await sleep(tuning.move);
       return 'attack';
     });
   }
@@ -1472,6 +1512,7 @@
     const base = BEINGS.player;
     player.atk = base.atk; player.maxHp = base.maxHp;
     player.atkMode = 'single';
+    player.push = 0;
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     renderHp(player);
@@ -1506,14 +1547,15 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, act, killMonster, actOrder, BEINGS, KNIGHT, damageTo, makeBeing,
+    attack, act, killMonster, defeat, pushLine, actOrder, BEINGS, KNIGHT,
+    damageTo, makeBeing,
     expNeeded, gainExp, renderExp, ATK_MODES,
     DRAFT_CARDS, DRAFT_SLOTS, openDraft, chooseDraft,
     isDrafting: () => !!drafting,
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
     pending: () => pendingDrafts,
-    QUEST_GROUPS, startGroup, spawnMonster,
+    QUEST_GROUPS, startGroup, spawnMonster, reset,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
       kills: { ...groupKills }, dirs: groupDirs.size, allDone,
@@ -1537,6 +1579,7 @@
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
       MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
+      N, MIN, MAX,
               LEVELUP_MS, LUNGE_MS, FLY_MS, BUMP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
