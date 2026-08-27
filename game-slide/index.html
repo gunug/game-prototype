@@ -97,12 +97,39 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .ins-kind{display:block;color:var(--muted);font-size:.85em;margin-top:.15em;}
+  /* 스텟과 업그레이드를 한 통에 담아 같이 넘긴다. 따로 굴리면 카드가 좁을 때
+     둘 다 반쪽만 보인다 */
+  .ins-body{flex:1;min-height:0;overflow:auto;scrollbar-width:none;}
+  .ins-body::-webkit-scrollbar{display:none;}
+  /* 스텟은 자리가 되면 두 줄씩 나란히 세운다. 여섯 줄을 한 줄씩 쌓으면
+     업그레이드가 카드 밖으로 밀려 스크롤해야만 보인다.
+     auto-fit 이라 카드가 좁아지면 저절로 한 줄씩으로 돌아온다 */
   .ins-rows{
-    list-style:none;margin:0;padding:0;display:grid;gap:.32em;
-    align-content:start;flex:1;min-height:0;overflow:auto;
-    scrollbar-width:none;
+    list-style:none;margin:0;padding:0;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(6.5em,1fr));
+    gap:.3em .9em;
   }
-  .ins-rows::-webkit-scrollbar{display:none;}
+  .ins-sub{
+    color:var(--muted);font-size:.8em;font-weight:700;letter-spacing:.06em;
+    margin:.7em 0 .35em;
+  }
+  .ins-ups{list-style:none;margin:0;padding:0;display:grid;gap:.4em;}
+  .ins-ups li{display:flex;align-items:center;gap:.45em;min-width:0;}
+  .ins-ups i{
+    width:1.9em;height:1.9em;flex:none;border-radius:.2em;
+    background-position:center;background-size:contain;background-repeat:no-repeat;
+    image-rendering:pixelated;
+  }
+  .ins-ups span{min-width:0;}
+  .ins-ups b{
+    display:block;color:var(--ink);font-size:.95em;font-weight:700;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .ins-ups small{
+    display:block;color:var(--muted);font-size:.8em;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .ins-ups .up-none{color:var(--muted);font-size:.9em;}
   .ins-rows li{
     display:flex;align-items:baseline;justify-content:space-between;gap:.6em;
     color:var(--muted);font-size:.95em;
@@ -1501,6 +1528,23 @@
   const insRow = (label, value) =>
     '<li><span>' + label + '</span><b>' + value + '</b></li>';
 
+  // 드래프트로 가진 것들. 아이콘·이름·설명을 그대로 옮긴다.
+  // 표(`DRAFT_CARDS`) 차례로 훑으므로 고른 순서가 아니라 늘 같은 차례로 선다
+  function upgradeList() {
+    const got = DRAFT_CARDS.filter(c => player.cards.has(c.id));
+    if (!got.length) return '<ul class="ins-ups"><li class="up-none">아직 없다</li></ul>';
+    return '<ul class="ins-ups">' + got.map(c => {
+      const n = player.cards.get(c.id);
+      // 누적형만 몇 번 쌓였는지 적는다. 기능형은 늘 한 번이라 안 적는다.
+      // 판 위 블럭의 기술 줄과 같은 규칙이다
+      const times = c.once ? '' : ' ' + roman(n);
+      return '<li>'
+        + '<i style="background-image:url(images/' + c.img + ')"></i>'
+        + '<span><b>' + c.title + times + '</b><small>' + c.note + '</small></span>'
+        + '</li>';
+    }).join('') + '</ul>';
+  }
+
   function renderInspect() {
     const it = inspectTarget();
     const spec = BEINGS[it.kind];
@@ -1523,7 +1567,11 @@
       +   '<span class="ins-kind">' + (mine ? '플레이어' : '몬스터') + '</span>'
       + '</span>'
       + '</div>'
-      + '<ul class="ins-rows">' + rows + '</ul>';
+      + '<div class="ins-body">'
+      +   '<ul class="ins-rows">' + rows + '</ul>'
+      // 업그레이드는 플레이어만 갖는다. 몬스터에는 줄 자체를 안 낸다
+      +   (mine ? '<p class="ins-sub">업그레이드</p>' + upgradeList() : '')
+      + '</div>';
 
     // 지금 보고 있는 블럭에 테를 두른다. 카드와 판이 서로를 가리켜야 한다
     for (const el of boardEl.querySelectorAll('.token.picked')) el.classList.remove('picked');
@@ -1564,6 +1612,8 @@
   function takeCard(card) {
     player.cards.set(card.id, (player.cards.get(card.id) || 0) + 1);
     card.apply(player);
+    // 인스펙터의 업그레이드 줄과 공격력이 같이 바뀐다
+    if (inspectTarget() === player) renderInspect();
   }
 
   const DRAFT_DIRS = { '0,-1': 0, '-1,0': 1, '1,0': 2 };   // 위·왼쪽·오른쪽
