@@ -37,6 +37,8 @@
   .topbar .spacer{flex:1;}
   /* 단추 글자가 두 줄로 접히면 상단 바가 통째로 두 배가 된다 */
   .topbar .btn{white-space:nowrap;flex:none;}
+  /* .btn 의 display:inline-flex 가 [hidden]{display:none} 을 이긴다 */
+  .topbar .btn[hidden]{display:none;}
   /* 좁아지면 덜 급한 것부터 뺀다. 다 넣으려 들면 `다시` 가 화면 밖으로 나간다.
      순서: 몬스터 수 → 이름 → 턴. 체력·레벨·코인과 단추는 끝까지 남긴다 */
   @media (max-width:560px){
@@ -130,6 +132,7 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .ins-ups .up-none{color:var(--muted);font-size:.9em;}
+  .ins-note{margin:0;color:var(--muted);font-size:.9em;line-height:1.4;}
   .ins-rows li{
     display:flex;align-items:baseline;justify-content:space-between;gap:.6em;
     color:var(--muted);font-size:.95em;
@@ -234,6 +237,25 @@
                width .13s, height .13s, left .13s, top .13s, font-size .13s;
   }
   .monster .glyph{animation:pop .18s ease-out;}
+
+  /* 기물. 체력바가 없으니 아래를 비워 둘 까닭도 없다. 칸을 거의 다 쓴다 */
+  .prop .glyph{height:88%;object-position:center;}
+  .prop.blocker{
+    background:radial-gradient(ellipse at 50% 70%,
+      rgba(190,190,190,.18), rgba(190,190,190,.05) 60%, transparent 75%);
+    box-shadow:inset 0 0 0 1px rgba(200,200,200,.22);
+  }
+  /* 지역은 고를 것이라 눈에 띄어야 한다 */
+  .prop.stage{
+    background:radial-gradient(ellipse at 50% 70%,
+      rgba(255,212,0,.20), rgba(255,212,0,.06) 60%, transparent 78%);
+    box-shadow:inset 0 0 0 1px rgba(255,212,0,.38);
+  }
+  /* 잠긴 지역. 색을 빼고 낮춘다. 있다는 것은 보이되 고를 것으로는 안 읽히게 */
+  .prop.stage.locked{
+    filter:grayscale(1) brightness(.6);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+  }
   @keyframes pop{from{transform:scale(.3);opacity:0;}to{transform:scale(1);opacity:1;}}
 
   /* 원본이 64px 이고 그려지는 크기가 40~70px 이라 1:1 언저리다. 픽셀 아트는
@@ -612,6 +634,7 @@
       <span class="stat opt-mon">몬스터 <b id="mcount">0</b></span>
       <button class="btn btn-secondary btn-sm" id="sound" type="button"
               aria-label="소리 끄기" aria-pressed="true">🔊</button>
+      <button class="btn btn-secondary btn-sm" id="leave" type="button" hidden>지역</button>
       <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
     </div>
 
@@ -784,11 +807,15 @@
 
   // 살아 있는 것 하나를 만든다. 자리와 그림 말고는 표에서 그대로 베낀다
   let nextSeq = 0;              // 생성 순서. 민첩이 같으면 이것으로 가른다
-  function makeBeing(kind, x, y) {
+  // `mul` 은 스테이지가 주는 스텟 배수다. 나올 때 한 번 반올림해서 정수로 굳힌다.
+  // 실수로 들고 다니다 표시만 반올림하면 12.1/13.2 같은 체력이 안쪽에 남는다
+  function makeBeing(kind, x, y, mul) {
     const s = BEINGS[kind];
+    const m = mul || 1;
+    const maxHp = Math.round(s.maxHp * m);
     return {
       kind, x, y, el: null,
-      atk: s.atk, maxHp: s.maxHp, hp: s.maxHp,
+      atk: Math.round(s.atk * m), maxHp, hp: maxHp,
       agi: s.agi, seq: nextSeq++,
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       coin: s.coin || 0,          // 잡았을 때 떨어뜨리는 코인
@@ -867,12 +894,13 @@
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
   const HINT_DEFAULT = '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격';
+  const HINT_SELECT = '기사를 움직여 지역을 공격하면 들어간다';
 
   // ── 퀘스트 ─────────────────────────────────────────────────
   // 한 묶음이 한꺼번에 뜨고, 안의 항목을 각각 따로 깬다. 다 깨면 다음 묶음으로.
   // 몬스터가 언제 몇 마리 나오는지도 묶음이 정한다 (묶음 하나에 출현 규칙 하나라야
   // 고블린 묶음과 라이더 묶음이 섞여 나오는 일이 없다)
-  const QUEST_GROUPS = [
+  const FOREST_QUESTS = [
     {
       note: '스와이프나 WASD 로. 몬스터는 나오지 않는다',
       spawn: null,
@@ -894,6 +922,43 @@
       items: [{ title: '고블린 라이더 5마리 잡기', type: 'kill', kind: 'rider', goal: 5 }],
     },
   ];
+
+  // ── 기물 ───────────────────────────────────────────────────
+  // 살아 있지 않은 것들. 체력이 없고 때릴 수도 없다. 칸을 차지하는 것이 전부다
+  const PROPS = {
+    blocker: { name: '돌', img: 'blocker/blocker_stone.png', note: '지나갈 수 없다' },
+  };
+
+  // ── 스테이지 ───────────────────────────────────────────────
+  // 고르는 화면의 자리(`at`)도 여기 적는다. 판 위에 세우는 것이라 좌표가 있어야 한다.
+  // 안쪽 5*5(3~7) 의 가운데가 START(5,5) 다. 한 칸 띄워 두어야 "이동해서 공격" 이 된다
+  const STAGES = [
+    {
+      id: 'forest', name: '고블린 숲', img: 'stage/goblin_forest.png',
+      note: '퀘스트를 따라 도는 곳', at: { x: 3, y: 5 },
+      blockers: 5, quests: FOREST_QUESTS,
+    },
+    {
+      id: 'rabbit', name: '토끼굴', img: 'stage/rabbit_hole.png',
+      note: '아직 잠겨 있다', at: { x: 5, y: 3 },
+      locked: true,
+    },
+    {
+      id: 'tower', name: '무한의 탑', img: 'stage/infinit_tower.png',
+      note: '끝이 없다. 10턴마다 세지고 잦아진다', at: { x: 7, y: 5 },
+      blockers: 5, quests: [],
+      // 버티기. 10턴마다 한 단계씩 오른다
+      endless: {
+        step: 10,           // 몇 턴마다 한 단계인가
+        scale: 0.1,         // 한 단계에 공·체가 몇 배씩 (곱으로 쌓인다)
+        rate: 0.9,          // 한 단계에 생성 주기가 몇 배씩 (짧아진다)
+        spawns: [
+          { kind: 'goblin', from: 0, every: 3 },
+          { kind: 'rider', from: 10, every: 5 },
+        ],
+      },
+    },
+  ];
   const itemGoal = it => (it.type === 'dir' ? 1 : it.goal);
 
   const QUEST_CLEAR_MS = 900;   // 깬 것을 보여 주고 다음으로 넘어가기까지
@@ -907,6 +972,7 @@
   const hpEl = document.getElementById('hp');
   const levelEl = document.getElementById('level');
   const inspectEl = document.getElementById('inspect');
+  const leaveBtn = document.getElementById('leave');
   const coinEl = document.getElementById('coin');
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
@@ -945,6 +1011,10 @@
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
 
+  let mode = 'select';          // 'select' 는 지역 고르는 화면, 'play' 는 스테이지 안
+  let stageIndex = -1;          // 들어와 있는 스테이지. 고르는 화면에서는 -1
+  let stageTurns = 0;           // 이 스테이지에서 지난 턴. 무한의 탑의 단계가 이걸 본다
+  const props = [];             // 기물. 블로커와 스테이지 블럭이 같이 산다
   let groupIndex = 0;
   let groupTurns = 0;           // 이 묶음에서 지난 턴
   let groupSpawned = 0;         // 이 묶음에서 내보낸 마릿수
@@ -1100,6 +1170,7 @@
 
     place(player.el, player.x, player.y);
     for (const m of monsters) place(m.el, m.x, m.y);
+    for (const p of props) place(p.el, p.x, p.y);
     renderDanger();   // 딱지 글자 크기가 칸을 따라가야 해서 여기서도 부른다
   }
 
@@ -1123,8 +1194,12 @@
   // ── 칸 차지 ────────────────────────────────────────────────
   const onBoard = (x, y) => x >= 0 && x < N && y >= 0 && y < N;
   const monsterAt = (x, y) => monsters.find(m => m.x === x && m.y === y) || null;
-  // 플레이어와 몬스터가 물체다. 둘 다 남의 칸으로는 못 들어간다
-  const occupied = (x, y) => (player.x === x && player.y === y) || !!monsterAt(x, y);
+  const propAt = (x, y) => props.find(p => p.x === x && p.y === y) || null;
+  // 플레이어·몬스터·기물이 물체다. 셋 다 남의 칸으로는 못 들어간다.
+  // 이동을 막는 자리는 여기 하나뿐이라, 기물을 여기 넣으면 플레이어도 고블린도
+  // 라이더도 한꺼번에 막힌다
+  const occupied = (x, y) =>
+    (player.x === x && player.y === y) || !!monsterAt(x, y) || !!propAt(x, y);
 
   // ── 전투 ───────────────────────────────────────────────────
   const adjacent4 = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
@@ -1184,7 +1259,7 @@
     boardEl.appendChild(el);
     place(el, x, y);
 
-    const m = makeBeing(kind, x, y);
+    const m = makeBeing(kind, x, y, monsterMul());
     m.el = el;
     monsters.push(m);
     renderHp(m);
@@ -1201,6 +1276,44 @@
   }
 
   // 퀘스트가 정한 대로만 내보낸다. 퀘스트에 spawn 이 없으면 아무것도 안 나온다
+  const stage = () => (stageIndex < 0 ? null : STAGES[stageIndex]);
+  const questGroups = () => {
+    const st = stage();
+    return st && st.quests ? st.quests : [];
+  };
+
+  // 무한의 탑의 단계. 10턴마다 하나씩 오른다
+  function endlessStep() {
+    const st = stage();
+    if (!st || !st.endless) return 0;
+    return Math.floor(stageTurns / st.endless.step);
+  }
+
+  // 새로 나오는 몬스터의 스텟 배수. 판에 이미 있는 놈은 안 건드린다.
+  // 곱으로 쌓는다: 10턴 1.1배, 20턴 1.21배, 30턴 1.331배
+  function monsterMul() {
+    const st = stage();
+    if (!st || !st.endless) return 1;
+    return Math.pow(1 + st.endless.scale, endlessStep());
+  }
+
+  // 지금 단계의 생성 주기. 단계마다 0.9 를 곱하고 반올림한다. 하한은 1턴
+  function spawnEvery(rule) {
+    const st = stage();
+    return Math.max(1, Math.round(rule.every * Math.pow(st.endless.rate, endlessStep())));
+  }
+
+  // 버티기 스테이지의 출현. 총 마릿수 제한이 없다
+  function endlessSpawn() {
+    const st = stage();
+    if (!st || !st.endless) return;
+    for (const rule of st.endless.spawns) {
+      if (stageTurns < rule.from) continue;
+      if ((stageTurns - rule.from) % spawnEvery(rule) !== 0) continue;
+      spawnMonster(rule.kind);
+    }
+  }
+
   function questSpawn() {
     const g = group();
     if (!g || !g.spawn) return;
@@ -1378,6 +1491,10 @@
       line.push(m);
     }
     if (!line.length) return false;
+    // 줄 끝이 기물에 막혀 있으면 아무도 안 밀린다. 밀 자리가 없다.
+    // 판 밖은 다르다. 밖으로 나가는 것은 죽는 것이라 막힌 것이 아니다
+    const last = line[line.length - 1];
+    if (propAt(last.x + dx, last.y + dy)) return false;
 
     // 먼 놈부터 옮긴다. 다 같은 방향으로 같은 칸만큼 가므로 서로 밟을 일은 없지만,
     // 먼 쪽을 먼저 비워 두는 편이 읽기 쉽다
@@ -1400,7 +1517,7 @@
   }
 
   // ── 퀘스트 진행 ────────────────────────────────────────────
-  const group = () => (allDone ? null : QUEST_GROUPS[groupIndex]);
+  const group = () => (allDone ? null : questGroups()[groupIndex]);
 
   function itemProgress(it) {
     if (it.type === 'dir') return groupDirs.has(it.dir) ? 1 : 0;
@@ -1434,6 +1551,28 @@
   }
 
   function renderQuest() {
+    if (mode === 'select') {
+      questEl.classList.remove('done', 'all-done');
+      qStepEl.textContent = '지역';
+      qNoteEl.textContent = STAGES
+        .map(st => st.name + (st.locked ? '(잠김)' : ''))
+        .join(' · ');
+      return;
+    }
+    const st = stage();
+    if (st && st.endless) {
+      // 깰 것이 없는 스테이지다. 대신 얼마나 버텼고 지금 얼마나 센지를 적는다
+      questEl.classList.remove('done', 'all-done');
+      qStepEl.textContent = st.name;
+      const mul = monsterMul();
+      qNoteEl.textContent =
+        '버틴 턴 ' + stageTurns
+        + ' · 공체 x' + (Math.round(mul * 100) / 100)
+        + ' · ' + st.endless.spawns
+          .map(r => BEINGS[r.kind].name + ' ' + (stageTurns < r.from ? r.from + '턴부터' : spawnEvery(r) + '턴'))
+          .join(' · ');
+      return;
+    }
     if (allDone) {
       questEl.classList.add('all-done');
       questEl.classList.remove('done');
@@ -1442,7 +1581,7 @@
       return;
     }
     const g = group();
-    qStepEl.textContent = '퀘스트 ' + (groupIndex + 1) + '/' + QUEST_GROUPS.length;
+    qStepEl.textContent = '퀘스트 ' + (groupIndex + 1) + '/' + questGroups().length;
     qNoteEl.textContent = g.spawn
       ? g.note + ' · 남은 출현 ' + Math.max(0, g.spawn.max - groupSpawned) + '마리'
       : g.note;
@@ -1460,7 +1599,7 @@
     groupSpawned = 0;
     for (const k of Object.keys(groupKills)) delete groupKills[k];
     groupDirs.clear();
-    allDone = i >= QUEST_GROUPS.length;
+    allDone = i >= questGroups().length;
     questEl.classList.remove('done', 'all-done');
     buildQuestRows();
     renderQuest();
@@ -1515,7 +1654,7 @@
   // 보던 몬스터가 죽으면 저절로 플레이어로 돌아온다.
   // 죽은 놈을 계속 들고 있으면 없는 체력을 적게 된다
   function inspectTarget() {
-    if (picked && !monsters.includes(picked)) picked = null;
+    if (picked && !monsters.includes(picked) && !props.includes(picked)) picked = null;
     return picked || player;
   }
 
@@ -1527,6 +1666,34 @@
   // 이름은 줄어들고 값은 안 줄어든다. 좁은 카드에서 값이 먼저 잘리면 소용이 없다
   const insRow = (label, value) =>
     '<li><span>' + label + '</span><b>' + value + '</b></li>';
+
+  // 기물은 체력도 공격도 없다. 이름과 설명, 스테이지라면 잠김 여부가 전부다
+  function renderInspectProp(it) {
+    const kindName = it.kind === 'stage' ? '지역' : '기물';
+    const rows = it.kind === 'stage'
+      ? insRow('상태', it.spec.locked ? '잠김' : '들어갈 수 있다')
+        + (it.spec.blockers ? insRow('블로커', it.spec.blockers + '개') : '')
+        + insRow('퀘스트', it.spec.endless ? '없다 (버티기)'
+            : (it.spec.quests ? it.spec.quests.length : 0) + '묶음')
+      : insRow('체력', '없다') + insRow('공격', '없다');
+
+    inspectEl.innerHTML =
+      '<div class="ins-head">'
+      + '<img class="ins-face" src="images/' + it.spec.img + '" alt="">'
+      + '<span class="ins-title">'
+      +   '<b class="ins-name">' + it.spec.name + '</b>'
+      +   '<span class="ins-kind">' + kindName + '</span>'
+      + '</span>'
+      + '</div>'
+      + '<div class="ins-body">'
+      +   '<ul class="ins-rows">' + rows + '</ul>'
+      +   '<p class="ins-sub">설명</p>'
+      +   '<p class="ins-note">' + it.spec.note + '</p>'
+      + '</div>';
+
+    for (const el of boardEl.querySelectorAll('.token.picked')) el.classList.remove('picked');
+    it.el.classList.add('picked');
+  }
 
   // 드래프트로 가진 것들. 아이콘·이름·설명을 그대로 옮긴다.
   // 표(`DRAFT_CARDS`) 차례로 훑으므로 고른 순서가 아니라 늘 같은 차례로 선다
@@ -1547,6 +1714,7 @@
 
   function renderInspect() {
     const it = inspectTarget();
+    if (it.prop) { renderInspectProp(it); return; }
     const spec = BEINGS[it.kind];
     const mine = it === player;
     const rows =
@@ -1865,8 +2033,11 @@
       if (player.hp <= 0) over = true;
 
       if (!over) {
+        stageTurns++;
         groupTurns++;
-        questSpawn();
+        // 버티기 스테이지는 퀘스트가 없다. 출현 규칙을 스테이지가 직접 갖는다
+        if (stage() && stage().endless) endlessSpawn();
+        else questSpawn();
         renderQuest();
         if (groupDone()) await advanceQuest();
       }
@@ -1968,7 +2139,9 @@
     renderHp(player);
     renderDanger();
     playEl.classList.toggle('over', over);
-    hintEl.textContent = over ? '쓰러졌다. 다시 를 눌러라' : HINT_DEFAULT;
+    hintEl.textContent = over ? '쓰러졌다. 다시 나 지역 선택 을 눌러라'
+      : mode === 'select' ? HINT_SELECT : HINT_DEFAULT;
+    leaveBtn.hidden = mode === 'select';
   }
 
   // ── 입력 ───────────────────────────────────────────────────
@@ -1981,9 +2154,30 @@
 
   function act(dx, dy) {
     const x = player.x + dx, y = player.y + dy;
+    if (mode === 'select') {
+      const p = propAt(x, y);
+      if (p && p.kind === 'stage') return chooseStage(p, dx, dy);
+      if (isInner(x, y)) return move(dx, dy);
+      return;
+    }
     // 벽 너머라도 몬스터가 있으면 친다. 플레이어가 못 가는 것이지 못 치는 것이 아니다
     if (monsterAt(x, y)) return attack(dx, dy);
     if (isInner(x, y)) return move(dx, dy);
+  }
+
+  // 스테이지 블럭을 친다. 치는 모션이 끝나야 들어간다.
+  // 몬스터를 때리는 것과 같은 손맛이어야 "공격해서 고른다" 가 말이 된다
+  async function chooseStage(p, dx, dy) {
+    if (busy) return;
+    busy = true;
+    lunge(player.el, dx, dy);
+    await sleep(LUNGE_MS);
+    busy = false;
+    if (p.spec.locked) {
+      hintEl.textContent = p.spec.name + ' 은 아직 잠겨 있다';
+      return;
+    }
+    enterStage(p.spec);
   }
 
   window.addEventListener('keydown', e => {
@@ -2026,25 +2220,39 @@
   function tapInspect(e) {
     const el = e.target && e.target.closest && e.target.closest('.token');
     if (!el || !boardEl.contains(el)) return;
-    const being = el === player.el ? player : monsters.find(m => m.el === el);
-    if (being) inspect(being);
+    const it = el === player.el ? player
+      : monsters.find(m => m.el === el) || props.find(p => p.el === el);
+    if (it) inspect(it);
   }
 
   // ── 시작 / 다시 ────────────────────────────────────────────
-  function reset() {
+  // 판 위의 것을 다 걷어 낸다. 플레이어는 남기고 자리만 처음으로 돌린다
+  function clearBoard() {
     phaseId++;                  // 돌고 있던 페이즈는 여기서 손을 뗀다
     busy = false;
     boardEl.classList.remove('hide-danger');
     for (const m of monsters) m.el.remove();
+    for (const p of props) p.el.remove();
     for (const d of boardEl.querySelectorAll('.dmg')) d.remove();
     for (const o of boardEl.querySelectorAll('.orb')) o.remove();
     dropShow.length = 0;
     monsters.length = 0;
+    props.length = 0;
     nextSeq = 1;                // 0 은 플레이어 몫이다
-    player.x = START.x; player.y = START.y;
     closeDraft();               // 고르는 중이었으면 접는다
     pendingDrafts = 0;
-    // 드래프트로 올려 둔 스텟도 표에서 다시 베낀다
+    picked = null;
+    over = false;
+    moves = 0;
+    stageTurns = 0;
+    movesEl.textContent = '0';
+    countEl.textContent = '0';
+    player.x = START.x; player.y = START.y;
+    place(player.el, player.x, player.y);
+  }
+
+  // 스텟도 업그레이드도 표에서 다시 베낀다
+  function resetPlayer() {
     const base = BEINGS.player;
     player.atk = base.atk; player.maxHp = base.maxHp;
     player.atkMode = 'single';
@@ -2054,18 +2262,72 @@
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     player.purse = 0;
-    picked = null;
     renderHp(player);
     renderExp();
     renderCoin();
+  }
+
+  function addProp(x, y, kind, spec) {
+    const el = document.createElement('div');
+    el.className = 'token prop ' + kind + (spec.locked ? ' locked' : '');
+    el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">';
+    boardEl.appendChild(el);
+    const p = { prop: true, kind, spec, x, y, el };
+    props.push(p);
+    place(el, x, y);
+    return p;
+  }
+
+  // 시작 자리와 그 옆 네 칸은 비워 둔다. 처음부터 갇히면 아무것도 못 한다
+  function placeBlockers(n) {
+    const free = [];
+    for (let y = MIN; y <= MAX; y++) {
+      for (let x = MIN; x <= MAX; x++) {
+        if (Math.abs(x - player.x) + Math.abs(y - player.y) <= 1) continue;
+        free.push({ x, y });
+      }
+    }
+    for (let i = 0; i < n && free.length; i++) {
+      const c = free.splice(Math.floor(Math.random() * free.length), 1)[0];
+      addProp(c.x, c.y, 'blocker', PROPS.blocker);
+    }
+  }
+
+  // ── 지역 고르기 / 들어가기 ─────────────────────────────────
+  function gotoSelect() {
+    mode = 'select';
+    stageIndex = -1;
+    clearBoard();
+    resetPlayer();              // 새로 시작하는 것이라 업그레이드도 다 지운다
+    for (const st of STAGES) addProp(st.at.x, st.at.y, 'stage', st);
+    startGroup(0);
     renderInspect();
-    over = false;
-    moves = 0;
-    movesEl.textContent = '0';
-    countEl.textContent = '0';
-    place(player.el, player.x, player.y);
-    startGroup(allDone ? QUEST_GROUPS.length : groupIndex);   // 지금 묶음을 처음부터
     updateStatus();
+  }
+
+  function enterStage(st) {
+    if (st.locked) return false;
+    mode = 'play';
+    stageIndex = STAGES.indexOf(st);
+    startStage(0);
+    return true;
+  }
+
+  // `from` 번째 퀘스트 묶음부터. `다시` 는 지금 묶음을 그대로 다시 준다
+  function startStage(from) {
+    clearBoard();
+    resetPlayer();
+    placeBlockers(stage().blockers || 0);
+    startGroup(from);
+    endlessSpawn();             // 0턴에도 나온다. 버티기가 아니면 아무 일도 없다
+    renderInspect();
+    updateStatus();
+  }
+
+  function reset() {
+    if (mode === 'select') { gotoSelect(); return; }
+    // 규칙: `다시` 는 지금 퀘스트를 처음부터. 스테이지를 통째로 되돌리지 않는다
+    startStage(allDone ? questGroups().length : groupIndex);
   }
 
   const soundBtn = document.getElementById('sound');
@@ -2078,6 +2340,7 @@
   });
 
   document.getElementById('reset').addEventListener('click', reset);
+  leaveBtn.addEventListener('click', gotoSelect);
   window.addEventListener('resize', layout);
 
   buildBoard();
@@ -2099,11 +2362,14 @@
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
     pending: () => pendingDrafts,
-    QUEST_GROUPS, startGroup, spawnMonster, reset,
+    QUEST_GROUPS: FOREST_QUESTS, startGroup, spawnMonster, reset,
+    STAGES, PROPS, props, propAt, enterStage, gotoSelect, addProp, placeBlockers,
+    monsterMul, spawnEvery, endlessSpawn, endlessStep,
+    mode: () => mode, stageNow: () => stage(), stageTurns: () => stageTurns,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
       kills: { ...groupKills }, dirs: groupDirs.size, allDone,
-      items: allDone ? [] : QUEST_GROUPS[groupIndex].items.map(it => ({
+      items: allDone ? [] : questGroups()[groupIndex].items.map(it => ({
         title: it.title, progress: itemProgress(it), goal: itemGoal(it), done: itemDone(it),
       })),
       done: groupDone(),
