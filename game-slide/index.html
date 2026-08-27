@@ -251,6 +251,33 @@
       rgba(255,212,0,.20), rgba(255,212,0,.06) 60%, transparent 78%);
     box-shadow:inset 0 0 0 1px rgba(255,212,0,.38);
   }
+  /* 지역 이름. 블럭 위쪽에 얹는다. 그림만으로는 무엇인지 모른다.
+     글자 크기는 em 이라 칸이 커지면 같이 커진다 (토큰의 font-size 가 칸을 따라간다) */
+  .prop .st-name{
+    position:absolute;left:0;right:0;top:0;
+    padding:.06em .1em;
+    font-size:.2em;line-height:1.25;font-weight:800;
+    text-align:center;color:#fff;
+    background:linear-gradient(rgba(8,8,6,.78), rgba(8,8,6,0));
+    text-shadow:0 1px 2px rgba(0,0,0,.95);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    pointer-events:none;
+  }
+  /* 최고 기록. 오른쪽 아래 1/4 칸을 통째로 쓴다. 숫자 하나가 크게 보여야 한다 */
+  .prop .st-best{
+    position:absolute;right:0;bottom:0;width:50%;height:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.42em;line-height:1;font-weight:800;
+    font-variant-numeric:tabular-nums;
+    color:var(--brand-yellow);
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+      0 2px 4px rgba(0,0,0,.95);
+    pointer-events:none;
+  }
+  /* 작은 외부 토큰에서는 글자가 안 읽힌다. 지역 블럭은 안쪽에만 서지만 안전하게 */
+  .token.tiny .st-name, .token.tiny .st-best{display:none;}
+
   /* 잠긴 지역. 색을 빼고 낮춘다. 있다는 것은 보이되 고를 것으로는 안 읽히게 */
   .prop.stage.locked{
     filter:grayscale(1) brightness(.6);
@@ -996,7 +1023,7 @@
       locked: true,
     },
     {
-      id: 'tower', name: '무한의 탑', img: 'stage/infinit_tower.png',
+      id: 'arena', name: '무한의 아레나', img: 'stage/infinit_arena.png',
       note: '끝이 없다. 10턴마다 세지고 잦아진다', at: { x: 7, y: 5 },
       blockers: 5, quests: [],
       // 버티기. 10턴마다 한 단계씩 오른다
@@ -1070,7 +1097,7 @@
 
   let mode = 'select';          // 'select' 는 지역 고르는 화면, 'play' 는 스테이지 안
   let stageIndex = -1;          // 들어와 있는 스테이지. 고르는 화면에서는 -1
-  let stageTurns = 0;           // 이 스테이지에서 지난 턴. 무한의 탑의 단계가 이걸 본다
+  let stageTurns = 0;           // 이 스테이지에서 지난 턴. 무한의 아레나의 단계가 이걸 본다
   const props = [];             // 기물. 블로커와 스테이지 블럭이 같이 산다
   let groupIndex = 0;
   let groupTurns = 0;           // 이 묶음에서 지난 턴
@@ -1339,7 +1366,7 @@
     return st && st.quests ? st.quests : [];
   };
 
-  // 무한의 탑의 단계. 10턴마다 하나씩 오른다
+  // 무한의 아레나의 단계. 10턴마다 하나씩 오른다
   function endlessStep() {
     const st = stage();
     if (!st || !st.endless) return 0;
@@ -2288,6 +2315,7 @@
   // ── 시작 / 다시 ────────────────────────────────────────────
   // 판 위의 것을 다 걷어 낸다. 플레이어는 남기고 자리만 처음으로 돌린다
   function clearBoard() {
+    recordBest();               // 나가든 다시 하든, 여기까지가 이번 판이다
     phaseId++;                  // 돌고 있던 페이즈는 여기서 손을 뗀다
     hideEnd();
     busy = false;
@@ -2331,7 +2359,13 @@
   function addProp(x, y, kind, spec) {
     const el = document.createElement('div');
     el.className = 'token prop ' + kind + (spec.locked ? ' locked' : '');
-    el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">';
+    // 지역 블럭은 이름을 위에 얹고, 버티기 스테이지는 최고 기록을 오른쪽 아래에 크게
+    const best = kind === 'stage' && spec.endless
+      ? '<span class="st-best">' + bestOf(spec.id) + '</span>' : '';
+    const label = kind === 'stage'
+      ? '<span class="st-name">' + spec.name + '</span>' : '';
+    el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">'
+      + label + best;
     boardEl.appendChild(el);
     const p = { prop: true, kind, spec, x, y, el };
     props.push(p);
@@ -2354,11 +2388,35 @@
     }
   }
 
+  // ── 최고 기록 ──────────────────────────────────────────────
+  // 버티기 스테이지에만 있다. 몇 턴 버텼는가가 곧 기록이다.
+  // localStorage 는 막혀 있을 수 있다(사생활 보호 창 등). 그때는 이 판에서만 기억한다
+  const BEST_KEY = 'slide.best.';
+  const bests = {};
+
+  function bestOf(id) {
+    if (id in bests) return bests[id];
+    let v = 0;
+    try { v = parseInt(localStorage.getItem(BEST_KEY + id), 10) || 0; } catch (e) { v = 0; }
+    bests[id] = v;
+    return v;
+  }
+
+  // 기록을 남길 자리는 "그 판이 끝나는 곳" 하나다. 죽어서 끝나든 나가서 끝나든 같다
+  function recordBest() {
+    const st = stage();
+    if (!st || !st.endless) return;
+    if (stageTurns <= bestOf(st.id)) return;
+    bests[st.id] = stageTurns;
+    try { localStorage.setItem(BEST_KEY + st.id, String(stageTurns)); } catch (e) { /* 못 남겨도 판은 돈다 */ }
+  }
+
   // ── 끝난 판 알리기 ─────────────────────────────────────────
   // 쓰러지면 게임 오버, 퀘스트를 다 깨면 게임 클리어.
-  // 무한의 탑은 깰 것이 없으니 늘 게임 오버다. 성공도 실패도 아니고 기록만 남는다
+  // 무한의 아레나는 깰 것이 없으니 늘 게임 오버다. 성공도 실패도 아니고 기록만 남는다
   function showEnd(kind) {
     ended = true;
+    recordBest();
     const st = stage();
     const tower = !!(st && st.endless);
     endEl.classList.toggle('clear', kind === 'clear');
@@ -2390,9 +2448,11 @@
 
   // ── 지역 고르기 / 들어가기 ─────────────────────────────────
   function gotoSelect() {
+    // 걷어 내는 것이 먼저다. `clearBoard` 안에서 기록을 남기는데,
+    // stageIndex 를 먼저 지우면 어느 스테이지의 기록인지 알 수가 없다
+    clearBoard();
     mode = 'select';
     stageIndex = -1;
-    clearBoard();
     resetPlayer();              // 새로 시작하는 것이라 업그레이드도 다 지운다
     for (const st of STAGES) addProp(st.at.x, st.at.y, 'stage', st);
     startGroup(0);
@@ -2474,7 +2534,7 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
-    showEnd, hideEnd, isEnded: () => ended,
+    showEnd, hideEnd, isEnded: () => ended, bestOf, recordBest,
     endPop: () => ({
       shown: !endEl.hidden,
       clear: endEl.classList.contains('clear'),
