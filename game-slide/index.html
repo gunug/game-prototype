@@ -254,7 +254,7 @@
   /* 지역 이름. 블럭 위쪽에 얹는다. 그림만으로는 무엇인지 모른다.
      글자 크기는 em 이라 칸이 커지면 같이 커진다 (토큰의 font-size 가 칸을 따라간다) */
   .prop .st-name{
-    position:absolute;left:0;right:0;top:0;
+    position:absolute;left:0;right:0;top:12%;
     padding:.06em .1em;
     font-size:.2em;line-height:1.25;font-weight:800;
     text-align:center;color:#fff;
@@ -270,11 +270,13 @@
     font-size:.42em;line-height:1;font-weight:800;
     font-variant-numeric:tabular-nums;
     color:var(--brand-yellow);
+    gap:.06em;
     text-shadow:
       -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
       0 2px 4px rgba(0,0,0,.95);
     pointer-events:none;
   }
+  .prop .st-best i{font-style:normal;font-size:.55em;font-weight:700;}
   /* 작은 외부 토큰에서는 글자가 안 읽힌다. 지역 블럭은 안쪽에만 서지만 안전하게 */
   .token.tiny .st-name, .token.tiny .st-best{display:none;}
 
@@ -899,7 +901,6 @@
       exp: s.exp || 0,            // 잡았을 때 주는 경험치
       coin: s.coin || 0,          // 잡았을 때 떨어뜨리는 코인
       level: 1, xp: 0,            // 가진 경험치. 지금은 플레이어만 쓴다
-      purse: 0,                   // 가진 코인. 지금은 플레이어만 쓴다
       atkMode: s.atkMode || 'single',   // 처음은 한 번 공격
       cards: new Map(),                 // 드래프트로 가진 카드. id → 고른 횟수
       expBonus: 0,                      // 얻는 경험치 증가율(%). 누적형
@@ -1722,12 +1723,13 @@
 
   // 코인 하나가 닿을 때마다 이만큼씩 는다. 쓸 곳은 아직 없다
   function addCoin(n) {
-    player.purse += n;
+    saved.coin += n;
+    writeSave();                // 코인은 영구다. 늘어난 그 자리에서 남긴다
     renderCoin();
   }
 
   function renderCoin() {
-    coinEl.textContent = player.purse;
+    coinEl.textContent = saved.coin;
     if (inspectTarget() === player) renderInspect();
   }
 
@@ -1809,7 +1811,7 @@
       + (mine
         ? insRow('레벨', it.level)
           + insRow('경험치', it.xp + '/' + expNeeded(it.level))
-          + insRow('코인', it.purse)
+          + insRow('코인', saved.coin)
         : insRow('드랍 코인', it.coin) + insRow('드랍 경험치', it.exp));
 
     inspectEl.innerHTML =
@@ -2350,7 +2352,6 @@
     renderSkills();             // 판 위 블럭에 남아 있던 그림도 지운다
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
-    player.purse = 0;
     renderHp(player);
     renderExp();
     renderCoin();
@@ -2361,7 +2362,7 @@
     el.className = 'token prop ' + kind + (spec.locked ? ' locked' : '');
     // 지역 블럭은 이름을 위에 얹고, 버티기 스테이지는 최고 기록을 오른쪽 아래에 크게
     const best = kind === 'stage' && spec.endless
-      ? '<span class="st-best">' + bestOf(spec.id) + '</span>' : '';
+      ? '<span class="st-best">' + bestFloorOf(spec.id) + '<i>층</i></span>' : '';
     const label = kind === 'stage'
       ? '<span class="st-name">' + spec.name + '</span>' : '';
     el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">'
@@ -2388,27 +2389,58 @@
     }
   }
 
-  // ── 최고 기록 ──────────────────────────────────────────────
-  // 버티기 스테이지에만 있다. 몇 턴 버텼는가가 곧 기록이다.
-  // localStorage 는 막혀 있을 수 있다(사생활 보호 창 등). 그때는 이 판에서만 기억한다
-  const BEST_KEY = 'slide.best.';
-  const bests = {};
+  // ── 저장 ───────────────────────────────────────────────────
+  // 변수는 두 갈래다. 어느 쪽인지가 헷갈리면 이 표를 본다.
+  //
+  //   영구  — 지역을 벗어나도, 새로고침해도 남는다. `saved` 안에만 둔다.
+  //           코인, 무한의 아레나의 클리어층과 버틴 턴
+  //   일시  — 그 지역 안에서만 산다. 지역을 드나들면 표에서 다시 베낀다.
+  //           체력, 레벨, 경험치, 업그레이드(드래프트 카드), 공·체 같은 스텟
+  //
+  // 새 값을 넣을 때 둘 중 어디에 둘지부터 정한다. `saved` 에 넣으면 영구,
+  // `player` 에 넣고 `resetPlayer()` 에서 지우면 일시다
+  const SAVE_KEY = 'slide.save.v1';
+  const saved = {
+    coin: 0,          // 모은 코인. 지역을 옮겨도 이어진다
+    bestFloor: {},    // 스테이지별 최고 클리어층
+    bestTurn: {},     // 스테이지별 최고 버틴 턴
+  };
 
-  function bestOf(id) {
-    if (id in bests) return bests[id];
-    let v = 0;
-    try { v = parseInt(localStorage.getItem(BEST_KEY + id), 10) || 0; } catch (e) { v = 0; }
-    bests[id] = v;
-    return v;
+  // localStorage 는 막혀 있을 수 있다(사생활 보호 창 등).
+  // 그때는 이 판에서만 기억한다. 못 남겨도 게임은 돈다
+  function loadSave() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return;
+      const got = JSON.parse(raw);
+      if (typeof got.coin === 'number') saved.coin = got.coin;
+      if (got.bestFloor) Object.assign(saved.bestFloor, got.bestFloor);
+      if (got.bestTurn) Object.assign(saved.bestTurn, got.bestTurn);
+    } catch (e) { /* 못 읽으면 처음부터 하는 셈 친다 */ }
+  }
+
+  function writeSave() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(saved)); } catch (e) { /* 무시 */ }
+  }
+
+  const bestFloorOf = id => saved.bestFloor[id] || 0;
+  const bestTurnOf = id => saved.bestTurn[id] || 0;
+
+  // 지금 몇 층인가. 한 단계가 한 층이다 (10턴에 한 층)
+  function floorNow() {
+    const st = stage();
+    if (!st || !st.endless) return 0;
+    return Math.floor(stageTurns / st.endless.step);
   }
 
   // 기록을 남길 자리는 "그 판이 끝나는 곳" 하나다. 죽어서 끝나든 나가서 끝나든 같다
   function recordBest() {
     const st = stage();
     if (!st || !st.endless) return;
-    if (stageTurns <= bestOf(st.id)) return;
-    bests[st.id] = stageTurns;
-    try { localStorage.setItem(BEST_KEY + st.id, String(stageTurns)); } catch (e) { /* 못 남겨도 판은 돈다 */ }
+    let changed = false;
+    if (floorNow() > bestFloorOf(st.id)) { saved.bestFloor[st.id] = floorNow(); changed = true; }
+    if (stageTurns > bestTurnOf(st.id)) { saved.bestTurn[st.id] = stageTurns; changed = true; }
+    if (changed) writeSave();
   }
 
   // ── 끝난 판 알리기 ─────────────────────────────────────────
@@ -2428,12 +2460,13 @@
         : st.name + ' 에서 쓰러졌다';
 
     const rows = [['버틴 턴', stageTurns]];
+    if (tower) rows.push(['클리어층', floorNow() + '층 (최고 ' + bestFloorOf(st.id) + '층)']);
     if (!tower) {
       const total = questGroups().length;
       const now = kind === 'clear' ? total : groupIndex;
       rows.push(['깬 퀘스트', now + '/' + total]);
     }
-    rows.push(['레벨', player.level], ['코인', player.purse]);
+    rows.push(['레벨', player.level], ['코인', saved.coin]);
     endRowsEl.innerHTML = rows
       .map(r => '<li><span>' + r[0] + '</span><b>' + r[1] + '</b></li>').join('');
 
@@ -2501,6 +2534,7 @@
   document.getElementById('endagain').addEventListener('click', reset);
   window.addEventListener('resize', layout);
 
+  loadSave();                   // 영구 변수를 먼저 되살린다
   buildBoard();
   layout();
   reset();
@@ -2534,7 +2568,8 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
-    showEnd, hideEnd, isEnded: () => ended, bestOf, recordBest,
+    showEnd, hideEnd, isEnded: () => ended, recordBest, floorNow,
+    saved, loadSave, writeSave, bestFloorOf, bestTurnOf,
     endPop: () => ({
       shown: !endEl.hidden,
       clear: endEl.classList.contains('clear'),
