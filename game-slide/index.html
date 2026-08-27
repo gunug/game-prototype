@@ -37,16 +37,56 @@
   .topbar .spacer{flex:1;}
   /* 단추 글자가 두 줄로 접히면 상단 바가 통째로 두 배가 된다 */
   .topbar .btn{white-space:nowrap;flex:none;}
-  /* 좁아지면 이름부터 뺀다. 제목보다 체력·턴·단추가 먼저다 */
-  @media (max-width:470px){
+  /* 좁아지면 덜 급한 것부터 뺀다. 다 넣으려 들면 `다시` 가 화면 밖으로 나간다.
+     순서: 몬스터 수 → 이름 → 턴. 체력·레벨·코인과 단추는 끝까지 남긴다 */
+  @media (max-width:560px){
     .topbar{gap:var(--s2);padding-left:var(--s3);padding-right:var(--s3);}
+    .topbar .stat.opt-mon{display:none;}
+  }
+  @media (max-width:470px){
     .topbar .name{display:none;}
+    .topbar .stat.opt-turn{display:none;}
   }
 
-  /* 판이 들어갈 자리. 남는 공간 전부 */
-  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:var(--s3);min-height:0;}
+  /* 상단 바 아래는 통째로 두 영역이다: 게임(1:1)과 정보(7:9 / 9:7).
+     둘을 붙이면 16:9(가로) 또는 9:16(세로) 가 된다. 그 상자를 화면 안에
+     최대로 넣고 가운데 둔다. 크기는 layout() 이 px 로 넣어 준다 */
+  .split{
+    flex:1;min-height:0;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* DOM 은 게임 → 정보 순이다. 가로면 그대로 왼쪽·오른쪽,
+     세로면 뒤집어 정보가 위, 게임이 아래 */
+  .split.wide{flex-direction:row;}
+  .split:not(.wide){flex-direction:column-reverse;}
 
-  .board{position:relative;}
+  /* 판이 들어갈 자리. 1:1 정사각. 판은 그 안에서 여백을 두고 가운데 선다 */
+  .stage{flex:none;display:flex;align-items:center;justify-content:center;padding:var(--s3);}
+
+  /* 정보영역. 가로면 7:9 에 카드 2x3, 세로면 9:7 에 카드 3x2.
+     카드 비율(3.5:3 / 3:3.5)을 지키느라 칸보다 조금 작게 잡고 가운데 둔다 */
+  .info{
+    flex:none;display:grid;place-items:center;
+    gap:var(--gap,8px);padding:var(--gap,8px);
+  }
+  .split.wide .info{grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(3,1fr);}
+  .split:not(.wide) .info{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);}
+  .card{
+    width:var(--cw,120px);height:var(--ch,100px);
+    box-sizing:border-box;
+    background:var(--surface-soft);border-radius:var(--r-sm);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+    padding:calc(var(--gap,8px) * .9);
+    overflow:hidden;
+    /* 카드 안 글자는 다 이 크기의 배수다. 카드가 작아지면 같이 줄어든다 */
+    font-size:clamp(8px, calc(var(--u,60px) * .17), 13px);
+  }
+  /* 아직 무엇을 담을지 안 정한 자리 */
+  .card.empty{background:none;box-shadow:inset 0 0 0 1px var(--hairline);opacity:.45;}
+
+  /* 칸을 반올림하다 보면 몇 px 넘칠 때가 있다. 줄어들게 두면 가로만 깎여
+     판이 정사각이 아니게 된다. 넘치면 넘치는 대로 둔다 */
+  .board{position:relative;flex:none;}
 
   /* 칸은 배경으로만 깔린다. 움직이는 것(플레이어/몬스터)은 그 위에 얹는다 */
   .cell{position:absolute;border-radius:3px;}
@@ -324,26 +364,26 @@
   @keyframes lunge-right{0%,100%{transform:translateX(0);}45%{transform:translateX(28%);}}
   .play.over .board{filter:grayscale(.6) brightness(.7);}
 
-  /* 판은 1:1 정사각. 남는 빈 자리에 퀘스트를 놓는다 */
-  .quest{
-    flex:none;margin:0 auto;padding:var(--s3) var(--s4) 0;
-    width:100%;max-width:520px;
-  }
-  .q-head{display:flex;align-items:center;gap:var(--s2);margin-bottom:8px;}
+  /* 퀘스트는 정보영역의 카드 한 장이다 */
+  .quest{display:flex;flex-direction:column;}
+  .q-head{display:flex;align-items:center;gap:.5em;margin-bottom:.6em;flex:none;}
   .q-step{
     color:var(--brand-yellow);background:#161613;border-radius:var(--r-pill);
-    font-size:11px;font-weight:700;letter-spacing:.06em;padding:3px 9px;flex:none;
+    font-size:.85em;font-weight:700;letter-spacing:.06em;padding:.25em .7em;flex:none;
   }
-  .q-note{color:var(--muted);font-size:11px;margin:0;flex:1;min-width:0;
+  .q-note{color:var(--muted);font-size:.85em;margin:0;flex:1;min-width:0;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
-  .q-list{list-style:none;margin:0;padding:0;display:grid;gap:5px;}
+  .q-list{list-style:none;margin:0;padding:0;display:grid;gap:.4em;
+    align-content:start;flex:1;min-height:0;overflow:auto;
+    scrollbar-width:none;}
+  .q-list::-webkit-scrollbar{display:none;}
   .q-item{
     display:grid;grid-template-columns:auto 1fr auto;align-items:center;
-    column-gap:8px;row-gap:4px;
+    column-gap:.6em;row-gap:.3em;
   }
   .q-check{
-    width:15px;height:15px;border-radius:4px;flex:none;
+    width:1.15em;height:1.15em;border-radius:.3em;flex:none;
     box-shadow:inset 0 0 0 1px var(--hairline);background:var(--surface);
     position:relative;
   }
@@ -351,16 +391,16 @@
   .q-check::after{
     content:'✓';position:absolute;inset:0;
     display:flex;align-items:center;justify-content:center;
-    font-size:11px;font-weight:800;color:var(--on-brand);opacity:0;
+    font-size:.85em;font-weight:800;color:var(--on-brand);opacity:0;
   }
-  .q-name{color:var(--body);font-size:13px;min-width:0;
+  .q-name{color:var(--body);font-size:1em;min-width:0;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .q-num{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums;flex:none;}
+  .q-num{color:var(--muted);font-size:.92em;font-variant-numeric:tabular-nums;flex:none;}
   /* 한 번에 끝나는 항목은 막대가 체크와 같은 말을 반복한다. 여러 번 걸리는 것만 둔다 */
   .q-item.binary .q-track{display:none;}
   .q-item.binary{row-gap:0;}
   .q-track{
-    grid-column:2 / -1;height:4px;border-radius:2px;
+    grid-column:2 / -1;height:.3em;border-radius:2px;
     background:var(--surface);box-shadow:inset 0 0 0 1px var(--hairline);overflow:hidden;
   }
   .q-track i{display:block;height:100%;width:0;border-radius:2px;
@@ -496,9 +536,9 @@
   .d-hint{color:var(--muted);font-size:11px;text-align:center;margin:var(--s4) 0 0;}
 
   .hint{
-    color:var(--muted);font-size:12px;text-align:center;margin:0;
-    padding:var(--s3) var(--s4) calc(env(safe-area-inset-bottom,0px) + var(--s4));
+    color:var(--muted);font-size:.92em;line-height:1.45;text-align:center;margin:0;
   }
+  .card.hint-card{display:flex;align-items:center;justify-content:center;}
 </style>
 </head>
 <body>
@@ -510,24 +550,36 @@
       <span class="stat">Lv <b id="level">1</b></span>
       <span class="stat">코인 <b id="coin">0</b></span>
       <span class="stat">체력 <b id="hp">10/10</b></span>
-      <span class="stat">턴 <b id="moves">0</b></span>
-      <span class="stat">몬스터 <b id="mcount">0</b></span>
+      <span class="stat opt-turn">턴 <b id="moves">0</b></span>
+      <span class="stat opt-mon">몬스터 <b id="mcount">0</b></span>
       <button class="btn btn-secondary btn-sm" id="sound" type="button"
               aria-label="소리 끄기" aria-pressed="true">🔊</button>
       <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
     </div>
 
-    <div class="stage" id="stage">
-      <div class="board" id="board"></div>
-    </div>
-
-    <section class="quest" id="quest">
-      <div class="q-head">
-        <span class="q-step" id="qstep">퀘스트 1/3</span>
-        <p class="q-note" id="qnote"></p>
+    <div class="split" id="split">
+      <div class="stage" id="stage">
+        <div class="board" id="board"></div>
       </div>
-      <ul class="q-list" id="qlist"></ul>
-    </section>
+
+      <!-- 정보영역. 카드 여섯 장. 가로면 2x3, 세로면 3x2 -->
+      <div class="info" id="info">
+        <section class="card quest" id="quest">
+          <div class="q-head">
+            <span class="q-step" id="qstep">퀘스트 1/3</span>
+            <p class="q-note" id="qnote"></p>
+          </div>
+          <ul class="q-list" id="qlist"></ul>
+        </section>
+        <div class="card hint-card">
+          <p class="hint" id="hint">스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격</p>
+        </div>
+        <div class="card empty"></div>
+        <div class="card empty"></div>
+        <div class="card empty"></div>
+        <div class="card empty"></div>
+      </div>
+    </div>
 
     <div class="levelup" id="levelup" hidden><b>LEVEL UP</b></div>
 
@@ -546,7 +598,6 @@
       </div>
     </div>
 
-    <p class="hint" id="hint">스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격</p>
   </main>
 
 <script>
@@ -791,6 +842,8 @@
 
   const boardEl = document.getElementById('board');
   const stageEl = document.getElementById('stage');
+  const splitEl = document.getElementById('split');
+  const infoEl = document.getElementById('info');
   const movesEl = document.getElementById('moves');
   const countEl = document.getElementById('mcount');
   const hpEl = document.getElementById('hp');
@@ -897,6 +950,7 @@
   // 더는 곱셈 한 번으로 자리를 낼 수 없다.
   //   전체 = (배율 합)*C + 간격*(N-1)
   //   배율 합 = 내부 5 + 외부 양쪽 1+1 = 7
+  // 칸 크기는 남은 공간에 맞춰 정수 px 로 내림. 소수 px 이면 격자가 흔들린다
   function computeAxis(side, gap) {
     let units = 0;
     for (let i = 0; i < N; i++) units += cellScale(i);
@@ -913,8 +967,49 @@
     return { size, pos, total: p - gap };
   }
 
-  // 칸 크기는 남은 공간에 맞춰 정수 px 로 내림. 소수 px 이면 격자가 흔들린다
+  // 게임(1:1) 과 정보(7:9 / 9:7) 를 붙이면 16:9 다. 세로면 9:16 이고 위아래가 된다.
+  //   가로: 게임 9u x 9u + 정보 7u x 9u = 16u x 9u
+  //   세로: 정보 9u x 7u 위, 게임 9u x 9u 아래 = 9u x 16u
+  // 그 상자를 화면 안에 최대로 넣는 u 를 구하고, 나머지는 다 그 배수다
+  const SPLIT_MIN = 120;        // 이보다 작아지면 아무것도 안 읽힌다
+  function layoutSplit() {
+    const W = splitEl.clientWidth, H = splitEl.clientHeight;
+    if (!W || !H) return;
+    // 가로/세로는 화면비로 가른다. 정사각이면 가로로 친다
+    const wide = W >= H;
+    splitEl.classList.toggle('wide', wide);
+
+    // 긴 쪽을 16, 짧은 쪽을 9 로 맞춘다. 둘 중 먼저 막히는 쪽이 크기를 정한다
+    const side = Math.max(SPLIT_MIN, Math.floor(
+      wide ? Math.min(H, W * 9 / 16) : Math.min(W, H * 9 / 16)));
+    const unit = side / 9;
+
+    stageEl.style.width = side + 'px';
+    stageEl.style.height = side + 'px';
+
+    const iw = wide ? side * 7 / 9 : side;
+    const ih = wide ? side : side * 7 / 9;
+    infoEl.style.width = Math.round(iw) + 'px';
+    infoEl.style.height = Math.round(ih) + 'px';
+
+    // 카드는 칸을 꽉 채우지 않는다. 간격과 테두리 여백을 뺀 칸 안에
+    // 정해진 비율(가로 3.5:3, 세로 3:3.5) 로 넣고 가운데 둔다.
+    // 칸을 꽉 채우면 간격만큼 비율이 틀어진다
+    const g = Math.max(3, Math.round(unit * 0.16));
+    const cols = wide ? 2 : 3, rows = wide ? 3 : 2;
+    const cellW = (iw - g * 2 - g * (cols - 1)) / cols;
+    const cellH = (ih - g * 2 - g * (rows - 1)) / rows;
+    const ar = wide ? 3.5 / 3 : 3 / 3.5;
+    const cw = Math.max(20, Math.min(cellW, cellH * ar));
+
+    infoEl.style.setProperty('--gap', g + 'px');
+    infoEl.style.setProperty('--cw', Math.floor(cw) + 'px');
+    infoEl.style.setProperty('--ch', Math.floor(cw / ar) + 'px');
+    infoEl.style.setProperty('--u', unit + 'px');
+  }
+
   function layout() {
+    layoutSplit();
     const w = stageEl.clientWidth - 24;
     const h = stageEl.clientHeight - 24;
     const side = Math.max(140, Math.min(w, h));
@@ -1865,6 +1960,17 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
+    layout, layoutSplit,
+    split: () => ({
+      wide: splitEl.classList.contains('wide'),
+      game: { w: stageEl.clientWidth, h: stageEl.clientHeight },
+      info: { w: infoEl.clientWidth, h: infoEl.clientHeight },
+      card: {
+        w: parseFloat(infoEl.style.getPropertyValue('--cw')),
+        h: parseFloat(infoEl.style.getPropertyValue('--ch')),
+      },
+      cards: infoEl.querySelectorAll('.card').length,
+    }),
     limitsExtra: { HIT_MARK_SCALE },
     isSoundOn: () => soundOn,
     // 연출을 기다리지 않고 검사하려면 간격을 0 으로 둔다
