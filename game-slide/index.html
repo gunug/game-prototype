@@ -615,6 +615,41 @@
 
   .d-hint{color:var(--muted);font-size:11px;text-align:center;margin:var(--s4) 0 0;}
 
+  /* 끝난 판을 알리는 팝업. 드래프트와 같은 덮개를 쓴다 */
+  .endpop{
+    position:fixed;inset:0;z-index:110;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(8,8,6,.86);
+    padding:var(--s4);
+  }
+  /* .draft 와 같은 함정. display:flex 가 [hidden] 을 이긴다 */
+  .endpop[hidden]{display:none;}
+  .endpop-inner{
+    width:100%;max-width:320px;
+    background:var(--surface);border-radius:var(--r-md,12px);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+    padding:var(--s5,24px) var(--s4);
+    text-align:center;
+    animation:endpop .32s cubic-bezier(.2,.8,.3,1);
+  }
+  @keyframes endpop{from{opacity:0;transform:scale(.92);}to{opacity:1;transform:none;}}
+  .end-title{
+    margin:0 0 var(--s2);font-size:22px;font-weight:800;letter-spacing:.02em;
+    color:var(--ink);
+  }
+  .endpop.clear .end-title{color:var(--brand-yellow);}
+  .end-note{margin:0 0 var(--s4);color:var(--muted);font-size:13px;}
+  .end-rows{
+    list-style:none;margin:0 0 var(--s4);padding:0;
+    display:grid;gap:6px;text-align:left;
+  }
+  .end-rows li{
+    display:flex;justify-content:space-between;gap:var(--s3);
+    color:var(--muted);font-size:13px;
+  }
+  .end-rows b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  .end-btns{display:flex;gap:var(--s2);justify-content:center;}
+
   .hint{
     color:var(--muted);font-size:.92em;line-height:1.45;text-align:center;margin:0;
   }
@@ -663,6 +698,18 @@
     </div>
 
     <div class="levelup" id="levelup" hidden><b>LEVEL UP</b></div>
+
+    <div class="endpop" id="endpop" hidden>
+      <div class="endpop-inner">
+        <p class="end-title" id="endtitle">게임 오버</p>
+        <p class="end-note" id="endnote"></p>
+        <ul class="end-rows" id="endrows"></ul>
+        <div class="end-btns">
+          <button class="btn btn-secondary" id="endleave" type="button">지역</button>
+          <button class="btn btn-primary" id="endagain" type="button">다시</button>
+        </div>
+      </div>
+    </div>
 
     <div class="draft" id="draft" hidden>
       <div class="draft-inner">
@@ -973,6 +1020,10 @@
   const levelEl = document.getElementById('level');
   const inspectEl = document.getElementById('inspect');
   const leaveBtn = document.getElementById('leave');
+  const endEl = document.getElementById('endpop');
+  const endTitleEl = document.getElementById('endtitle');
+  const endNoteEl = document.getElementById('endnote');
+  const endRowsEl = document.getElementById('endrows');
   const coinEl = document.getElementById('coin');
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
@@ -1007,6 +1058,7 @@
   const monsters = [];          // {kind,x,y,hp,maxHp,atk,el}
   let moves = 0;
   let over = false;             // 플레이어가 쓰러졌다
+  let ended = false;            // 판이 끝나 팝업이 떠 있다. 입력을 막는다
   let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
@@ -1614,6 +1666,7 @@
     await sleep(QUEST_CLEAR_MS);
     if (phaseId !== mine) return;
     startGroup(groupIndex + 1);
+    if (allDone) showEnd('clear');
   }
 
   // ── 경험치 ─────────────────────────────────────────────────
@@ -2030,7 +2083,7 @@
         }
       }
       movesEl.textContent = ++moves;
-      if (player.hp <= 0) over = true;
+      if (player.hp <= 0) { over = true; showEnd('over'); }
 
       if (!over) {
         stageTurns++;
@@ -2045,7 +2098,8 @@
 
       // 이 페이즈에서 오른 레벨만큼 고른다. 몬스터가 다 움직이고 난 뒤라
       // 판이 어떤 꼴인지 보고 고르게 된다
-      while (!over && pendingDrafts > 0 && phaseId === mine) {
+      // 판이 끝났으면 안 고른다. 팝업이 드래프트를 덮어 아무것도 못 누르게 된다
+      while (!over && !ended && pendingDrafts > 0 && phaseId === mine) {
         pendingDrafts--;
         await announceLevelUp();
         if (phaseId !== mine) return;
@@ -2153,6 +2207,7 @@
   };
 
   function act(dx, dy) {
+    if (ended) return;          // 팝업이 떠 있다. 판은 이미 끝났다
     const x = player.x + dx, y = player.y + dy;
     if (mode === 'select') {
       const p = propAt(x, y);
@@ -2229,6 +2284,7 @@
   // 판 위의 것을 다 걷어 낸다. 플레이어는 남기고 자리만 처음으로 돌린다
   function clearBoard() {
     phaseId++;                  // 돌고 있던 페이즈는 여기서 손을 뗀다
+    hideEnd();
     busy = false;
     boardEl.classList.remove('hide-danger');
     for (const m of monsters) m.el.remove();
@@ -2293,6 +2349,40 @@
     }
   }
 
+  // ── 끝난 판 알리기 ─────────────────────────────────────────
+  // 쓰러지면 게임 오버, 퀘스트를 다 깨면 게임 클리어.
+  // 무한의 탑은 깰 것이 없으니 늘 게임 오버다. 성공도 실패도 아니고 기록만 남는다
+  function showEnd(kind) {
+    ended = true;
+    const st = stage();
+    const tower = !!(st && st.endless);
+    endEl.classList.toggle('clear', kind === 'clear');
+    endTitleEl.textContent = kind === 'clear' ? '게임 클리어' : '게임 오버';
+    endNoteEl.textContent = tower
+      ? st.name + ' — 여기까지 버텼다'
+      : kind === 'clear'
+        ? st.name + ' 퀘스트를 다 깼다'
+        : st.name + ' 에서 쓰러졌다';
+
+    const rows = [['버틴 턴', stageTurns]];
+    if (!tower) {
+      const total = questGroups().length;
+      const now = kind === 'clear' ? total : groupIndex;
+      rows.push(['깬 퀘스트', now + '/' + total]);
+    }
+    rows.push(['레벨', player.level], ['코인', player.purse]);
+    endRowsEl.innerHTML = rows
+      .map(r => '<li><span>' + r[0] + '</span><b>' + r[1] + '</b></li>').join('');
+
+    endEl.hidden = false;
+  }
+
+  function hideEnd() {
+    ended = false;
+    endEl.hidden = true;
+    endEl.classList.remove('clear');
+  }
+
   // ── 지역 고르기 / 들어가기 ─────────────────────────────────
   function gotoSelect() {
     mode = 'select';
@@ -2326,8 +2416,9 @@
 
   function reset() {
     if (mode === 'select') { gotoSelect(); return; }
-    // 규칙: `다시` 는 지금 퀘스트를 처음부터. 스테이지를 통째로 되돌리지 않는다
-    startStage(allDone ? questGroups().length : groupIndex);
+    // 규칙: `다시` 는 지금 퀘스트를 처음부터. 스테이지를 통째로 되돌리지 않는다.
+    // 다만 다 깬 뒤라면 되돌릴 묶음이 없다. 그때는 그 지역을 처음부터 준다
+    startStage(allDone ? 0 : groupIndex);
   }
 
   const soundBtn = document.getElementById('sound');
@@ -2341,6 +2432,8 @@
 
   document.getElementById('reset').addEventListener('click', reset);
   leaveBtn.addEventListener('click', gotoSelect);
+  document.getElementById('endleave').addEventListener('click', gotoSelect);
+  document.getElementById('endagain').addEventListener('click', reset);
   window.addEventListener('resize', layout);
 
   buildBoard();
@@ -2376,6 +2469,14 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
+    showEnd, hideEnd, isEnded: () => ended,
+    endPop: () => ({
+      shown: !endEl.hidden,
+      clear: endEl.classList.contains('clear'),
+      title: endTitleEl.textContent,
+      note: endNoteEl.textContent,
+      rows: Array.from(endRowsEl.children).map(li => li.textContent),
+    }),
     inspect, renderInspect, inspectTarget, tapInspect,
     layout, layoutSplit,
     split: () => ({
