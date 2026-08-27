@@ -81,6 +81,37 @@
     /* 카드 안 글자는 다 이 크기의 배수다. 카드가 작아지면 같이 줄어든다 */
     font-size:clamp(8px, calc(var(--u,60px) * .17), 13px);
   }
+  /* 인스펙터. 탭한 블럭의 속을 판보다 크게 적는다.
+     판 위 블럭은 칸 크기에 매여 있어 이름을 넣을 자리가 없다 */
+  .inspect{display:flex;flex-direction:column;}
+  .ins-head{display:flex;align-items:center;gap:.55em;flex:none;margin-bottom:.5em;}
+  .ins-face{
+    width:2.8em;height:2.8em;flex:none;
+    object-fit:contain;image-rendering:pixelated;
+    border-radius:var(--r-sm);
+  }
+  .ins-title{min-width:0;}
+  /* 명칭은 카드에서 제일 큰 글씨다. 무엇을 보고 있는지가 먼저 읽혀야 한다 */
+  .ins-name{
+    display:block;color:var(--ink);font-weight:800;font-size:1.35em;line-height:1.15;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .ins-kind{display:block;color:var(--muted);font-size:.85em;margin-top:.15em;}
+  .ins-rows{
+    list-style:none;margin:0;padding:0;display:grid;gap:.32em;
+    align-content:start;flex:1;min-height:0;overflow:auto;
+    scrollbar-width:none;
+  }
+  .ins-rows::-webkit-scrollbar{display:none;}
+  .ins-rows li{
+    display:flex;align-items:baseline;justify-content:space-between;gap:.6em;
+    color:var(--muted);font-size:.95em;
+  }
+  .ins-rows li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ins-rows b{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;}
+  /* 지금 보고 있는 블럭. 안쪽 그림자는 이미 쓰고 있어서 바깥 선으로 알린다 */
+  .token.picked{outline:2px solid var(--brand-yellow);outline-offset:1px;}
+
   /* 아직 무엇을 담을지 안 정한 자리 */
   .card.empty{background:none;box-shadow:inset 0 0 0 1px var(--hairline);opacity:.45;}
 
@@ -571,10 +602,10 @@
           </div>
           <ul class="q-list" id="qlist"></ul>
         </section>
+        <section class="card inspect" id="inspect"></section>
         <div class="card hint-card">
           <p class="hint" id="hint">스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격</p>
         </div>
-        <div class="card empty"></div>
         <div class="card empty"></div>
         <div class="card empty"></div>
         <div class="card empty"></div>
@@ -848,6 +879,7 @@
   const countEl = document.getElementById('mcount');
   const hpEl = document.getElementById('hp');
   const levelEl = document.getElementById('level');
+  const inspectEl = document.getElementById('inspect');
   const coinEl = document.getElementById('coin');
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
@@ -944,6 +976,7 @@
     a.textContent = ent.atk;
     for (const m of ATK_MODES) a.classList.toggle('atk-' + m, ent.atkMode === m);
     if (ent === player) hpEl.textContent = hp + '/' + ent.maxHp;
+    if (ent === inspectTarget()) renderInspect();
   }
 
   // 한 축의 칸 크기와 시작 위치를 미리 구한다. 칸마다 크기가 달라
@@ -1336,6 +1369,7 @@
     monsters.splice(i, 1);
     m.el.remove();
     countEl.textContent = monsters.length;
+    if (picked === m) renderInspect();   // 보던 놈이 죽었다. 플레이어로 돌아온다
   }
 
   // ── 퀘스트 진행 ────────────────────────────────────────────
@@ -1441,11 +1475,65 @@
     renderCoin();
   }
 
-  function renderCoin() { coinEl.textContent = player.purse; }
+  function renderCoin() {
+    coinEl.textContent = player.purse;
+    if (inspectTarget() === player) renderInspect();
+  }
+
+  // ── 인스펙터 ───────────────────────────────────────────────
+  // 탭한 블럭의 속을 정보영역 카드 한 장에 적는다.
+  // 판 위 블럭은 칸 크기에 매여 있어 이름을 넣을 자리가 없다. 이름은 여기서 준다
+  let picked = null;            // 고른 몬스터. null 이면 플레이어를 본다
+
+  // 보던 몬스터가 죽으면 저절로 플레이어로 돌아온다.
+  // 죽은 놈을 계속 들고 있으면 없는 체력을 적게 된다
+  function inspectTarget() {
+    if (picked && !monsters.includes(picked)) picked = null;
+    return picked || player;
+  }
+
+  function inspect(being) {
+    picked = being === player ? null : being;
+    renderInspect();
+  }
+
+  // 이름은 줄어들고 값은 안 줄어든다. 좁은 카드에서 값이 먼저 잘리면 소용이 없다
+  const insRow = (label, value) =>
+    '<li><span>' + label + '</span><b>' + value + '</b></li>';
+
+  function renderInspect() {
+    const it = inspectTarget();
+    const spec = BEINGS[it.kind];
+    const mine = it === player;
+    const rows =
+      insRow('체력', Math.max(0, it.hp) + '/' + it.maxHp)
+      + insRow('공격', it.atk)
+      + insRow('민첩', it.agi)
+      + (mine
+        ? insRow('레벨', it.level)
+          + insRow('경험치', it.xp + '/' + expNeeded(it.level))
+          + insRow('코인', it.purse)
+        : insRow('드랍 코인', it.coin) + insRow('드랍 경험치', it.exp));
+
+    inspectEl.innerHTML =
+      '<div class="ins-head">'
+      + '<img class="ins-face" src="images/' + spec.img + '" alt="">'
+      + '<span class="ins-title">'
+      +   '<b class="ins-name">' + spec.name + '</b>'
+      +   '<span class="ins-kind">' + (mine ? '플레이어' : '몬스터') + '</span>'
+      + '</span>'
+      + '</div>'
+      + '<ul class="ins-rows">' + rows + '</ul>';
+
+    // 지금 보고 있는 블럭에 테를 두른다. 카드와 판이 서로를 가리켜야 한다
+    for (const el of boardEl.querySelectorAll('.token.picked')) el.classList.remove('picked');
+    if (it.el) it.el.classList.add('picked');
+  }
 
   function renderExp() {
     expFillEl.style.width = (100 * player.xp / expNeeded(player.level)) + '%';
     levelEl.textContent = player.level;
+    if (inspectTarget() === player) renderInspect();
   }
 
   // ── 드래프트 ───────────────────────────────────────────────
@@ -1874,13 +1962,23 @@
 
     const horizontal = Math.abs(dx) > Math.abs(dy);
     const reach = horizontal ? Math.abs(dx) : Math.abs(dy);
-    if (reach < SWIPE_MOVE) return;
+    // 스와이프에 못 미치는 짧은 누름은 탭이다. 판 위 블럭을 눌렀으면 그것을 본다
+    if (reach < SWIPE_MOVE) { tapInspect(e); return; }
 
     const dir = horizontal ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
     if (drafting) chooseDraft(dir[0], dir[1]);
     else act(dir[0], dir[1]);
   });
   window.addEventListener('pointercancel', () => { start = null; });
+
+  // 판 위 블럭만 받는다. 드래프트 모달 안에도 같은 클래스의 블럭이 있어서
+  // `.token` 만 보면 모달을 누른 것까지 딸려 온다
+  function tapInspect(e) {
+    const el = e.target && e.target.closest && e.target.closest('.token');
+    if (!el || !boardEl.contains(el)) return;
+    const being = el === player.el ? player : monsters.find(m => m.el === el);
+    if (being) inspect(being);
+  }
 
   // ── 시작 / 다시 ────────────────────────────────────────────
   function reset() {
@@ -1906,9 +2004,11 @@
     player.hp = player.maxHp;
     player.level = 1; player.xp = 0;
     player.purse = 0;
+    picked = null;
     renderHp(player);
     renderExp();
     renderCoin();
+    renderInspect();
     over = false;
     moves = 0;
     movesEl.textContent = '0';
@@ -1960,6 +2060,7 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
+    inspect, renderInspect, inspectTarget, tapInspect,
     layout, layoutSplit,
     split: () => ({
       wide: splitEl.classList.contains('wide'),
