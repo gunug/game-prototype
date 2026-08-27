@@ -266,8 +266,11 @@
   /* 최고 기록. 오른쪽 아래 1/4 칸을 통째로 쓴다. 숫자 하나가 크게 보여야 한다 */
   .prop .st-best{
     position:absolute;right:0;bottom:0;width:50%;height:50%;
-    display:flex;align-items:center;justify-content:center;
-    font-size:.42em;line-height:1;font-weight:800;
+    display:flex;align-items:center;justify-content:flex-end;
+    padding-right:.35em;
+    /* 오른쪽에 붙이고 왼쪽으로 자란다. 가운데 맞추면 네 자리(1274턴)에서
+       오른쪽으로 삐져나가 옆 칸을 넘본다. 왼쪽은 제 블럭 안이라 괜찮다 */
+    font-size:.34em;line-height:1;font-weight:800;white-space:nowrap;
     font-variant-numeric:tabular-nums;
     color:var(--brand-yellow);
     gap:.06em;
@@ -2361,8 +2364,9 @@
     const el = document.createElement('div');
     el.className = 'token prop ' + kind + (spec.locked ? ' locked' : '');
     // 지역 블럭은 이름을 위에 얹고, 버티기 스테이지는 최고 기록을 오른쪽 아래에 크게
+    // 블럭에 크게 적는 것은 최고 버틴 턴이다. 층은 팝업에서 보여 준다
     const best = kind === 'stage' && spec.endless
-      ? '<span class="st-best">' + bestFloorOf(spec.id) + '<i>층</i></span>' : '';
+      ? '<span class="st-best">' + bestTurnOf(spec.id) + '<i>턴</i></span>' : '';
     const label = kind === 'stage'
       ? '<span class="st-name">' + spec.name + '</span>' : '';
     el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">'
