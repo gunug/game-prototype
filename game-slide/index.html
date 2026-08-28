@@ -692,7 +692,12 @@
     color:var(--muted);font-size:13px;
   }
   .end-rows b{color:var(--ink);font-variant-numeric:tabular-nums;}
-  .end-btns{display:flex;gap:var(--s2);justify-content:center;}
+  /* 끝난 판에서 고르는 줄. 드래프트와 같은 격자·같은 칸을 쓴다.
+     한 줄이라 위·아래 칸이 없다. 자리만 다시 잡아 준다 */
+  .end-pick{margin-top:var(--s2);}
+  .end-pick .d-left{grid-area:1/1;}
+  .end-pick .d-mid{grid-area:1/2;}
+  .end-pick .d-right{grid-area:1/3;}
 
   .hint{
     color:var(--muted);font-size:.92em;line-height:1.45;text-align:center;margin:0;
@@ -748,10 +753,13 @@
         <p class="end-title" id="endtitle">게임 오버</p>
         <p class="end-note" id="endnote"></p>
         <ul class="end-rows" id="endrows"></ul>
-        <div class="end-btns">
-          <button class="btn btn-secondary" id="endleave" type="button">지역</button>
-          <button class="btn btn-primary" id="endagain" type="button">다시</button>
+        <!-- 지역 고르기와 같은 방식. 기사를 움직여서 고른다 -->
+        <div class="draft-grid end-pick" id="endpick">
+          <div class="d-cell d-card d-left"><b>지역</b><span>지역 고르기로</span></div>
+          <div class="d-cell d-mid" id="endmid"></div>
+          <div class="d-cell d-card d-right"><b>다시</b><span>이 지역 다시</span></div>
         </div>
+        <p class="d-hint">왼쪽 · 오른쪽 으로 고른다 (스와이프 / WASD / 방향키)</p>
       </div>
     </div>
 
@@ -1073,6 +1081,8 @@
   const endTitleEl = document.getElementById('endtitle');
   const endNoteEl = document.getElementById('endnote');
   const endRowsEl = document.getElementById('endrows');
+  const endMidEl = document.getElementById('endmid');
+  const endPickEl = document.getElementById('endpick');
   const coinEl = document.getElementById('coin');
   const draftEl = document.getElementById('draft');
   const dHeadEl = document.getElementById('dhead');
@@ -1108,6 +1118,8 @@
   let moves = 0;
   let over = false;             // 플레이어가 쓰러졌다
   let ended = false;            // 판이 끝나 팝업이 떠 있다. 입력을 막는다
+  let picking = false;          // 끝난 판에서 고르는 연출이 도는 중
+  const PICK_MS = 180;          // 고른 칸이 튕기는 시간
   let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
@@ -2009,7 +2021,10 @@
     }
   }
 
-  function renderDraftPlayer() {
+  const renderDraftPlayer = () => renderPlayerCell(dMidEl);
+
+  // 드래프트와 끝난 판 팝업이 같이 쓴다. 판에 서 있는 그 블럭을 그대로 세운다
+  function renderPlayerCell(dMidEl) {
     dMidEl.innerHTML =
       // 공방 딱지는 tokenInner 안에 이미 들어 있다. 여기서 하나 더 붙이면
       // 빈 딱지가 진짜 딱지 위에 겹쳐 덮는다 (칼 그림이 가려진다)
@@ -2402,6 +2417,7 @@
     // 자동 반복은 무시한다. 한 번 누르면 한 번만 움직인다
     if (e.repeat) return;
     if (drafting) { chooseDraft(dir[0], dir[1]); return; }
+    if (ended) { chooseEnd(dir[0], dir[1]); return; }
     if (busy) return;
     act(dir[0], dir[1]);
   });
@@ -2458,6 +2474,7 @@
 
     const dir = horizontal ? [Math.sign(dx), 0] : [0, Math.sign(dy)];
     if (drafting) chooseDraft(dir[0], dir[1]);
+    else if (ended) chooseEnd(dir[0], dir[1]);
     else act(dir[0], dir[1]);
   });
   window.addEventListener('pointercancel', () => { start = null; cancelHold(); });
@@ -2622,6 +2639,21 @@
       .map(r => '<li><span>' + r[0] + '</span><b>' + r[1] + '</b></li>').join('');
 
     endEl.hidden = false;
+    renderPlayerCell(endMidEl);   // 자리를 잡은 뒤라야 칸 너비가 나온다
+  }
+
+  // 끝난 판에서 고르기. 왼쪽은 지역, 오른쪽은 다시. 위아래는 아무 일도 없다
+  async function chooseEnd(dx, dy) {
+    if (!ended || picking) return;
+    const cell = dx === -1 ? endPickEl.querySelector('.d-left')
+      : dx === 1 ? endPickEl.querySelector('.d-right') : null;
+    if (!cell) return;
+    picking = true;
+    cell.classList.add('hit');    // 고른 칸을 한 번 튕겨 보여 준다
+    await sleep(PICK_MS);
+    picking = false;
+    if (dx === -1) gotoSelect();
+    else reset();
   }
 
   function hideEnd() {
@@ -2681,8 +2713,6 @@
 
   document.getElementById('reset').addEventListener('click', reset);
   leaveBtn.addEventListener('click', gotoSelect);
-  document.getElementById('endleave').addEventListener('click', gotoSelect);
-  document.getElementById('endagain').addEventListener('click', reset);
   window.addEventListener('resize', layout);
 
   loadSave();                   // 영구 변수를 먼저 되살린다
@@ -2719,7 +2749,7 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
-    showEnd, hideEnd, isEnded: () => ended, recordBest,
+    showEnd, hideEnd, isEnded: () => ended, recordBest, chooseEnd,
     saved, loadSave, writeSave, bestTurnOf,
     endPop: () => ({
       shown: !endEl.hidden,
