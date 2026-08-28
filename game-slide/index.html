@@ -957,6 +957,7 @@
   const FLY_MS = 480;           // 수치가 공격력 쪽으로 날아가는 시간
   const BUMP_MS = 260;          // 닿은 뒤 실제로 오르는 순간
   const ORB_MS = 300;           // 경험치 구슬. 흩어지는 데 0.3초, 빨려 드는 데 0.3초
+  const EXP_MS = 250;           // 경험치 바가 끝까지 차는 시간. CSS 의 .25s 와 같아야 한다
   const ORB_BIG = 10;           // 이만큼 모이면 큰 구슬 하나로 바꾼다
 
   // 공격·방어의 모드. 지금은 아이콘만 갈아 끼운다.
@@ -1005,7 +1006,7 @@
   // 검사할 때 0 으로 낮춘다
   const tuning = {
     hit: HIT_DELAY, gap: ATTACK_GAP, move: MOVE_GAP, fade: DANGER_FADE, draft: FLY_MS,
-    orb: ORB_MS,
+    orb: ORB_MS, exp: EXP_MS,
   };
 
   // ── 소리 ───────────────────────────────────────────────────
@@ -1700,7 +1701,7 @@
   // 하나가 닿을 때마다 그만큼 오른다. 그래서 바가 끊어서 차오른다
   async function spawnDrop(x, y, amount, kind) {
     const drop = DROPS[kind];
-    if (!tuning.orb || amount <= 0) { drop.take(amount); return; }
+    if (!tuning.orb || amount <= 0) { await drop.take(amount); return; }
 
     const mine = phaseId;
     const spin = Math.random() * Math.PI * 2;
@@ -1746,7 +1747,7 @@
       await sleep(i === 0 ? tuning.orb : step);
       if (phaseId !== mine) { orbs.slice(i).forEach(o => o.el.remove()); return; }
       orbs[i].el.remove();
-      drop.take(orbs[i].v);      // 닿는 그 순간에 오른다
+      await drop.take(orbs[i].v);   // 닿는 그 순간에 오른다. 레벨업 연출도 여기서 끝난다
     }
   }
 
@@ -1912,18 +1913,50 @@
   const expGain = amount => Math.round(amount * (1 + player.expBonus / 100));
 
   // 구슬 하나가 닿을 때마다 이만큼씩 오른다. 증가율은 이미 먹은 뒤다
-  function addXp(n) {
+  // 경험치 바는 뒤로 안 간다. 레벨이 오르면
+  //   ① 끝까지 차오르고 → ② 알림이 뜨고 → ③ 연출 없이 0 으로 되감고 → ④ 다시 찬다.
+  // 그냥 새 값을 넣으면 90% 에서 12% 로 거꾸로 줄어드는 것이 보인다.
+  // 여러 레벨이 한꺼번에 오르면 그 횟수만큼 되풀이한다
+  async function addXp(n) {
+    const mine = phaseId;
     player.xp += n;
+
     while (player.xp >= expNeeded(player.level)) {
       player.xp -= expNeeded(player.level);
+
+      // ① 끝까지 (남은 만큼만 더 차면 되므로 짧다)
+      expFillEl.style.width = '100%';
+      if (tuning.exp) await sleep(tuning.exp);
+      if (phaseId !== mine) return;
+
       player.level++;
       pendingDrafts++;          // 레벨당 한 번씩. 두 레벨 오르면 두 번 고른다
+      levelEl.textContent = player.level;
+
+      // ② 가득 찬 채로 알린다
+      await announceLevelUp();
+      if (phaseId !== mine) return;
+
+      // ③ 되감기는 눈에 안 보이게. 전환을 껐다가 자리를 잡고 다시 켠다.
+      //    `offsetWidth` 를 한 번 읽어야 브라우저가 0 을 실제로 그린다.
+      //    안 읽으면 100% → 남은 값 한 번으로 뭉개져 거꾸로 줄어든 것처럼 보인다
+      expFillEl.style.transition = 'none';
+      expFillEl.style.width = '0%';
+      void expFillEl.offsetWidth;
+      expFillEl.style.transition = '';
+      // 0 인 채로 한 프레임쯤 둔다. 안 두면 브라우저가 100% → 남은 값을
+      // 한 번에 묶어 버려 다시 거꾸로 줄어드는 것처럼 보일 수 있다.
+      // `requestAnimationFrame` 대신 짧은 잠으로 둔다 — 탭이 뒤에 있으면
+      // rAF 는 안 돌고 페이즈가 통째로 멈춘다
+      if (tuning.exp) await sleep(16);
+      if (phaseId !== mine) return;
     }
+    // ④ 남은 만큼 다시 찬다
     renderExp();
   }
 
   // 증가율은 여기 한 곳에서 먹인다. 경험치가 어디서 들어오든 같이 적용된다
-  function gainExp(amount) { addXp(expGain(amount)); }
+  const gainExp = amount => addXp(expGain(amount));   // 연출이 끝날 때까지의 약속을 그대로 넘긴다
 
   // 코인 하나가 닿을 때마다 이만큼씩 는다. 쓸 곳은 아직 없다
   function addCoin(n) {
@@ -2333,10 +2366,10 @@
       // 이 페이즈에서 오른 레벨만큼 고른다. 몬스터가 다 움직이고 난 뒤라
       // 판이 어떤 꼴인지 보고 고르게 된다
       // 판이 끝났으면 안 고른다. 팝업이 드래프트를 덮어 아무것도 못 누르게 된다
+      // 알림은 경험치 바가 다 차는 그 순간에 이미 떴다. 여기서는 고르기만 한다.
+      // 고르는 것은 여전히 페이즈 끝이다 — 판이 어떤 꼴인지 보고 고르게
       while (!over && !ended && pendingDrafts > 0 && phaseId === mine) {
         pendingDrafts--;
-        await announceLevelUp();
-        if (phaseId !== mine) return;
         await openDraft();
       }
     } finally {
@@ -2913,12 +2946,13 @@
       if ('fade' in t) tuning.fade = t.fade;
       if ('draft' in t) tuning.draft = t.draft;
       if ('orb' in t) tuning.orb = t.orb;
+      if ('exp' in t) tuning.exp = t.exp;
     },
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
       MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
       N, MIN, MAX,
-              LEVELUP_MS, LUNGE_MS, FLY_MS, BUMP_MS, ORB_MS, ORB_BIG,
+              LEVELUP_MS, LUNGE_MS, FLY_MS, BUMP_MS, ORB_MS, ORB_BIG, EXP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
       PLAYER_MAX_HP: BEINGS.player.maxHp, GOBLIN_MAX_HP: BEINGS.goblin.maxHp,
       PLAYER_ATK: BEINGS.player.atk, GOBLIN_ATK: BEINGS.goblin.atk,
