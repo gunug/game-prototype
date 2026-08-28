@@ -2397,7 +2397,7 @@
   // 변수는 두 갈래다. 어느 쪽인지가 헷갈리면 이 표를 본다.
   //
   //   영구  — 지역을 벗어나도, 새로고침해도 남는다. `saved` 안에만 둔다.
-  //           코인, 무한의 아레나의 클리어층과 버틴 턴
+  //           코인, 무한의 아레나에서 버틴 턴
   //   일시  — 그 지역 안에서만 산다. 지역을 드나들면 표에서 다시 베낀다.
   //           체력, 레벨, 경험치, 업그레이드(드래프트 카드), 공·체 같은 스텟
   //
@@ -2406,7 +2406,6 @@
   const SAVE_KEY = 'slide.save.v1';
   const saved = {
     coin: 0,          // 모은 코인. 지역을 옮겨도 이어진다
-    bestFloor: {},    // 스테이지별 최고 클리어층
     bestTurn: {},     // 스테이지별 최고 버틴 턴
   };
 
@@ -2418,8 +2417,10 @@
       if (!raw) return;
       const got = JSON.parse(raw);
       if (typeof got.coin === 'number') saved.coin = got.coin;
-      if (got.bestFloor) Object.assign(saved.bestFloor, got.bestFloor);
       if (got.bestTurn) Object.assign(saved.bestTurn, got.bestTurn);
+      // 옛 저장에 남아 있는 `bestFloor` 는 읽지 않는다. 층 개념을 없앴다.
+      // 눈에 띄면 그 자리에서 지운 채로 다시 적는다
+      if (got.bestFloor) writeSave();
     } catch (e) { /* 못 읽으면 처음부터 하는 셈 친다 */ }
   }
 
@@ -2427,24 +2428,15 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(saved)); } catch (e) { /* 무시 */ }
   }
 
-  const bestFloorOf = id => saved.bestFloor[id] || 0;
   const bestTurnOf = id => saved.bestTurn[id] || 0;
-
-  // 지금 몇 층인가. 한 단계가 한 층이다 (10턴에 한 층)
-  function floorNow() {
-    const st = stage();
-    if (!st || !st.endless) return 0;
-    return Math.floor(stageTurns / st.endless.step);
-  }
 
   // 기록을 남길 자리는 "그 판이 끝나는 곳" 하나다. 죽어서 끝나든 나가서 끝나든 같다
   function recordBest() {
     const st = stage();
     if (!st || !st.endless) return;
-    let changed = false;
-    if (floorNow() > bestFloorOf(st.id)) { saved.bestFloor[st.id] = floorNow(); changed = true; }
-    if (stageTurns > bestTurnOf(st.id)) { saved.bestTurn[st.id] = stageTurns; changed = true; }
-    if (changed) writeSave();
+    if (stageTurns <= bestTurnOf(st.id)) return;
+    saved.bestTurn[st.id] = stageTurns;
+    writeSave();
   }
 
   // ── 끝난 판 알리기 ─────────────────────────────────────────
@@ -2464,7 +2456,7 @@
         : st.name + ' 에서 쓰러졌다';
 
     const rows = [['버틴 턴', stageTurns]];
-    if (tower) rows.push(['클리어층', floorNow() + '층 (최고 ' + bestFloorOf(st.id) + '층)']);
+    if (tower) rows.push(['최고 기록', bestTurnOf(st.id) + '턴']);
     if (!tower) {
       const total = questGroups().length;
       const now = kind === 'clear' ? total : groupIndex;
@@ -2572,8 +2564,8 @@
     }),
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap,
-    showEnd, hideEnd, isEnded: () => ended, recordBest, floorNow,
-    saved, loadSave, writeSave, bestFloorOf, bestTurnOf,
+    showEnd, hideEnd, isEnded: () => ended, recordBest,
+    saved, loadSave, writeSave, bestTurnOf,
     endPop: () => ({
       shown: !endEl.hidden,
       clear: endEl.classList.contains('clear'),
