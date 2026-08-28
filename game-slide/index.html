@@ -88,6 +88,23 @@
     box-shadow:inset 0 0 0 1px var(--hairline);
     opacity:.55;
   }
+  /* 무엇이 놓인 자리. 판의 블럭처럼 노란 테를 두른다 */
+  .slot.act{
+    opacity:1;
+    display:flex;align-items:center;justify-content:center;
+    padding:0;margin:0;border:0;font:inherit;cursor:pointer;
+    background:radial-gradient(ellipse at 50% 78%,
+      rgba(255,212,0,.22), rgba(255,212,0,.06) 60%, transparent 76%);
+    box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);
+    color:var(--ink);
+  }
+  .slot.act b{
+    font-size:calc(var(--sw,36px) * .26);
+    font-weight:800;line-height:1;letter-spacing:.02em;
+  }
+  .slot.act:active{background:rgba(255,212,0,.28);}
+  /* 지역 고르는 화면에서는 누를 것이 없다 */
+  .control.idle .slot.act{opacity:.3;cursor:default;}
 
   /* 정보영역. 남는 자리를 다 쓴다. 조작영역이 생기면서 좁아졌다.
      카드는 칸을 그대로 채운다 */
@@ -769,9 +786,10 @@
 
       <!-- 조작영역. 블럭 일곱 개 자리. 가로면 게임 왼쪽에 한 줄, 세로면 아래에 한 줄 -->
       <div class="control" id="control">
+        <button class="slot act" id="act-wait" type="button"><b>대기</b></button>
         <div class="slot"></div><div class="slot"></div><div class="slot"></div>
-        <div class="slot"></div><div class="slot"></div><div class="slot"></div>
-        <div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div>
+        <button class="slot act" id="act-quit" type="button"><b>종료</b></button>
       </div>
 
       <!-- 정보영역. 카드 여섯 장. 가로면 2x3, 세로면 3x2 -->
@@ -1173,6 +1191,7 @@
   let ended = false;            // 판이 끝나 팝업이 떠 있다. 입력을 막는다
   let picking = false;          // 끝난 판에서 고르는 연출이 도는 중
   let endToken = null;          // 팝업 가운데에 세운 기사
+  let endKind = 'over';         // 'over' | 'clear' | 'quit'
   let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
@@ -2424,6 +2443,7 @@
     hintEl.textContent = over ? '쓰러졌다. 다시 나 지역 선택 을 눌러라'
       : mode === 'select' ? HINT_SELECT : HINT_DEFAULT;
     leaveBtn.hidden = mode === 'select';
+    ctrlEl.classList.toggle('idle', mode === 'select');
   }
 
   // ── 입력 ───────────────────────────────────────────────────
@@ -2709,16 +2729,24 @@
   // 무한의 아레나는 깰 것이 없으니 늘 게임 오버다. 성공도 실패도 아니고 기록만 남는다
   function showEnd(kind) {
     ended = true;
+    endKind = kind;
     recordBest();
     const st = stage();
     const tower = !!(st && st.endless);
     endEl.classList.toggle('clear', kind === 'clear');
     endTitleEl.textContent = kind === 'clear' ? '게임 클리어' : '게임 오버';
-    endNoteEl.textContent = tower
-      ? st.name + ' — 여기까지 버텼다'
-      : kind === 'clear'
-        ? st.name + ' 퀘스트를 다 깼다'
-        : st.name + ' 에서 쓰러졌다';
+    endNoteEl.textContent = kind === 'quit'
+      ? '여기서 그만둘까 — ' + st.name
+      : tower
+        ? st.name + ' — 여기까지 버텼다'
+        : kind === 'clear'
+          ? st.name + ' 퀘스트를 다 깼다'
+          : st.name + ' 에서 쓰러졌다';
+
+    // 그만두려는 것은 아직 끝난 것이 아니다. 오른쪽은 판으로 돌아가는 자리다
+    const right = endPickEl.querySelector('.d-right');
+    right.querySelector('b').textContent = kind === 'quit' ? '취소' : '다시';
+    right.querySelector('span').textContent = kind === 'quit' ? '이어서 한다' : '이 지역 다시';
 
     const rows = [['버틴 턴', stageTurns]];
     if (tower) rows.push(['최고 기록', bestTurnOf(st.id) + '턴']);
@@ -2745,6 +2773,7 @@
     await strikePick(endToken, cell, dx, dy);
     picking = false;
     if (dx === -1) gotoSelect();
+    else if (endKind === 'quit') hideEnd();   // 그만두지 않는다. 판으로 돌아간다
     else reset();
   }
 
@@ -2806,6 +2835,11 @@
   });
 
   document.getElementById('reset').addEventListener('click', reset);
+  document.getElementById('act-wait').addEventListener('click', () => waitTurn());
+  document.getElementById('act-quit').addEventListener('click', () => {
+    if (mode !== 'play' || ended || busy) return;
+    showEnd('quit');
+  });
   leaveBtn.addEventListener('click', gotoSelect);
   window.addEventListener('resize', layout);
 
@@ -2844,6 +2878,7 @@
     isBusy: () => busy,
     renderDanger, threatened, threatDamage, moveGap, renderFloor,
     showEnd, hideEnd, isEnded: () => ended, recordBest, chooseEnd,
+    endKind: () => endKind,
     saved, loadSave, writeSave, bestTurnOf,
     endPop: () => ({
       shown: !endEl.hidden,
