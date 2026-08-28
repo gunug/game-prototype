@@ -1521,9 +1521,6 @@
     if (spawnMonster(g.spawn.kind)) groupSpawned++;
   }
 
-  const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-  const canEnter = (x, y) => onBoard(x, y) && !occupied(x, y);
-
   // 고블린: 매 턴 플레이어를 향해 상하좌우 한 칸.
   // 차이가 큰 축을 먼저 시도하고, 막혔으면 다른 축으로. 둘 다 막혔으면 그 자리에 선다.
   // 가로세로 차이가 같으면 가로를 먼저 본다 (규칙에 없어서 정한 것)
@@ -1560,6 +1557,27 @@
     const came = new Map();
     const open = new Set([start]);
 
+    // 플레이어에 못 닿을 때를 대비해, 닿을 수 있는 칸 중 제일 가까운 곳을 적어 둔다.
+    // 가까움은 실제 거리(맨해튼)로 잰다. 같으면 덜 걸어도 되는 쪽
+    let near = -1, nearDist = Infinity, nearSteps = Infinity;
+    const consider = (x, y, id, g) => {
+      const d = manhattan(x, y);
+      if (d < nearDist || (d === nearDist && g < nearSteps)) {
+        near = id; nearDist = d; nearSteps = g;
+      }
+    };
+
+    // 목표 칸에서 첫 한 칸까지 거슬러 올라간다
+    const firstStep = goal => {
+      let node = goal;
+      while (came.get(node) !== start) {
+        node = came.get(node);
+        if (node === undefined) return null;   // 시작 자리가 이미 목표였다
+      }
+      const nx = node % N, ny = (node - nx) / N;
+      return { x: nx, y: ny };
+    };
+
     while (open.size) {
       // 판이 작아서 그냥 훑는다. 힙을 쓸 만큼 크지 않다.
       // 값이 같으면 먼저 넣은 것을 고른다 — 그래야 같은 판에서 늘 같은 길이 나온다
@@ -1570,16 +1588,7 @@
       }
       const cx = cur % N, cy = (cur - cx) / N;
 
-      if (isBeside(cx, cy)) {
-        // 첫 한 칸까지 거슬러 올라간다
-        let node = cur;
-        while (came.get(node) !== start) {
-          node = came.get(node);
-          if (node === undefined) return null;   // 시작 자리가 이미 목표였다
-        }
-        const nx = node % N, ny = (node - nx) / N;
-        return { x: nx, y: ny };
-      }
+      if (isBeside(cx, cy)) return firstStep(cur);
 
       open.delete(cur);
       for (const [dx, dy] of steps) {
@@ -1592,9 +1601,15 @@
         gScore.set(id, ng);
         fScore.set(id, ng + h(nx, ny));
         open.add(id);
+        consider(nx, ny, id, ng);
       }
     }
-    return null;                  // 길이 아예 없다
+
+    // 플레이어가 고립되어 못 닿는다. 갈 수 있는 칸 중 제일 가까운 곳으로 간다.
+    // 가만히 서 있는 것보다 낫다 — 길이 열리는 순간 바로 붙는다
+    if (near < 0) return null;                 // 갈 수 있는 칸이 하나도 없다
+    if (nearDist >= manhattan(m.x, m.y)) return null;   // 지금 자리보다 나은 곳이 없다
+    return firstStep(near);
   }
 
   const manhattan = (x, y) => Math.abs(x - player.x) + Math.abs(y - player.y);
@@ -1608,57 +1623,20 @@
     return true;
   }
 
+  // 갈 수 있으면 가고, 못 가면 그 자리에 선다.
+  // 예전의 "차이가 큰 축부터 한 칸" 방식은 없앴다. 길찾기가 못 닿을 때의
+  // 자리까지 정해 주므로 할 일이 없고, 두면 제자리에서 왔다갔다 하게 만든다
   function stepToward(m) {
-    if (stepPath(m, ORTHO, manhattan)) return true;
-    return stepGreedy(m);         // 길이 막혔으면 한 칸이라도 붙어 본다
+    return stepPath(m, ORTHO, manhattan);
   }
 
-  // 예전 방식. 길찾기가 실패했을 때만 쓴다
-  function stepGreedy(m) {
-    const dx = player.x - m.x, dy = player.y - m.y;
-    const h = dx ? [Math.sign(dx), 0] : null;
-    const v = dy ? [0, Math.sign(dy)] : null;
-    const tries = Math.abs(dx) >= Math.abs(dy) ? [h, v] : [v, h];
-
-    for (const t of tries) {
-      if (!t) continue;
-      const nx = m.x + t[0], ny = m.y + t[1];
-      // 판 밖, 다른 몬스터, 플레이어가 있는 칸으로는 못 간다
-      if (!onBoard(nx, ny) || occupied(nx, ny)) continue;
-      m.x = nx; m.y = ny;
-      place(m.el, nx, ny);
-      return true;
-    }
-    return false;
-  }
-
-  // 고블린 라이더: 체스의 나이트처럼 움직인다. 사이에 무엇이 있든 뛰어넘는다.
-  // 갈 수 있는 여덟 칸 중에서 "플레이어에 인접" 에 가장 가까운 칸을 고른다.
-  // 인접이 목표라 거리 1 이 최고점이다. 거리 0 은 플레이어가 서 있어 갈 수 없다.
-  // 점수가 같으면 아래 차례에서 먼저 나온 칸을 쓴다 (규칙에 없어서 정한 것)
   const KNIGHT = [
     [1, -2], [2, -1], [2, 1], [1, 2],
     [-1, 2], [-2, 1], [-2, -1], [-1, -2],
   ];
 
   function stepKnight(m) {
-    if (stepPath(m, KNIGHT, (x, y) => Math.ceil(manhattan(x, y) / 3))) return true;
-    return knightGreedy(m);
-  }
-
-  // 예전 방식. 길찾기가 실패했을 때만 쓴다
-  function knightGreedy(m) {
-    let best = null, bestScore = Infinity;
-    for (const [dx, dy] of KNIGHT) {
-      const nx = m.x + dx, ny = m.y + dy;
-      if (!canEnter(nx, ny)) continue;
-      const score = Math.abs(dist({ x: nx, y: ny }, player) - 1);
-      if (score < bestScore) { bestScore = score; best = [nx, ny]; }
-    }
-    if (!best) return false;              // 여덟 칸이 다 막혔으면 그 자리에 선다
-    m.x = best[0]; m.y = best[1];
-    place(m.el, m.x, m.y);
-    return true;
+    return stepPath(m, KNIGHT, (x, y) => Math.ceil(manhattan(x, y) / 3));
   }
 
   // 몬스터의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
