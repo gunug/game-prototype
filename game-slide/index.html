@@ -2699,6 +2699,38 @@
     return p;
   }
 
+  // 여기에 하나 더 놓으면 판이 갈라지는가.
+  // 빈 칸 한 곳에서 물을 부어 모든 빈 칸에 닿는지 본다. 못 닿는 칸이 있으면
+  // 그쪽은 고립지역이다 (몬스터도 플레이어도 서로에게 못 간다)
+  function wouldIsolate(bx, by) {
+    const blocked = (x, y) => (x === bx && y === by) || !!propAt(x, y);
+
+    let first = null, total = 0;
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (blocked(x, y)) continue;
+        total++;
+        if (!first) first = { x, y };
+      }
+    }
+    if (!first) return true;                  // 다 막혔으면 그것도 갈라진 것으로 친다
+
+    const seen = new Set([nodeId(first.x, first.y)]);
+    const stack = [first];
+    while (stack.length) {
+      const c = stack.pop();
+      for (const [dx, dy] of ORTHO) {
+        const nx = c.x + dx, ny = c.y + dy;
+        if (!onBoard(nx, ny) || blocked(nx, ny)) continue;
+        const id = nodeId(nx, ny);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        stack.push({ x: nx, y: ny });
+      }
+    }
+    return seen.size !== total;
+  }
+
   // 시작 자리와 그 옆 네 칸은 비워 둔다. 처음부터 갇히면 아무것도 못 한다.
   // 무엇으로 막는지는 스테이지가 정한다 (숲은 나무, 아레나는 돌)
   function placeBlockers(spec) {
@@ -2712,9 +2744,14 @@
         free.push({ x, y });
       }
     }
-    for (let i = 0; i < n && free.length; i++) {
+    // 고립지역을 만드는 자리는 버리고 다른 자리를 본다. 후보가 다 떨어지면
+    // 그만큼만 놓는다 — 억지로 채우느니 몇 개 적은 편이 낫다
+    let placed = 0;
+    while (placed < n && free.length) {
       const c = free.splice(Math.floor(Math.random() * free.length), 1)[0];
+      if (wouldIsolate(c.x, c.y)) continue;
       addProp(c.x, c.y, 'blocker', kind);
+      placed++;
     }
   }
 
@@ -2934,7 +2971,7 @@
     pending: () => pendingDrafts,
     QUEST_GROUPS: FOREST_QUESTS, startGroup, spawnMonster, reset,
     STAGES, PROPS, props, propAt, enterStage, gotoSelect, addProp, placeBlockers,
-    monsterMul, spawnEvery, endlessSpawn, endlessStep,
+    monsterMul, spawnEvery, endlessSpawn, endlessStep, wouldIsolate,
     mode: () => mode, stageNow: () => stage(), stageTurns: () => stageTurns,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
