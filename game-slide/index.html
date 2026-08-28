@@ -1184,7 +1184,6 @@
   }
   let gapPx = 2;
   let expFillEl = null;         // 경험치 바의 채움. buildBoard 에서 잡는다
-  let pendingDrafts = 0;        // 아직 못 고른 드래프트 수 (레벨당 하나)
   let drafting = null;          // {cards, resolve} 고르는 중
   let axis = { size: [], pos: [], total: 0 };
   const player = makeBeing('player', START.x, START.y);
@@ -1707,8 +1706,10 @@
       return { el, v, dx: Math.cos(a) * r, dy: Math.sin(a) * r };
     });
 
-    // 한 프레임 뒤에 밀어야 전환이 걸린다. 같은 프레임에 넣으면 순간이동한다
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    // 한 프레임 뒤에 밀어야 전환이 걸린다. 같은 프레임에 넣으면 순간이동한다.
+    // `requestAnimationFrame` 은 안 쓴다 — 탭이 뒤에 있으면 안 돌아서
+    // 페이즈가 통째로 멈춘 채 영영 안 끝난다 (경험치 바에서도 같은 이유로 뺐다)
+    await nextFrame();
     if (phaseId !== mine) { orbs.forEach(o => o.el.remove()); return; }
     for (const o of orbs) o.el.style.transform = 'translate(' + o.dx + 'px,' + o.dy + 'px)';
     await sleep(tuning.orb);
@@ -1910,7 +1911,6 @@
       if (phaseId !== mine) return;
 
       player.level++;
-      pendingDrafts++;          // 레벨당 한 번씩. 두 레벨 오르면 두 번 고른다
       levelEl.textContent = player.level;
 
       // ② 가득 찬 채로 알린다
@@ -1925,10 +1925,18 @@
       void expFillEl.offsetWidth;
       expFillEl.style.transition = '';
       // 0 인 채로 한 프레임쯤 둔다. 안 두면 브라우저가 100% → 남은 값을
-      // 한 번에 묶어 버려 다시 거꾸로 줄어드는 것처럼 보일 수 있다.
-      // `requestAnimationFrame` 대신 짧은 잠으로 둔다 — 탭이 뒤에 있으면
-      // rAF 는 안 돌고 페이즈가 통째로 멈춘다
-      if (tuning.exp) await sleep(16);
+      // 한 번에 묶어 버려 다시 거꾸로 줄어드는 것처럼 보일 수 있다
+      if (tuning.exp) await nextFrame();
+      if (phaseId !== mine) return;
+
+      // ④ 남은 만큼 다시 차는 것을 보여 주고 나서
+      renderExp();
+      if (tuning.exp) await sleep(tuning.exp);
+      if (phaseId !== mine) return;
+
+      // ⑤ 바로 고른다. 오른 그 자리에서 고르는 것이 "레벨업" 으로 읽힌다.
+      //   예전에는 페이즈 끝(몬스터가 다 움직인 뒤)에 몰아서 열었다
+      if (!over && !ended) await openDraft();
       if (phaseId !== mine) return;
     }
     // ④ 남은 만큼 다시 찬다
@@ -2214,7 +2222,7 @@
     const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
 
     if (tuning.draft) {
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await nextFrame();
       fly.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(.6)';
       fly.style.opacity = '0';
       await sleep(tuning.draft);
@@ -2348,15 +2356,7 @@
       }
       updateStatus();               // 여기서 새 위험 표시를 계산한다
 
-      // 이 페이즈에서 오른 레벨만큼 고른다. 몬스터가 다 움직이고 난 뒤라
-      // 판이 어떤 꼴인지 보고 고르게 된다
-      // 판이 끝났으면 안 고른다. 팝업이 드래프트를 덮어 아무것도 못 누르게 된다
-      // 알림은 경험치 바가 다 차는 그 순간에 이미 떴다. 여기서는 고르기만 한다.
-      // 고르는 것은 여전히 페이즈 끝이다 — 판이 어떤 꼴인지 보고 고르게
-      while (!over && !ended && pendingDrafts > 0 && phaseId === mine) {
-        pendingDrafts--;
-        await openDraft();
-      }
+      // 드래프트는 레벨이 오르는 그 자리(`addXp`)에서 이미 열고 닫았다
     } finally {
       if (phaseId === mine) {
         // 다 끝난 뒤에 되살린다. 옮기는 도중의 어정쩡한 상태는 안 보여 준다
@@ -2367,6 +2367,9 @@
   }
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // 전환을 걸기 전에 한 프레임 비운다. 프레임 대신 짧은 잠을 쓴다.
+  // rAF 는 탭이 뒤에 있으면 안 돌아서, 기다리던 페이즈가 영영 안 끝난다
+  const nextFrame = () => sleep(20);
 
   // 몰릴수록 걸음 간격을 좁힌다. 10마리가 130ms 씩 걸으면 한 페이즈가 1.5초라
   // 늘어진다. 순서는 그대로 보이면서 전체 길이만 900ms 언저리로 묶는다
@@ -2633,7 +2636,6 @@
     props.length = 0;
     nextSeq = 1;                // 0 은 플레이어 몫이다
     closeDraft();               // 고르는 중이었으면 접는다
-    pendingDrafts = 0;
     picked = null;
     over = false;
     moves = 0;
@@ -2946,7 +2948,6 @@
     isDrafting: () => !!drafting,
     announceLevelUp,
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
-    pending: () => pendingDrafts,
     QUEST_GROUPS: FOREST_QUESTS, startGroup, spawnMonster, reset,
     STAGES, PROPS, props, propAt, enterStage, gotoSelect, addProp, placeBlockers,
     monsterMul, spawnEvery, endlessSpawn, endlessStep, wouldIsolate,
