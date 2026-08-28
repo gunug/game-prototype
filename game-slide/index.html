@@ -1137,7 +1137,7 @@
   let over = false;             // 플레이어가 쓰러졌다
   let ended = false;            // 판이 끝나 팝업이 떠 있다. 입력을 막는다
   let picking = false;          // 끝난 판에서 고르는 연출이 도는 중
-  const PICK_MS = 180;          // 고른 칸이 튕기는 시간
+  let endToken = null;          // 팝업 가운데에 세운 기사
   let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
@@ -2156,14 +2156,7 @@
       ? drafting.token.querySelector('.stat-mark .a')
       : rowEl;
 
-    // 판에서 때릴 때와 똑같이 그 방향으로 친다. lunge 안에서 소리도 같이 난다.
-    // 고른다는 것이 곧 그 카드를 치는 것으로 보이게
-    lunge(drafting.token, dx, dy);
-    // 맞는 쪽은 카드다. 판에서 몬스터가 맞을 때와 같은 결로 움츠러들며 붉게 번쩍인다
-    cell.classList.remove('hit');
-    void cell.offsetWidth;
-    cell.classList.add('hit');
-    if (tuning.draft) await sleep(LUNGE_MS);
+    await strikePick(drafting.token, cell, dx, dy);
     if (!drafting || phaseId !== mine) return;
 
     await flyToStat(cell, rowEl, card);
@@ -2351,6 +2344,19 @@
     });
   }
 
+  // 칸을 "쳐서" 고르는 연출. 고르는 곳이 셋(드래프트·끝난 판·지역)인데
+  // 셋 다 같은 손맛이어야 한다. 치는 쪽은 뻗고, 맞는 쪽은 움츠러들며 붉게 번쩍인다.
+  // 소리는 `lunge` 안에 있어서 여기서 한 번에 따라온다
+  async function strikePick(token, target, dx, dy) {
+    lunge(token, dx, dy);
+    if (target) {
+      target.classList.remove('hit');
+      void target.offsetWidth;      // 같은 칸을 두 번 골라도 다시 재생되게
+      target.classList.add('hit');
+    }
+    if (tuning.draft) await sleep(LUNGE_MS);
+  }
+
   const DIR_NAME = { '1,0': 'right', '-1,0': 'left', '0,1': 'down', '0,-1': 'up' };
   function lunge(el, dx, dy) {
     for (const n of ['up', 'down', 'left', 'right']) el.classList.remove('atk-' + n);
@@ -2408,12 +2414,11 @@
   }
 
   // 스테이지 블럭을 친다. 치는 모션이 끝나야 들어간다.
-  // 몬스터를 때리는 것과 같은 손맛이어야 "공격해서 고른다" 가 말이 된다
+  // 드래프트·끝난 판 팝업과 같은 연출을 쓴다 (`strikePick`)
   async function chooseStage(p, dx, dy) {
     if (busy) return;
     busy = true;
-    lunge(player.el, dx, dy);
-    await sleep(LUNGE_MS);
+    await strikePick(player.el, p.el, dx, dy);
     busy = false;
     if (p.spec.locked) {
       hintEl.textContent = p.spec.name + ' 은 아직 잠겨 있다';
@@ -2665,7 +2670,7 @@
       .map(r => '<li><span>' + r[0] + '</span><b>' + r[1] + '</b></li>').join('');
 
     endEl.hidden = false;
-    renderPlayerCell(endMidEl);   // 자리를 잡은 뒤라야 칸 너비가 나온다
+    endToken = renderPlayerCell(endMidEl);   // 자리를 잡은 뒤라야 칸 너비가 나온다
   }
 
   // 끝난 판에서 고르기. 왼쪽은 지역, 오른쪽은 다시. 위아래는 아무 일도 없다
@@ -2675,8 +2680,7 @@
       : dx === 1 ? endPickEl.querySelector('.d-right') : null;
     if (!cell) return;
     picking = true;
-    cell.classList.add('hit');    // 고른 칸을 한 번 튕겨 보여 준다
-    await sleep(PICK_MS);
+    await strikePick(endToken, cell, dx, dy);
     picking = false;
     if (dx === -1) gotoSelect();
     else reset();
@@ -2786,7 +2790,7 @@
       note: endNoteEl.textContent,
       rows: Array.from(endRowsEl.children).map(li => li.textContent),
     }),
-    inspect, renderInspect, inspectTarget, tapInspect,
+    inspect, renderInspect, inspectTarget, tapInspect, strikePick,
     waitTurn, findStep, stepPath, ORTHO, walkable,
     waited: () => groupWaited,
     layout, layoutSplit,
