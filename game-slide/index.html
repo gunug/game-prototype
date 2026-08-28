@@ -71,8 +71,26 @@
   /* 판이 들어갈 자리. 1:1 정사각. 판은 그 안에서 여백을 두고 가운데 선다 */
   .stage{flex:none;display:flex;align-items:center;justify-content:center;padding:var(--s3);}
 
-  /* 정보영역. 가로면 7:9 에 카드 2x3, 세로면 9:7 에 카드 3x2.
-     카드 비율(3.5:3 / 3:3.5)을 지키느라 칸보다 조금 작게 잡고 가운데 둔다 */
+  /* 조작영역. 블럭 일곱 개가 들어가는 한 줄. 두께는 블럭 하나다.
+     가로면 게임 왼쪽에 세로줄, 세로면 게임 아래에 가로줄.
+     DOM 은 게임 → 정보 → 조작 순인데, `order:-1` 로 늘 맨 앞(왼쪽/아래)에 세운다 */
+  .control{
+    flex:none;order:-1;
+    display:grid;place-items:center;
+    gap:var(--gap,8px);padding:var(--gap,8px);
+  }
+  .split.wide .control{grid-template-columns:1fr;grid-template-rows:repeat(7,1fr);}
+  .split:not(.wide) .control{grid-template-columns:repeat(7,1fr);grid-template-rows:1fr;}
+  /* 아직 무엇을 놓을지 안 정한 자리. 판의 빈 칸처럼 테두리만 그린다 */
+  .slot{
+    width:var(--sw,36px);height:var(--sw,36px);
+    box-sizing:border-box;border-radius:var(--r-sm);
+    box-shadow:inset 0 0 0 1px var(--hairline);
+    opacity:.55;
+  }
+
+  /* 정보영역. 남는 자리를 다 쓴다. 조작영역이 생기면서 좁아졌다.
+     카드는 칸을 그대로 채운다 */
   .info{
     flex:none;display:grid;place-items:center;
     gap:var(--gap,8px);padding:var(--gap,8px);
@@ -749,6 +767,13 @@
         <div class="board" id="board"></div>
       </div>
 
+      <!-- 조작영역. 블럭 일곱 개 자리. 가로면 게임 왼쪽에 한 줄, 세로면 아래에 한 줄 -->
+      <div class="control" id="control">
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="slot"></div>
+      </div>
+
       <!-- 정보영역. 카드 여섯 장. 가로면 2x3, 세로면 3x2 -->
       <div class="info" id="info">
         <section class="card quest" id="quest">
@@ -1098,6 +1123,7 @@
   const stageEl = document.getElementById('stage');
   const splitEl = document.getElementById('split');
   const infoEl = document.getElementById('info');
+  const ctrlEl = document.getElementById('control');
   const movesEl = document.getElementById('moves');
   const countEl = document.getElementById('mcount');
   const hpEl = document.getElementById('hp');
@@ -1243,6 +1269,7 @@
   //   세로: 정보 9u x 7u 위, 게임 9u x 9u 아래 = 9u x 16u
   // 그 상자를 화면 안에 최대로 넣는 u 를 구하고, 나머지는 다 그 배수다
   const SPLIT_MIN = 120;        // 이보다 작아지면 아무것도 안 읽힌다
+  const CONTROL_SLOTS = 7;      // 조작영역에 들어가는 블럭 수
   function layoutSplit() {
     const W = splitEl.clientWidth, H = splitEl.clientHeight;
     if (!W || !H) return;
@@ -1258,25 +1285,34 @@
     stageEl.style.width = side + 'px';
     stageEl.style.height = side + 'px';
 
-    const iw = wide ? side * 7 / 9 : side;
-    const ih = wide ? side : side * 7 / 9;
+    // 조작영역은 블럭 일곱 개 길이에 블럭 하나 두께다. 블럭 = 게임영역의 1/7
+    const ct = side / CONTROL_SLOTS;
+    // 정보영역은 남는 자리를 다 쓴다. 16/9 에서 게임(1)과 조작(1/7)을 뺀 만큼
+    const ir = 16 / 9 - 1 - 1 / CONTROL_SLOTS;
+
+    const iw = wide ? side * ir : side;
+    const ih = wide ? side : side * ir;
     infoEl.style.width = Math.round(iw) + 'px';
     infoEl.style.height = Math.round(ih) + 'px';
+    ctrlEl.style.width = Math.round(wide ? ct : side) + 'px';
+    ctrlEl.style.height = Math.round(wide ? side : ct) + 'px';
 
-    // 카드는 칸을 꽉 채우지 않는다. 간격과 테두리 여백을 뺀 칸 안에
-    // 정해진 비율(가로 3.5:3, 세로 3:3.5) 로 넣고 가운데 둔다.
-    // 칸을 꽉 채우면 간격만큼 비율이 틀어진다
     const g = Math.max(3, Math.round(unit * 0.16));
+    // 카드는 칸을 그대로 채운다. 정해진 비율을 지키던 것은 그만뒀다 —
+    // 조작영역이 자리를 가져가면서 정보영역이 7:9 가 아니게 됐고,
+    // 옛 비율(3.5:3)을 그대로 두면 카드가 칸 안에서 겉돌기만 한다
     const cols = wide ? 2 : 3, rows = wide ? 3 : 2;
     const cellW = (iw - g * 2 - g * (cols - 1)) / cols;
     const cellH = (ih - g * 2 - g * (rows - 1)) / rows;
-    const ar = wide ? 3.5 / 3 : 3 / 3.5;
-    const cw = Math.max(20, Math.min(cellW, cellH * ar));
 
     infoEl.style.setProperty('--gap', g + 'px');
-    infoEl.style.setProperty('--cw', Math.floor(cw) + 'px');
-    infoEl.style.setProperty('--ch', Math.floor(cw / ar) + 'px');
+    infoEl.style.setProperty('--cw', Math.max(20, Math.floor(cellW)) + 'px');
+    infoEl.style.setProperty('--ch', Math.max(20, Math.floor(cellH)) + 'px');
     infoEl.style.setProperty('--u', unit + 'px');
+
+    // 자리는 정사각이다. 두께에서 여백을 뺀 것이 한 변이 된다
+    ctrlEl.style.setProperty('--gap', g + 'px');
+    ctrlEl.style.setProperty('--sw', Math.max(10, Math.floor(ct - g * 2)) + 'px');
   }
 
   function layout() {
@@ -2824,6 +2860,8 @@
       wide: splitEl.classList.contains('wide'),
       game: { w: stageEl.clientWidth, h: stageEl.clientHeight },
       info: { w: infoEl.clientWidth, h: infoEl.clientHeight },
+      ctrl: { w: ctrlEl.clientWidth, h: ctrlEl.clientHeight },
+      slots: ctrlEl.querySelectorAll('.slot').length,
       card: {
         w: parseFloat(infoEl.style.getPropertyValue('--cw')),
         h: parseFloat(infoEl.style.getPropertyValue('--ch')),
