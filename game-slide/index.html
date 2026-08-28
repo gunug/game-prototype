@@ -19,7 +19,13 @@
     user-select:none;
     -webkit-tap-highlight-color:transparent;
     touch-action:none;
+    /* 3초 누르기가 브라우저 기본 길게 누르기(iOS 의 사진 저장 말풍선)에 먹히면
+       우리 타이머가 차기 전에 pointercancel 이 날아온다 */
+    -webkit-touch-callout:none;
   }
+  /* 그림을 끌어다 놓는 기본 동작도 같은 이유로 막는다. 끌기가 시작되면
+     그 순간 pointercancel 이다 */
+  img{-webkit-user-drag:none;user-drag:none;}
 
   .play{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--canvas);}
 
@@ -2504,6 +2510,15 @@
     else act(dir[0], dir[1]);
   });
   window.addEventListener('pointercancel', () => { start = null; cancelHold(); });
+
+  // 길게 누르면 브라우저가 먼저 제 일을 한다: 오른쪽 단추 메뉴, 길게 눌러 나오는
+  // 메뉴, 그림 끌기. 셋 다 그 순간 pointercancel 을 날려 3초 세기를 끊는다.
+  // 링크·단추 위에서는 그대로 둔다 — 거기서는 브라우저 기본이 더 쓸모 있다
+  const nativeOk = e =>
+    e.target && e.target.closest && e.target.closest('a,button,input,textarea,select');
+  window.addEventListener('contextmenu', e => { if (!nativeOk(e)) e.preventDefault(); });
+  window.addEventListener('dragstart', e => { if (!nativeOk(e)) e.preventDefault(); });
+  window.addEventListener('selectstart', e => { if (!nativeOk(e)) e.preventDefault(); });
 
   // 판 위 블럭만 받는다. 드래프트 모달 안에도 같은 클래스의 블럭이 있어서
   // `.token` 만 보면 모달을 누른 것까지 딸려 온다
