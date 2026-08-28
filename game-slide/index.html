@@ -139,6 +139,13 @@
   }
   .ins-rows li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .ins-rows b{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;}
+  /* 누르고 있는 동안 테가 차오른다. 3초를 채우면 대기로 턴이 넘어간다 */
+  .token.holding{animation:holdring 3s linear forwards;}
+  @keyframes holdring{
+    from{box-shadow:inset 0 0 0 1px rgba(255,212,0,.55), 0 0 0 0 rgba(255,212,0,0);}
+    to{box-shadow:inset 0 0 0 1px rgba(255,212,0,.55), 0 0 0 .22em rgba(255,212,0,.85);}
+  }
+
   /* 지금 보고 있는 블럭. 안쪽 그림자는 이미 쓰고 있어서 바깥 선으로 알린다 */
   .token.picked{outline:2px solid var(--brand-yellow);outline-offset:1px;}
 
@@ -976,7 +983,8 @@
 
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
-  const HINT_DEFAULT = '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격';
+  const HINT_DEFAULT =
+    '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격 · 스페이스나 기사를 3초 눌러 대기';
   const HINT_SELECT = '기사를 움직여 지역을 공격하면 들어간다';
 
   // ── 퀘스트 ─────────────────────────────────────────────────
@@ -993,6 +1001,11 @@
         { title: '오른쪽으로 움직이기', type: 'dir', dir: '1,0' },
         { title: '아래로 움직이기', type: 'dir', dir: '0,1' },
       ],
+    },
+    {
+      note: '아무것도 안 하고 한 턴을 넘긴다. 스페이스 · 또는 기사를 3초 누르기',
+      spawn: null,
+      items: [{ title: '대기하기', type: 'wait' }],
     },
     {
       note: '3턴에 한 마리씩, 모두 10마리가 나온다',
@@ -1042,7 +1055,7 @@
       },
     },
   ];
-  const itemGoal = it => (it.type === 'dir' ? 1 : it.goal);
+  const itemGoal = it => (it.type === 'dir' || it.type === 'wait' ? 1 : it.goal);
 
   const QUEST_CLEAR_MS = 900;   // 깬 것을 보여 주고 다음으로 넘어가기까지
 
@@ -1108,6 +1121,7 @@
   let groupSpawned = 0;         // 이 묶음에서 내보낸 마릿수
   const groupKills = {};        // 이 묶음에서 잡은 마릿수, 종류별
   const groupDirs = new Set();  // 이 묶음에서 움직여 본 방향
+  let groupWaited = false;      // 이 묶음에서 한 번이라도 대기했나
   let allDone = false;
 
   // 퀘스트 줄은 묶음 크기에 맞춰 그때그때 만든다
@@ -1418,7 +1432,92 @@
   // 가로세로 차이가 같으면 가로를 먼저 본다 (규칙에 없어서 정한 것)
   // 실제로 한 칸 옮겼으면 true. 막혀서 제자리면 false.
   // 부르는 쪽이 "걸음이 났는지" 를 알아야 그만큼 뜸을 들일 수 있다
+  // ── 길찾기 ─────────────────────────────────────────────────
+  // 벽(기물)과 다른 몬스터를 돌아 플레이어 옆까지 가는 길을 찾는다.
+  // 예전에는 "차이가 큰 축부터 한 칸" 이라 블로커 뒤에서 영영 제자리걸음이었다.
+  // 판이 11*11(121칸)이라 매 턴 다시 풀어도 싸다
+  const ORTHO = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const nodeId = (x, y) => y * N + x;
+
+  // 설 수 있는 칸인가. 자기 자리는 늘 설 수 있다(거기 서 있으니까)
+  function walkable(m, x, y) {
+    if (!onBoard(x, y)) return false;
+    if (x === m.x && y === m.y) return true;
+    if (propAt(x, y)) return false;
+    if (player.x === x && player.y === y) return false;   // 플레이어 칸은 못 밟는다
+    return !monsterAt(x, y);
+  }
+
+  // 목표는 "플레이어와 붙은 칸" 이다. 거기 서면 다음 턴에 때린다
+  const isBeside = (x, y) => Math.abs(x - player.x) + Math.abs(y - player.y) === 1;
+
+  // A*. `steps` 는 그 자리에서 갈 수 있는 방향들, `h` 는 남은 거리 어림값이다.
+  // 어림값은 실제보다 크면 안 된다(그래야 최단이 나온다).
+  //   상하좌우: 맨해튼 거리 그대로
+  //   나이트  : 한 수에 맨해튼이 최대 3 이라 거리/3
+  // 첫 한 칸만 돌려준다. 다음 턴에는 판이 달라져 있으므로 길 전체는 쓸모없다
+  function findStep(m, steps, h) {
+    const start = nodeId(m.x, m.y);
+    const gScore = new Map([[start, 0]]);
+    const fScore = new Map([[start, h(m.x, m.y)]]);
+    const came = new Map();
+    const open = new Set([start]);
+
+    while (open.size) {
+      // 판이 작아서 그냥 훑는다. 힙을 쓸 만큼 크지 않다.
+      // 값이 같으면 먼저 넣은 것을 고른다 — 그래야 같은 판에서 늘 같은 길이 나온다
+      let cur = -1, best = Infinity;
+      for (const n of open) {
+        const v = fScore.get(n);
+        if (v < best) { best = v; cur = n; }
+      }
+      const cx = cur % N, cy = (cur - cx) / N;
+
+      if (isBeside(cx, cy)) {
+        // 첫 한 칸까지 거슬러 올라간다
+        let node = cur;
+        while (came.get(node) !== start) {
+          node = came.get(node);
+          if (node === undefined) return null;   // 시작 자리가 이미 목표였다
+        }
+        const nx = node % N, ny = (node - nx) / N;
+        return { x: nx, y: ny };
+      }
+
+      open.delete(cur);
+      for (const [dx, dy] of steps) {
+        const nx = cx + dx, ny = cy + dy;
+        if (!walkable(m, nx, ny)) continue;
+        const id = nodeId(nx, ny);
+        const ng = gScore.get(cur) + 1;
+        if (ng >= (gScore.has(id) ? gScore.get(id) : Infinity)) continue;
+        came.set(id, cur);
+        gScore.set(id, ng);
+        fScore.set(id, ng + h(nx, ny));
+        open.add(id);
+      }
+    }
+    return null;                  // 길이 아예 없다
+  }
+
+  const manhattan = (x, y) => Math.abs(x - player.x) + Math.abs(y - player.y);
+
+  // 길을 찾아 한 칸 간다. 못 찾으면 부르는 쪽의 옛 방식으로 넘긴다
+  function stepPath(m, steps, h) {
+    const next = findStep(m, steps, h);
+    if (!next) return false;
+    m.x = next.x; m.y = next.y;
+    place(m.el, m.x, m.y);
+    return true;
+  }
+
   function stepToward(m) {
+    if (stepPath(m, ORTHO, manhattan)) return true;
+    return stepGreedy(m);         // 길이 막혔으면 한 칸이라도 붙어 본다
+  }
+
+  // 예전 방식. 길찾기가 실패했을 때만 쓴다
+  function stepGreedy(m) {
     const dx = player.x - m.x, dy = player.y - m.y;
     const h = dx ? [Math.sign(dx), 0] : null;
     const v = dy ? [0, Math.sign(dy)] : null;
@@ -1446,6 +1545,12 @@
   ];
 
   function stepKnight(m) {
+    if (stepPath(m, KNIGHT, (x, y) => Math.ceil(manhattan(x, y) / 3))) return true;
+    return knightGreedy(m);
+  }
+
+  // 예전 방식. 길찾기가 실패했을 때만 쓴다
+  function knightGreedy(m) {
     let best = null, bestScore = Infinity;
     for (const [dx, dy] of KNIGHT) {
       const nx = m.x + dx, ny = m.y + dy;
@@ -1609,6 +1714,7 @@
 
   function itemProgress(it) {
     if (it.type === 'dir') return groupDirs.has(it.dir) ? 1 : 0;
+    if (it.type === 'wait') return groupWaited ? 1 : 0;
     return Math.min(groupKills[it.kind] || 0, it.goal);
   }
   const itemDone = it => itemProgress(it) >= itemGoal(it);
@@ -1687,6 +1793,7 @@
     groupSpawned = 0;
     for (const k of Object.keys(groupKills)) delete groupKills[k];
     groupDirs.clear();
+    groupWaited = false;
     allDone = i >= questGroups().length;
     questEl.classList.remove('done', 'all-done');
     buildQuestRows();
@@ -2257,6 +2364,16 @@
     if (isInner(x, y)) return move(dx, dy);
   }
 
+  // 플레이어의 행동 3: 대기. 제자리에서 턴만 넘긴다.
+  // 이동도 공격도 아니지만 한 페이즈를 쓴다 — 몬스터는 그동안 다 움직인다
+  function waitTurn() {
+    if (busy || over || ended || mode !== 'play') return;
+    return runPhase(() => {
+      groupWaited = true;         // 대기 퀘스트는 이걸로 센다
+      return 'wait';
+    });
+  }
+
   // 스테이지 블럭을 친다. 치는 모션이 끝나야 들어간다.
   // 몬스터를 때리는 것과 같은 손맛이어야 "공격해서 고른다" 가 말이 된다
   async function chooseStage(p, dx, dy) {
@@ -2273,6 +2390,12 @@
   }
 
   window.addEventListener('keydown', e => {
+    // 스페이스는 제자리에서 턴 넘기기. 드래프트 중에는 안 받는다
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault();
+      if (!e.repeat && !drafting && !busy) waitTurn();
+      return;
+    }
     const dir = DIRS[e.key.toLowerCase()];
     if (!dir) return;
     e.preventDefault();
@@ -2285,13 +2408,44 @@
 
   // 스와이프는 판이 아니라 화면 전체에서 받는다
   let start = null;
+  // 기사를 오래 누르고 있으면 제자리에서 턴이 넘어간다.
+  // 스와이프와 겹치지 않게, 손가락이 움직이면 그 자리에서 취소한다
+  const HOLD_WAIT = 3000;
+  let holdTimer = null, holdFired = false;
+
+  function cancelHold() {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    player.el.classList.remove('holding');
+  }
+
   window.addEventListener('pointerdown', e => {
     // 상단 바 조작은 그대로 둔다. target 이 Element 가 아닐 수도 있어 closest 유무를 먼저 본다
     if (e.target && e.target.closest && e.target.closest('a,button')) return;
     if (busy && !drafting) return;        // 연출이 도는 중에는 안 받는다
     start = { x: e.clientX, y: e.clientY };
+
+    holdFired = false;
+    const el = e.target && e.target.closest && e.target.closest('.token');
+    if (el === player.el && mode === 'play' && !over && !ended && !drafting) {
+      player.el.classList.add('holding');   // 세고 있다는 것을 테로 알린다
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        holdFired = true;                   // 손을 뗄 때 탭으로 또 세지 않게
+        player.el.classList.remove('holding');
+        waitTurn();
+      }, HOLD_WAIT);
+    }
+  });
+
+  // 조금이라도 끌면 스와이프다. 누르고 있던 것은 없던 일로
+  window.addEventListener('pointermove', e => {
+    if (!holdTimer || !start) return;
+    if (Math.abs(e.clientX - start.x) > SWIPE_MOVE / 2
+      || Math.abs(e.clientY - start.y) > SWIPE_MOVE / 2) cancelHold();
   });
   window.addEventListener('pointerup', e => {
+    cancelHold();
+    if (holdFired) { holdFired = false; start = null; return; }   // 이미 대기로 썼다
     if (!start) return;
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
     start = null;
@@ -2305,7 +2459,7 @@
     if (drafting) chooseDraft(dir[0], dir[1]);
     else act(dir[0], dir[1]);
   });
-  window.addEventListener('pointercancel', () => { start = null; });
+  window.addEventListener('pointercancel', () => { start = null; cancelHold(); });
 
   // 판 위 블럭만 받는다. 드래프트 모달 안에도 같은 클래스의 블럭이 있어서
   // `.token` 만 보면 모달을 누른 것까지 딸려 온다
@@ -2574,6 +2728,8 @@
       rows: Array.from(endRowsEl.children).map(li => li.textContent),
     }),
     inspect, renderInspect, inspectTarget, tapInspect,
+    waitTurn, findStep, stepPath, ORTHO, walkable,
+    waited: () => groupWaited,
     layout, layoutSplit,
     split: () => ({
       wide: splitEl.classList.contains('wide'),
