@@ -1201,6 +1201,9 @@
   let mode = 'select';          // 'select' 는 지역 고르는 화면, 'play' 는 스테이지 안
   let stageIndex = -1;          // 들어와 있는 스테이지. 고르는 화면에서는 -1
   let stageTurns = 0;           // 이 스테이지에서 지난 턴. 무한의 아레나의 단계가 이걸 본다
+  let lastAxis = null;          // 플레이어가 마지막으로 움직인 축 ('h' | 'v').
+                                // 대기·공격한 턴에는 그대로 둔다 — 한 번 쉬었다고
+                                // 와리가리가 풀리면 안 된다
   const props = [];             // 기물. 블로커와 스테이지 블럭이 같이 산다
   let groupIndex = 0;
   let groupTurns = 0;           // 이 묶음에서 지난 턴
@@ -1622,11 +1625,28 @@
     return true;
   }
 
+  // 최단이 여럿일 때 어느 것을 고를지. 훑는 순서가 곧 그 답이다
+  // (`findStep` 은 값이 같으면 먼저 넣은 것을 쓴다).
+  //   ① 남은 간격이 큰 축부터 — 붙으려면 어차피 그 축을 더 많이 걸어야 한다
+  //   ② 간격이 같으면 플레이어가 방금 안 쓴 축부터
+  // ②가 없으면 플레이어가 좌우로 왔다갔다 할 때 몬스터도 같이 왔다갔다 한다.
+  // 그 축은 두 턴마다 제자리로 돌아오므로 두 턴이 통째로 버려지고,
+  // 아무도 안 건드리는 세로 간격은 영영 안 줄어든다
+  function stepOrder(m) {
+    const dx = player.x - m.x, dy = player.y - m.y;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    const horizFirst = adx !== ady ? adx > ady : lastAxis !== 'h';
+    // 같은 축 안에서는 플레이어 쪽을 먼저 본다
+    const h = dx >= 0 ? [[1, 0], [-1, 0]] : [[-1, 0], [1, 0]];
+    const v = dy >= 0 ? [[0, 1], [0, -1]] : [[0, -1], [0, 1]];
+    return horizFirst ? h.concat(v) : v.concat(h);
+  }
+
   // 갈 수 있으면 가고, 못 가면 그 자리에 선다.
   // 예전의 "차이가 큰 축부터 한 칸" 방식은 없앴다. 길찾기가 못 닿을 때의
   // 자리까지 정해 주므로 할 일이 없고, 두면 제자리에서 왔다갔다 하게 만든다
   function stepToward(m) {
-    return stepPath(m, ORTHO, manhattan);
+    return stepPath(m, stepOrder(m), manhattan);
   }
 
   const KNIGHT = [
@@ -2394,6 +2414,7 @@
       player.x += dx; player.y += dy;
       place(player.el, player.x, player.y);
       groupDirs.add(dx + ',' + dy);   // 방향 퀘스트는 이걸로 센다
+      lastAxis = dx ? 'h' : 'v';      // 몬스터가 이 축을 피해서 다가온다
       return 'move';
     });
   }
@@ -2640,6 +2661,7 @@
     over = false;
     moves = 0;
     stageTurns = 0;
+    lastAxis = null;
     movesEl.textContent = '0';
     countEl.textContent = '0';
     player.x = START.x; player.y = START.y;
@@ -2973,7 +2995,8 @@
       rows: Array.from(endRowsEl.children).map(li => li.textContent),
     }),
     inspect, renderInspect, inspectTarget, tapInspect, strikePick,
-    waitTurn, findStep, stepPath, ORTHO, walkable,
+    waitTurn, findStep, stepPath, ORTHO, walkable, stepOrder,
+    lastAxis: () => lastAxis,
     waited: () => groupWaited,
     layout, layoutSplit,
     split: () => ({
