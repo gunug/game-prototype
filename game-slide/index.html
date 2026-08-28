@@ -309,9 +309,10 @@
   }
   .monster.aim .glyph{animation:aimpulse .58s ease-in-out infinite;}
   @keyframes aimpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.14);}}
-  /* 돌진은 한 칸 걸음이 아니다. 조금 길게 끌고 끝에서 딱 선다 */
+  /* 돌진하는 동안은 칸을 하나씩 밟는다. 한 칸의 시간은 `--dash` 로 그때 정한다.
+     가속·감속 없이 고르게(linear) 지나가야 내달리는 것으로 보인다 */
   .monster.dash{
-    transition:transform .26s cubic-bezier(.55,0,.35,1),
+    transition:transform var(--dash, .13s) linear,
                width .13s, height .13s, left .13s, top .13s, font-size .13s;
   }
 
@@ -1046,7 +1047,9 @@
   // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
   const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
   const ATTACK_GAP = 260;       // 한 대와 다음 한 대 사이
-  const DASH_MS = 260;          // 돌진 한 번. 여러 칸을 한 번에 지나므로 걸음보다 길다
+  // 돌진은 칸을 하나씩 밟으며 지나간다. 전체가 한 걸음과 같은 시간이라
+  // 칸이 많을수록 한 칸이 짧아진다. 다만 한 프레임보다 짧으면 안 보이므로 바닥을 둔다
+  const DASH_STEP_MIN = 28;     // 돌진 한 칸의 최소 시간
   const MOVE_GAP = 130;         // 한 걸음과 다음 걸음 사이. 이동 연출이 .13s 라 그만큼
   const MOVE_GAP_MIN = 55;      // 많이 몰렸을 때의 하한. 이보다 짧으면 순서가 안 보인다
   const MOVE_BUDGET = 900;      // 한 페이즈에서 걸음 연출에 쓰는 시간 총량
@@ -1765,7 +1768,13 @@
     if (!m.aim) return out;
     const [dx, dy] = m.aim;
     let x = m.x + dx, y = m.y + dy;
+    // 안쪽 필드 끝까지다. 한 번 안으로 들어왔으면 다시 바깥 띠로는 안 나간다.
+    // 바깥에서 시작한 놈이 안으로 들어오는 길은 열어 둬야 하므로 "들어온 뒤" 로 잰다
+    let inside = isInner(m.x, m.y);
     while (onBoard(x, y) && !propAt(x, y) && !monsterAt(x, y)) {
+      const here = isInner(x, y);
+      if (inside && !here) break;
+      inside = inside || here;
       out.push({ x, y });
       x += dx; y += dy;
     }
@@ -1806,13 +1815,19 @@
     const stop = lane.findIndex(c => c.x === player.x && c.y === player.y);
     const run = stop < 0 ? lane : lane.slice(0, stop);
     if (run.length) {
-      const end = run[run.length - 1];
-      m.x = end.x; m.y = end.y;
+      // 한 칸씩 밟아 지나간다. 끝 칸으로 한 번에 옮기면 순간이동으로 보인다
+      const per = tuning.move
+        ? Math.max(DASH_STEP_MIN, Math.round(tuning.move / run.length)) : 0;
       m.el.classList.add('dash');
-      place(m.el, m.x, m.y);
-      await sleep(tuning.move ? DASH_MS : 0);
-      if (phaseId !== mine) return null;
+      m.el.style.setProperty('--dash', per + 'ms');
+      for (const c of run) {
+        m.x = c.x; m.y = c.y;
+        place(m.el, m.x, m.y);
+        if (per) await sleep(per);
+        if (phaseId !== mine) return null;
+      }
       m.el.classList.remove('dash');
+      m.el.style.removeProperty('--dash');
     }
     if (stop < 0) return run.length ? 'move' : null;
     await strike(m, player, dir[0], dir[1]);
@@ -3308,7 +3323,7 @@
     },
     limits: {
       SWIPE_MOVE, TINY_TOKEN, HIT_DELAY, ATTACK_GAP,
-      MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS,
+      MOVE_GAP, MOVE_GAP_MIN, MOVE_BUDGET, DANGER_FADE, QUEST_CLEAR_MS, DASH_STEP_MIN,
       N, MIN, MAX,
               LEVELUP_MS, LUNGE_MS, FLY_MS, BUMP_MS, ORB_MS, ORB_BIG, EXP_MS,
       // 예전 이름들. 표에서 그대로 끌어 쓴다
