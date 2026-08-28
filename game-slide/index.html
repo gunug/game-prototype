@@ -89,7 +89,7 @@
     opacity:.55;
   }
   /* 무엇이 놓인 자리. 판의 블럭처럼 노란 테를 두른다 */
-  .slot.act{
+  .slot.cmd{
     opacity:1;
     display:flex;align-items:center;justify-content:center;
     padding:0;margin:0;border:0;font:inherit;cursor:pointer;
@@ -98,13 +98,15 @@
     box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);
     color:var(--ink);
   }
-  .slot.act b{
+  .slot.cmd b{
     font-size:calc(var(--sw,36px) * .26);
     font-weight:800;line-height:1;letter-spacing:.02em;
   }
-  .slot.act:active{background:rgba(255,212,0,.28);}
+  .slot.cmd:active{background:rgba(255,212,0,.28);}
+  /* 눌러서 고를 때도 쳐서 고를 때와 같이 한 번 움츠러든다 */
+  .slot.cmd.hit{animation:cardhit .26s ease-out;}
   /* 지역 고르는 화면에서는 누를 것이 없다 */
-  .control.idle .slot.act{opacity:.3;cursor:default;}
+  .control.idle .slot.cmd{opacity:.3;cursor:default;}
 
   /* 정보영역. 남는 자리를 다 쓴다. 조작영역이 생기면서 좁아졌다.
      카드는 칸을 그대로 채운다 */
@@ -786,10 +788,10 @@
 
       <!-- 조작영역. 블럭 일곱 개 자리. 가로면 게임 왼쪽에 한 줄, 세로면 아래에 한 줄 -->
       <div class="control" id="control">
-        <button class="slot act" id="act-wait" type="button"><b>대기</b></button>
+        <button class="slot cmd" id="act-wait" type="button"><b>대기</b></button>
         <div class="slot"></div><div class="slot"></div><div class="slot"></div>
         <div class="slot"></div><div class="slot"></div>
-        <button class="slot act" id="act-quit" type="button"><b>종료</b></button>
+        <button class="slot cmd" id="act-quit" type="button"><b>종료</b></button>
       </div>
 
       <!-- 정보영역. 카드 여섯 장. 가로면 2x3, 세로면 3x2 -->
@@ -820,9 +822,9 @@
         <ul class="end-rows" id="endrows"></ul>
         <!-- 지역 고르기와 같은 방식. 기사를 움직여서 고른다 -->
         <div class="draft-grid end-pick" id="endpick">
-          <div class="d-cell d-card d-left"><b>지역</b><span>지역 고르기로</span></div>
+          <div class="d-cell d-card cmd d-left"><b>지역</b><span>지역 고르기로</span></div>
           <div class="d-cell d-mid" id="endmid"></div>
-          <div class="d-cell d-card d-right"><b>다시</b><span>이 지역 다시</span></div>
+          <div class="d-cell d-card cmd d-right"><b>다시</b><span>이 지역 다시</span></div>
         </div>
         <p class="d-hint">왼쪽 · 오른쪽 으로 고른다 (스와이프 / WASD / 방향키)</p>
       </div>
@@ -2868,10 +2870,31 @@
   });
 
   document.getElementById('reset').addEventListener('click', reset);
-  document.getElementById('act-wait').addEventListener('click', () => waitTurn());
-  document.getElementById('act-quit').addEventListener('click', () => {
+  // ── 명령 블럭 ──────────────────────────────────────────────
+  // `지역`·`다시`·`취소`·`대기`·`종료` 는 다 같은 것이다: 쳐서도 고르고 눌러서도 고른다.
+  // 누르는 쪽에도 같은 튕김을 준다 — 두 길이 같은 것으로 보여야 한다
+  function tapCmd(el) {
+    el.classList.remove('hit');
+    void el.offsetWidth;
+    el.classList.add('hit');
+  }
+
+  document.getElementById('act-wait').addEventListener('click', e => {
+    if (mode !== 'play') return;
+    tapCmd(e.currentTarget);
+    waitTurn();
+  });
+  document.getElementById('act-quit').addEventListener('click', e => {
     if (mode !== 'play' || ended || busy) return;
+    tapCmd(e.currentTarget);
     showEnd('quit');
+  });
+
+  // 팝업의 명령 블럭. 스와이프·키와 같은 자리로 보낸다
+  endPickEl.addEventListener('click', e => {
+    const cell = e.target && e.target.closest && e.target.closest('.d-card');
+    if (!cell) return;
+    chooseEnd(cell.classList.contains('d-left') ? -1 : 1, 0);
   });
   leaveBtn.addEventListener('click', gotoSelect);
   window.addEventListener('resize', layout);
