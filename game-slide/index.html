@@ -303,6 +303,17 @@
                width .13s, height .13s, left .13s, top .13s, font-size .13s;
   }
   .monster .glyph{animation:pop .18s ease-out;}
+  /* 돌진자세. 다음 턴에 저 길로 내달린다. 위험 표시가 어디까지인지 같이 알려 준다 */
+  .monster.aim{
+    box-shadow:inset 0 0 0 2px rgba(255,86,60,.95), 0 0 .6em rgba(255,86,60,.55);
+  }
+  .monster.aim .glyph{animation:aimpulse .58s ease-in-out infinite;}
+  @keyframes aimpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.14);}}
+  /* 돌진은 한 칸 걸음이 아니다. 조금 길게 끌고 끝에서 딱 선다 */
+  .monster.dash{
+    transition:transform .26s cubic-bezier(.55,0,.35,1),
+               width .13s, height .13s, left .13s, top .13s, font-size .13s;
+  }
 
   /* 기물. 체력바가 없으니 아래를 비워 둘 까닭도 없다. 칸을 거의 다 쓴다 */
   .prop .glyph{height:100%;object-position:center;}
@@ -329,8 +340,10 @@
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     pointer-events:none;
   }
-  /* 최고 기록. 오른쪽 아래 1/4 칸을 통째로 쓴다. 숫자 하나가 크게 보여야 한다 */
-  .prop .st-best{
+  /* 최고 기록과 완료도. 오른쪽 아래 1/4 칸을 통째로 쓴다.
+     둘은 같은 자리 같은 크기다 — 지역마다 다른 것을 보여 주되 눈은 한 곳만 본다 */
+  .prop .st-best,
+  .prop .st-quest{
     position:absolute;right:0;bottom:0;width:50%;height:50%;
     display:flex;align-items:center;justify-content:flex-end;
     padding-right:.35em;
@@ -345,22 +358,10 @@
       0 2px 4px rgba(0,0,0,.95);
     pointer-events:none;
   }
-  .prop .st-best i{font-style:normal;font-size:.55em;font-weight:700;}
-  /* 퀘스트 진행도. 지역 이름 바로 아래 한 줄.
-     이름이 12% 에서 시작해 한 줄을 쓰므로 그 아래가 40% 쯤이다 */
-  .prop .st-quest{
-    position:absolute;left:0;right:0;top:40%;
-    font-size:.17em;line-height:1.2;font-weight:800;
-    text-align:center;white-space:nowrap;
-    color:var(--brand-yellow);
-    font-variant-numeric:tabular-nums;
-    text-shadow:
-      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-      0 2px 4px rgba(0,0,0,.95);
-    pointer-events:none;
-  }
+  .prop .st-best i,
+  .prop .st-quest i{font-style:normal;font-size:.55em;font-weight:700;}
   /* 다 깬 지역. 숫자 대신 한마디로 바뀐다 — 다시 셀 것이 없다 */
-  .prop .st-quest.done{color:#7de08a;letter-spacing:.08em;}
+  .prop .st-quest.done{color:#7de08a;}
   /* 작은 외부 토큰에서는 글자가 안 읽힌다. 지역 블럭은 안쪽에만 서지만 안전하게 */
   .token.tiny .st-name, .token.tiny .st-best, .token.tiny .st-quest{display:none;}
 
@@ -915,6 +916,12 @@
       atk: 5, maxHp: 24, agi: 9, exp: 15, coin: 10,  // 말을 탔으니 걸어오는 고블린보다 빠르다
       step: stepKnight,
     },
+    chief: {
+      name: '고블린 대장', img: 'moster/goblin_chef.png',
+      atk: 10, maxHp: 120, agi: 7, exp: 10, coin: 5,  // 덩치가 크다. 제일 늦게 움직인다
+      step: stepToward,       // 이동은 폰. 상하좌우 한 칸
+      charge: true,           // 줄이 맞으면 자세를 잡고 다음 턴에 내달린다
+    },
   };
 
   // 최종 공격력 = 공격자의 공격력. 1 보다 작아지면 1 로 친다
@@ -1039,6 +1046,7 @@
   // 공격은 한꺼번에 터지면 무슨 일이 일어났는지 못 읽는다. 한 대씩 끊어 보여 준다
   const HIT_DELAY = 120;        // 돌진이 뻗은 뒤 피해가 들어가기까지
   const ATTACK_GAP = 260;       // 한 대와 다음 한 대 사이
+  const DASH_MS = 260;          // 돌진 한 번. 여러 칸을 한 번에 지나므로 걸음보다 길다
   const MOVE_GAP = 130;         // 한 걸음과 다음 걸음 사이. 이동 연출이 .13s 라 그만큼
   const MOVE_GAP_MIN = 55;      // 많이 몰렸을 때의 하한. 이보다 짧으면 순서가 안 보인다
   const MOVE_BUDGET = 900;      // 한 페이즈에서 걸음 연출에 쓰는 시간 총량
@@ -1143,29 +1151,19 @@
 
   const FOREST_QUESTS = [
     {
-      note: '스와이프나 WASD 로. 몬스터는 나오지 않는다',
-      spawn: null,
-      items: [
-        { title: '위로 움직이기', type: 'dir', dir: '0,-1' },
-        { title: '왼쪽으로 움직이기', type: 'dir', dir: '-1,0' },
-        { title: '오른쪽으로 움직이기', type: 'dir', dir: '1,0' },
-        { title: '아래로 움직이기', type: 'dir', dir: '0,1' },
-      ],
-    },
-    {
-      note: '아무것도 안 하고 한 턴을 넘긴다. 스페이스 · 또는 기사를 3초 누르기',
-      spawn: null,
-      items: [{ title: '대기하기', type: 'wait' }],
-    },
-    {
-      note: '3턴에 한 마리씩, 모두 10마리가 나온다',
-      spawn: { kind: 'goblin', every: 3, max: 10 },
+      note: '1턴에 한 마리씩, 모두 5마리가 나온다',
+      spawn: { kind: 'goblin', every: 1, max: 5 },
       items: [{ title: '고블린 5마리 잡기', type: 'kill', kind: 'goblin', goal: 5 }],
     },
     {
-      note: '3턴에 한 마리씩, 모두 10마리가 나온다',
-      spawn: { kind: 'rider', every: 3, max: 10 },
+      note: '1턴에 한 마리씩, 모두 5마리가 나온다',
+      spawn: { kind: 'rider', every: 1, max: 5 },
       items: [{ title: '고블린 라이더 5마리 잡기', type: 'kill', kind: 'rider', goal: 5 }],
+    },
+    {
+      note: '고블린 대장이 나타났다. 줄이 맞으면 자세를 잡고 다음 턴에 내달린다',
+      spawn: { kind: 'chief', burst: 1 },
+      items: [{ title: '고블린 대장 잡기', type: 'kill', kind: 'chief', goal: 1 }],
     },
   ];
 
@@ -1534,6 +1532,20 @@
     return out;
   }
 
+  // 가장 바깥 한 줄(테두리 40칸). 보통 몬스터는 다 여기서 나온다 —
+  // 판 밖에서 걸어 들어온 것으로 보여야지, 안쪽 코앞에서 솟으면 안 된다
+  const isRim = (x, y) => x === 0 || y === 0 || x === N - 1 || y === N - 1;
+
+  function rimCells() {
+    const out = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (isRim(x, y)) out.push({ x, y });
+      }
+    }
+    return out;
+  }
+
   function addMonster(x, y, kind = 'goblin') {
     const spec = BEINGS[kind];
     const el = document.createElement('div');
@@ -1551,8 +1563,12 @@
   }
 
   function spawnMonster(kind) {
-    const free = outerCells().filter(c => !occupied(c.x, c.y));
-    if (!free.length) return false;               // 외부에 빈 칸이 없다
+    const spec = BEINGS[kind];
+    // 특수한 몬스터만 외부 아무 칸에서나 나온다 (`spawnAnywhere`).
+    // 나머지는 다 가장 바깥 줄이다. 아직 그런 몬스터는 없고 자리만 열어 뒀다
+    const cells = spec && spec.spawnAnywhere ? outerCells() : rimCells();
+    const free = cells.filter(c => !occupied(c.x, c.y));
+    if (!free.length) return false;               // 나올 자리가 없다. 안 나온다
     const spot = free[Math.floor(Math.random() * free.length)];
     addMonster(spot.x, spot.y, kind);
     return true;
@@ -1740,16 +1756,85 @@
     return stepPath(m, KNIGHT, (x, y) => Math.ceil(manhattan(x, y) / 3));
   }
 
+  // ── 돌진 ───────────────────────────────────────────────────
+  // 자세를 잡은 놈이 다음 턴에 지나갈 길. 막히는 곳 앞에서 멈춘다.
+  // **플레이어는 막는 것으로 안 친다** — 거기 서 있으면 그 자리가 맞는 자리다.
+  // 그래서 이 길이 곧 위험 표시가 될 칸들이다
+  function chargePath(m) {
+    const out = [];
+    if (!m.aim) return out;
+    const [dx, dy] = m.aim;
+    let x = m.x + dx, y = m.y + dy;
+    while (onBoard(x, y) && !propAt(x, y) && !monsterAt(x, y)) {
+      out.push({ x, y });
+      x += dx; y += dy;
+    }
+    return out;
+  }
+
+  const onPath = (m, x, y) => chargePath(m).some(c => c.x === x && c.y === y);
+
+  // 자세를 잡을 방향. 가로나 세로로 줄이 맞고, 붙어 있지 않고,
+  // 사이에 막는 것이 없어야 한다. 못 닿을 길에 자세를 잡으면 한 턴을 버린다
+  // (규칙에는 "떨어진 지점에 있다면" 까지만 있다. 막힌 길은 빼기로 정했다)
+  function aimDir(m) {
+    if (m.x !== player.x && m.y !== player.y) return null;
+    const dx = Math.sign(player.x - m.x), dy = Math.sign(player.y - m.y);
+    if (Math.abs(player.x - m.x) + Math.abs(player.y - m.y) < 2) return null;
+    const probe = { x: m.x, y: m.y, aim: [dx, dy] };
+    return onPath(probe, player.x, player.y) ? [dx, dy] : null;
+  }
+
+  function setAim(m, dir) {
+    m.aim = dir;
+    m.el.classList.add('aim');
+  }
+
+  function clearAim(m) {
+    m.aim = null;
+    m.el.classList.remove('aim');
+  }
+
+  // 자세를 잡았으면 다음 턴은 무조건 내달린다. 고를 것이 없다.
+  // 가다가 플레이어를 만나면 거기서 멈추고 공격력만큼 준다
+  async function chargeRun(m) {
+    const mine = phaseId;
+    const dir = m.aim;
+    const lane = chargePath(m);
+    clearAim(m);
+
+    const stop = lane.findIndex(c => c.x === player.x && c.y === player.y);
+    const run = stop < 0 ? lane : lane.slice(0, stop);
+    if (run.length) {
+      const end = run[run.length - 1];
+      m.x = end.x; m.y = end.y;
+      m.el.classList.add('dash');
+      place(m.el, m.x, m.y);
+      await sleep(tuning.move ? DASH_MS : 0);
+      if (phaseId !== mine) return null;
+      m.el.classList.remove('dash');
+    }
+    if (stop < 0) return run.length ? 'move' : null;
+    await strike(m, player, dir[0], dir[1]);
+    return 'attack';
+  }
+
   // 몬스터의 한 턴. 이동과 공격은 따로 도는 페이즈가 아니라 둘 중 하나만 고른다.
   // 붙어 있으면 때리고, 아니면 다가간다. 다가가서 붙은 턴에는 때리지 않는다
   // 무엇을 했는지 돌려준다: 'attack' | 'move' | null.
   // 부른 쪽이 그에 맞는 만큼 뜸을 들인다. 아무것도 못 했으면 기다릴 것도 없다
   async function monsterAct(m) {
+    const spec = BEINGS[m.kind];
+    if (m.aim) return chargeRun(m);           // 자세를 잡았으면 다른 것은 못 한다
     if (adjacent4(m, player)) {
       await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
       return 'attack';
     }
-    return BEINGS[m.kind].step(m) ? 'move' : null;
+    if (spec.charge) {
+      const dir = aimDir(m);
+      if (dir) { setAim(m, dir); return 'aim'; }
+    }
+    return spec.step(m) ? 'move' : null;
   }
 
   // 잡았을 때 딸려 오는 것들. 때려서든 밀어내서든 같다
@@ -2399,8 +2484,10 @@
   // 즉 "다음 턴에 맞는 칸" = 지금 몬스터가 바로 옆에 있는 칸이다.
   // 두 칸 떨어진 놈은 다가오는 데 행동을 다 쓰므로 그 턴에는 못 때린다
   // 그 칸으로 가면 얼마나 맞는지. 붙어 있는 놈들의 공격력을 다 더한다
+  // 붙어 있는 놈은 그 자리에서 때리고, 자세를 잡은 놈은 제 길 위 어디든 때린다
   const threatDamage = (x, y) => monsters.reduce(
-    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? damageTo(m) : 0), 0);
+    (sum, m) => sum + (Math.abs(m.x - x) + Math.abs(m.y - y) === 1 ? damageTo(m) : 0)
+      + (m.aim && onPath(m, x, y) ? damageTo(m) : 0), 0);
   const threatened = (x, y) => threatDamage(x, y) > 0;
 
   // 빈 칸에만 칠한다. 누가 서 있는 칸은 그림이 이미 자리를 차지하고 있다
@@ -2457,7 +2544,7 @@
         // 한 놈이 끝나야 다음 놈이 움직인다. 걸음은 짧게, 공격은 길게 쉰다.
         // 아무것도 못 한 놈(막힌 놈)은 보여 줄 것이 없으니 안 쉰다
         if (did) {
-          await sleep(did === 'attack' ? tuning.gap : moveGap());
+          await sleep(did === 'attack' || did === 'aim' ? tuning.gap : moveGap());
           if (phaseId !== mine) return;
         }
       }
@@ -2810,7 +2897,8 @@
     const quest = kind === 'stage' && isQuestStage(spec) && !spec.locked
       ? (questClearedOf(spec)
         ? '<span class="st-quest done">클리어</span>'
-        : '<span class="st-quest">' + questDoneOf(spec.id) + '/' + questTotalOf(spec) + '</span>')
+        : '<span class="st-quest">' + questDoneOf(spec.id)
+          + '<i>/' + questTotalOf(spec) + '</i></span>')
       : '';
     const label = kind === 'stage'
       ? '<span class="st-name">' + spec.name + '</span>' : '';
@@ -3163,6 +3251,8 @@
     QUEST_GROUPS: FOREST_QUESTS, TUTORIAL_QUESTS, startGroup, spawnMonster, reset,
     STAGES, PROPS, props, propAt, enterStage, gotoSelect, addProp, placeBlockers,
     monsterMul, spawnEvery, endlessSpawn, endlessStep, wouldIsolate,
+    chargePath, aimDir, setAim, clearAim, chargeRun,
+    outerCells, rimCells, isRim,
     mode: () => mode, stageNow: () => stage(), stageTurns: () => stageTurns,
     quest: () => ({
       index: groupIndex, turns: groupTurns, spawned: groupSpawned,
