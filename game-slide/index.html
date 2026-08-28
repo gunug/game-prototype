@@ -803,6 +803,19 @@
     color:var(--muted);font-size:.92em;line-height:1.45;text-align:center;margin:0;
   }
   .card.hint-card{display:flex;align-items:center;justify-content:center;}
+
+  /* 판 버전. 어느 화면에서든 보여야 하므로 화면에 붙이고 모든 겹 위에 둔다
+     (드래프트 100, 끝난 판 팝업 110). 눌리지는 않는다 — 읽기만 하는 것이다 */
+  .ver{
+    position:fixed;z-index:200;
+    right:calc(env(safe-area-inset-right,0px) + 6px);
+    bottom:calc(env(safe-area-inset-bottom,0px) + 5px);
+    color:var(--muted);opacity:.72;
+    font-size:11px;line-height:1;font-weight:700;
+    font-variant-numeric:tabular-nums;letter-spacing:.02em;
+    text-shadow:0 1px 2px rgba(0,0,0,.9);
+    pointer-events:none;user-select:none;
+  }
 </style>
 </head>
 <body>
@@ -888,9 +901,15 @@
 
   </main>
 
+  <span class="ver" id="ver"></span>
+
 <script>
 (() => {
   'use strict';
+
+  // 판 버전. `큰 변경·새 시스템` . `새 스테이지·새 몬스터` . `잔 수정·기능 변경`
+  // 고칠 때마다 여기 하나만 고친다. 화면 오른쪽 아래에 늘 떠 있다
+  const VERSION = '0.1.0';
 
   // ── 규칙 상수 ───────────────────────────────────────────────
   const N = 11;                 // 필드 11*11
@@ -3245,6 +3264,7 @@
   window.addEventListener('resize', layout);
 
   loadSave();                   // 영구 변수를 먼저 되살린다
+  document.getElementById('ver').textContent = 'v' + VERSION;
   buildBoard();
   layout();
   reset();
@@ -3291,6 +3311,7 @@
       rows: Array.from(endRowsEl.children).map(li => li.textContent),
     }),
     inspect, renderInspect, inspectTarget, tapInspect, strikePick,
+    VERSION,
     blink, blinkCmds, BLINK_TIMES, startFocus, endFocus,
     focusNow: () => (holdFocus ? holdFocus.id : null),
     waitTurn, findStep, stepPath, ORTHO, walkable, stepOrder,
