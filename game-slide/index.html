@@ -346,8 +346,23 @@
     pointer-events:none;
   }
   .prop .st-best i{font-style:normal;font-size:.55em;font-weight:700;}
+  /* 퀘스트 진행도. 지역 이름 바로 아래 한 줄.
+     이름이 12% 에서 시작해 한 줄을 쓰므로 그 아래가 40% 쯤이다 */
+  .prop .st-quest{
+    position:absolute;left:0;right:0;top:40%;
+    font-size:.17em;line-height:1.2;font-weight:800;
+    text-align:center;white-space:nowrap;
+    color:var(--brand-yellow);
+    font-variant-numeric:tabular-nums;
+    text-shadow:
+      -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
+      0 2px 4px rgba(0,0,0,.95);
+    pointer-events:none;
+  }
+  /* 다 깬 지역. 숫자 대신 한마디로 바뀐다 — 다시 셀 것이 없다 */
+  .prop .st-quest.done{color:#7de08a;letter-spacing:.08em;}
   /* 작은 외부 토큰에서는 글자가 안 읽힌다. 지역 블럭은 안쪽에만 서지만 안전하게 */
-  .token.tiny .st-name, .token.tiny .st-best{display:none;}
+  .token.tiny .st-name, .token.tiny .st-best, .token.tiny .st-quest{display:none;}
 
   /* 잠긴 지역. 색을 빼고 낮춘다. 있다는 것은 보이되 고를 것으로는 안 읽히게 */
   .prop.stage.locked{
@@ -696,6 +711,22 @@
   /* 강조: 고르라고 세 번 깜빡인다. 테가 굵어지며 빛난다.
      세 번이면 눈에 걸리되 성가시지 않다. 끝나면 원래 테로 돌아간다 */
   .cmd.blink{animation:cmdblink .42s ease-in-out 3;}
+  /* 붙잡는 강조: 누를 때까지 안 멈춘다. 새 조작을 가르치는 자리에서 쓴다 */
+  .cmd.blink.hold{animation:cmdblink .42s ease-in-out infinite;}
+  /* 그동안 그 단추만 밝다. 나머지는 한 겹 어둡게 눌러 둔다.
+     너무 어두우면 퀘스트 글이 안 읽힌다 — 조금만 낮춘다 */
+  .play.spotlight .topbar,
+  .play.spotlight .stage,
+  .play.spotlight .info,
+  .play.spotlight .control > :not(.blink){filter:brightness(.6);}
+  .play.spotlight .topbar,
+  .play.spotlight .stage,
+  .play.spotlight .info,
+  .play.spotlight .control > *{transition:filter .25s ease;}
+  /* 판도 다른 명령 블럭도 안 먹는다. 상단 바만 살려 둔다 (판을 나갈 길은 있어야 한다) */
+  .play.spotlight .stage,
+  .play.spotlight .info,
+  .play.spotlight .control > :not(.blink){pointer-events:none;}
   @keyframes cmdblink{
     0%,100%{box-shadow:inset 0 0 0 1px rgba(255,212,0,.55);}
     50%{box-shadow:inset 0 0 0 2px rgba(255,212,0,1), 0 0 .55em rgba(255,212,0,.5);}
@@ -1147,17 +1178,18 @@
 
   // ── 스테이지 ───────────────────────────────────────────────
   // 고르는 화면의 자리(`at`)도 여기 적는다. 판 위에 세우는 것이라 좌표가 있어야 한다.
-  // 안쪽 5*5(3~7) 의 가운데가 START(5,5) 다. 한 칸 띄워 두어야 "이동해서 공격" 이 된다
+  // 안쪽 5*5(3~7) 의 가운데가 START(5,5) 다. 한 칸 띄워 두어야 "이동해서 공격" 이 된다.
+  // 넷을 안쪽 맨 윗줄(y=3) 에 왼쪽부터 차례로 세운다. 다섯 칸에 넷이라 오른쪽 한 칸이 남는다
   const STAGES = [
     {
       // 그림이 아직 없어 기사 그림을 빌려 쓴다 (자리만 잡아 둔 것)
       id: 'tutorial', name: '튜토리얼', img: 'player.png',
-      note: '조작을 하나씩 배우는 곳', at: { x: 5, y: 7 },
+      note: '조작을 하나씩 배우는 곳', at: { x: 3, y: 3 },
       quests: TUTORIAL_QUESTS,   // 블로커도 바닥 그림도 없다. 판이 비어 있어야 배운다
     },
     {
       id: 'forest', name: '고블린 숲', img: 'stage/goblin_forest.png',
-      note: '퀘스트를 따라 도는 곳', at: { x: 3, y: 5 },
+      note: '퀘스트를 따라 도는 곳', at: { x: 4, y: 3 },
       bg: 'background/goblin_forest.png',
       blockers: { n: 5, kind: 'tree' },     // 숲이니 나무가 막는다
       quests: FOREST_QUESTS,
@@ -1169,7 +1201,7 @@
     },
     {
       id: 'arena', name: '무한의 아레나', img: 'stage/infinit_arena.png',
-      note: '끝이 없다. 10턴마다 세지고 잦아진다', at: { x: 7, y: 5 },
+      note: '끝이 없다. 10턴마다 세지고 잦아진다', at: { x: 6, y: 3 },
       bg: 'background/infinit_arena.png',
       blockers: { n: 5, kind: 'stone' },
       quests: [],
@@ -1244,6 +1276,7 @@
   let endToken = null;          // 팝업 가운데에 세운 기사
   let endKind = 'over';         // 'over' | 'clear' | 'quit'
   let busy = false;             // 페이즈 연출이 도는 중. 입력을 막는다
+  let holdFocus = null;         // 붙잡는 강조. 이 단추를 누를 때까지 다른 조작을 막는다
   let phaseId = 0;              // 페이즈 세대. `다시` 로 갈아엎으면 옛 페이즈는 손을 뗀다
   let innerCell = 32;           // 내부 칸 크기. 데미지 숫자 크기에 쓴다
 
@@ -1951,8 +1984,9 @@
     }
     buildQuestRows();
     renderQuest();
-    // 새로 눌러야 할 단추가 있으면 세 번 깜빡여 알린다
-    if (g && g.blink) blink(document.getElementById(g.blink));
+    // 새로 눌러야 할 단추가 있으면 누를 때까지 붙잡는다
+    endFocus();
+    if (g && g.blink) startFocus(document.getElementById(g.blink));
   }
 
   // 깬 순간을 잠깐 보여 주고 다음으로 넘긴다. 페이즈 안에서 기다리므로
@@ -2066,6 +2100,11 @@
         + (it.spec.blockers ? insRow('블로커', it.spec.blockers.n + '개') : '')
         + insRow('퀘스트', it.spec.endless ? '없다 (버티기)'
             : (it.spec.quests ? it.spec.quests.length : 0) + '묶음')
+        // 블럭에 적은 진행도를 여기서도 한 번 더 적는다. 블럭 글씨는 작다
+        + (isQuestStage(it.spec) && !it.spec.locked
+          ? insRow('진행', questClearedOf(it.spec) ? '클리어'
+            : questDoneOf(it.spec.id) + '/' + questTotalOf(it.spec) + ' 묶음')
+          : '')
       : insRow('체력', '없다') + insRow('공격', '없다');
 
     inspectEl.innerHTML =
@@ -2257,6 +2296,7 @@
     return new Promise(resolve => {
       const cards = pickCards(DRAFT_SLOTS);
       if (!cards.length) { resolve(); return; }   // 깔 것이 없으면 그냥 넘어간다
+      endFocus();               // 고르는 것이 먼저다. 붙잡고 있던 것은 놓는다
       drafting = { cards, resolve, busy: false };
       draftEl.hidden = false;
       renderDraft();
@@ -2541,7 +2581,8 @@
     renderHp(player);
     renderDanger();
     playEl.classList.toggle('over', over);
-    hintEl.textContent = over ? '쓰러졌다. 다시 나 지역 선택 을 눌러라'
+    hintEl.textContent = holdFocus ? '깜빡이는 ' + holdFocus.textContent + ' 를 눌러라'
+      : over ? '쓰러졌다. 다시 나 지역 선택 을 눌러라'
       : mode === 'select' ? HINT_SELECT : HINT_DEFAULT;
     leaveBtn.hidden = mode === 'select';
     ctrlEl.classList.toggle('idle', mode === 'select');
@@ -2594,6 +2635,18 @@
   }
 
   window.addEventListener('keydown', e => {
+    // 붙잡는 강조 중에는 그 단추가 하는 것만 받는다.
+    // `대기` 는 스페이스가 같은 것이라 그것만 열어 둔다 (안내 글이 둘 다 가르친다)
+    if (holdFocus) {
+      const space = e.key === ' ' || e.code === 'Space';
+      if (!space && !DIRS[e.key.toLowerCase()]) return;   // 게임 키가 아니면 손대지 않는다
+      e.preventDefault();
+      if (space && !e.repeat && !busy && holdFocus.id === 'act-wait') {
+        endFocus();
+        waitTurn();
+      }
+      return;
+    }
     // 스페이스는 제자리에서 턴 넘기기. 드래프트 중에는 안 받는다
     if (e.key === ' ' || e.code === 'Space') {
       e.preventDefault();
@@ -2627,6 +2680,7 @@
   window.addEventListener('pointerdown', e => {
     // 상단 바 조작은 그대로 둔다. target 이 Element 가 아닐 수도 있어 closest 유무를 먼저 본다
     if (e.target && e.target.closest && e.target.closest('a,button')) return;
+    if (holdFocus) return;                // 강조 중에는 스와이프도 3초 누르기도 없다
     if (busy && !drafting) return;        // 연출이 도는 중에는 안 받는다
     start = { x: e.clientX, y: e.clientY };
 
@@ -2651,6 +2705,7 @@
   });
   window.addEventListener('pointerup', e => {
     cancelHold();
+    if (holdFocus) { start = null; return; }
     if (holdFired) { holdFired = false; start = null; return; }   // 이미 대기로 썼다
     if (!start) return;
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
@@ -2702,7 +2757,9 @@
   }
 
   function clearBoard() {
+    endFocus();                 // 붙잡고 있던 강조도 여기서 놓는다
     recordBest();               // 나가든 다시 하든, 여기까지가 이번 판이다
+    recordQuest();
     phaseId++;                  // 돌고 있던 페이즈는 여기서 손을 뗀다
     hideEnd();
     busy = false;
@@ -2749,10 +2806,16 @@
     // 블럭에 크게 적는 것은 최고 버틴 턴이다. 층은 팝업에서 보여 준다
     const best = kind === 'stage' && spec.endless
       ? '<span class="st-best">' + bestTurnOf(spec.id) + '<i>턴</i></span>' : '';
+    // 퀘스트형 지역은 이름 아래에 진행도. 다 깼으면 숫자 대신 `클리어`
+    const quest = kind === 'stage' && isQuestStage(spec) && !spec.locked
+      ? (questClearedOf(spec)
+        ? '<span class="st-quest done">클리어</span>'
+        : '<span class="st-quest">' + questDoneOf(spec.id) + '/' + questTotalOf(spec) + '</span>')
+      : '';
     const label = kind === 'stage'
       ? '<span class="st-name">' + spec.name + '</span>' : '';
     el.innerHTML = '<img class="glyph" src="images/' + spec.img + '" alt="' + spec.name + '">'
-      + label + best;
+      + label + quest + best;
     boardEl.appendChild(el);
     const p = { prop: true, kind, spec, x, y, el };
     props.push(p);
@@ -2830,6 +2893,7 @@
   const saved = {
     coin: 0,          // 모은 코인. 지역을 옮겨도 이어진다
     bestTurn: {},     // 스테이지별 최고 버틴 턴
+    questDone: {},    // 스테이지별로 깬 퀘스트 묶음 수 (가장 많이 깬 때)
   };
 
   // localStorage 는 막혀 있을 수 있다(사생활 보호 창 등).
@@ -2841,6 +2905,7 @@
       const got = JSON.parse(raw);
       if (typeof got.coin === 'number') saved.coin = got.coin;
       if (got.bestTurn) Object.assign(saved.bestTurn, got.bestTurn);
+      if (got.questDone) Object.assign(saved.questDone, got.questDone);
       // 옛 저장에 남아 있는 `bestFloor` 는 읽지 않는다. 층 개념을 없앴다.
       // 눈에 띄면 그 자리에서 지운 채로 다시 적는다
       if (got.bestFloor) writeSave();
@@ -2852,6 +2917,26 @@
   }
 
   const bestTurnOf = id => saved.bestTurn[id] || 0;
+
+  // 퀘스트형 지역인가. 버티기(`endless`)에는 깰 것이 없다
+  const isQuestStage = st => !!(st && st.quests && st.quests.length);
+  // 셈에 넣는 묶음은 "깰 수 있는" 것뿐이다. `hold` 묶음은 깰 항목이 없다
+  const questTotalOf = st => (isQuestStage(st) ? st.quests.filter(g => !g.hold).length : 0);
+  const questDoneOf = id => saved.questDone[id] || 0;
+  const questClearedOf = st => isQuestStage(st) && questDoneOf(st.id) >= questTotalOf(st);
+
+  // 지금 판에서 깬 묶음 수. `hold` 묶음까지 왔으면 깰 것은 이미 다 깬 것이다
+  const questDoneNow = () => Math.min(groupIndex, questTotalOf(stage()));
+
+  // 기록과 같은 자리에서 남긴다. 가장 많이 깬 때를 남기고 뒤로는 안 간다
+  function recordQuest() {
+    const st = stage();
+    if (!isQuestStage(st)) return;
+    const now = questDoneNow();
+    if (now <= questDoneOf(st.id)) return;
+    saved.questDone[st.id] = now;
+    writeSave();
+  }
 
   // 기록을 남길 자리는 "그 판이 끝나는 곳" 하나다. 죽어서 끝나든 나가서 끝나든 같다
   function recordBest() {
@@ -2866,9 +2951,11 @@
   // 쓰러지면 게임 오버, 퀘스트를 다 깨면 게임 클리어.
   // 무한의 아레나는 깰 것이 없으니 늘 게임 오버다. 성공도 실패도 아니고 기록만 남는다
   function showEnd(kind) {
+    endFocus();                 // 팝업이 뜨면 붙잡을 것이 없다
     ended = true;
     endKind = kind;
     recordBest();
+    recordQuest();
     const st = stage();
     const tower = !!(st && st.endless);
     endEl.classList.toggle('clear', kind === 'clear');
@@ -2991,6 +3078,27 @@
     for (const el of root.querySelectorAll('.cmd')) blink(el);
   };
 
+  // 붙잡는 강조. 세 번 깜빡이고 마는 것과 달리, 누를 때까지 깜빡이면서
+  // 나머지를 어둡게 눌러 두고 다른 조작을 다 막는다.
+  // 새 조작을 처음 가르치는 자리(튜토리얼)에서만 쓴다 — 늘 쓰면 갇힌 느낌만 남는다
+  function startFocus(el) {
+    endFocus();
+    if (!el) return;
+    holdFocus = el;
+    el.classList.remove('blink', 'hold');
+    void el.offsetWidth;              // 다시 걸어도 처음부터 돌게
+    el.classList.add('blink', 'hold');
+    playEl.classList.add('spotlight');
+    updateStatus();                   // 안내 글도 그 단추를 가리킨다
+  }
+
+  function endFocus() {
+    if (!holdFocus) return;
+    holdFocus.classList.remove('blink', 'hold');
+    holdFocus = null;
+    playEl.classList.remove('spotlight');
+  }
+
   // `지역`·`다시`·`취소`·`대기`·`종료` 는 다 같은 것이다: 쳐서도 고르고 눌러서도 고른다.
   // 누르는 쪽에도 같은 튕김을 준다 — 두 길이 같은 것으로 보여야 한다
   function tapCmd(el) {
@@ -3001,14 +3109,18 @@
 
   document.getElementById('act-wait').addEventListener('click', e => {
     if (mode !== 'play') return;
+    if (holdFocus && holdFocus !== e.currentTarget) return;
+    endFocus();                 // 눌렀으니 놓아 준다
     tapCmd(e.currentTarget);
     waitTurn();
   });
   document.getElementById('act-quit').addEventListener('click', e => {
     if (mode !== 'play' || ended || busy) return;
+    if (holdFocus && holdFocus !== e.currentTarget) return;
     tapCmd(e.currentTarget);
     // 다 깨고 `종료` 를 기다리던 묶음이면 그만두는 것이 아니라 클리어다
     const g = group();
+    endFocus();
     showEnd(g && g.hold ? 'clear' : 'quit');
   });
 
@@ -3065,6 +3177,7 @@
     showEnd, hideEnd, isEnded: () => ended, recordBest, chooseEnd,
     endKind: () => endKind,
     saved, loadSave, writeSave, bestTurnOf,
+    recordQuest, questDoneOf, questTotalOf, questClearedOf, questDoneNow,
     endPop: () => ({
       shown: !endEl.hidden,
       clear: endEl.classList.contains('clear'),
@@ -3073,7 +3186,8 @@
       rows: Array.from(endRowsEl.children).map(li => li.textContent),
     }),
     inspect, renderInspect, inspectTarget, tapInspect, strikePick,
-    blink, blinkCmds, BLINK_TIMES,
+    blink, blinkCmds, BLINK_TIMES, startFocus, endFocus,
+    focusNow: () => (holdFocus ? holdFocus.id : null),
     waitTurn, findStep, stepPath, ORTHO, walkable, stepOrder,
     lastAxis: () => lastAxis,
     waited: () => groupWaited,
