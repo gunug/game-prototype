@@ -984,7 +984,7 @@
 
   // 안내 문구는 HTML 과 updateStatus() 두 군데서 쓴다. 한 곳에 둔다
   const HINT_DEFAULT =
-    '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격 · 스페이스나 기사를 3초 눌러 대기';
+    '스와이프 · 방향키 / WASD — 빈 칸이면 이동, 몬스터면 공격 · 스페이스나 3초 누르기로 대기';
   const HINT_SELECT = '기사를 움직여 지역을 공격하면 들어간다';
 
   // ── 퀘스트 ─────────────────────────────────────────────────
@@ -2408,8 +2408,9 @@
 
   // 스와이프는 판이 아니라 화면 전체에서 받는다
   let start = null;
-  // 기사를 오래 누르고 있으면 제자리에서 턴이 넘어간다.
-  // 스와이프와 겹치지 않게, 손가락이 움직이면 그 자리에서 취소한다
+  // 화면 어디든 오래 누르고 있으면 제자리에서 턴이 넘어간다.
+  // 스와이프와 같은 자리에서 받는다 — 화면 어디서 시작하든 조작이 같아야 한다.
+  // 겹치지 않게, 손가락이 움직이면 그 자리에서 취소한다
   const HOLD_WAIT = 3000;
   let holdTimer = null, holdFired = false;
 
@@ -2425,9 +2426,9 @@
     start = { x: e.clientX, y: e.clientY };
 
     holdFired = false;
-    const el = e.target && e.target.closest && e.target.closest('.token');
-    if (el === player.el && mode === 'play' && !over && !ended && !drafting) {
-      player.el.classList.add('holding');   // 세고 있다는 것을 테로 알린다
+    if (mode === 'play' && !over && !ended && !drafting) {
+      // 테는 기사에 두른다. 어디를 눌렀든 기다리는 것은 기사다
+      player.el.classList.add('holding');
       holdTimer = setTimeout(() => {
         holdTimer = null;
         holdFired = true;                   // 손을 뗄 때 탭으로 또 세지 않게
