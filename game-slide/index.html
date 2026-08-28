@@ -1046,7 +1046,8 @@
   // ── 기물 ───────────────────────────────────────────────────
   // 살아 있지 않은 것들. 체력이 없고 때릴 수도 없다. 칸을 차지하는 것이 전부다
   const PROPS = {
-    blocker: { name: '돌', img: 'blocker/blocker_stone.png', note: '지나갈 수 없다' },
+    stone: { name: '돌', img: 'blocker/blocker_stone.png', note: '지나갈 수 없다' },
+    tree: { name: '나무', img: 'blocker/blocker_tree.png', note: '지나갈 수 없다' },
   };
 
   // ── 스테이지 ───────────────────────────────────────────────
@@ -1057,7 +1058,8 @@
       id: 'forest', name: '고블린 숲', img: 'stage/goblin_forest.png',
       note: '퀘스트를 따라 도는 곳', at: { x: 3, y: 5 },
       bg: 'background/goblin_forest.png',
-      blockers: 5, quests: FOREST_QUESTS,
+      blockers: { n: 5, kind: 'tree' },     // 숲이니 나무가 막는다
+      quests: FOREST_QUESTS,
     },
     {
       id: 'rabbit', name: '토끼굴', img: 'stage/rabbit_hole.png',
@@ -1068,7 +1070,8 @@
       id: 'arena', name: '무한의 아레나', img: 'stage/infinit_arena.png',
       note: '끝이 없다. 10턴마다 세지고 잦아진다', at: { x: 7, y: 5 },
       bg: 'background/infinit_arena.png',
-      blockers: 5, quests: [],
+      blockers: { n: 5, kind: 'stone' },
+      quests: [],
       // 버티기. 10턴마다 한 단계씩 오른다
       endless: {
         step: 10,           // 몇 턴마다 한 단계인가
@@ -1899,7 +1902,7 @@
     const kindName = it.kind === 'stage' ? '지역' : '기물';
     const rows = it.kind === 'stage'
       ? insRow('상태', it.spec.locked ? '잠김' : '들어갈 수 있다')
-        + (it.spec.blockers ? insRow('블로커', it.spec.blockers + '개') : '')
+        + (it.spec.blockers ? insRow('블로커', it.spec.blockers.n + '개') : '')
         + insRow('퀘스트', it.spec.endless ? '없다 (버티기)'
             : (it.spec.quests ? it.spec.quests.length : 0) + '묶음')
       : insRow('체력', '없다') + insRow('공격', '없다');
@@ -2518,7 +2521,11 @@
   function renderFloor() {
     const st = stage();
     const bg = mode === 'play' && st && st.bg ? st.bg : null;
-    boardEl.style.backgroundImage = bg ? 'url(images/' + bg + ')' : '';
+    // 그림이 너무 또렷하면 그 위의 블럭·위험 표시가 안 읽힌다.
+    // 30% 검은 겹을 한 장 덮어 눌러 둔다
+    boardEl.style.backgroundImage = bg
+      ? 'linear-gradient(rgba(0,0,0,.3), rgba(0,0,0,.3)), url(images/' + bg + ')'
+      : '';
     boardEl.classList.toggle('has-bg', !!bg);
   }
 
@@ -2581,8 +2588,12 @@
     return p;
   }
 
-  // 시작 자리와 그 옆 네 칸은 비워 둔다. 처음부터 갇히면 아무것도 못 한다
-  function placeBlockers(n) {
+  // 시작 자리와 그 옆 네 칸은 비워 둔다. 처음부터 갇히면 아무것도 못 한다.
+  // 무엇으로 막는지는 스테이지가 정한다 (숲은 나무, 아레나는 돌)
+  function placeBlockers(spec) {
+    if (!spec) return;
+    const n = spec.n || 0;
+    const kind = PROPS[spec.kind] || PROPS.stone;
     const free = [];
     for (let y = MIN; y <= MAX; y++) {
       for (let x = MIN; x <= MAX; x++) {
@@ -2592,7 +2603,7 @@
     }
     for (let i = 0; i < n && free.length; i++) {
       const c = free.splice(Math.floor(Math.random() * free.length), 1)[0];
-      addProp(c.x, c.y, 'blocker', PROPS.blocker);
+      addProp(c.x, c.y, 'blocker', kind);
     }
   }
 
@@ -2719,7 +2730,7 @@
   function startStage(from) {
     clearBoard();
     resetPlayer();
-    placeBlockers(stage().blockers || 0);
+    placeBlockers(stage().blockers);
     renderFloor();
     startGroup(from);
     endlessSpawn();             // 0턴에도 나온다. 버티기가 아니면 아무 일도 없다
