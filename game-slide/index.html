@@ -99,7 +99,7 @@
   /* 무엇이 놓인 자리. 판의 블럭처럼 노란 테를 두른다 */
   .slot.cmd{
     opacity:1;
-    display:flex;align-items:center;justify-content:center;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8%;
     padding:0;margin:0;border:0;font:inherit;cursor:pointer;
     background:radial-gradient(ellipse at 50% 78%,
       rgba(255,212,0,.22), rgba(255,212,0,.06) 60%, transparent 76%);
@@ -111,6 +111,19 @@
     font-weight:800;line-height:1;letter-spacing:.02em;
   }
   .slot.cmd:active{background:rgba(255,212,0,.28);}
+  /* 키보드 키라는 것을 알린다. 하얀 바탕 라운드 박스에 검은 글씨 —
+     화면 안의 다른 글씨와 색이 반대라 "이건 눌러야 하는 자판" 으로 읽힌다 */
+  kbd{
+    display:inline-block;
+    background:#fff;color:#111;
+    border-radius:.35em;padding:.2em .42em;
+    font:inherit;font-weight:800;line-height:1;letter-spacing:.02em;
+    box-shadow:0 1px 0 rgba(0,0,0,.55);
+  }
+  .slot.cmd kbd{font-size:calc(var(--sw,36px) * .17);}
+  .d-card kbd{font-size:9px;padding:.22em .45em;}
+  /* 작은 화면에서 조작 블럭이 작아지면 딱지가 이름을 밀어낸다. 그때는 이름만 */
+  @media (max-height:420px){ .slot.cmd kbd{display:none;} }
   /* 눌러서 고를 때도 쳐서 고를 때와 같이 한 번 움츠러든다 */
   .slot.cmd.hit{animation:cardhit .26s ease-out;}
   /* 지역 고르는 화면에서는 누를 것이 없다 */
@@ -869,10 +882,10 @@
 
       <!-- 조작영역. 블럭 일곱 개 자리. 가로면 게임 왼쪽에 한 줄, 세로면 아래에 한 줄 -->
       <div class="control" id="control">
-        <button class="slot cmd" id="act-wait" type="button"><b>대기</b></button>
+        <button class="slot cmd" id="act-wait" type="button"><b>대기</b><kbd>space</kbd></button>
         <div class="slot"></div><div class="slot"></div><div class="slot"></div>
         <div class="slot"></div><div class="slot"></div>
-        <button class="slot cmd" id="act-quit" type="button"><b>종료</b></button>
+        <button class="slot cmd" id="act-quit" type="button"><b>종료</b><kbd>esc</kbd></button>
       </div>
 
       <!-- 정보영역. 카드 여섯 장. 가로면 2x3, 세로면 3x2 -->
@@ -903,9 +916,9 @@
         <ul class="end-rows" id="endrows"></ul>
         <!-- 지역 고르기와 같은 방식. 기사를 움직여서 고른다 -->
         <div class="draft-grid end-pick" id="endpick">
-          <div class="d-cell d-card cmd d-left"><b>지역</b><span>지역 고르기로</span></div>
+          <div class="d-cell d-card cmd d-left"><b>지역</b><span>지역 고르기로</span><kbd>A</kbd></div>
           <div class="d-cell d-mid" id="endmid"></div>
-          <div class="d-cell d-card cmd d-right"><b>다시</b><span>이 지역 다시</span></div>
+          <div class="d-cell d-card cmd d-right"><b>다시</b><span>이 지역 다시</span><kbd>D</kbd></div>
         </div>
         <p class="d-hint">왼쪽 · 오른쪽 으로 고른다 (스와이프 / WASD / 방향키)</p>
       </div>
@@ -936,7 +949,7 @@
 
   // 판 버전. `큰 변경·새 시스템` . `새 스테이지·새 몬스터` . `잔 수정·기능 변경`
   // 고칠 때마다 여기 하나만 고친다. 화면 오른쪽 아래에 늘 떠 있다
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
 
   // ── 규칙 상수 ───────────────────────────────────────────────
   const N = 11;                 // 필드 11*11
@@ -2855,6 +2868,13 @@
   }
 
   window.addEventListener('keydown', e => {
+    // `esc` 는 `종료` 단추와 같은 것이다. 붙잡는 강조 중에도 그 단추가
+    // `종료` 라면 열려 있어야 하므로, 판단은 `quitStage` 안에 두고 여기서는 넘긴다
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      e.preventDefault();
+      if (!e.repeat && !drafting) quitStage();
+      return;
+    }
     // 붙잡는 강조 중에는 그 단추가 하는 것만 받는다.
     // `대기` 는 스페이스가 같은 것이라 그것만 열어 둔다 (안내 글이 둘 다 가르친다)
     if (holdFocus) {
@@ -3377,15 +3397,19 @@
     tapCmd(e.currentTarget);
     waitTurn();
   });
-  document.getElementById('act-quit').addEventListener('click', e => {
+  // `종료` 는 단추로도 `esc` 로도 온다. 하는 일은 한 군데다
+  function quitStage() {
     if (mode !== 'play' || ended || busy) return;
-    if (holdFocus && holdFocus !== e.currentTarget) return;
-    tapCmd(e.currentTarget);
+    const el = document.getElementById('act-quit');
+    if (holdFocus && holdFocus !== el) return;   // 다른 것을 붙잡고 있다
+    tapCmd(el);
     // 다 깨고 `종료` 를 기다리던 묶음이면 그만두는 것이 아니라 클리어다
     const g = group();
     endFocus();
     showEnd(g && g.hold ? 'clear' : 'quit');
-  });
+  }
+
+  document.getElementById('act-quit').addEventListener('click', quitStage);
 
   // 드래프트 카드도 명령 블럭이다. 눌러도 그 방향으로 친 것과 같다
   dGridEl.addEventListener('click', e => {
@@ -3416,7 +3440,7 @@
   window.__t = {
     monsters, player, place, addMonster, updateStatus, renderHp,
     isOver: () => over,
-    attack, act, killMonster, defeat, pushLine, actOrder, BEINGS, KNIGHT,
+    attack, act, killMonster, defeat, pushLine, actOrder, BEINGS, KNIGHT, quitStage,
     damageTo, makeBeing,
     expNeeded, gainExp, addXp, expGain, orbSplit, renderExp, ATK_MODES,
     addCoin, renderCoin, spawnDrop, DROPS,
