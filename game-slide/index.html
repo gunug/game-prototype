@@ -539,6 +539,15 @@
   }
   .dmg.on-player{color:#FF6B57;}
 
+  /* 화살. 데미지 숫자와 같은 이유로 판에 직접 붙인다. 칸을 가로질러 날아간다 */
+  .shot{
+    position:absolute;z-index:45;border-radius:50%;
+    background:#FFE9A8;
+    box-shadow:0 0 .45em rgba(255,212,0,.85), 0 0 0 1px rgba(0,0,0,.6);
+    pointer-events:none;
+    transition:transform var(--shot,180ms) linear;
+  }
+
   /* 등장 대사. 데미지 숫자와 같은 이유로 판에 직접 붙인다 — 토큰 안에 두면
      그 토큰의 쌓임 맥락에 갇혀 옆 칸으로 못 나온다.
      칸 위끝에 꼬리를 두고 위로 뜬다 */
@@ -949,7 +958,7 @@
 
   // 판 버전. `큰 변경·새 시스템` . `새 스테이지·새 몬스터` . `잔 수정·기능 변경`
   // 고칠 때마다 여기 하나만 고친다. 화면 오른쪽 아래에 늘 떠 있다
-  const VERSION = '0.2.1';
+  const VERSION = '0.3.0';
 
   // ── 규칙 상수 ───────────────────────────────────────────────
   const N = 11;                 // 필드 11*11
@@ -978,6 +987,15 @@
       atk: 5, maxHp: 24, agi: 9, exp: 15, coin: 10,  // 말을 탔으니 걸어오는 고블린보다 빠르다
       step: stepKnight,
       lines: [['달린다', 9], ['뒤를친다', 9], ['대장이 우릴보고있다', 1]],
+    },
+    archer: {
+      name: '고블린 궁수', img: 'goblin_archer.png',
+      atk: 2, maxHp: 12, agi: 8, exp: 10, coin: 5,
+      step: stepArcher,
+      // 대각선 한 줄이면 어디든 닿는다. 블로커도 아군도 길을 막지 않는다
+      reach: (m, x, y) => x - m.x !== 0 && Math.abs(x - m.x) === Math.abs(y - m.y),
+      shoot: true,
+      lines: [['치사해? 그런거 몰라', 9], ['백발 백중', 9], ['뒤에서 안전하게', 1]],
     },
     chief: {
       name: '고블린 대장', img: 'moster/goblin_chef.png',
@@ -1227,8 +1245,11 @@
       items: [{ title: '고블린 라이더 5마리 잡기', type: 'kill', kind: 'rider', goal: 5 }],
     },
     {
-      note: '고블린 대장이 나타났다. 줄이 맞으면 자세를 잡고 다음 턴에 내달린다',
-      spawn: { kind: 'chief', burst: 1 },
+      note: '고블린 대장이 나타났다. 궁수가 1턴에 한 마리씩 다섯 따라붙는다',
+      spawn: [
+        { kind: 'chief', burst: 1 },
+        { kind: 'archer', every: 1, max: 5 },
+      ],
       items: [{ title: '고블린 대장 잡기', type: 'kill', kind: 'chief', goal: 1 }],
     },
   ];
@@ -1277,6 +1298,7 @@
         spawns: [
           { kind: 'goblin', from: 0, every: 3 },
           { kind: 'rider', from: 10, every: 5 },
+          { kind: 'archer', from: 15, every: 5 },
         ],
       },
     },
@@ -1353,7 +1375,7 @@
   const props = [];             // 기물. 블로커와 스테이지 블럭이 같이 산다
   let groupIndex = 0;
   let groupTurns = 0;           // 이 묶음에서 지난 턴
-  let groupSpawned = 0;         // 이 묶음에서 내보낸 마릿수
+  let groupSpawned = [];        // 이 묶음의 출현 규칙마다 내보낸 마릿수
   const groupKills = {};        // 이 묶음에서 잡은 마릿수, 종류별
   const groupDirs = new Set();  // 이 묶음에서 움직여 본 방향
   let groupWaited = false;      // 이 묶음에서 한 번이라도 대기했나
@@ -1717,12 +1739,19 @@
     }
   }
 
+  // 묶음의 출현 규칙. 하나만 적어도 되고 여럿을 적어도 된다
+  const spawnRules = g => (!g || !g.spawn ? [] : (Array.isArray(g.spawn) ? g.spawn : [g.spawn]));
+
   function questSpawn() {
     const g = group();
-    if (!g || !g.spawn || !g.spawn.every) return;   // 한꺼번에(`burst`) 는 묶음이 뜰 때 이미 냈다
-    if (groupSpawned >= g.spawn.max) return;
-    if (groupTurns % g.spawn.every !== 0) return;
-    if (spawnMonster(g.spawn.kind)) groupSpawned++;
+    const rules = spawnRules(g);
+    for (let i = 0; i < rules.length; i++) {
+      const r = rules[i];
+      if (!r.every) continue;                       // 한꺼번에(`burst`) 는 묶음이 뜰 때 이미 냈다
+      if (groupSpawned[i] >= r.max) continue;
+      if (groupTurns % r.every !== 0) continue;
+      if (spawnMonster(r.kind)) groupSpawned[i]++;
+    }
   }
 
   // 고블린: 매 턴 플레이어를 향해 상하좌우 한 칸.
@@ -1859,6 +1888,82 @@
     return stepPath(m, KNIGHT, (x, y) => Math.ceil(manhattan(x, y) / 3));
   }
 
+  // ── 활 ─────────────────────────────────────────────────────
+  const SHOT_MS = 180;          // 화살 하나가 날아가는 시간
+
+  // 칸을 가로질러 화살을 보낸다. 닿으면 그때 준다 (때리는 것과 같은 결)
+  async function shoot(m, target) {
+    const mine = phaseId;
+    const size = Math.max(5, Math.round(innerCell * 0.16));
+    const from = cellCenter(m.x, m.y), to = cellCenter(target.x, target.y);
+    const el = document.createElement('span');
+    el.className = 'shot';
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+    el.style.left = (-size / 2) + 'px';
+    el.style.top = (-size / 2) + 'px';
+    el.style.setProperty('--shot', (tuning.move ? SHOT_MS : 0) + 'ms');
+    el.style.transform = 'translate(' + from.cx + 'px,' + from.cy + 'px)';
+    boardEl.appendChild(el);
+    playSwing(0.66);
+
+    if (tuning.move) {
+      await nextFrame();                      // 한 프레임 비워야 전환이 걸린다
+      if (phaseId !== mine) { el.remove(); return; }
+    }
+    el.style.transform = 'translate(' + to.cx + 'px,' + to.cy + 'px)';
+    await sleep(tuning.move ? SHOT_MS : 0);
+    el.remove();
+    if (phaseId !== mine || over) return;
+    damage(target, damageTo(m));
+  }
+
+  // 궁수의 걸음. 대각선 줄에 서면 쏠 수 있으니 그런 칸을 목표로 삼는다.
+  //   ① 쏠 수 있으면 쏜다 (여기 오기 전에 이미 갈렸다)
+  //   ② 못 쏘면 쏠 수 있는 칸으로 간다
+  //   ③ 그런 칸이 여럿이면 플레이어에게서 **먼** 쪽으로. 같으면 덜 걷는 쪽
+  // 후보는 안쪽 필드 칸만이다 — 규칙에 없어서 정했다. 바깥 띠 구석에 서면
+  // 플레이어가 닿을 수가 없어 영영 못 잡는 놈이 된다
+  function stepArcher(m) {
+    const start = nodeId(m.x, m.y);
+    const dist = new Map([[start, 0]]);
+    const came = new Map();
+    let best = -1, bestFar = -1, bestSteps = Infinity;
+
+    const look = (x, y, id, g) => {
+      if (!isInner(x, y) || !canHit({ x, y, kind: m.kind }, player.x, player.y)) return;
+      const far = Math.abs(x - player.x);     // 대각선이라 가로 간격이 곧 거리다
+      if (far > bestFar || (far === bestFar && g < bestSteps)) {
+        best = id; bestFar = far; bestSteps = g;
+      }
+    };
+
+    const queue = [[m.x, m.y]];
+    for (let i = 0; i < queue.length; i++) {
+      const [cx, cy] = queue[i];
+      const g = dist.get(nodeId(cx, cy));
+      for (const [dx, dy] of ORTHO) {
+        const nx = cx + dx, ny = cy + dy;
+        if (!walkable(m, nx, ny)) continue;
+        const id = nodeId(nx, ny);
+        if (dist.has(id)) continue;
+        dist.set(id, g + 1);
+        came.set(id, nodeId(cx, cy));
+        look(nx, ny, id, g + 1);
+        queue.push([nx, ny]);
+      }
+    }
+
+    if (best < 0) return stepToward(m);        // 설 자리가 없다. 고블린처럼 다가간다
+    let node = best;
+    while (came.get(node) !== start) {
+      node = came.get(node);
+      if (node === undefined) return false;
+    }
+    moveMonster(m, node % N, (node - node % N) / N);
+    return true;
+  }
+
   // ── 돌진 ───────────────────────────────────────────────────
   // 자세를 잡은 놈이 다음 턴에 지나갈 길. 막히는 곳 앞에서 멈춘다.
   // **플레이어는 막는 것으로 안 친다** — 거기 서 있으면 그 자리가 맞는 자리다.
@@ -1955,8 +2060,9 @@
       if (dir) { setAim(m, dir); return 'aim'; }
     }
 
-    if (adjacent4(m, player)) {
-      await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
+    if (canHit(m, player.x, player.y)) {
+      if (spec.shoot) await shoot(m, player);
+      else await strike(m, player, Math.sign(player.x - m.x), Math.sign(player.y - m.y));
       return 'attack';
     }
 
@@ -2174,9 +2280,10 @@
     qStepEl.textContent = g.hold ? '완료' : '퀘스트 ' + (groupIndex + 1) + '/' + questGroups().length;
     questEl.classList.toggle('all-done', !!g.hold);
     // 남은 마릿수는 턴마다 나오는 묶음에서만 뜻이 있다. 한꺼번에 낸 묶음은 남은 것이 없다
-    qNoteEl.textContent = g.spawn && g.spawn.every
-      ? g.note + ' · 남은 출현 ' + Math.max(0, g.spawn.max - groupSpawned) + '마리'
-      : g.note;
+    // 턴마다 나오는 규칙들의 남은 마릿수를 합쳐 적는다. 한꺼번에 낸 것은 남은 것이 없다
+    const left = spawnRules(g).reduce(
+      (n, r, i) => n + (r.every ? Math.max(0, r.max - groupSpawned[i]) : 0), 0);
+    qNoteEl.textContent = left > 0 ? g.note + ' · 남은 출현 ' + left + '마리' : g.note;
     for (const row of qRows) {
       const now = itemProgress(row.it), goal = itemGoal(row.it);
       row.num.textContent = now + '/' + goal;
@@ -2188,17 +2295,18 @@
   function startGroup(i) {
     groupIndex = i;
     groupTurns = 0;
-    groupSpawned = 0;
+    groupSpawned = [];
     for (const k of Object.keys(groupKills)) delete groupKills[k];
     groupDirs.clear();
     groupWaited = false;
     allDone = i >= questGroups().length;
     questEl.classList.remove('done', 'all-done');
     const g = group();
-    // 한꺼번에 나오는 묶음은 뜨는 그 자리에서 다 낸다. 턴을 기다리지 않는다
-    if (g && g.spawn && g.spawn.burst) {
-      for (let k = 0; k < g.spawn.burst; k++) if (spawnMonster(g.spawn.kind)) groupSpawned++;
-    }
+    groupSpawned = spawnRules(g).map(() => 0);
+    // 한꺼번에 나오는 규칙은 뜨는 그 자리에서 다 낸다. 턴을 기다리지 않는다
+    spawnRules(g).forEach((r, i) => {
+      for (let k = 0; k < (r.burst || 0); k++) if (spawnMonster(r.kind)) groupSpawned[i]++;
+    });
     buildQuestRows();
     renderQuest();
     // 새로 눌러야 할 단추가 있으면 누를 때까지 붙잡는다
@@ -2512,6 +2620,9 @@
   // 이 판이 이제 끝나는가. 끝나는 판에서는 고를 것을 안 준다 —
   // 업그레이드는 판을 나가면 어차피 다 지워진다 (`resetPlayer`)
   const clearing = () => {
+    // 깰 것이 없는 지역(버티기)은 끝나는 판이라는 것이 없다. 늘 고르게 한다.
+    // `allDone` 은 묶음이 0 개여도 참이라(0 >= 0) 여기서 먼저 걸러야 한다
+    if (!questGroups().length) return false;
     if (ended) return endKind === 'clear';
     if (allDone) return true;
     if (!groupDone()) return false;
@@ -2627,11 +2738,17 @@
   // 즉 "다음 턴에 맞는 칸" = 지금 몬스터가 바로 옆에 있는 칸이다.
   // 두 칸 떨어진 놈은 다가오는 데 행동을 다 쓰므로 그 턴에는 못 때린다
   // 그 칸으로 가면 얼마나 맞는지. 붙어 있는 놈들의 공격력을 다 더한다
+  // 이 놈이 지금 자리에서 저 칸을 때릴 수 있는가. 적어 둔 것이 없으면 사방 한 칸이다
+  const canHit = (m, x, y) => {
+    const reach = BEINGS[m.kind].reach;
+    return reach ? reach(m, x, y) : Math.abs(m.x - x) + Math.abs(m.y - y) === 1;
+  };
+
   // 한 놈은 한 턴에 하나만 한다. 그래서 **둘 중 하나로만** 센다.
   // 자세를 잡았으면 다음 턴은 무조건 돌진이므로 제 길만 보고 근접은 안 본다
   // (둘을 더하면 대장 앞칸이 10 이 아니라 20 으로 뜬다)
   const threatDamage = (x, y) => monsters.reduce((sum, m) => {
-    const hits = m.aim ? onPath(m, x, y) : Math.abs(m.x - x) + Math.abs(m.y - y) === 1;
+    const hits = m.aim ? onPath(m, x, y) : canHit(m, x, y);
     return sum + (hits ? damageTo(m) : 0);
   }, 0);
   const threatened = (x, y) => threatDamage(x, y) > 0;
@@ -3451,13 +3568,14 @@
     draftCards: () => (drafting ? drafting.cards.map(c => c.id) : []),
     QUEST_GROUPS: FOREST_QUESTS, TUTORIAL_QUESTS, startGroup, spawnMonster, reset,
     STAGES, PROPS, props, propAt, enterStage, gotoSelect, addProp, placeBlockers,
-    monsterMul, spawnEvery, endlessSpawn, endlessStep, wouldIsolate,
-    chargePath, aimDir, setAim, clearAim, chargeRun,
+    monsterMul, spawnEvery, endlessSpawn, endlessStep, wouldIsolate, spawnRules,
+    chargePath, aimDir, setAim, clearAim, chargeRun, canHit, shoot, stepArcher,
     pickLine, sayLine, moveMonster,
     outerCells, rimCells, isRim,
     mode: () => mode, stageNow: () => stage(), stageTurns: () => stageTurns,
     quest: () => ({
-      index: groupIndex, turns: groupTurns, spawned: groupSpawned,
+      index: groupIndex, turns: groupTurns,
+      spawned: groupSpawned.reduce((n, v) => n + v, 0), spawnedBy: groupSpawned.slice(),
       kills: { ...groupKills }, dirs: groupDirs.size, allDone,
       items: allDone ? [] : questGroups()[groupIndex].items.map(it => ({
         title: it.title, progress: itemProgress(it), goal: itemGoal(it), done: itemDone(it),
