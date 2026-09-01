@@ -45,6 +45,14 @@
   .topbar .btn{white-space:nowrap;flex:none;}
   /* .btn 의 display:inline-flex 가 [hidden]{display:none} 을 이긴다 */
   .topbar .btn[hidden]{display:none;}
+  /* 되돌릴 수 없는 단추. 색으로 먼저 알린다 */
+  .topbar .btn.danger{color:#FF6B57;}
+  .topbar .btn.danger:hover{background:var(--surface-soft);}
+  /* 한 번 누른 뒤. 여기서 또 누르면 정말 지운다 */
+  .topbar .btn.danger.armed{
+    background:#FF6B57;border-color:#FF6B57;color:#1a0d0a;font-weight:800;
+  }
+  .topbar .btn.danger.armed:hover{background:#ff8471;}
   /* 좁아지면 덜 급한 것부터 뺀다. 다 넣으려 들면 `다시` 가 화면 밖으로 나간다.
      순서: 몬스터 수 → 이름 → 턴. 체력·레벨·코인과 단추는 끝까지 남긴다 */
   @media (max-width:560px){
@@ -851,6 +859,7 @@
               aria-label="소리 끄기" aria-pressed="true">🔊</button>
       <button class="btn btn-secondary btn-sm" id="leave" type="button" hidden>지역</button>
       <button class="btn btn-secondary btn-sm" id="reset" type="button">다시</button>
+      <button class="btn btn-secondary btn-sm danger" id="wipe" type="button">초기화</button>
     </div>
 
     <div class="split" id="split">
@@ -927,7 +936,7 @@
 
   // 판 버전. `큰 변경·새 시스템` . `새 스테이지·새 몬스터` . `잔 수정·기능 변경`
   // 고칠 때마다 여기 하나만 고친다. 화면 오른쪽 아래에 늘 떠 있다
-  const VERSION = '0.1.3';
+  const VERSION = '0.2.0';
 
   // ── 규칙 상수 ───────────────────────────────────────────────
   const N = 11;                 // 필드 11*11
@@ -3106,6 +3115,7 @@
     coin: 0,          // 모은 코인. 지역을 옮겨도 이어진다
     bestTurn: {},     // 스테이지별 최고 버틴 턴
     questDone: {},    // 스테이지별로 깬 퀘스트 묶음 수 (가장 많이 깬 때)
+    seen: false,      // 한 번이라도 시작해 본 적이 있나. 첫 판을 가리는 데 쓴다
   };
 
   // localStorage 는 막혀 있을 수 있다(사생활 보호 창 등).
@@ -3118,6 +3128,7 @@
       if (typeof got.coin === 'number') saved.coin = got.coin;
       if (got.bestTurn) Object.assign(saved.bestTurn, got.bestTurn);
       if (got.questDone) Object.assign(saved.questDone, got.questDone);
+      if (got.seen) saved.seen = true;
       // 옛 저장에 남아 있는 `bestFloor` 는 읽지 않는다. 층 개념을 없앴다.
       // 눈에 띄면 그 자리에서 지운 채로 다시 적는다
       if (got.bestFloor) writeSave();
@@ -3235,6 +3246,27 @@
     updateStatus();
   }
 
+  // 처음 켠 사람은 튜토리얼에서 시작한다. 고르는 화면은 그 다음에 만난다.
+  // 조작을 하나도 모르는 사람에게 고르는 화면부터 보여 주면 고르는 법부터 막힌다
+  function startFirstGame() {
+    saved.seen = true;
+    writeSave();
+    const tut = STAGES.find(st => st.id === 'tutorial');
+    if (!tut || !enterStage(tut)) gotoSelect();   // 튜토리얼이 없으면 하던 대로
+  }
+
+  // 남긴 것을 다 지운다. 영구(`localStorage`)도 이 판의 것도 같이 지운다
+  function wipeSave() {
+    clearBoard();               // 판을 먼저 걷는다. 여기서 남기고 나서 지워야 안 되살아난다
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 막혀 있어도 이 판에서는 지운다 */ }
+    saved.coin = 0;
+    saved.seen = false;
+    for (const k of Object.keys(saved.bestTurn)) delete saved.bestTurn[k];
+    for (const k of Object.keys(saved.questDone)) delete saved.questDone[k];
+    renderCoin();
+    startFirstGame();           // 처음 켠 그 자리로 돌아간다
+  }
+
   function enterStage(st) {
     if (st.locked) return false;
     mode = 'play';
@@ -3273,6 +3305,25 @@
   });
 
   document.getElementById('reset').addEventListener('click', reset);
+
+  // 초기화는 되돌릴 수 없다. 한 번 더 물어본다 — 누르면 `정말?` 로 바뀌고,
+  // 그 안에 또 누를 때만 지운다. 4초가 지나면 저절로 물러난다
+  const WIPE_ASK_MS = 4000;
+  const wipeBtn = document.getElementById('wipe');
+  let wipeTimer = null;
+
+  function disarmWipe() {
+    if (wipeTimer) { clearTimeout(wipeTimer); wipeTimer = null; }
+    wipeBtn.classList.remove('armed');
+    wipeBtn.textContent = '초기화';
+  }
+
+  wipeBtn.addEventListener('click', () => {
+    if (wipeTimer) { disarmWipe(); wipeSave(); return; }
+    wipeBtn.classList.add('armed');
+    wipeBtn.textContent = '정말?';
+    wipeTimer = setTimeout(disarmWipe, WIPE_ASK_MS);
+  });
   // ── 명령 블럭 ──────────────────────────────────────────────
   // 강조: 고르라고 세 번 깜빡인다.
   // 저절로는 아무 데서도 안 부른다. 필요한 자리에서 손으로 부른다 —
@@ -3358,6 +3409,7 @@
   buildBoard();
   layout();
   reset();
+  if (!saved.seen) startFirstGame();   // 첫 판은 튜토리얼부터
 
   // 판을 원하는 상태로 놓고 확인하기 위한 손잡이. 스폰이 랜덤이라
   // 이것이 없으면 "고블린이 다가오는가" 를 재현성 있게 볼 수가 없다
@@ -3392,7 +3444,7 @@
     renderDanger, threatened, threatDamage, moveGap, renderFloor,
     showEnd, hideEnd, isEnded: () => ended, recordBest, chooseEnd,
     endKind: () => endKind,
-    saved, loadSave, writeSave, bestTurnOf,
+    saved, loadSave, writeSave, bestTurnOf, wipeSave, startFirstGame, disarmWipe,
     recordQuest, questDoneOf, questTotalOf, questClearedOf, questDoneNow,
     endPop: () => ({
       shown: !endEl.hidden,
