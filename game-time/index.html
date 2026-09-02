@@ -241,15 +241,14 @@ const MOVE_KINDS   = { move:1, dodge:1, turn:1 };
 const ATTACK_KINDS = { attack:1, whirl:1 };
 
 const PLAYER_BASE = {
-  hp:20, maxHp:20, atk:3, aims:true,
+  hp:20, maxHp:20, atk:3, aims:true,   // aims = 공격 예고를 시작할 때 조준하는가
   range:2.0, whirlRange:1.6, aimArc:30 * D2R,
   moveDist:1.5, dodgeDist:2.0, turnArc:45 * D2R,
 };
 
 // 졸개 — 다가와서 친다. 그게 전부다.
-// aims:false — 예고한 방향으로만 친다. 이 비대칭이 선회를 살린다.
 const GRUNT = {
-  name:'졸개', hp:6, maxHp:6, atk:2, aims:false,
+  name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
   range:1.6, whirlRange:1.6, aimArc:30 * D2R,
   moveDist:1.2, dodgeDist:0, turnArc:0,
   attackTicks:3, moveTicks:2,
@@ -320,7 +319,14 @@ function startAct(a, card){
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
                 left:card.ticks, mv:null, futile:null };
   a.act = act;
-  if (MOVE_KINDS[act.kind]) planMove(a, act);
+  if (MOVE_KINDS[act.kind]){
+    planMove(a, act);
+  } else if (act.kind === 'attack'){
+    // 예고를 시작할 때 대상 쪽으로 조준한다. 그 뒤 발동까지 방향은 굳는다.
+    // 선풍은 전방위라 조준을 안 쓰므로 방향을 건드리지 않는다.
+    const foe = nearestFoe(a);
+    if (a.aims && foe) a.f = Math.atan2(foe.y - a.y, foe.x - a.x);
+  }
   return act;
 }
 
@@ -394,8 +400,8 @@ function fire(a, events){
   const reach = whirl ? a.whirlRange : a.range;
   const near = nearestFoe(a);
 
-  // 조준은 발동 틱에 한다. 돌 줄 아는 액터만.
-  if (!whirl && a.aims && near) a.f = Math.atan2(near.y - a.y, near.x - a.x);
+  // 여기서 다시 조준하지 않는다. 방향은 예고를 시작할 때 이미 굳었다.
+  // 나와 몹이 똑같이 이 규칙을 따른다 — 준비하는 동안 상대가 빠지면 빗나간다.
 
   const struck = foesOf(a).filter(f => {
     if (f.hp <= 0) return false;
@@ -590,9 +596,8 @@ function markOf(a, act){
     const whirl = act.kind === 'whirl';
     k.range = whirl ? a.whirlRange : a.range;
     k.arc = whirl ? Math.PI : a.aimArc;
+    // 부채꼴은 굳은 방향 그대로 그린다. 예고가 곧 약속이다.
     const foe = nearestFoe(a);
-    // 조준은 발동 때 한다. 돌 줄 아는 액터의 부채꼴은 대상 쪽으로 미리 보여 준다.
-    if (!whirl && a.aims && foe) k.at.f = Math.atan2(foe.y - a.y, foe.x - a.x);
     if (foe) k.tgt = { x:foe.x, y:foe.y };
   } else {
     k.to = { x:a.x, y:a.y };
@@ -629,6 +634,7 @@ function dryRun(card){
   const act = startAct(player, card);
   const moveFutile = act.futile || null;
   const mv = act.mv ? Object.assign({}, act.mv) : null;
+  const aimF = player.f;                 // 던졌다면 굳었을 방향
   let hits = 0;
   for (let t = 0; t < card.ticks; t++)
     for (const ev of stepTick())
@@ -642,13 +648,14 @@ function dryRun(card){
     why = !foe ? '대상이 없음'
         : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '조준 밖';
   }
-  return { why:why, mv:mv, hits:hits };
+  return { why:why, mv:mv, hits:hits, aimF:aimF };
 }
 
 function previewMark(card){
   const r = dryRun(card);
   const k = markOf(player, { kind:card.kind, name:card.name, ticks:card.ticks,
                              left:card.ticks, mv:r.mv, futile:r.why });
+  if (ATTACK_KINDS[card.kind] && card.kind !== 'whirl') k.at.f = r.aimF;
   k.preview = true;
   return k;
 }
