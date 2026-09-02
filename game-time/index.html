@@ -41,6 +41,18 @@
   .hud .l,.hud .r{background:rgba(13,13,11,.72);border:1px solid var(--hairline);
     border-radius:var(--r-pill);padding:4px 12px;color:var(--muted);}
 
+  .fcast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+    display:flex;gap:10px;align-items:center;white-space:nowrap;
+    background:rgba(13,13,11,.9);border:1px solid var(--hairline);
+    border-radius:var(--r-pill);padding:7px 16px;font-size:12px;
+    font-variant-numeric:tabular-nums;pointer-events:none;box-shadow:var(--sh-md);}
+  .fcast[hidden]{display:none;}
+  .fcast .nm{font-weight:700;color:var(--ink);}
+  .fcast .good{color:#86DFAE;font-weight:600;}
+  .fcast .bad{color:#FF9E8E;font-weight:700;}
+  .fcast .warn{color:#D8B45E;font-weight:700;}
+  .fcast .dim{color:var(--muted);}
+
   .over{position:absolute;inset:0;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:var(--s3);
     background:rgba(13,13,11,.82);border-radius:var(--r-md);}
@@ -68,9 +80,12 @@
     border-radius:var(--r-md);padding:8px 9px;cursor:pointer;text-align:left;
     display:flex;flex-direction:column;overflow:hidden;
     transition:transform .12s,border-color .12s,box-shadow .12s;
-    font-family:var(--font);color:var(--body);box-shadow:var(--sh-sm);}
+    font-family:var(--font);color:var(--body);box-shadow:var(--sh-sm);
+    touch-action:none;user-select:none;-webkit-user-select:none;}
   .pc:hover:not(:disabled){border-color:var(--brand-yellow);
     transform:translateY(-8px);box-shadow:var(--sh-md);}
+  .pc:not(:disabled){cursor:grab;}
+  .pc:not(:disabled):active{cursor:grabbing;}
   .pc:disabled{opacity:.35;cursor:not-allowed;}
   .pc .nm{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;
     font-size:14px;font-weight:700;color:var(--ink);line-height:1.2;}
@@ -106,6 +121,8 @@
     transition-property:transform,opacity;
     transition-timing-function:cubic-bezier(.25,.9,.3,1);
     box-shadow:var(--sh-lg);}
+  .ghost.held{transition:opacity .12s;border-color:var(--brand-yellow);
+    box-shadow:0 18px 40px rgba(0,0,0,.6);}
 
   .ctrl{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);align-items:center;}
   .ctrl .spacer{flex:1;}
@@ -136,7 +153,7 @@
     <div>
       <a class="back" href="../index.html">← 프로토타입 목록</a>
       <h1>⏱️ 시간</h1>
-      <p>틱은 카드를 던질 때만 흐른다. 몹 머리 위 숫자를 읽고 던져라. — 섬멸</p>
+      <p>카드를 무대로 끌어다 놓으면 그 틱만큼 시간이 흐른다. 몹 머리 위 숫자를 읽어라. — 섬멸</p>
     </div>
   </div>
 
@@ -149,6 +166,7 @@
             <span class="l">남은 몹 <b id="hMobs">0</b></span>
             <span class="r">경과 <b id="hTick">0</b>틱</span>
           </div>
+          <div class="fcast" id="fcast" hidden></div>
           <div class="over" id="over" hidden>
             <h3 id="overT">섬멸</h3>
             <p id="overP"></p>
@@ -162,7 +180,7 @@
           <span><i class="sw sw-attack"></i>공격</span>
           <span><i class="sw sw-whirl"></i>선풍</span>
           <span><i class="sw sw-futile"></i>소용없음</span>
-          <span class="tip">몹 머리 숫자 = 터지기까지 남은 틱</span>
+          <span class="tip">몹 머리 숫자 = 터지기까지 남은 틱 · 굵은 부채꼴 = 이 카드 도중에 터짐</span>
         </div>
       </div>
 
@@ -260,6 +278,28 @@ const GRUNT = {
 let player, mobs, deck, hand, discard, log;
 let clock, phase;                 // phase: 'idle' | 'run' | 'over'
 let anim = null, pendingDraw = [], hoverCard = null;
+
+// 타격 연출 — 액터 열쇠('p' 또는 몹 번호)마다 시작 시각을 적는다
+const FX_HIT = 260, FX_DMG = 340;
+let fx = { hit:{}, dmg:{} }, fxLoop = false;
+function fxActive(){
+  const now = performance.now();
+  const live = m => Object.keys(m).some(k => now - m[k] < 400);
+  return live(fx.hit) || live(fx.dmg);
+}
+function fxPump(){
+  if (fxLoop) return;
+  fxLoop = true;
+  const run = () => {
+    paint();
+    if (phase !== 'run' && fxActive()) requestAnimationFrame(run);
+    else fxLoop = false;
+  };
+  requestAnimationFrame(run);
+}
+
+// 드래그 — 카드를 집어 무대에 떨군다
+let drag = null;
 
 const $ = id => document.getElementById(id);
 const cv = $('arena'), ctx = cv.getContext('2d');
@@ -412,16 +452,17 @@ function fire(a, events){
   });
 
   const label = a === player ? '나' : a.name;
+  const key = x => x === player ? 'p' : String(mobs.indexOf(x));
   if (!struck.length){
     const why = !near ? '대상이 없음'
               : dist(a, near) > reach + 1e-9 ? '사거리 밖' : '조준 밖';
-    events.push({ type:'miss', who:label, name:a.act.name, why:why,
+    events.push({ type:'miss', who:label, si:key(a), name:a.act.name, why:why,
                   d:near ? dist(a, near) : 0 });
     return;
   }
   for (const f of struck){
     f.hp = Math.max(0, f.hp - a.atk);
-    events.push({ type:'hit', who:label, name:a.act.name,
+    events.push({ type:'hit', who:label, si:key(a), ti:key(f), name:a.act.name,
                   tgt:f === player ? '나' : f.name, dmg:a.atk, dead:f.hp <= 0 });
   }
 }
@@ -465,10 +506,14 @@ function stepTick(){
 }
 
 // 세계의 겉모습을 한 장 찍는다 (재생용)
+// 머리 위 숫자와 표식까지 같이 담아야 재생 중에 예고가 살아 움직인다.
 function snap(){
   return {
     p:{ x:player.x, y:player.y, f:player.f, hp:player.hp },
-    m: mobs.map(m => ({ x:m.x, y:m.y, f:m.f, hp:m.hp })),
+    m: mobs.map(m => ({ x:m.x, y:m.y, f:m.f, hp:m.hp,
+                        left:m.act ? m.act.left : 0,
+                        kind:m.act ? m.act.kind : null })),
+    marks: livingMobs().filter(m => m.act).map(m => markOf(m, m.act)),
   };
 }
 
@@ -482,7 +527,7 @@ function throwCard(i, fromRect){
 
   hand.splice(i, 1);
   discard.push(card);
-  hoverCard = null;
+  hoverCard = null; worldVer++;
   startAct(player, card);
 
   // 틱을 미리 다 돌려 두고 재생만 한다
@@ -500,8 +545,10 @@ function throwCard(i, fromRect){
 
   playback(frames, () => {
     drawUp();
+    worldVer++;
     if (!checkOver()) phase = 'idle';
     render();
+    if (fxActive()) fxPump();
   });
 }
 
@@ -541,9 +588,15 @@ function playback(frames, done){
       drawScene({
         p:{ x:lerp(from.p.x, to.p.x), y:lerp(from.p.y, to.p.y), f:to.p.f, hp:to.p.hp },
         m: to.m.map((m, n) => ({ x:lerp(from.m[n].x, m.x), y:lerp(from.m[n].y, m.y),
-                                 f:m.f, hp:m.hp })),
-      }, currentMarks());
+                                 f:m.f, hp:m.hp, left:m.left, kind:m.kind })),
+      }, to.marks);
       if (k < 1){ anim = requestAnimationFrame(frame); return; }
+      for (const ev of to.events || []){
+        // 때린 쪽은 세로로 늘어나고, 맞은 쪽은 빨개진다
+        const t = performance.now();
+        if (ev.si != null) fx.hit[ev.si] = t;
+        if (ev.type === 'hit' && ev.ti != null) fx.dmg[ev.ti] = t;
+      }
       for (const ev of to.events || []){
         if (ev.type === 'hit') addLog(ev.dead ? 'kill' : 'hit', clock,
           ev.who + ' ' + ev.name + ' → ' + ev.tgt + ' ' + ev.dmg + ' 피해' +
@@ -566,8 +619,15 @@ function playback(frames, done){
    ============================================================ */
 function currentMarks(){
   const out = [];
-  for (const m of livingMobs()) if (m.act) out.push(markOf(m, m.act));
-  if (phase === 'idle' && hoverCard){
+  const fc = (phase === 'idle' && hoverCard) ? forecast(hoverCard) : null;
+  mobs.forEach((m, i) => {
+    if (m.hp <= 0 || !m.act) return;
+    const k = markOf(m, m.act);
+    // 이 카드를 던지는 동안 실제로 터질 몹은 굵게 그린다
+    if (fc && fc.firing.indexOf(i) >= 0) k.fires = true;
+    out.push(k);
+  });
+  if (fc){
     const k = previewMark(hoverCard);
     if (k) out.push(k);
   }
@@ -635,10 +695,23 @@ function dryRun(card){
   const moveFutile = act.futile || null;
   const mv = act.mv ? Object.assign({}, act.mv) : null;
   const aimF = player.f;                 // 던졌다면 굳었을 방향
-  let hits = 0;
-  for (let t = 0; t < card.ticks; t++)
-    for (const ev of stepTick())
-      if (ev.type === 'hit' && ev.who === '나') hits++;
+  let hits = 0, dealt = 0, kills = 0, taken = 0, incoming = 0;
+  const firing = [];
+  for (let t = 0; t < card.ticks; t++){
+    // 이번 틱에 터질 몹을 미리 적어 둔다 (무대에서 굵게 그린다)
+    mobs.forEach((m, idx) => {
+      if (m.hp > 0 && m.act && ATTACK_KINDS[m.act.kind] && m.act.left === 1
+          && firing.indexOf(idx) < 0) firing.push(idx);
+    });
+    for (const ev of stepTick()){
+      if (ev.who === '나'){
+        if (ev.type === 'hit'){ hits++; dealt += ev.dmg; if (ev.dead) kills++; }
+      } else {
+        incoming++;
+        if (ev.type === 'hit') taken += ev.dmg;
+      }
+    }
+  }
   loadWorld(st);
 
   let why = moveFutile;
@@ -648,11 +721,22 @@ function dryRun(card){
     why = !foe ? '대상이 없음'
         : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '조준 밖';
   }
-  return { why:why, mv:mv, hits:hits, aimF:aimF };
+  return { why:why, mv:mv, hits:hits, aimF:aimF,
+           dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing };
+}
+
+/* 예측은 그리기마다 다시 돌 필요가 없다. 세계가 바뀔 때만 버린다. */
+let worldVer = 0, fcCard = null, fcVal = null;
+function forecast(card){
+  if (fcCard === card && fcVal && fcVal.ver === worldVer) return fcVal;
+  const r = dryRun(card);
+  r.ver = worldVer;
+  fcCard = card; fcVal = r;
+  return r;
 }
 
 function previewMark(card){
-  const r = dryRun(card);
+  const r = forecast(card);
   const k = markOf(player, { kind:card.kind, name:card.name, ticks:card.ticks,
                              left:card.ticks, mv:r.mv, futile:r.why });
   if (ATTACK_KINDS[card.kind] && card.kind !== 'whirl') k.at.f = r.aimF;
@@ -706,18 +790,24 @@ function drawMarks(S, marks){
   for (const k of marks || []){
     if (k.kind === 'wait') continue;
     const color = k.futile ? FUTILE_COLOR : (MARK_COLOR[k.kind] || '#8E8C82');
-    const alpha = k.futile ? .5 : (k.preview ? .95 : .8);
+    const alpha = k.futile ? .5 : (k.preview || k.fires ? .95 : .7);
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = color; ctx.fillStyle = color;
-    ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // fires = 이 카드를 떨구는 동안 실제로 터질 예고
+    ctx.lineWidth = k.fires ? 3.5 : 2;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (k.futile) ctx.setLineDash([4, 4]);
     else if (k.preview) ctx.setLineDash([7, 4]);
 
     if (ATTACK_KINDS[k.kind]){
       sectorPath(S, k.at.x, k.at.y, k.range, k.at.f, k.arc);
       ctx.stroke();
-      if (!k.futile){ ctx.globalAlpha = alpha * .15; ctx.fill(); ctx.globalAlpha = alpha; }
+      if (!k.futile){
+        ctx.globalAlpha = alpha * (k.fires ? .3 : .15);
+        ctx.fill();
+        ctx.globalAlpha = alpha;
+      }
       if (k.tgt){
         const b = S(k.tgt.x, k.tgt.y);
         ctx.setLineDash([]);
@@ -784,10 +874,25 @@ function drawScene(pos, marks){
   // 사거리 고리는 상시로 안 띄운다. 예고(표식)에만 나온다.
   drawMarks(S, marks);
 
-  const body = (x, y, f, draw) => {
+  const now = performance.now();
+  // 0 → 1 → 0 으로 한 번 부풀었다 돌아온다
+  const fxAmt = (map, key, dur) => {
+    const t0 = map[key];
+    if (!t0) return 0;
+    const e = (now - t0) / dur;
+    return (e >= 0 && e < 1) ? Math.sin(Math.PI * e) : 0;
+  };
+
+  const pawn = (x, y, f, key, mob) => {
     const p = S(x, y), sx = p[0], sy = p[1];
+    const st = fxAmt(fx.hit, key, FX_HIT);     // 때릴 때 세로로 늘어난다
+    const fl = fxAmt(fx.dmg, key, FX_DMG);     // 맞을 때 빨개진다
+    const ky = 1 + st * .42, kx = 1 - st * .16;
+    const red = 'rgba(255,86,64,' + (fl * .85) + ')';
+
     ctx.fillStyle = 'rgba(0,0,0,.45)';
-    ctx.beginPath(); ctx.ellipse(sx, sy, 15, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx, sy, 15 * kx, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+
     if (f != null){
       const tip = S(x + Math.cos(f) * 1.05, y + Math.sin(f) * 1.05);
       const ux = tip[0] - sx, uy = tip[1] - sy, L = Math.hypot(ux, uy) || 1;
@@ -804,7 +909,22 @@ function drawScene(pos, marks){
       ctx.closePath(); ctx.fill();
       ctx.restore();
     }
-    draw(sx, sy);
+
+    // 몸통 — 같은 길을 두 번 칠해 빨간 기운을 얹는다
+    const top = (mob ? 40 : 46) * ky, mid = (mob ? 22 : 26) * ky;
+    const wOut = (mob ? 10 : 11) * kx, wIn = (mob ? 6 : 7) * kx;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - top); ctx.lineTo(sx + wOut, sy - mid);
+    ctx.lineTo(sx + wIn, sy - 2); ctx.lineTo(sx - wIn, sy - 2);
+    ctx.lineTo(sx - wOut, sy - mid); ctx.closePath();
+    ctx.fillStyle = mob ? '#7A6B52' : '#FFD400'; ctx.fill();
+    if (fl > 0){ ctx.fillStyle = red; ctx.fill(); }
+
+    ctx.beginPath();
+    if (mob) ctx.arc(sx, sy - 46 * ky, 7.5 * kx, 0, Math.PI * 2);
+    else ctx.arc(sx, sy - 34 * ky, 4 * kx, 0, Math.PI * 2);
+    ctx.fillStyle = mob ? '#9C8A6A' : '#1A1A17'; ctx.fill();
+    if (fl > 0 && mob){ ctx.fillStyle = red; ctx.fill(); }
     return [sx, sy];
   };
 
@@ -813,39 +933,23 @@ function drawScene(pos, marks){
                      .filter(o => o.m.hp > 0)
                      .sort((a, b) => (a.m.x + a.m.y) - (b.m.x + b.m.y));
   for (const o of order){
-    const m = o.m, src = mobs[o.i];
-    const sp = body(m.x, m.y, m.f, (sx, sy) => {
-      ctx.fillStyle = '#7A6B52';
-      ctx.beginPath();
-      ctx.moveTo(sx, sy - 40); ctx.lineTo(sx + 10, sy - 22);
-      ctx.lineTo(sx + 6, sy - 2); ctx.lineTo(sx - 6, sy - 2);
-      ctx.lineTo(sx - 10, sy - 22); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#9C8A6A';
-      ctx.beginPath(); ctx.arc(sx, sy - 46, 7.5, 0, Math.PI * 2); ctx.fill();
-    });
-    mobHud(sp[0], sp[1], m, src);
+    const m = o.m;
+    const sp = pawn(m.x, m.y, m.f, String(o.i), true);
+    mobHud(sp[0], sp[1], m);
   }
 
-  body(pos.p.x, pos.p.y, pos.p.f, (sx, sy) => {
-    ctx.fillStyle = '#FFD400';
-    ctx.beginPath();
-    ctx.moveTo(sx, sy - 46); ctx.lineTo(sx + 11, sy - 26);
-    ctx.lineTo(sx + 7, sy - 2); ctx.lineTo(sx - 7, sy - 2);
-    ctx.lineTo(sx - 11, sy - 26); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#1A1A17';
-    ctx.beginPath(); ctx.arc(sx, sy - 34, 4, 0, Math.PI * 2); ctx.fill();
-  });
+  pawn(pos.p.x, pos.p.y, pos.p.f, 'p', false);
 }
 
 // 몹 머리 위 — 숫자 하나가 예고의 전부다
-function mobHud(sx, sy, m, src){
+function mobHud(sx, sy, m){
   const top = sy - 62;
   const w = 26, hpw = w * Math.max(0, m.hp) / GRUNT.maxHp;
   ctx.fillStyle = '#2A2A22'; ctx.fillRect(sx - w / 2, top + 2, w, 4);
   ctx.fillStyle = '#C4705E'; ctx.fillRect(sx - w / 2, top + 2, hpw, 4);
 
-  const act = src && src.act;
-  if (!act) return;
+  if (!m.kind) return;
+  const act = { kind:m.kind, left:m.left };
   const attack = !!ATTACK_KINDS[act.kind];
   const color = attack ? '#FF9E8E' : '#7FD4EC';
   ctx.save();
@@ -926,6 +1030,87 @@ function runDrawFlights(){
 }
 
 /* ============================================================
+   드래그 — 집어서 무대에 떨군다
+   ============================================================ */
+function overStage(e){
+  const r = cv.getBoundingClientRect();
+  return e.clientX >= r.left && e.clientX <= r.right &&
+         e.clientY >= r.top && e.clientY <= r.bottom;
+}
+
+function startDrag(e, el, card, i){
+  if (phase !== 'idle' || drag) return;
+  e.preventDefault();
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  const r = rectOf(el);
+  const g = document.createElement('div');
+  g.className = 'ghost pc k-' + card.kind + ' held';
+  g.innerHTML = cardFace(card, null);
+  g.style.width = r.w + 'px';
+  g.style.height = r.h + 'px';
+  g.style.transitionDuration = '0ms';
+  $('ghosts').appendChild(g);
+  el.style.visibility = 'hidden';
+  drag = { card:card, i:i, el:el, ghost:g, w:r.w, h:r.h,
+           ox:e.clientX - r.x, oy:e.clientY - r.y, over:false };
+  hoverCard = card;
+  moveDrag(e);
+}
+
+function moveDrag(e){
+  if (!drag) return;
+  const x = e.clientX - drag.ox, y = e.clientY - drag.oy;
+  drag.ghost.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+  const over = overStage(e);
+  if (over !== drag.over){
+    drag.over = over;
+    drag.ghost.style.opacity = over ? '.55' : '1';
+  }
+  showForecast(over ? drag.card : null);
+  paint();
+}
+
+function endDrag(e){
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  d.ghost.remove();
+  d.el.style.visibility = '';
+  hoverCard = null;
+  showForecast(null);
+  if (overStage(e)) throwCard(d.i, { x:e.clientX - d.ox, y:e.clientY - d.oy,
+                                     w:d.w, h:d.h });
+  else render();
+}
+
+function cancelDrag(){
+  if (!drag) return;
+  drag.ghost.remove();
+  drag.el.style.visibility = '';
+  drag = null;
+  hoverCard = null;
+  showForecast(null);
+  render();
+}
+
+// 이 카드를 지금 떨구면 무슨 일이 벌어지나 — 무대 위에 적어 준다
+function showForecast(card){
+  const box = $('fcast');
+  if (!card){ box.hidden = true; return; }
+  const f = forecast(card);
+  const bit = (cls, txt) => '<span class="' + cls + '">' + txt + '</span>';
+  const out = [bit('nm', card.name + ' · ' + card.ticks + '틱')];
+  if (f.why) out.push(bit('warn', '✕ ' + f.why));
+  else if (f.dealt) out.push(bit('good', '줄 피해 ' + f.dealt +
+    (f.kills ? ' · 처치 ' + f.kills : '')));
+  out.push(f.taken ? bit('bad', '받을 피해 ' + f.taken)
+                   : bit('good', '무피해'));
+  if (f.incoming) out.push(bit('dim', '적 공격 ' + f.incoming + '회'));
+  box.innerHTML = out.join('');
+  box.hidden = false;
+}
+
+/* ============================================================
    UI
    ============================================================ */
 function renderHand(){
@@ -940,9 +1125,10 @@ function renderHand(){
     b.title = card.text + (why ? '  ✕ 소용없음 — ' + why : '');
     b.innerHTML = cardFace(card, why);
     if (drawing && drawing.indexOf(i) >= 0) b.style.visibility = 'hidden';
-    b.onmouseenter = () => { if (phase === 'idle'){ hoverCard = card; paint(); } };
-    b.onmouseleave = () => { if (hoverCard === card){ hoverCard = null; paint(); } };
-    b.onclick = () => throwCard(i, rectOf(b));
+    b.onpointerdown = e => startDrag(e, b, card, i);
+    b.onpointermove = e => moveDrag(e);
+    b.onpointerup = e => endDrag(e);
+    b.onpointercancel = () => cancelDrag();
     el.appendChild(b);
   });
   for (let i = hand.length; i < HAND_SIZE; i++){
@@ -972,7 +1158,7 @@ function render(){
   renderStats();
   $('hint').textContent = phase === 'run' ? '흐르는 중…'
     : phase === 'over' ? ''
-    : '카드를 던지면 그 틱만큼 시간이 흐른다';
+    : '카드를 무대로 끌어다 놓아라';
   runDrawFlights();
 }
 
@@ -990,7 +1176,10 @@ function reset(){
   if (anim) cancelAnimationFrame(anim);
   $('ghosts').innerHTML = '';
   $('over').hidden = true;
-  pendingDraw = []; hoverCard = null;
+  $('fcast').hidden = true;
+  pendingDraw = []; hoverCard = null; drag = null;
+  fx = { hit:{}, dmg:{} };
+  worldVer++; fcCard = null; fcVal = null;
   clock = 0; log = [];
 
   player = Object.assign({}, PLAYER_BASE, { x:0, y:0, f:0, act:null });
