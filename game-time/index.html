@@ -37,7 +37,8 @@
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend .sw{width:14px;height:2px;border-radius:2px;display:inline-block;}
   .sw-move{background:#7FD4EC;} .sw-dodge{background:#86DFAE;}
-  .sw-attack{background:#FF9E8E;} .sw-futile{background:#D8B45E;}
+  .sw-turn{background:#B9A8F0;} .sw-attack{background:#FF9E8E;}
+  .sw-whirl{background:#FFC489;} .sw-futile{background:#D8B45E;}
   .legend .tip{margin-left:auto;opacity:.75;}
 
   /* ---- 타임라인 ---- */
@@ -54,7 +55,9 @@
   .cell.ruler{height:18px;border:none;background:none;font-size:10px;}
   .cell.move{background:#1F3A44;border-color:#2E5A69;color:#7FD4EC;}
   .cell.dodge{background:#1E3A2A;border-color:#2F5C42;color:#86DFAE;}
+  .cell.turn{background:#2A2340;border-color:#453A6B;color:#B9A8F0;}
   .cell.attack{background:#4A2320;border-color:#7A3A34;color:#FF9E8E;}
+  .cell.whirl{background:#432C15;border-color:#7A542C;color:#FFC489;}
   .cell.wait{background:#232320;border-color:#3A3A31;color:#6E6C63;}
   .cell.mid{border-left-color:transparent;border-top-left-radius:0;border-bottom-left-radius:0;}
   .cell.notend{border-right-color:transparent;border-top-right-radius:0;border-bottom-right-radius:0;}
@@ -66,29 +69,60 @@
     background:repeating-linear-gradient(45deg,
       transparent 0 4px, rgba(255,190,80,.14) 4px 8px);}
 
-  /* ---- 손패 ---- */
-  .hand{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s2);}
-  @media(max-width:760px){.hand{grid-template-columns:repeat(3,1fr);}}
-  @media(max-width:460px){.hand{grid-template-columns:repeat(2,1fr);}}
-  .pc{background:var(--surface-soft);border:1px solid var(--hairline);
-    border-radius:var(--r-md);padding:10px;cursor:pointer;text-align:left;
-    transition:.12s;font-family:var(--font);color:var(--body);}
-  .pc:hover:not(:disabled){border-color:var(--brand-yellow);transform:translateY(-3px);}
+  /* ---- 손패 · 카드 ---- */
+  .handrow{display:flex;gap:var(--s3);align-items:center;}
+  .hand{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:var(--s2);}
+  @media(max-width:760px){.hand{grid-template-columns:repeat(4,1fr);}}
+  @media(max-width:460px){.hand{grid-template-columns:repeat(3,1fr);}
+    .handrow{flex-wrap:wrap;}}
+
+  /* 카드 — 세로로 긴 카드 비율 (5:7) */
+  .pc{aspect-ratio:5/7;background:var(--surface-soft);
+    border:1px solid var(--hairline);border-top:3px solid var(--hairline);
+    border-radius:var(--r-md);padding:7px 8px;cursor:pointer;text-align:left;
+    display:flex;flex-direction:column;overflow:hidden;
+    transition:transform .12s,border-color .12s,box-shadow .12s;
+    font-family:var(--font);color:var(--body);box-shadow:var(--sh-sm);}
+  .pc:hover:not(:disabled){border-color:var(--brand-yellow);
+    transform:translateY(-6px);box-shadow:var(--sh-md);}
   .pc:disabled{opacity:.3;cursor:not-allowed;}
-  .pc .nm{display:flex;justify-content:space-between;align-items:center;
-    font-size:14px;font-weight:700;color:var(--ink);margin-bottom:5px;}
-  .pc .tk{font-size:11px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);
-    background:var(--brand-yellow);color:var(--on-brand);}
-  .pc .tx{font-size:11px;line-height:1.4;color:var(--muted);}
-  .pc.k-move{border-left:3px solid #2E5A69;}
-  .pc.k-dodge{border-left:3px solid #2F5C42;}
-  .pc.k-attack{border-left:3px solid #7A3A34;}
-  .pc.k-wait{border-left:3px solid #3A3A31;}
-  .pc.futile{border-left-color:#4A3D28;background:#1F1C17;}
+  .pc .nm{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;
+    font-size:13px;font-weight:700;color:var(--ink);line-height:1.2;}
+  .pc .tk{flex:none;font-size:9px;font-weight:800;padding:2px 5px;
+    border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);}
+  .pc .tx{margin-top:auto;font-size:10px;line-height:1.35;color:var(--muted);}
+  .pc.k-move{border-top-color:#2E5A69;}
+  .pc.k-dodge{border-top-color:#2F5C42;}
+  .pc.k-turn{border-top-color:#453A6B;}
+  .pc.k-attack{border-top-color:#7A3A34;}
+  .pc.k-whirl{border-top-color:#7A542C;}
+  .pc.k-wait{border-top-color:#3A3A31;}
+  .pc.slot{opacity:.12;cursor:default;box-shadow:none;
+    background:none;border-style:dashed;border-top-color:var(--hairline);}
+  .pc.futile{border-top-color:#4A3D28;background:#1F1C17;}
   .pc.futile .nm span:first-child{color:#9A8358;text-decoration:line-through;}
   .pc.futile .tk{background:#4A3D28;color:#D8B45E;}
-  .pc .warn{margin-top:6px;font-size:10px;font-weight:700;color:#D8B45E;
-    background:#2A2318;border-radius:var(--r-sm);padding:3px 6px;line-height:1.3;}
+  .pc .warn{margin-top:5px;font-size:9px;font-weight:700;color:#D8B45E;
+    background:#2A2318;border-radius:var(--r-sm);padding:3px 5px;line-height:1.25;}
+
+  /* 덱 · 무덤 무더기 */
+  .pile{flex:none;width:64px;aspect-ratio:5/7;border-radius:var(--r-md);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    border:1px solid var(--hairline);position:relative;}
+  .pile .pn{font-size:10px;color:var(--muted);letter-spacing:.05em;}
+  .pile b{font-size:18px;font-weight:800;color:var(--ink);}
+  .pile.deck{background:
+    repeating-linear-gradient(45deg,#1F1F1A 0 5px,#26261F 5px 10px);
+    box-shadow:2px 2px 0 #16161300, 3px 3px 0 var(--surface), 4px 4px 0 var(--hairline);}
+  .pile.grave{background:#17170F;border-style:dashed;}
+
+  /* 날아다니는 카드 */
+  #ghosts{position:fixed;inset:0;pointer-events:none;z-index:60;}
+  .ghost{position:absolute;left:0;top:0;transform-origin:0 0;
+    aspect-ratio:auto;will-change:transform,opacity;
+    transition-property:transform,opacity;
+    transition-timing-function:cubic-bezier(.25,.9,.3,1);
+    box-shadow:var(--sh-lg);}
 
   .ctrl{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);align-items:center;}
   .ctrl .spacer{flex:1;}
@@ -135,9 +169,11 @@
         <div class="legend">
           <span><i class="sw sw-move"></i>이동</span>
           <span><i class="sw sw-dodge"></i>회피</span>
-          <span><i class="sw sw-attack"></i>공격</span>
+          <span><i class="sw sw-turn"></i>선회</span>
+          <span><i class="sw sw-attack"></i>공격 (부채꼴)</span>
+          <span><i class="sw sw-whirl"></i>선풍 (온고리)</span>
           <span><i class="sw sw-futile"></i>소용없음</span>
-          <span class="tip">동그라미 숫자 = 시작 틱 · 나와 몹 같은 표식</span>
+          <span class="tip">동그라미 = 시작 틱 · 흰 화살 = 바라보는 쪽</span>
         </div>
       </div>
 
@@ -148,7 +184,11 @@
 
       <div class="panel">
         <h2>손패 <span id="handInfo" style="text-transform:none;letter-spacing:0"></span></h2>
-        <div class="hand" id="hand"></div>
+        <div class="handrow">
+          <div class="pile deck" id="deckPile"><span class="pn">덱</span><b id="sDeck">0</b></div>
+          <div class="hand" id="hand"></div>
+          <div class="pile grave" id="gravePile"><span class="pn">무덤</span><b id="sDisc">0</b></div>
+        </div>
         <div class="ctrl">
           <button class="btn btn-secondary btn-sm" id="undo">되돌리기</button>
           <button class="btn btn-secondary btn-sm" id="reset">초기화</button>
@@ -166,16 +206,13 @@
         <div class="stat"><span>체력</span><b id="sHp">20 / 20</b></div>
         <div class="stat"><span>공격력</span><b>3</b></div>
         <div class="stat"><span>사거리</span><b>2.0</b></div>
+        <div class="stat"><span>조준각</span><b>±30°</b></div>
+        <div class="stat"><span>선회각</span><b>45°</b></div>
+        <div class="stat"><span>선풍 사거리</span><b>1.6</b></div>
         <div class="stat"><span>이동거리</span><b>1.5</b></div>
         <div class="stat"><span>회피거리</span><b>2.0</b></div>
         <div class="stat"><span>접촉거리</span><b>0.6</b></div>
         <div class="stat"><span>가까운 적까지</span><b id="sDist">–</b></div>
-      </div>
-
-      <div class="panel">
-        <h2>덱</h2>
-        <div class="stat"><span>남은 덱</span><b id="sDeck">–</b></div>
-        <div class="stat"><span>버림더미</span><b id="sDisc">–</b></div>
       </div>
 
       <div class="panel">
@@ -184,6 +221,7 @@
       </div>
     </div>
   </div>
+  <div id="ghosts"></div>
 </main>
 
 <script>
@@ -199,25 +237,43 @@ const TICK_MS = 210;          // 행동턴 한 틱 재생 시간
 const NEAR = 2.5;             // 몹 패턴 분기 기준 거리
 const CONTACT = 0.6;          // 이 거리보다 가까이는 못 붙는다 (몸통 반지름 합)
 
+const D2R = Math.PI / 180;
+
+// brief 는 좁은 카드 면에 적는 줄, text 는 마우스를 올렸을 때 나오는 원문
 const CARDS = {
   attack: { id:'attack', name:'공격', ticks:3, kind:'attack',
-            text:'가까운 적에게 3 피해. 사거리 2.0' },
+            brief:'정면 30°<br>사거리 2.0<br>피해 3',
+            text:'정면 30도 · 사거리 2.0 안의 적에게 3 피해' },
+  whirl:  { id:'whirl',  name:'선풍', ticks:4, kind:'whirl',
+            brief:'전방위<br>사거리 1.6<br>피해 3',
+            text:'전방위 · 사거리 1.6 안 모두에게 3 피해' },
   move:   { id:'move',   name:'이동', ticks:2, kind:'move',
-            text:'가까운 적을 향해 1.5 활주' },
+            brief:'적에게로 1.5<br>그쪽을 본다',
+            text:'가까운 적을 향해 1.5 활주. 그쪽을 본다' },
   dodge:  { id:'dodge',  name:'회피', ticks:1, kind:'dodge',
-            text:'가까운 적의 반대로 2.0 물러남' },
+            brief:'적 반대로 2.0<br>마주 본 채',
+            text:'가까운 적의 반대로 2.0 물러남. 계속 마주 본다' },
+  turn:   { id:'turn',   name:'선회', ticks:1, kind:'turn',
+            brief:'적 축으로 45°<br>방향 안 바뀜',
+            text:'가까운 적을 축으로 45도 돎. 거리 유지, 방향 안 바뀜' },
   wait:   { id:'wait',   name:'대기', ticks:1, kind:'wait',
+            brief:'한 틱 흘림',
             text:'아무것도 하지 않고 한 틱 흘림' },
 };
 
-// 이동 계열 카드의 방향 부호. 이동은 대상을 향해, 회피는 반대로.
-const MOVE_SIGN = { move:1, dodge:-1 };
+// 이동 계열 — 한 틱 안에서 공격보다 먼저 해소된다
+const MOVE_KINDS = { move:1, dodge:1, turn:1 };
+// 공격 계열 — 전방위인지 아닌지만 다르다
+const ATTACK_KINDS = { attack:1, whirl:1 };
 
-const PLAYER_BASE = { hp:20, maxHp:20, atk:3, range:2.0, moveDist:1.5, dodgeDist:2.0 };
+const PLAYER_BASE = { hp:20, maxHp:20, atk:3,
+                      range:2.0, whirlRange:1.6, aimArc:30 * D2R,
+                      moveDist:1.5, dodgeDist:2.0, turnArc:45 * D2R };
 
 // 허수아비: 안 움직임 · 안 죽음 · 예고만 띄움
 const SCARECROW = {
-  name:'허수아비', immortal:true, atk:2, range:2.2, moveDist:0, dodgeDist:0,
+  name:'허수아비', immortal:true, atk:2, range:2.2, whirlRange:1.6,
+  aimArc:30 * D2R, moveDist:0, dodgeDist:0, turnArc:0,
   patterns: {
     near: [ {kind:'wait',ticks:2}, {kind:'attack',ticks:3}, {kind:'wait',ticks:5} ],
     far:  [ {kind:'wait',ticks:10} ],
@@ -234,6 +290,26 @@ const $ = id => document.getElementById(id);
 const cv = $('arena'), ctx = cv.getContext('2d');
 
 function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
+
+// 각을 -π..π 로 접는다. 조준각 비교는 전부 이걸 거친다.
+function wrapAngle(r){
+  r = r % (Math.PI * 2);
+  if (r > Math.PI) r -= Math.PI * 2;
+  if (r < -Math.PI) r += Math.PI * 2;
+  return r;
+}
+
+// 이동은 평행이동, 선회는 축을 중심으로 한 회전
+function applyMove(a){
+  if (a.mv.rot){
+    const rx = a.x - a.mv.px, ry = a.y - a.mv.py;
+    const c = Math.cos(a.mv.dphi), s = Math.sin(a.mv.dphi);
+    a.x = a.mv.px + rx * c - ry * s;
+    a.y = a.mv.py + rx * s + ry * c;
+  } else {
+    a.x += a.mv.dx; a.y += a.mv.dy;
+  }
+}
 function nearestMob(from){
   let best = null, bd = Infinity;
   for (const m of mobs){ const d = dist(from, m); if (d < bd){ bd = d; best = m; } }
@@ -252,6 +328,7 @@ function shuffle(a){
 }
 
 function drawUp(){
+  const before = hand.length;
   while (hand.length < HAND_SIZE){
     if (!deck.length){
       if (!discard.length) break;
@@ -260,6 +337,7 @@ function drawUp(){
     }
     hand.push(deck.pop());
   }
+  for (let i = before; i < hand.length; i++) pendingDraw.push(i);
 }
 
 /* ============================================================
@@ -306,22 +384,25 @@ function telegraph(){
 function simulate(blocks){
   const verdicts = blocks.map(() => null);
   const marks = [];              // 쿼터뷰에 그릴 예고 표식 (나·몹 공통)
-  const P = { x:player.x, y:player.y, hp:player.hp, mv:null, immortal:false,
-              range:player.range, moveDist:player.moveDist,
-              dodgeDist:player.dodgeDist, atk:player.atk,
+  const P = { x:player.x, y:player.y, hp:player.hp, f:player.f,
+              mv:null, immortal:false,
+              range:player.range, whirlRange:player.whirlRange, aimArc:player.aimArc,
+              moveDist:player.moveDist, dodgeDist:player.dodgeDist,
+              turnArc:player.turnArc, atk:player.atk,
               side:'p', mi:0,
               label:'나', slots: slotsFromBlocks(blocks) };
   const M = mobs.map((m, i) => ({
-    x:m.x, y:m.y, hp:m.hp, mv:null, immortal:SCARECROW.immortal,
-    range:SCARECROW.range, moveDist:SCARECROW.moveDist,
-    dodgeDist:SCARECROW.dodgeDist, atk:SCARECROW.atk,
+    x:m.x, y:m.y, hp:m.hp, f:m.f, mv:null, immortal:SCARECROW.immortal,
+    range:SCARECROW.range, whirlRange:SCARECROW.whirlRange, aimArc:SCARECROW.aimArc,
+    moveDist:SCARECROW.moveDist, dodgeDist:SCARECROW.dodgeDist,
+    turnArc:SCARECROW.turnArc, atk:SCARECROW.atk,
     side:'m', mi:i,
     label:m.name, slots:m.slots,
   }));
 
   const snap = () => ({
-    p:{ x:P.x, y:P.y, hp:P.hp },
-    m: M.map(m => ({ x:m.x, y:m.y, hp:m.hp })),
+    p:{ x:P.x, y:P.y, hp:P.hp, f:P.f },
+    m: M.map(m => ({ x:m.x, y:m.y, hp:m.hp, f:m.f })),
   });
 
   const out = [Object.assign(snap(), { events:[] })];
@@ -340,72 +421,125 @@ function simulate(blocks){
     const events = [];
     const actors = [P].concat(M);
 
-    // 1) 이동 계열 먼저 — 같은 틱에 빠져나가 회피가 성립하도록
+    // 이 틱 이후로 저쪽에서 들어올 공격들
+    const threats = (a, from) => {
+      const list = [];
+      for (const f of foesOf(a))
+        for (let ft = from; ft < TICKS; ft++){
+          const fs = f.slots[ft];
+          if (fs && ATTACK_KINDS[fs.kind] && fs.first) list.push({ foe:f, kind:fs.kind });
+        }
+      return list;
+    };
+    // 그 위협이 (x,y) 에 닿나 — 사거리와 조준각을 함께 본다
+    const lands = (th, x, y) => {
+      const f = th.foe, whirl = th.kind === 'whirl';
+      const d = Math.hypot(x - f.x, y - f.y);
+      if (d > (whirl ? f.whirlRange : f.range) + 1e-9) return false;
+      if (whirl) return true;
+      return Math.abs(wrapAngle(Math.atan2(y - f.y, x - f.x) - f.f)) <= f.aimArc + 1e-9;
+    };
+    const anyLands = (ths, x, y) => ths.some(th => lands(th, x, y));
+
+    // 1) 이동 계열 먼저 — 같은 틱에 빠져나가 회피·선회가 성립하도록
     for (const a of actors){
       const s = a.slots[t];
-      const sign = s ? MOVE_SIGN[s.kind] : undefined;
-      if (sign === undefined){ a.mv = null; continue; }
+      if (!s || !MOVE_KINDS[s.kind]){ a.mv = null; continue; }
       if (s.first){
         // 방향은 카드 시작 틱에 고정 (매 틱 재조준 안 함)
         const near = nearestOf(a);
-        const isDodge = s.kind === 'dodge';
-        let total = isDodge ? a.dodgeDist : a.moveDist;
+        const foe = near.foe;
         let futile = null;
+        a.mv = null;
 
-        if (!near.foe){
-          total = 0;
+        if (!foe){
           futile = '대상이 없음';
-        } else if (isDodge){
-          // 이 틱 이후로 들어올 적 공격이 하나도 없으면 물러날 이유가 없음
-          const threat = foesOf(a).some(f => f.slots.some(
-            (fs, ft) => fs && fs.kind === 'attack' && fs.first && ft >= t));
-          if (!threat) futile = '적 공격 없음';
-          // 물러나도 그 적의 사거리 안이면 소용없음
-          else if (near.d + total <= near.foe.range + 1e-9) futile = '적 사거리를 못 벗어남';
+        } else if (s.kind === 'turn' || s.kind === 'dodge'){
+          // 회피·선회는 같은 위협을 서로 다른 축으로 흘린다.
+          // 판정 뼈대는 하나로 두고 "어디로 가느냐" 만 다르다.
+          const isTurn = s.kind === 'turn';
+          let nx, ny;
+
+          if (isTurn){
+            // 대상을 축으로 돈다. 거리는 그대로, 방향은 안 바뀐다.
+            // 도는 쪽은 상대 조준각에서 더 빨리 빠지는 쪽으로 고른다.
+            const bearing = Math.atan2(a.y - foe.y, a.x - foe.x);   // 적이 나를 보는 각
+            const total = a.turnArc * (wrapAngle(bearing - foe.f) >= 0 ? 1 : -1);
+            const r = near.d;
+            nx = foe.x + Math.cos(bearing + total) * r;
+            ny = foe.y + Math.sin(bearing + total) * r;
+            a.mv = { rot:true, px:foe.x, py:foe.y, dphi:total / s.len };
+          } else {
+            const total = a.dodgeDist;
+            a.f = Math.atan2(foe.y - a.y, foe.x - a.x);   // 마주 본 채 물러난다
+            const ux = near.d < 1e-6 ? -1 : (foe.x - a.x) / near.d;
+            const uy = near.d < 1e-6 ? 0 : (foe.y - a.y) / near.d;
+            nx = a.x - ux * total; ny = a.y - uy * total;
+            const step = total / s.len;
+            a.mv = { dx:-ux * step, dy:-uy * step };
+          }
+
+          const ths = threats(a, t);
+          if (!ths.length) futile = '적 공격 없음';
+          else if (!anyLands(ths, a.x, a.y)) futile = '이미 위협 밖';
+          else if (anyLands(ths, nx, ny))
+            futile = isTurn ? '적 조준을 못 벗어남' : '적 사거리를 못 벗어남';
         } else {
-          // 접촉거리보다 가까이는 못 붙는다 (뚫고 지나가지도 않음)
+          // 이동 — 접촉거리보다 가까이는 못 붙는다 (뚫고 지나가지도 않음)
           const room = Math.max(0, near.d - CONTACT);
-          total = Math.min(total, room);
+          const total = Math.min(a.moveDist, room);
           if (room <= 1e-9) futile = '이미 끝까지 붙음';
+          a.f = Math.atan2(foe.y - a.y, foe.x - a.x);   // 다가가며 그쪽을 본다
+          const step = total / s.len;
+          a.mv = near.d < 1e-6 ? { dx:0, dy:0 }
+               : { dx:(foe.x - a.x) / near.d * step, dy:(foe.y - a.y) / near.d * step };
         }
+
         if (a === P) verdicts[s.idx] = futile;
         marks.push({ side:a.side, mi:a.mi, kind:s.kind, name:s.name,
-                     t:t, len:s.len, futile:futile });
-
-        const step = total / s.len;
-        if (!near.foe || near.d < 1e-6){
-          // 대상이 없거나 완전히 겹침 — 회피는 +x 로 물러나고 이동은 제자리
-          a.mv = isDodge ? { dx:step, dy:0 } : { dx:0, dy:0 };
-        } else {
-          a.mv = { dx:(near.foe.x - a.x) / near.d * step * sign,
-                   dy:(near.foe.y - a.y) / near.d * step * sign };
-        }
+                     t:t, len:s.len, futile:futile,
+                     pivot:(s.kind === 'turn' && foe) ? { x:foe.x, y:foe.y } : null });
         events.push({ type:'mv', who:a.label, name:s.name, futile:futile });
       }
-      if (a.mv){ a.x += a.mv.dx; a.y += a.mv.dy; }
+      if (a.mv) applyMove(a);
     }
 
     // 2) 그다음 공격 판정 — 점유 첫 틱에만
     for (const a of actors){
       const s = a.slots[t];
-      if (!s || s.kind !== 'attack' || !s.first) continue;
-      const near = nearestOf(a);
-      const foe = near.foe;
-      // 판정은 나·몹 모두에게 계산한다. 표식 어휘를 공통으로 쓰기 위해서다.
-      const futile = !foe ? '대상이 없음'
-                   : near.d > a.range + 1e-9 ? '사거리 밖' : null;
-      if (a === P) verdicts[s.idx] = futile;
-      marks.push({ side:a.side, mi:a.mi, kind:'attack', name:s.name,
-                   t:t, len:s.len, futile:futile, range:a.range,
-                   tgtSide:foe ? foe.side : null, tgtMi:foe ? foe.mi : 0 });
+      if (!s || !ATTACK_KINDS[s.kind] || !s.first) continue;
+      const whirl = s.kind === 'whirl';
+      const reach = whirl ? a.whirlRange : a.range;
 
-      if (!foe){ events.push({ type:'miss', who:a.label, tgt:'없음', d:0 }); continue; }
-      if (!futile){
-        if (!foe.immortal) foe.hp = Math.max(0, foe.hp - a.atk);
-        events.push({ type:'hit', who:a.label, tgt:foe.label,
-                      dmg:a.atk, d:near.d, blocked:foe.immortal });
+      // 사거리 안이면서 (전방위가 아니면) 조준각 안에 든 적을 모두 고른다
+      const inReach = foesOf(a).map(f => ({
+        foe:f, d:Math.hypot(f.x - a.x, f.y - a.y),
+        off:Math.abs(wrapAngle(Math.atan2(f.y - a.y, f.x - a.x) - a.f)),
+      })).filter(o => o.d <= reach + 1e-9);
+      const struck = whirl ? inReach : inReach.filter(o => o.off <= a.aimArc + 1e-9);
+
+      const near = nearestOf(a);
+      // 판정은 나·몹 모두에게 계산한다. 표식 어휘를 공통으로 쓰기 위해서다.
+      const futile = !near.foe ? '대상이 없음'
+                   : struck.length ? null
+                   : (near.d > reach + 1e-9 ? '사거리 밖' : '조준 밖');
+      if (a === P) verdicts[s.idx] = futile;
+      marks.push({ side:a.side, mi:a.mi, kind:s.kind, name:s.name,
+                   t:t, len:s.len, futile:futile, range:reach,
+                   arc:whirl ? Math.PI : a.aimArc,
+                   tgtSide:near.foe ? near.foe.side : null,
+                   tgtMi:near.foe ? near.foe.mi : 0 });
+
+      if (!near.foe){ events.push({ type:'miss', who:a.label, tgt:'없음', d:0 }); continue; }
+      if (struck.length){
+        for (const o of struck){
+          if (!o.foe.immortal) o.foe.hp = Math.max(0, o.foe.hp - a.atk);
+          events.push({ type:'hit', who:a.label, name:s.name, tgt:o.foe.label,
+                        dmg:a.atk, d:o.d, blocked:o.foe.immortal });
+        }
       } else {
-        events.push({ type:'miss', who:a.label, tgt:foe.label, d:near.d });
+        events.push({ type:'miss', who:a.label, name:s.name, tgt:near.foe.label,
+                      d:near.d, why:futile });
       }
     }
 
@@ -440,8 +574,25 @@ function fitCanvas(){
 function iso(x, y){ return { sx:(x - y) * ISO_W / 2, sy:(x + y) * ISO_H / 2 }; }
 
 // 표식 색 — 타임라인 칸 색과 같게 맞춘다
-const MARK_COLOR = { move:'#7FD4EC', dodge:'#86DFAE', attack:'#FF9E8E' };
+const MARK_COLOR = { move:'#7FD4EC', dodge:'#86DFAE', turn:'#B9A8F0',
+                     attack:'#FF9E8E', whirl:'#FFC489' };
 const FUTILE_COLOR = '#D8B45E';
+
+// 세계의 부채꼴을 아이소 화면에 그린다. 호를 잘게 찍어 잇는다.
+// (세계의 원은 축정렬 타원이 되지만, 부채꼴은 시작·끝 각이 뒤틀리므로 표본이 안전하다)
+function sectorPath(S, cx, cy, r, mid, half){
+  const N = 40;
+  const c = S(cx, cy);
+  const full = half >= Math.PI - 1e-6;
+  ctx.beginPath();
+  if (!full) ctx.moveTo(c[0], c[1]);
+  for (let i = 0; i <= N; i++){
+    const ang = mid - half + (half * 2) * i / N;
+    const p = S(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
+    if (full && i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+  }
+  ctx.closePath();
+}
 
 /* 예고 표식 — 나와 몹에 똑같은 어휘를 쓴다.
    이동/회피 = 지면 화살표, 공격 = 사거리 고리 + 대상 선.
@@ -464,12 +615,10 @@ function drawMarks(S, marks, nowTick){
     if (dash) ctx.setLineDash(dash);
 
     let chip = null;
-    if (k.kind === 'attack'){
+    if (k.kind === 'attack' || k.kind === 'whirl'){
       const a = S(k.at.x, k.at.y);
-      // 사거리 고리 — 세계의 원은 아이소에서 축정렬 타원
-      ctx.beginPath();
-      ctx.ellipse(a[0], a[1], k.range * Math.SQRT2 * ISO_W / 2,
-                  k.range * Math.SQRT2 * ISO_H / 2, 0, 0, Math.PI * 2);
+      // 조준 부채꼴. 선풍은 half=π 라 온전한 고리가 된다.
+      sectorPath(S, k.at.x, k.at.y, k.range, k.at.f, k.arc);
       ctx.stroke();
       if (!k.futile){
         ctx.globalAlpha = alpha * .13;
@@ -490,6 +639,43 @@ function drawMarks(S, marks, nowTick){
           ctx.ellipse(b[0], b[1], 9, 4.5, 0, 0, Math.PI * 2); ctx.stroke();
         }
       }
+      chip = a;
+    } else if (k.kind === 'turn'){
+      // 선회 — 축을 중심으로 한 호 화살표
+      const a = S(k.from.x, k.from.y);
+      const piv = k.pivot || k.from;
+      const r = Math.hypot(k.from.x - piv.x, k.from.y - piv.y);
+      const a0 = Math.atan2(k.from.y - piv.y, k.from.x - piv.x);
+      const a1 = Math.atan2(k.to.y - piv.y, k.to.x - piv.x);
+      const sweep = wrapAngle(a1 - a0);
+      const N = 24;
+      let prev = a;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      for (let i = 1; i <= N; i++){
+        const ang = a0 + sweep * i / N;
+        const p = S(piv.x + Math.cos(ang) * r, piv.y + Math.sin(ang) * r);
+        ctx.lineTo(p[0], p[1]);
+        if (i === N - 1) prev = p;
+      }
+      ctx.stroke();
+      // 축까지 가는 옅은 실 — 무엇을 중심으로 도는지 보여 준다
+      ctx.save();
+      ctx.globalAlpha = alpha * .35; ctx.setLineDash([2, 5]); ctx.lineWidth = 1;
+      const pc = S(piv.x, piv.y);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(pc[0], pc[1]); ctx.stroke();
+      ctx.restore();
+      // 호 끝 화살촉
+      const b = S(k.to.x, k.to.y);
+      const ux = b[0] - prev[0], uy = b[1] - prev[1], L2 = Math.hypot(ux, uy) || 1;
+      const nx = ux / L2, ny = uy / L2, px = -ny * 5.5, py = nx * 5.5;
+      const hx = b[0] - nx * 9, hy = b[1] - ny * 9;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(b[0], b[1]);
+      ctx.lineTo(hx + px, hy + py);
+      ctx.lineTo(hx - px, hy - py);
+      ctx.closePath(); ctx.fill();
       chip = a;
     } else {
       // 이동 · 회피 — 지면 위 화살표
@@ -567,11 +753,28 @@ function drawScene(pos, marks, nowTick){
   // 예고 표식 — 몸통보다 아래 층에 깐다
   drawMarks(S, marks, nowTick);
 
-  // 그림자 + 몸통 + 이름
-  const body = (x, y, label, draw) => {
+  // 그림자 + 방향 눈금 + 몸통 + 이름
+  const body = (x, y, f, label, draw) => {
     const p = S(x, y), sx = p[0], sy = p[1];
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.beginPath(); ctx.ellipse(sx, sy, 15, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+    // 바라보는 쪽 — 조준각이 어디를 덮는지 읽으려면 이게 있어야 한다
+    if (f != null){
+      const tip = S(x + Math.cos(f) * 1.05, y + Math.sin(f) * 1.05);
+      const ux = tip[0] - sx, uy = tip[1] - sy, L = Math.hypot(ux, uy) || 1;
+      const nx = ux / L, ny = uy / L;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,244,236,.5)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(sx + nx * 9, sy + ny * 9); ctx.lineTo(tip[0], tip[1]);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(245,244,236,.5)';
+      ctx.beginPath();
+      ctx.moveTo(tip[0], tip[1]);
+      ctx.lineTo(tip[0] - nx * 7 - ny * 4, tip[1] - ny * 7 + nx * 4);
+      ctx.lineTo(tip[0] - nx * 7 + ny * 4, tip[1] - ny * 7 - nx * 4);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
     draw(sx, sy);
     ctx.fillStyle = '#8E8C82';
     ctx.font = '600 11px Inter, sans-serif';
@@ -580,7 +783,7 @@ function drawScene(pos, marks, nowTick){
   };
 
   // 몹 먼저, 플레이어 나중 (겹칠 때 플레이어가 위)
-  pos.m.forEach((m, i) => body(m.x, m.y, mobs[i].name, (sx, sy) => {
+  pos.m.forEach((m, i) => body(m.x, m.y, m.f, mobs[i].name, (sx, sy) => {
     ctx.strokeStyle = '#6B6558'; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(sx, sy - 2); ctx.lineTo(sx, sy - 40); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(sx - 13, sy - 28); ctx.lineTo(sx + 13, sy - 28); ctx.stroke();
@@ -588,7 +791,7 @@ function drawScene(pos, marks, nowTick){
     ctx.beginPath(); ctx.arc(sx, sy - 44, 8, 0, Math.PI * 2); ctx.fill();
   }));
 
-  body(pos.p.x, pos.p.y, '나', (sx, sy) => {
+  body(pos.p.x, pos.p.y, pos.p.f, '나', (sx, sy) => {
     ctx.fillStyle = '#FFD400';
     ctx.beginPath();
     ctx.moveTo(sx, sy - 46); ctx.lineTo(sx + 11, sy - 26);
@@ -632,7 +835,10 @@ function renderTimeline(nowTick, verdicts){
           if (s.offset < s.len - 1 && t < TICKS - 1) cls.push('notend');
           const why = r.me ? r.verdicts[s.idx] : null;
           if (why){ cls.push('futile'); c.title = '소용없음 — ' + why; }
-          if (s.first) c.textContent = (why ? '✕ ' : '') + s.name;
+          if (s.first){
+            c.textContent = (why ? '✕ ' : '') + s.name;
+            if (r.me) c.dataset.idx = s.idx;
+          }
         }
         if (nowTick != null){
           if (t === nowTick) cls.push('now');
@@ -646,28 +852,92 @@ function renderTimeline(nowTick, verdicts){
   }
 }
 
+/* ============================================================
+   카드 모션 — 덱에서 뽑고, 쓰고, 무덤으로 보낸다
+   ============================================================ */
+let pendingDraw = [];          // 이번 그리기에서 날아 들어와야 할 손패 자리
+
+function rectOf(el){
+  const r = el.getBoundingClientRect();
+  return { x:r.left, y:r.top, w:r.width, h:r.height };
+}
+
+function cardFace(card, why){
+  return '<div class="nm"><span>' + card.name + '</span>' +
+         '<span class="tk">' + card.ticks + '틱</span></div>' +
+         '<div class="tx">' + card.brief + '</div>' +
+         (why ? '<div class="warn">✕ ' + why + '</div>' : '');
+}
+
+// from → to 로 날아가는 카드 한 장. 끝나면 스스로 사라진다.
+function fly(card, from, to, opt){
+  opt = opt || {};
+  const dur = opt.dur || 320, delay = opt.delay || 0;
+  const g = document.createElement('div');
+  g.className = 'ghost pc k-' + card.kind;
+  g.innerHTML = cardFace(card, null);
+  g.style.width = from.w + 'px';
+  g.style.height = from.h + 'px';
+  g.style.transitionDuration = dur + 'ms';
+  g.style.transitionDelay = delay + 'ms';
+  const at = (r, rot, sx, sy) => 'translate(' + r.x + 'px,' + r.y + 'px) rotate(' +
+    rot + 'deg) scale(' + sx + ',' + sy + ')';
+  g.style.transform = at(from, opt.rot0 || 0, 1, 1);
+  g.style.opacity = '1';
+  $('ghosts').appendChild(g);
+  // 두 프레임 뒤에 목표로 넘긴다 (첫 프레임은 시작값을 굳히는 데 쓴다)
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    g.style.transform = at(to, opt.rot1 || 0, to.w / from.w, to.h / from.h);
+    if (opt.fade) g.style.opacity = '0';
+  }));
+  setTimeout(() => {
+    g.remove();
+    if (opt.reveal) opt.reveal.style.visibility = '';
+  }, delay + dur + 40);
+}
+
+// 덱에서 손패로 — 새로 들어온 자리만 날린다
+function runDrawFlights(){
+  if (!pendingDraw.length) return;
+  const idxs = pendingDraw.slice();
+  pendingDraw = [];
+  const deckR = rectOf($('deckPile'));
+  const kids = $('hand').children;
+  idxs.forEach((idx, n) => {
+    const el = kids[idx];
+    if (!el || !hand[idx]) return;
+    fly(hand[idx], deckR, rectOf(el),
+        { delay:n * 45, dur:330, rot0:-10, rot1:0, reveal:el });
+  });
+}
+
 function renderHand(preview){
   const el = $('hand');
   el.innerHTML = '';
   const left = TICKS - usedTicks();
+  const drawing = pendingDraw.length ? pendingDraw : null;
   hand.forEach((card, i) => {
     const b = document.createElement('button');
     const why = preview ? preview[i] : null;
     b.className = 'pc k-' + card.kind + (why ? ' futile' : '');
     b.disabled = phase !== 'plan' || card.ticks > left;
-    b.innerHTML =
-      '<div class="nm"><span>' + card.name + '</span>' +
-      '<span class="tk">' + card.ticks + '틱</span></div>' +
-      '<div class="tx">' + card.text + '</div>' +
-      (why ? '<div class="warn">✕ 소용없음 · ' + why + '</div>' : '');
-    b.onclick = () => { plan.push(card); hand.splice(i, 1); refresh(); };
+    b.title = card.text + (why ? ' ✕ 소용없음 — ' + why : '');
+    b.innerHTML = cardFace(card, why);
+    if (drawing && drawing.indexOf(i) >= 0) b.style.visibility = 'hidden';
+    b.onclick = () => {
+      const from = rectOf(b);
+      const idx = plan.length;
+      plan.push(card); hand.splice(i, 1);
+      refresh();
+      // 쓴 카드는 타임라인의 제 칸으로 날아가 들어간다
+      const cell = $('tl').querySelector('[data-idx="' + idx + '"]');
+      if (cell) fly(card, from, rectOf(cell), { dur:260, rot1:0, fade:true });
+    };
     el.appendChild(b);
   });
   for (let i = hand.length; i < HAND_SIZE; i++){
     const d = document.createElement('div');
-    d.className = 'pc';
-    d.style.opacity = '.15'; d.style.cursor = 'default';
-    d.innerHTML = '<div class="nm"><span>–</span></div>';
+    d.className = 'pc slot';
     el.appendChild(d);
   }
   $('handInfo').textContent = '(남은 틱 ' + left + ')';
@@ -679,8 +949,8 @@ function renderStats(pos){
   $('sHp').textContent = p.hp + ' / ' + player.maxHp;
   const n = nearestMob(p);
   $('sDist').textContent = n ? dist(p, n).toFixed(2) : '–';
-  $('sDeck').textContent = deck.length + '장';
-  $('sDisc').textContent = discard.length + '장';
+  $('sDeck').textContent = deck.length;
+  $('sDisc').textContent = discard.length;
 }
 
 function addLog(cls, t, msg){
@@ -705,8 +975,8 @@ function judge(){
 }
 
 function refresh(pos, nowTick){
-  const p = pos || { p:{ x:player.x, y:player.y, hp:player.hp },
-                     m: mobs.map(m => ({ x:m.x, y:m.y, hp:m.hp })) };
+  const p = pos || { p:{ x:player.x, y:player.y, hp:player.hp, f:player.f },
+                     m: mobs.map(m => ({ x:m.x, y:m.y, hp:m.hp, f:m.f })) };
   const j = judge();
   drawScene(p, j.marks, nowTick);
   renderTimeline(nowTick, j.verdicts);
@@ -723,6 +993,7 @@ function refresh(pos, nowTick){
     : bad ? '✕ 소용없는 카드 ' + bad + '장 (' + usedTicks() + '/10틱)'
     : plan.length ? usedTicks() + '/10틱 사용' : '카드를 눌러 타임라인을 채워라';
   $('hint').className = 'hint' + (!running && bad ? ' bad' : '');
+  runDrawFlights();
 }
 
 /* ============================================================
@@ -752,8 +1023,9 @@ function step(){
     const e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;   // easeInOutQuad
     const lerp = (a, b) => a + (b - a) * e;
     drawScene({
-      p:{ x:lerp(from.p.x, to.p.x), y:lerp(from.p.y, to.p.y), hp:to.p.hp },
-      m: to.m.map((m, i) => ({ x:lerp(from.m[i].x, m.x), y:lerp(from.m[i].y, m.y), hp:m.hp })),
+      p:{ x:lerp(from.p.x, to.p.x), y:lerp(from.p.y, to.p.y), hp:to.p.hp, f:to.p.f },
+      m: to.m.map((m, i) => ({ x:lerp(from.m[i].x, m.x), y:lerp(from.m[i].y, m.y),
+                               hp:m.hp, f:m.f })),
     }, runMarks, tick);
     if (k < 1){ anim = requestAnimationFrame(frame); return; }
 
@@ -761,10 +1033,11 @@ function step(){
       if (ev.type === 'mv') addLog(ev.futile ? 'bad' : 'mv', tick,
         ev.who + ' ' + ev.name + (ev.futile ? ' ✕ ' + ev.futile : ' 시작'));
       else if (ev.type === 'hit') addLog('hit', tick,
-        ev.who + ' → ' + ev.tgt + ' 명중 ' + ev.dmg + ' 피해' +
+        ev.who + ' ' + ev.name + ' → ' + ev.tgt + ' 명중 ' + ev.dmg + ' 피해' +
         (ev.blocked ? ' (허수아비는 안 죽음)' : ''));
       else addLog('bad', tick,
-        ev.who + ' → ' + ev.tgt + ' ✕ 사거리 밖 (거리 ' + ev.d.toFixed(2) + ')');
+        ev.who + ' ' + (ev.name || '') + ' → ' + ev.tgt + ' ✕ ' +
+        (ev.why || '빗나감') + ' (거리 ' + ev.d.toFixed(2) + ')');
     }
     renderTimeline(tick, runVerdicts);
     renderStats(to);
@@ -776,8 +1049,17 @@ function step(){
 
 function finishRound(){
   const last = frames[TICKS];
-  player.x = last.p.x; player.y = last.p.y; player.hp = last.p.hp;
-  mobs.forEach((m, i) => { m.x = last.m[i].x; m.y = last.m[i].y; m.hp = last.m[i].hp; });
+  player.x = last.p.x; player.y = last.p.y; player.hp = last.p.hp; player.f = last.p.f;
+  mobs.forEach((m, i) => {
+    m.x = last.m[i].x; m.y = last.m[i].y; m.hp = last.m[i].hp; m.f = last.m[i].f;
+  });
+
+  // 무덤으로 날리기 전에 타임라인에서 카드 칸 위치를 먼저 잰다
+  const played = plan.slice();
+  const froms = played.map((c, i) => {
+    const cell = $('tl').querySelector('[data-idx="' + i + '"]');
+    return cell ? rectOf(cell) : null;
+  });
 
   discard.push.apply(discard, plan);
   plan = [];
@@ -787,6 +1069,12 @@ function finishRound(){
   addLog('sys', null, '─── 행동턴 끝 · 다음 예고 (' +
     (mobs[0].branch === 'near' ? '가까움' : '멂') + ') ───');
   refresh();
+
+  const graveR = rectOf($('gravePile'));
+  played.forEach((c, i) => {
+    if (froms[i]) fly(c, froms[i], graveR,
+                      { delay:i * 55, dur:380, rot1:12, fade:true });
+  });
 }
 
 /* ============================================================
@@ -794,10 +1082,16 @@ function finishRound(){
    ============================================================ */
 function reset(){
   if (anim) cancelAnimationFrame(anim);
-  player = Object.assign({}, PLAYER_BASE, { x:0, y:0 });
-  mobs = [{ name:SCARECROW.name, x:3.4, y:1.6, hp:99, slots:null, branch:'far' }];
-  // 덱 15장 = 공격 5 · 이동 4 · 회피 3 · 대기 3
-  const mix = [[CARDS.attack, 5], [CARDS.move, 4], [CARDS.dodge, 3], [CARDS.wait, 3]];
+  $('ghosts').innerHTML = '';
+  pendingDraw = [];
+  player = Object.assign({}, PLAYER_BASE, { x:0, y:0, f:0 });
+  mobs = [{ name:SCARECROW.name, x:3.4, y:1.6, hp:99, f:0, slots:null, branch:'far' }];
+  // 처음에는 서로 마주 본다
+  player.f = Math.atan2(mobs[0].y - player.y, mobs[0].x - player.x);
+  mobs[0].f = Math.atan2(player.y - mobs[0].y, player.x - mobs[0].x);
+  // 덱 20장 = 공격 5 · 이동 4 · 회피 3 · 선회 3 · 대기 3 · 선풍 2
+  const mix = [[CARDS.attack, 5], [CARDS.move, 4], [CARDS.dodge, 3],
+               [CARDS.turn, 3], [CARDS.wait, 3], [CARDS.whirl, 2]];
   const cards = [];
   for (const pair of mix) for (let i = 0; i < pair[1]; i++) cards.push(pair[0]);
   deck = shuffle(cards);
