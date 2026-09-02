@@ -333,8 +333,12 @@ function simulate(blocks){
           total = 0;
           futile = '대상이 없음';
         } else if (isDodge){
+          // 이 틱 이후로 들어올 적 공격이 하나도 없으면 물러날 이유가 없음
+          const threat = foesOf(a).some(f => f.slots.some(
+            (fs, ft) => fs && fs.kind === 'attack' && fs.first && ft >= t));
+          if (!threat) futile = '적 공격 없음';
           // 물러나도 그 적의 사거리 안이면 소용없음
-          if (near.d + total <= near.foe.range + 1e-9) futile = '적 사거리를 못 벗어남';
+          else if (near.d + total <= near.foe.range + 1e-9) futile = '적 사거리를 못 벗어남';
         } else {
           // 접촉거리보다 가까이는 못 붙는다 (뚫고 지나가지도 않음)
           const room = Math.max(0, near.d - CONTACT);
