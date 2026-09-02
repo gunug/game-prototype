@@ -45,6 +45,7 @@
     transition:transform .1s,box-shadow .1s;}
   .cell.ruler{height:18px;border:none;background:none;font-size:10px;}
   .cell.move{background:#1F3A44;border-color:#2E5A69;color:#7FD4EC;}
+  .cell.dodge{background:#1E3A2A;border-color:#2F5C42;color:#86DFAE;}
   .cell.attack{background:#4A2320;border-color:#7A3A34;color:#FF9E8E;}
   .cell.wait{background:#1A1A16;border-color:#2A2A22;}
   .cell.mid{border-left-color:transparent;border-top-left-radius:0;border-bottom-left-radius:0;}
@@ -66,6 +67,7 @@
     background:var(--brand-yellow);color:var(--on-brand);}
   .pc .tx{font-size:11px;line-height:1.4;color:var(--muted);}
   .pc.k-move{border-left:3px solid #2E5A69;}
+  .pc.k-dodge{border-left:3px solid #2F5C42;}
   .pc.k-attack{border-left:3px solid #7A3A34;}
 
   .ctrl{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s3);align-items:center;}
@@ -136,6 +138,7 @@
         <div class="stat"><span>공격력</span><b>3</b></div>
         <div class="stat"><span>사거리</span><b>2.0</b></div>
         <div class="stat"><span>이동거리</span><b>1.5</b></div>
+        <div class="stat"><span>회피거리</span><b>2.0</b></div>
         <div class="stat"><span>가까운 적까지</span><b id="sDist">–</b></div>
       </div>
 
@@ -169,13 +172,18 @@ const CARDS = {
             text:'가까운 적에게 3 피해. 사거리 2.0' },
   move:   { id:'move',   name:'이동', ticks:2, kind:'move',
             text:'가까운 적을 향해 1.5 활주' },
+  dodge:  { id:'dodge',  name:'회피', ticks:1, kind:'dodge',
+            text:'가까운 적의 반대로 2.0 물러남' },
 };
 
-const PLAYER_BASE = { hp:20, maxHp:20, atk:3, range:2.0, moveDist:1.5 };
+// 이동 계열 카드의 방향 부호. 이동은 대상을 향해, 회피는 반대로.
+const MOVE_SIGN = { move:1, dodge:-1 };
+
+const PLAYER_BASE = { hp:20, maxHp:20, atk:3, range:2.0, moveDist:1.5, dodgeDist:2.0 };
 
 // 허수아비: 안 움직임 · 안 죽음 · 예고만 띄움
 const SCARECROW = {
-  name:'허수아비', immortal:true, atk:2, range:2.2, moveDist:0,
+  name:'허수아비', immortal:true, atk:2, range:2.2, moveDist:0, dodgeDist:0,
   patterns: {
     near: [ {kind:'wait',ticks:2}, {kind:'attack',ticks:3}, {kind:'wait',ticks:5} ],
     far:  [ {kind:'wait',ticks:10} ],
@@ -259,11 +267,13 @@ function telegraph(){
    ============================================================ */
 function simulate(){
   const P = { x:player.x, y:player.y, hp:player.hp, mv:null, immortal:false,
-              range:player.range, moveDist:player.moveDist, atk:player.atk,
+              range:player.range, moveDist:player.moveDist,
+              dodgeDist:player.dodgeDist, atk:player.atk,
               label:'나', slots: slotsFromBlocks(planBlocks()) };
   const M = mobs.map(m => ({
     x:m.x, y:m.y, hp:m.hp, mv:null, immortal:SCARECROW.immortal,
-    range:SCARECROW.range, moveDist:SCARECROW.moveDist, atk:SCARECROW.atk,
+    range:SCARECROW.range, moveDist:SCARECROW.moveDist,
+    dodgeDist:SCARECROW.dodgeDist, atk:SCARECROW.atk,
     label:m.name, slots:m.slots,
   }));
 
@@ -288,21 +298,23 @@ function simulate(){
     const events = [];
     const actors = [P].concat(M);
 
-    // 1) 이동 먼저 — 같은 틱에 빠져나가 회피가 성립하도록
+    // 1) 이동 계열 먼저 — 같은 틱에 빠져나가 회피가 성립하도록
     for (const a of actors){
       const s = a.slots[t];
-      if (!s || s.kind !== 'move'){ a.mv = null; continue; }
+      const sign = s ? MOVE_SIGN[s.kind] : undefined;
+      if (sign === undefined){ a.mv = null; continue; }
       if (s.first){
         // 방향은 카드 시작 틱에 고정 (매 틱 재조준 안 함)
         const near = nearestOf(a);
+        const step = (s.kind === 'dodge' ? a.dodgeDist : a.moveDist) / s.len;
         if (!near.foe || near.d < 1e-6){
-          a.mv = { dx:0, dy:0 };
+          // 대상이 없거나 완전히 겹침 — 회피는 +x 로 물러나고 이동은 제자리
+          a.mv = s.kind === 'dodge' ? { dx:step, dy:0 } : { dx:0, dy:0 };
         } else {
-          const step = a.moveDist / s.len;
-          a.mv = { dx:(near.foe.x - a.x) / near.d * step,
-                   dy:(near.foe.y - a.y) / near.d * step };
+          a.mv = { dx:(near.foe.x - a.x) / near.d * step * sign,
+                   dy:(near.foe.y - a.y) / near.d * step * sign };
         }
-        events.push({ type:'mv', who:a.label });
+        events.push({ type:'mv', who:a.label, name:s.name });
       }
       if (a.mv){ a.x += a.mv.dx; a.y += a.mv.dy; }
     }
@@ -551,7 +563,7 @@ function step(){
     if (k < 1){ anim = requestAnimationFrame(frame); return; }
 
     for (const ev of to.events){
-      if (ev.type === 'mv') addLog('mv', tick, ev.who + ' 이동 시작');
+      if (ev.type === 'mv') addLog('mv', tick, ev.who + ' ' + ev.name + ' 시작');
       else if (ev.type === 'hit') addLog('hit', tick,
         ev.who + ' → ' + ev.tgt + ' 명중 ' + ev.dmg + ' 피해' +
         (ev.blocked ? ' (허수아비는 안 죽음)' : ''));
@@ -588,9 +600,11 @@ function reset(){
   if (anim) cancelAnimationFrame(anim);
   player = Object.assign({}, PLAYER_BASE, { x:0, y:0 });
   mobs = [{ name:SCARECROW.name, x:3.4, y:1.6, hp:99, slots:null, branch:'far' }];
+  // 덱 10장 = 공격 4 · 이동 3 · 회피 3
   const cards = [];
-  for (let i = 0; i < 5; i++) cards.push(CARDS.attack);
-  for (let i = 0; i < 5; i++) cards.push(CARDS.move);
+  for (let i = 0; i < 4; i++) cards.push(CARDS.attack);
+  for (let i = 0; i < 3; i++) cards.push(CARDS.move);
+  for (let i = 0; i < 3; i++) cards.push(CARDS.dodge);
   deck = shuffle(cards);
   hand = []; discard = []; plan = []; log = [];
   phase = 'plan';
