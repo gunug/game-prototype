@@ -66,7 +66,8 @@
   .legend .sw{width:14px;height:2px;border-radius:2px;display:inline-block;}
   .sw-move{background:#7FD4EC;} .sw-dodge{background:#86DFAE;}
   .sw-turn{background:#B9A8F0;} .sw-attack{background:#FF9E8E;}
-  .sw-whirl{background:#FFC489;} .sw-futile{background:#D8B45E;}
+  .sw-whirl{background:#FFC489;} .sw-shoot{background:#FF7BA8;}
+  .sw-futile{background:#D8B45E;}
   .legend .tip{margin-left:auto;opacity:.75;}
 
   /* ---- 손패 · 카드 ---- */
@@ -97,6 +98,7 @@
   .pc.k-turn{border-top-color:#453A6B;}
   .pc.k-attack{border-top-color:#7A3A34;}
   .pc.k-whirl{border-top-color:#7A542C;}
+  .pc.k-shoot{border-top-color:#7A3A5A;}
   .pc.k-wait{border-top-color:#3A3A31;}
   .pc.slot{opacity:.12;cursor:default;box-shadow:none;
     background:none;border-style:dashed;border-top-color:var(--hairline);}
@@ -177,8 +179,9 @@
           <span><i class="sw sw-move"></i>이동</span>
           <span><i class="sw sw-dodge"></i>회피</span>
           <span><i class="sw sw-turn"></i>선회</span>
-          <span><i class="sw sw-attack"></i>공격</span>
-          <span><i class="sw sw-whirl"></i>선풍</span>
+          <span><i class="sw sw-attack"></i>공격 (전방)</span>
+          <span><i class="sw sw-shoot"></i>사격 (직선)</span>
+          <span><i class="sw sw-whirl"></i>선풍 (범위)</span>
           <span><i class="sw sw-futile"></i>소용없음</span>
           <span class="tip">머리 숫자 = 남은 틱 · 지면 한 칸 = 1걸음 · 굵은 선 = 4걸음</span>
         </div>
@@ -242,12 +245,20 @@ const CONTACT = 1;            // 이보다 가까이 못 붙는다 (몸통 반�
 
 // 카드 = 이름 + 틱 수 하나. 공격 계열은 마지막 틱에 발동한다.
 const CARDS = {
+  // 공격 계열은 모양(shape) · 크기(reach/width) · 대상 수(targets) · 피해(dmg) 를 싣는다
+  //   targets 0 = 범위 안 모두, N = 가까운 순서로 N
   attack: { id:'attack', name:'공격', ticks:3, kind:'attack', needsTarget:true,
-            brief:'대상 쪽으로 돌아<br>정면 1눈금<br>사거리 4걸음 · 피해 3',
-            text:'3틱 뒤, 대상 쪽으로 돌아서 친다. 정면 1눈금 · 사거리 4걸음 · 피해 3' },
+            shape:'fan', reach:4, dmg:3, targets:0,
+            brief:'대상 쪽으로 돌아<br>전방 1눈금<br>4걸음 · 피해 3 · 모두',
+            text:'3틱 뒤, 대상 쪽으로 돌아서 친다. 전방 1눈금 · 사거리 4걸음 · 피해 3 · 범위 안 모두' },
+  shoot:  { id:'shoot',  name:'사격', ticks:2, kind:'attack', needsTarget:true,
+            shape:'line', reach:8, width:2, dmg:2, targets:1,
+            brief:'대상 쪽으로 돌아<br>직선 8걸음<br>폭 2 · 피해 2 · 단일',
+            text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 직선 8걸음 · 폭 2걸음 · 피해 2 · 줄에서 가장 가까운 하나' },
   whirl:  { id:'whirl',  name:'선풍', ticks:4, kind:'whirl', needsTarget:false,
-            brief:'전방위<br>사거리 3걸음<br>피해 3',
-            text:'4틱 뒤, 사거리 3걸음 안 모두에게 3 피해. 전방위라 대상을 안 고른다' },
+            shape:'ring', reach:3, dmg:3, targets:0,
+            brief:'범위 3걸음<br>피해 3<br>모두',
+            text:'4틱 뒤, 범위 3걸음 안 모두에게 3 피해. 둘레 전부라 대상을 안 고른다' },
   move:   { id:'move',   name:'이동', ticks:2, kind:'move', needsTarget:true,
             brief:'대상에게로<br>3걸음<br>그쪽을 본다',
             text:'2틱에 걸쳐 대상을 향해 3걸음 활주. 그쪽을 본다' },
@@ -267,17 +278,20 @@ const ATTACK_KINDS = { attack:1, whirl:1 };
 
 const PLAYER_BASE = {
   hp:20, maxHp:20, atk:3, aims:true,   // aims = 공격 예고를 시작할 때 조준하는가
-  range:4, whirlRange:3, aimArc:1 * NOTCH,
+  range:4, aimArc:1 * NOTCH,
   moveDist:3, dodgeDist:4, turnStep:2,
 };
 
 // 졸개 — 다가와서 친다. 그게 전부다.
 const GRUNT = {
   name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
-  range:3, whirlRange:3, aimArc:1 * NOTCH,
+  range:3, aimArc:1 * NOTCH,
   moveDist:2, dodgeDist:0, turnStep:0,
-  attackTicks:3, moveTicks:2,
 };
+// 졸개의 행동도 카드와 같은 그릇을 쓴다
+const GRUNT_ATTACK = { kind:'attack', name:'공격', ticks:3,
+                       shape:'fan', reach:3, dmg:2, targets:0 };
+const GRUNT_MOVE   = { kind:'move', name:'이동', ticks:2 };
 
 /* ============================================================
    상태
@@ -366,7 +380,9 @@ function drawUp(){
 function startAct(a, card, target){
   const foe = (target && target.hp > 0) ? target : nearestFoe(a);
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
-                left:card.ticks, mv:null, futile:null, target:foe };
+                left:card.ticks, mv:null, futile:null, target:foe,
+                shape:card.shape || null, reach:card.reach, width:card.width,
+                dmg:card.dmg, targets:card.targets || 0 };
   a.act = act;
   if (MOVE_KINDS[act.kind]){
     planMove(a, act);
@@ -434,17 +450,31 @@ function applyMove(a){
   }
 }
 
+/* 이 행동이 (x,y) 를 덮나 — 세 모양을 여기 한 곳에서만 판정한다.
+   전방 : 사거리 안 + 조준각 안
+   직선 : 축 방향으로 0..길이 + 축과의 수직 거리가 폭/2 이하
+   범위 : 사거리 안 (각도를 안 본다) */
+function covers(a, act, x, y){
+  const reach = act.reach != null ? act.reach : a.range;
+  const dx = x - a.x, dy = y - a.y;
+  if (act.shape === 'line'){
+    const ux = Math.cos(a.f), uy = Math.sin(a.f);
+    const along = dx * ux + dy * uy;
+    const side = Math.abs(dy * ux - dx * uy);
+    return along >= -1e-9 && along <= reach + 1e-9
+        && side <= (act.width || 0) / 2 + 1e-9;
+  }
+  const d = Math.hypot(dx, dy);
+  if (d > reach + 1e-9) return false;
+  if (act.shape === 'ring') return true;
+  return Math.abs(wrapAngle(Math.atan2(dy, dx) - a.f)) <= a.aimArc + 1e-9;
+}
+
 // 지금 나에게 들어오고 있는 위협이 (nx,ny) 에서도 닿나
 function threatFutile(a, nx, ny){
   const ths = foesOf(a).filter(f => f.act && ATTACK_KINDS[f.act.kind]);
   if (!ths.length) return '적 공격 없음';
-  const lands = (f, x, y) => {
-    const whirl = f.act.kind === 'whirl';
-    const d = Math.hypot(x - f.x, y - f.y);
-    if (d > (whirl ? f.whirlRange : f.range) + 1e-9) return false;
-    if (whirl) return true;
-    return Math.abs(wrapAngle(Math.atan2(y - f.y, x - f.x) - f.f)) <= f.aimArc + 1e-9;
-  };
+  const lands = (f, x, y) => covers(f, f.act, x, y);
   if (!ths.some(f => lands(f, a.x, a.y))) return '이미 위협 밖';
   if (ths.some(f => lands(f, nx, ny))) return '위협을 못 벗어남';
   return null;
@@ -454,46 +484,52 @@ function threatFutile(a, nx, ny){
    공격 발동 — 행동의 마지막 틱에 터진다
    ============================================================ */
 function fire(a, events){
-  const whirl = a.act.kind === 'whirl';
-  const reach = whirl ? a.whirlRange : a.range;
+  const act = a.act;
+  const reach = act.reach != null ? act.reach : a.range;
+  const dmg = act.dmg != null ? act.dmg : a.atk;
   const near = actTarget(a);
 
   // 여기서 다시 조준하지 않는다. 방향은 예고를 시작할 때 이미 굳었다.
   // 나와 몹이 똑같이 이 규칙을 따른다 — 준비하는 동안 상대가 빠지면 빗나간다.
 
-  const struck = foesOf(a).filter(f => {
-    if (f.hp <= 0) return false;
-    const d = dist(a, f);
-    if (d > reach + 1e-9) return false;
-    if (whirl) return true;
-    return Math.abs(wrapAngle(Math.atan2(f.y - a.y, f.x - a.x) - a.f)) <= a.aimArc + 1e-9;
-  });
+  let struck = foesOf(a).filter(f => f.hp > 0 && covers(a, act, f.x, f.y));
+  // 대상 수 제한 — 가까운 순서로 자른다. 0 이면 모두.
+  if (act.targets > 0 && struck.length > act.targets)
+    struck = struck.slice().sort((p, q) => dist(a, p) - dist(a, q))
+                   .slice(0, act.targets);
 
   const label = a === player ? '나' : a.name;
   const key = x => x === player ? 'p' : String(mobs.indexOf(x));
   if (!struck.length){
-    const why = !near ? '대상이 없음'
-              : dist(a, near) > reach + 1e-9 ? '사거리 밖' : '조준 밖';
-    events.push({ type:'miss', who:label, si:key(a), name:a.act.name, why:why,
+    events.push({ type:'miss', who:label, si:key(a), name:act.name,
+                  why:missReason(a, act, near, reach),
                   d:near ? dist(a, near) : 0 });
     return;
   }
   for (const f of struck){
-    f.hp = Math.max(0, f.hp - a.atk);
-    events.push({ type:'hit', who:label, si:key(a), ti:key(f), name:a.act.name,
-                  tgt:f === player ? '나' : f.name, dmg:a.atk, dead:f.hp <= 0 });
+    f.hp = Math.max(0, f.hp - dmg);
+    events.push({ type:'hit', who:label, si:key(a), ti:key(f), name:act.name,
+                  tgt:f === player ? '나' : f.name, dmg:dmg, dead:f.hp <= 0 });
   }
+}
+
+// 왜 안 맞았나 — 모양마다 말이 다르다
+function missReason(a, act, near, reach){
+  if (!near) return '대상이 없음';
+  const d = dist(a, near);
+  if (act.shape === 'line'){
+    const along = (near.x - a.x) * Math.cos(a.f) + (near.y - a.y) * Math.sin(a.f);
+    return (along < 0 || along > reach + 1e-9) ? '사거리 밖' : '줄 밖';
+  }
+  if (d > reach + 1e-9) return '사거리 밖';
+  return act.shape === 'ring' ? '사거리 밖' : '조준 밖';
 }
 
 /* ============================================================
    졸개 AI — 분기 하나
    ============================================================ */
 function chooseAct(m){
-  const d = dist(m, player);
-  if (d <= m.range + 1e-9)
-    startAct(m, { kind:'attack', name:'공격', ticks:GRUNT.attackTicks });
-  else
-    startAct(m, { kind:'move', name:'이동', ticks:GRUNT.moveTicks });
+  startAct(m, dist(m, player) <= m.range + 1e-9 ? GRUNT_ATTACK : GRUNT_MOVE);
 }
 
 /* ============================================================
@@ -672,10 +708,11 @@ function markOf(a, act){
     }
     k.to = p;
   } else if (ATTACK_KINDS[act.kind]){
-    const whirl = act.kind === 'whirl';
-    k.range = whirl ? a.whirlRange : a.range;
-    k.arc = whirl ? Math.PI : a.aimArc;
-    // 부채꼴은 굳은 방향 그대로 그린다. 예고가 곧 약속이다.
+    k.shape = act.shape || 'fan';
+    k.range = act.reach != null ? act.reach : a.range;
+    k.width = act.width || 0;
+    k.arc = k.shape === 'ring' ? Math.PI : a.aimArc;
+    // 굳은 방향 그대로 그린다. 예고가 곧 약속이다.
     const foe = actTarget(a);
     if (foe) k.tgt = { x:foe.x, y:foe.y };
   } else {
@@ -736,9 +773,9 @@ function dryRun(card, target){
   let why = moveFutile;
   if (ATTACK_KINDS[card.kind] && !hits){
     const foe = (target && target.hp > 0) ? target : nearestFoe(player);
-    const reach = card.kind === 'whirl' ? player.whirlRange : player.range;
+    const reach = card.reach != null ? card.reach : player.range;
     why = !foe ? '대상이 없음'
-        : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '조준 밖';
+        : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '빗나감';
   }
   return { why:why, mv:mv, hits:hits, aimF:aimF,
            dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing };
@@ -769,7 +806,7 @@ function previewMark(card, target){
    ============================================================ */
 const ISO_W = 30, ISO_H = 15;    // 걸음 하나가 화면에서 차지하는 크기
 const MARK_COLOR = { move:'#7FD4EC', dodge:'#86DFAE', turn:'#B9A8F0',
-                     attack:'#FF9E8E', whirl:'#FFC489' };
+                     attack:'#FF9E8E', whirl:'#FFC489', shoot:'#FF7BA8' };
 const FUTILE_COLOR = '#D8B45E';
 
 function fitCanvas(){
@@ -821,7 +858,23 @@ function drawMarks(S, marks){
     else if (k.preview) ctx.setLineDash([7, 4]);
 
     if (ATTACK_KINDS[k.kind]){
-      sectorPath(S, k.at.x, k.at.y, k.range, k.at.f, k.arc);
+      if (k.shape === 'line'){
+        // 방향으로 뻗는 띠. 아이소에서는 평행사변형이 된다.
+        const ux = Math.cos(k.at.f), uy = Math.sin(k.at.f);
+        const px = -uy * k.width / 2, py = ux * k.width / 2;
+        const c = [
+          S(k.at.x + px, k.at.y + py),
+          S(k.at.x + ux * k.range + px, k.at.y + uy * k.range + py),
+          S(k.at.x + ux * k.range - px, k.at.y + uy * k.range - py),
+          S(k.at.x - px, k.at.y - py),
+        ];
+        ctx.beginPath();
+        ctx.moveTo(c[0][0], c[0][1]);
+        for (let i = 1; i < 4; i++) ctx.lineTo(c[i][0], c[i][1]);
+        ctx.closePath();
+      } else {
+        sectorPath(S, k.at.x, k.at.y, k.range, k.at.f, k.arc);
+      }
       ctx.stroke();
       if (!k.futile){
         ctx.globalAlpha = alpha * (k.fires ? .3 : .15);
@@ -1259,9 +1312,11 @@ function reset(){
     chooseAct(m);
   }
 
-  // 덱 20장 = 공격 5 · 이동 4 · 회피 3 · 선회 3 · 대기 3 · 선풍 2
+  // 덱 23장 = 공격 5 · 이동 4 · 회피 3 · 선회 3 · 사격 3 · 대기 3 · 선풍 2
+  // 덱 23장
   const mix = [[CARDS.attack, 5], [CARDS.move, 4], [CARDS.dodge, 3],
-               [CARDS.turn, 3], [CARDS.wait, 3], [CARDS.whirl, 2]];
+               [CARDS.turn, 3], [CARDS.shoot, 3], [CARDS.wait, 3],
+               [CARDS.whirl, 2]];
   const cards = [];
   for (const pair of mix) for (let i = 0; i < pair[1]; i++) cards.push(pair[0]);
   deck = shuffle(cards);
