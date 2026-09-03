@@ -884,10 +884,11 @@ function forecast(card, target){
 
 function previewMark(card, target){
   const r = forecast(card, target);
-  const k = markOf(player, { kind:card.kind, name:card.name, ticks:card.ticks,
-                             left:card.ticks, mv:r.mv, futile:r.why,
-                             target:target });
-  if (ATTACK_KINDS[card.kind] && card.kind !== 'whirl') k.at.f = r.aimF;
+  // 카드를 통째로 옮긴다. 모양·크기를 손으로 꼽으면 하나 빠뜨렸을 때
+  // 표식이 조용히 엉뚱한 모양으로 나온다 (선풍이 부채꼴로 그려졌던 버그).
+  const k = markOf(player, Object.assign({}, card, {
+    left:card.ticks, mv:r.mv, futile:r.why, target:target }));
+  if (ATTACK_KINDS[card.kind] && card.shape !== 'ring') k.at.f = r.aimF;
   k.preview = true;
   return k;
 }
