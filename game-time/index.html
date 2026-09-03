@@ -19,6 +19,16 @@
   .back{font-size:13px;color:var(--muted);text-decoration:none;}
   .back:hover{color:var(--brand-yellow);}
 
+  .tabs{display:flex;gap:var(--s2);margin-bottom:var(--s4);flex-wrap:wrap;
+    align-items:center;}
+  .tab{font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;
+    padding:8px 16px;border-radius:var(--r-pill);border:1px solid var(--hairline);
+    background:var(--surface);color:var(--muted);transition:.12s;}
+  .tab:hover{border-color:var(--brand-yellow-deep);color:var(--ink);}
+  .tab.on{background:var(--brand-yellow);border-color:var(--brand-yellow);
+    color:var(--on-brand);}
+  .tabs .why{font-size:12px;color:var(--muted);margin-left:var(--s2);}
+
   .layout{display:grid;grid-template-columns:1fr 280px;gap:var(--s4);align-items:start;}
   @media(max-width:920px){.layout{grid-template-columns:1fr;}}
 
@@ -163,9 +173,11 @@
     <div>
       <a class="back" href="../index.html">← 프로토타입 목록</a>
       <h1>⏱️ 시간</h1>
-      <p>카드를 무대로 끌어다 놓으면 그 틱만큼 시간이 흐른다. 몹 머리 위 숫자를 읽어라. — 섬멸</p>
+      <p>카드를 무대로 끌어다 놓으면 그 틱만큼 시간이 흐른다. 무덤에 놓으면 버리고 한 틱. — 섬멸</p>
     </div>
   </div>
+
+  <div class="tabs" id="tabs"></div>
 
   <div class="layout">
     <div>
@@ -293,16 +305,46 @@ const PLAYER_BASE = {
   moveDist:3, dodgeDist:4, turnStep:2,
 };
 
-// 졸개 — 다가와서 친다. 그게 전부다.
-const GRUNT = {
-  name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
-  range:3, aimArc:1 * NOTCH,
-  moveDist:2, dodgeDist:0, turnStep:0,
+/* 몹 종류. 행동도 카드와 같은 그릇을 쓴다.
+   atkAct 를 갈아 끼우는 것만으로 성격이 바뀐다 — 체력과 피해를 키우지 않는다. */
+const KINDS = {
+  // 졸개 — 다가와서 친다. 그게 전부다.
+  grunt: {
+    id:'grunt', name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
+    range:3, aimArc:1 * NOTCH, moveDist:2, dodgeDist:0, turnStep:0,
+    size:1, skin:'#7A6B52', skin2:'#9C8A6A',
+    atkAct:{ kind:'attack', name:'후려치기', ticks:3,
+             shape:'fan', reach:3, dmg:2, targets:0 },
+    moveAct:{ kind:'move', name:'이동', ticks:2 },
+  },
+  // 무식한 놈 — 곧게 쓸어버린다. 제 아군도 같이 맞는다.
+  brute: {
+    id:'brute', name:'무식한 놈', hp:12, maxHp:12, atk:5, aims:true,
+    range:12, aimArc:1 * NOTCH, moveDist:2, dodgeDist:0, turnStep:0,
+    size:1.55, skin:'#6B4652', skin2:'#A06A78',
+    atkAct:{ kind:'attack', name:'쓸어내기', ticks:5,
+             shape:'line', reach:12, width:3, dmg:5, targets:0,
+             hitsAll:true, allyDmg:0.5 },
+    moveAct:{ kind:'move', name:'이동', ticks:3 },
+  },
 };
-// 졸개의 행동도 카드와 같은 그릇을 쓴다
-const GRUNT_ATTACK = { kind:'attack', name:'공격', ticks:3,
-                       shape:'fan', reach:3, dmg:2, targets:0 };
-const GRUNT_MOVE   = { kind:'move', name:'이동', ticks:2 };
+const GRUNT = KINDS.grunt;                 // 옛 이름
+const GRUNT_ATTACK = KINDS.grunt.atkAct;
+const GRUNT_MOVE   = KINDS.grunt.moveAct;
+
+/* 전장. 탭으로 고른다. */
+const STAGES = [
+  { id:'grunts', name:'졸개 셋',
+    hint:'다가와 치는 졸개 셋. 예고를 읽고 흘려라.',
+    spots:[['grunt',0.10,10], ['grunt',0.45,9], ['grunt',0.78,11]] },
+  { id:'brute', name:'무식한 놈',
+    hint:'쓸어내기는 제 아군도 벤다. 줄을 맞춰 유도해라.',
+    // 거리를 벌려 파도처럼 들어오게 한다. 한꺼번에 붙으면 손쓸 새가 없다.
+    spots:[['brute',0.00,13],
+           ['grunt',0.06,8],  ['grunt',0.28,11],
+           ['grunt',0.55,15], ['grunt',0.80,18]] },
+];
+let stageIdx = 0;
 
 /* ============================================================
    상태
@@ -393,7 +435,8 @@ function startAct(a, card, target){
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
                 left:card.ticks, mv:null, futile:null, target:foe,
                 shape:card.shape || null, reach:card.reach, width:card.width,
-                dmg:card.dmg, targets:card.targets || 0 };
+                dmg:card.dmg, targets:card.targets || 0,
+                hitsAll:!!card.hitsAll, allyDmg:card.allyDmg };
   a.act = act;
   if (MOVE_KINDS[act.kind]){
     planMove(a, act);
@@ -503,7 +546,11 @@ function fire(a, events){
   // 여기서 다시 조준하지 않는다. 방향은 예고를 시작할 때 이미 굳었다.
   // 나와 몹이 똑같이 이 규칙을 따른다 — 준비하는 동안 상대가 빠지면 빗나간다.
 
-  let struck = foesOf(a).filter(f => f.hp > 0 && covers(a, act, f.x, f.y));
+  // 무차별이면 자기 자신만 빼고 전부가 후보다. 아군도 맞는다.
+  const pool = act.hitsAll
+    ? [player].concat(livingMobs()).filter(x => x !== a)
+    : foesOf(a);
+  let struck = pool.filter(f => f.hp > 0 && covers(a, act, f.x, f.y));
   // 대상 수 제한 — 가까운 순서로 자른다. 0 이면 모두.
   if (act.targets > 0 && struck.length > act.targets)
     struck = struck.slice().sort((p, q) => dist(a, p) - dist(a, q))
@@ -518,9 +565,15 @@ function fire(a, events){
     return;
   }
   for (const f of struck){
-    f.hp = Math.max(0, f.hp - dmg);
+    // 같은 편이면 피해가 절반이다. 유도가 이득이되 그것만으로 판이 끝나지는 않게.
+    const ally = (f !== player) === (a !== player);
+    const hurt = ally
+      ? Math.max(1, Math.round(dmg * (act.allyDmg != null ? act.allyDmg : .5)))
+      : dmg;
+    f.hp = Math.max(0, f.hp - hurt);
     events.push({ type:'hit', who:label, si:key(a), ti:key(f), name:act.name,
-                  tgt:f === player ? '나' : f.name, dmg:dmg, dead:f.hp <= 0 });
+                  tgt:f === player ? '나' : f.name, dmg:hurt, ally:ally,
+                  dead:f.hp <= 0 });
   }
 }
 
@@ -540,7 +593,7 @@ function missReason(a, act, near, reach){
    졸개 AI — 분기 하나
    ============================================================ */
 function chooseAct(m){
-  startAct(m, dist(m, player) <= m.range + 1e-9 ? GRUNT_ATTACK : GRUNT_MOVE);
+  startAct(m, dist(m, player) <= m.range + 1e-9 ? m.atkAct : m.moveAct);
 }
 
 /* ============================================================
@@ -575,7 +628,8 @@ function stepTick(){
 function snap(){
   return {
     p:{ x:player.x, y:player.y, f:player.f, hp:player.hp },
-    m: mobs.map(m => ({ x:m.x, y:m.y, f:m.f, hp:m.hp,
+    m: mobs.map(m => ({ x:m.x, y:m.y, f:m.f, hp:m.hp, max:m.maxHp, size:m.size,
+                        skin:m.skin, skin2:m.skin2,
                         left:m.act ? m.act.left : 0,
                         kind:m.act ? m.act.kind : null })),
     marks: livingMobs().filter(m => m.act).map(m => markOf(m, m.act)),
@@ -627,7 +681,7 @@ function checkOver(){
   if (!livingMobs().length){
     phase = 'over';
     $('overT').textContent = '섬멸';
-    $('overP').textContent = clock + '틱 만에 모두 처치했다.';
+    $('overP').textContent = STAGES[stageIdx].name + ' — ' + clock + '틱 만에 섬멸.';
     $('over').hidden = false;
     addLog('kill', clock, '=== 섬멸 완료 ===');
     return true;
@@ -669,9 +723,9 @@ function playback(frames, done){
         if (ev.type === 'hit' && ev.ti != null) fx.dmg[ev.ti] = t;
       }
       for (const ev of to.events || []){
-        if (ev.type === 'hit') addLog(ev.dead ? 'kill' : 'hit', clock,
+        if (ev.type === 'hit') addLog(ev.dead ? 'kill' : (ev.ally ? 'mv' : 'hit'), clock,
           ev.who + ' ' + ev.name + ' → ' + ev.tgt + ' ' + ev.dmg + ' 피해' +
-          (ev.dead ? ' · 처치' : ''));
+          (ev.ally ? ' (아군 오사)' : '') + (ev.dead ? ' · 처치' : ''));
         else addLog('bad', clock,
           ev.who + ' ' + ev.name + ' ✕ ' + ev.why +
           (ev.d ? ' (거리 ' + ev.d.toFixed(1) + '걸음)' : ''));
@@ -771,6 +825,7 @@ function dryRun(card, target){
   const mv = act.mv ? Object.assign({}, act.mv) : null;
   const aimF = player.f;                 // 던졌다면 굳었을 방향
   let hits = 0, dealt = 0, kills = 0, taken = 0, incoming = 0;
+  let friendly = 0, friendlyKills = 0;
   const firing = [], struck = [];
   for (let t = 0; t < card.ticks; t++){
     // 이번 틱에 터질 몹을 미리 적어 둔다 (무대에서 굵게 그린다)
@@ -778,18 +833,19 @@ function dryRun(card, target){
       if (m.hp > 0 && m.act && ATTACK_KINDS[m.act.kind] && m.act.left === 1
           && firing.indexOf(idx) < 0) firing.push(idx);
     });
+    const fired = {};
     for (const ev of stepTick()){
-      if (ev.who === '나'){
-        if (ev.type === 'hit'){
-          hits++; dealt += ev.dmg; if (ev.dead) kills++;
-          // 실제로 맞는 놈. 겨눈 놈과 다를 수 있다 (앞이 막으면 앞이 맞는다)
-          const n = parseInt(ev.ti, 10);
-          if (!isNaN(n) && struck.indexOf(n) < 0) struck.push(n);
-        }
-      } else {
-        incoming++;
-        if (ev.type === 'hit') taken += ev.dmg;
-      }
+      const mine = ev.who === '나';
+      // 적이 터뜨린 횟수. 하나가 여럿을 맞혀도 한 번으로 센다.
+      if (!mine && !fired[ev.si]){ fired[ev.si] = 1; incoming++; }
+      if (ev.type !== 'hit') continue;
+      if (mine){ hits++; dealt += ev.dmg; if (ev.dead) kills++; }
+      if (ev.ti === 'p') taken += ev.dmg;
+      // 몹이 몹을 때린 것 = 유도로 번 피해
+      if (!mine && ev.ally){ friendly += ev.dmg; if (ev.dead) friendlyKills++; }
+      // 맞는 놈은 누가 때렸든 모은다. 겨눈 놈과 다를 수 있다.
+      const n = parseInt(ev.ti, 10);
+      if (!isNaN(n) && struck.indexOf(n) < 0) struck.push(n);
     }
   }
   loadWorld(st);
@@ -802,7 +858,8 @@ function dryRun(card, target){
         : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '빗나감';
   }
   return { why:why, mv:mv, hits:hits, aimF:aimF, struck:struck,
-           dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing };
+           dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing,
+           friendly:friendly, friendlyKills:friendlyKills };
 }
 
 /* 예측은 그리기마다 다시 돌 필요가 없다. 카드·대상·판이 그대로면 다시 쓴다.
@@ -1023,15 +1080,16 @@ function drawScene(pos, marks){
     return (e >= 0 && e < 1) ? Math.sin(Math.PI * e) : 0;
   };
 
-  const pawn = (x, y, f, key, mob) => {
+  const pawn = (x, y, f, key, mob, look) => {
     const p = S(x, y), sx = p[0], sy = p[1];
     const st = fxAmt(fx.hit, key, FX_HIT);     // 때릴 때 세로로 늘어난다
     const fl = fxAmt(fx.dmg, key, FX_DMG);     // 맞을 때 빨개진다
     const ky = 1 + st * .42, kx = 1 - st * .16;
     const red = 'rgba(255,86,64,' + (fl * .85) + ')';
 
+    const z = look && look.size ? look.size : 1;
     ctx.fillStyle = 'rgba(0,0,0,.45)';
-    ctx.beginPath(); ctx.ellipse(sx, sy, 15 * kx, 7.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx, sy, 15 * kx * z, 7.5 * z, 0, 0, Math.PI * 2); ctx.fill();
 
     if (f != null){
       const tip = S(x + Math.cos(f) * 2.1, y + Math.sin(f) * 2.1);
@@ -1051,21 +1109,21 @@ function drawScene(pos, marks){
     }
 
     // 몸통 — 같은 길을 두 번 칠해 빨간 기운을 얹는다
-    const top = (mob ? 40 : 46) * ky, mid = (mob ? 22 : 26) * ky;
-    const wOut = (mob ? 10 : 11) * kx, wIn = (mob ? 6 : 7) * kx;
+    const top = (mob ? 40 : 46) * ky * z, mid = (mob ? 22 : 26) * ky * z;
+    const wOut = (mob ? 10 : 11) * kx * z, wIn = (mob ? 6 : 7) * kx * z;
     ctx.beginPath();
     ctx.moveTo(sx, sy - top); ctx.lineTo(sx + wOut, sy - mid);
     ctx.lineTo(sx + wIn, sy - 2); ctx.lineTo(sx - wIn, sy - 2);
     ctx.lineTo(sx - wOut, sy - mid); ctx.closePath();
-    ctx.fillStyle = mob ? '#7A6B52' : '#FFD400'; ctx.fill();
+    ctx.fillStyle = mob ? (look.skin || '#7A6B52') : '#FFD400'; ctx.fill();
     if (fl > 0){ ctx.fillStyle = red; ctx.fill(); }
 
     ctx.beginPath();
-    if (mob) ctx.arc(sx, sy - 46 * ky, 7.5 * kx, 0, Math.PI * 2);
+    if (mob) ctx.arc(sx, sy - 46 * ky * z, 7.5 * kx * z, 0, Math.PI * 2);
     else ctx.arc(sx, sy - 34 * ky, 4 * kx, 0, Math.PI * 2);
-    ctx.fillStyle = mob ? '#9C8A6A' : '#1A1A17'; ctx.fill();
+    ctx.fillStyle = mob ? (look.skin2 || '#9C8A6A') : '#1A1A17'; ctx.fill();
     if (fl > 0 && mob){ ctx.fillStyle = red; ctx.fill(); }
-    return [sx, sy];
+    return [sx, sy, z];
   };
 
   // 몹 — 뒤에 있는 것부터 그려야 앞뒤가 맞는다
@@ -1074,17 +1132,18 @@ function drawScene(pos, marks){
                      .sort((a, b) => (a.m.x + a.m.y) - (b.m.x + b.m.y));
   for (const o of order){
     const m = o.m;
-    const sp = pawn(m.x, m.y, m.f, String(o.i), true);
+    const sp = pawn(m.x, m.y, m.f, String(o.i), true, m);
     mobHud(sp[0], sp[1], m);
   }
 
-  pawn(pos.p.x, pos.p.y, pos.p.f, 'p', false);
+  pawn(pos.p.x, pos.p.y, pos.p.f, 'p', false, null);
 }
 
 // 몹 머리 위 — 숫자 하나가 예고의 전부다
 function mobHud(sx, sy, m){
-  const top = sy - 62;
-  const w = 26, hpw = w * Math.max(0, m.hp) / GRUNT.maxHp;
+  const z = m.size || 1;
+  const top = sy - 62 * z;
+  const w = 26 * z, hpw = w * Math.max(0, m.hp) / (m.max || 6);
   ctx.fillStyle = '#2A2A22'; ctx.fillRect(sx - w / 2, top + 2, w, 4);
   ctx.fillStyle = '#C4705E'; ctx.fillRect(sx - w / 2, top + 2, hpw, 4);
 
@@ -1097,6 +1156,10 @@ function mobHud(sx, sy, m){
   ctx.fillStyle = color;
   ctx.font = '700 9px Inter, sans-serif';
   ctx.fillText(attack ? '공격' : '이동', sx, top - 28);
+  if (z > 1.2){
+    ctx.font = '800 10px Inter, sans-serif';
+    ctx.fillText(String(Math.max(0, m.hp)) + '/' + m.max, sx, top + 15);
+  }
   ctx.fillStyle = '#0D0D0B';
   ctx.strokeStyle = color; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(sx, top - 11, 11, 0, Math.PI * 2);
@@ -1302,6 +1365,8 @@ function showForecast(card){
   if (f.why) out.push(bit('warn', '✕ ' + f.why));
   else if (f.dealt) out.push(bit('good', '줄 피해 ' + f.dealt +
     (f.kills ? ' · 처치 ' + f.kills : '')));
+  if (f.friendly) out.push(bit('good', '유도 ' + f.friendly +
+    (f.friendlyKills ? ' · 처치 ' + f.friendlyKills : '')));
   out.push(f.taken ? bit('bad', '받을 피해 ' + f.taken)
                    : bit('good', '무피해'));
   if (f.incoming) out.push(bit('dim', '적 공격 ' + f.incoming + '회'));
@@ -1399,12 +1464,12 @@ function reset(){
 
   player = Object.assign({}, PLAYER_BASE, { x:0, y:0, f:0, act:null });
 
-  // 플레이어 둘레에 흩어 놓는다. 서로 다른 방향에서 온다.
-  const spots = [[0.10, 10], [0.45, 9], [0.78, 11]];   // [각(회전수), 거리(걸음)]
-  mobs = spots.map(sp => {
-    const a = sp[0] * Math.PI * 2;
-    return Object.assign({}, GRUNT, {
-      x:Math.cos(a) * sp[1], y:Math.sin(a) * sp[1], f:0, act:null,
+  // 전장에 적힌 대로 세운다. [종류, 각(회전수), 거리(걸음)]
+  const st = STAGES[stageIdx];
+  mobs = st.spots.map(sp => {
+    const a = sp[1] * Math.PI * 2, d = sp[2];
+    return Object.assign({}, KINDS[sp[0]], {
+      x:Math.cos(a) * d, y:Math.sin(a) * d, f:0, act:null, hp:KINDS[sp[0]].hp,
     });
   });
   player.f = Math.atan2(mobs[0].y, mobs[0].x);
@@ -1423,8 +1488,25 @@ function reset(){
   hand = []; discard = [];
   phase = 'idle';
   drawUp();
-  addLog('sys', 0, '섬멸 — 졸개 ' + mobs.length + '마리. 머리 위 숫자를 읽어라.');
+  addLog('sys', 0, st.name + ' — ' + st.hint);
+  renderTabs();
   render();
+}
+
+function renderTabs(){
+  const el = $('tabs');
+  el.innerHTML = '';
+  STAGES.forEach((st, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === stageIdx ? ' on' : '');
+    b.textContent = st.name;
+    b.onclick = () => { if (i !== stageIdx){ stageIdx = i; reset(); } };
+    el.appendChild(b);
+  });
+  const why = document.createElement('span');
+  why.className = 'why';
+  why.textContent = STAGES[stageIdx].hint;
+  el.appendChild(why);
 }
 
 $('reset').onclick = reset;
