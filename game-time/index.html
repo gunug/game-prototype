@@ -688,10 +688,12 @@ function playback(frames, done){
 /* ============================================================
    표식 — 나와 몹이 같은 어휘를 쓴다
    ============================================================ */
+let hitList = [];      // 지금 떨구면 실제로 맞을 몹 번호
 function currentMarks(){
   const out = [];
   const tgt = drag ? drag.target : null;
   const fc = (phase === 'idle' && hoverCard) ? forecast(hoverCard, tgt) : null;
+  hitList = fc ? fc.struck : [];
   mobs.forEach((m, i) => {
     if (m.hp <= 0 || !m.act) return;
     const k = markOf(m, m.act);
@@ -769,7 +771,7 @@ function dryRun(card, target){
   const mv = act.mv ? Object.assign({}, act.mv) : null;
   const aimF = player.f;                 // 던졌다면 굳었을 방향
   let hits = 0, dealt = 0, kills = 0, taken = 0, incoming = 0;
-  const firing = [];
+  const firing = [], struck = [];
   for (let t = 0; t < card.ticks; t++){
     // 이번 틱에 터질 몹을 미리 적어 둔다 (무대에서 굵게 그린다)
     mobs.forEach((m, idx) => {
@@ -778,7 +780,12 @@ function dryRun(card, target){
     });
     for (const ev of stepTick()){
       if (ev.who === '나'){
-        if (ev.type === 'hit'){ hits++; dealt += ev.dmg; if (ev.dead) kills++; }
+        if (ev.type === 'hit'){
+          hits++; dealt += ev.dmg; if (ev.dead) kills++;
+          // 실제로 맞는 놈. 겨눈 놈과 다를 수 있다 (앞이 막으면 앞이 맞는다)
+          const n = parseInt(ev.ti, 10);
+          if (!isNaN(n) && struck.indexOf(n) < 0) struck.push(n);
+        }
       } else {
         incoming++;
         if (ev.type === 'hit') taken += ev.dmg;
@@ -794,14 +801,24 @@ function dryRun(card, target){
     why = !foe ? '대상이 없음'
         : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '빗나감';
   }
-  return { why:why, mv:mv, hits:hits, aimF:aimF,
+  return { why:why, mv:mv, hits:hits, aimF:aimF, struck:struck,
            dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing };
 }
 
-/* 예측은 그리기마다 다시 돌 필요가 없다. 카드·대상·세계가 그대로면 다시 쓴다. */
+/* 예측은 그리기마다 다시 돌 필요가 없다. 카드·대상·판이 그대로면 다시 쓴다.
+   열쇠에 판 상태를 통째로 넣는다. 판이 바뀌었는데 캐시가 남아 거짓말하는 일을
+   구조적으로 없앤다 — 언제 무효로 할지 손으로 챙기지 않아도 된다. */
 let worldVer = 0, fcKey = null, fcVal = null;
+function worldSig(){
+  let s = player.x.toFixed(4) + ',' + player.y.toFixed(4) + ',' +
+          player.f.toFixed(4) + ',' + player.hp + '|';
+  for (const m of mobs)
+    s += m.hp + ',' + m.x.toFixed(4) + ',' + m.y.toFixed(4) + ',' + m.f.toFixed(4) +
+         ',' + (m.act ? m.act.kind + m.act.left : '-') + ';';
+  return s;
+}
 function forecast(card, target){
-  const key = card.id + '|' + (target ? mobs.indexOf(target) : -1) + '|' + worldVer;
+  const key = card.id + '|' + (target ? mobs.indexOf(target) : -1) + '|' + worldSig();
   if (fcKey === key && fcVal) return fcVal;
   const r = dryRun(card, target);
   fcKey = key; fcVal = r;
@@ -965,17 +982,34 @@ function drawScene(pos, marks){
   // 사거리 고리는 상시로 안 띄운다. 예고(표식)에만 나온다.
   drawMarks(S, marks);
 
-  // 드래그 중인 카드의 대상에 고리를 그린다
-  if (drag && drag.target && drag.target.hp > 0){
-    const t = pos.m[mobs.indexOf(drag.target)];
-    if (t && t.hp > 0){
+  if (drag){
+    // 겨눈 놈 — 노란 점선 고리
+    if (drag.target && drag.target.hp > 0){
+      const t = pos.m[mobs.indexOf(drag.target)];
+      if (t && t.hp > 0){
+        const c = S(t.x, t.y);
+        ctx.save();
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = '#FFD400'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(c[0], c[1], 19, 9.5, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = .12; ctx.fillStyle = '#FFD400'; ctx.fill();
+        ctx.restore();
+      }
+    }
+    // 실제로 맞을 놈 — 굵은 실선 고리와 십자. 겨눈 놈과 다를 수 있다.
+    for (const i of hitList){
+      const t = pos.m[i];
+      if (!t || t.hp <= 0) continue;
       const c = S(t.x, t.y);
       ctx.save();
-      ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = '#FFD400';
+      ctx.strokeStyle = '#FF9E8E'; ctx.fillStyle = '#FF9E8E'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(c[0], c[1], 13, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = .2; ctx.fill(); ctx.globalAlpha = 1;
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(c[0], c[1], 19, 9.5, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = .12; ctx.fillStyle = '#FFD400'; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(c[0] - 7, c[1] - 55); ctx.lineTo(c[0] + 7, c[1] - 55);
+      ctx.moveTo(c[0], c[1] - 62); ctx.lineTo(c[0], c[1] - 48);
+      ctx.stroke();
       ctx.restore();
     }
   }
@@ -1261,6 +1295,10 @@ function showForecast(card){
   const bit = (cls, txt) => '<span class="' + cls + '">' + txt + '</span>';
   const out = [bit('nm', card.name + ' · ' + card.ticks + '틱')];
   if (card === TOSS && drag) out.push(bit('dim', drag.card.name + ' 을 치움'));
+  // 겨눈 놈이 아니라 다른 놈이 맞으면 말해 준다
+  if (drag && drag.target && f.struck.length &&
+      f.struck.indexOf(mobs.indexOf(drag.target)) < 0)
+    out.push(bit('warn', '앞이 막아 다른 놈이 맞음'));
   if (f.why) out.push(bit('warn', '✕ ' + f.why));
   else if (f.dealt) out.push(bit('good', '줄 피해 ' + f.dealt +
     (f.kills ? ' · 처치 ' + f.kills : '')));
@@ -1274,13 +1312,28 @@ function showForecast(card){
 /* ============================================================
    UI
    ============================================================ */
+/* 손패 딱지는 "어느 대상에게 써도 소용없다" 일 때만 붙인다.
+   가장 가까운 적 하나만 보고 붙이면, 다른 놈을 겨누면 되는데도 ✕ 가 떠서 거짓말이 된다. */
+function handBadge(card){
+  const foes = livingMobs();
+  if (!card.needsTarget || foes.length <= 1)
+    return forecast(card, foes[0] || null).why;
+  let last = null;
+  for (const m of foes){
+    const why = forecast(card, m).why;
+    if (!why) return null;          // 하나라도 쓸모가 있으면 딱지 없음
+    last = why;
+  }
+  return last;
+}
+
 function renderHand(){
   const el = $('hand');
   el.innerHTML = '';
   const drawing = pendingDraw.length ? pendingDraw : null;
   hand.forEach((card, i) => {
     const b = document.createElement('button');
-    const why = phase === 'idle' ? forecast(card, nearestFoe(player)).why : null;
+    const why = phase === 'idle' ? handBadge(card) : null;
     b.className = 'pc k-' + card.kind + (why ? ' futile' : '');
     b.disabled = phase !== 'idle';
     b.title = card.text + (why ? '  ✕ 소용없음 — ' + why : '');
