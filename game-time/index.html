@@ -1370,10 +1370,19 @@ function showForecast(card){
   const bit = (cls, txt) => '<span class="' + cls + '">' + txt + '</span>';
   const out = [bit('nm', card.name + ' · ' + card.ticks + '틱')];
   if (card === TOSS && drag) out.push(bit('dim', drag.card.name + ' 을 치움'));
-  // 겨눈 놈이 아니라 다른 놈이 맞으면 말해 준다
-  if (drag && drag.target && f.struck.length &&
-      f.struck.indexOf(mobs.indexOf(drag.target)) < 0)
-    out.push(bit('warn', '앞이 막아 다른 놈이 맞음'));
+  // 겨눈 놈이 안 맞으면 말해 준다. 공격 카드일 때만, 그리고 이유를 갈라서.
+  if (ATTACK_KINDS[card.kind] && drag && drag.target && drag.target.hp > 0){
+    const ti = mobs.indexOf(drag.target);
+    if (f.struck.indexOf(ti) < 0){
+      // 공격은 나를 안 움직이므로 지금 자리에 겨눈 방향을 얹으면 그대로다
+      const box = { fwd:card.fwd, bwd:card.bwd, side:card.side };
+      const me = { x:player.x, y:player.y, f:f.aimF };
+      const inBox = covers(me, box, drag.target.x, drag.target.y);
+      // 범위 안에 들었는데 안 맞았다면 대상 수에 밀린 것 = 앞이 막은 것
+      out.push(bit('warn', inBox ? '앞이 막아 다른 놈이 맞음'
+                                 : '겨눈 놈은 범위 밖'));
+    }
+  }
   if (f.dealt) out.push(bit('good', '줄 피해 ' + f.dealt +
     (f.kills ? ' · 처치 ' + f.kills : '')));
   if (f.distBefore != null && f.distAfter != null &&
