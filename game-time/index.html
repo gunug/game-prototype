@@ -260,21 +260,32 @@ const TICK_MS = 190;          // 한 틱 재생 시간
 const CONTACT = 2;            // 이보다 가까이 못 붙는다 (몸통 지름)
 
 // 카드 = 이름 + 틱 수 하나. 공격 계열은 마지막 틱에 발동한다.
+/* 기술 — 모양과 틱만 정한다. 나와 몹이 같은 기술을 쓴다.
+   피해는 기술이 아니라 그 액터의 공격력에서 온다.
+   전방위든 빔이든 전방이든 같은 규칙이다. 숫자만 다르다. */
+const SKILLS = {
+  slash: { skill:'slash', name:'베기',   ticks:3, fwd:4, bwd:0, side:2 },
+  shot:  { skill:'shot',  name:'발사',   ticks:2, fwd:8, bwd:0, side:1 },
+  sweep: { skill:'sweep', name:'휩쓸기', ticks:4, fwd:3, bwd:3, side:3 },
+};
+
+/* 형용사 — 기술 앞에 붙어 누구를 몇이나 치는지 정한다.
+     무차별        아군도 맞는다 (없으면 상대편만)
+     범위 · 단일 · N명   범위 안 몇을 치나 (targets 0 · 1 · N)
+   이름이 곧 규칙이다. `무차별 범위 발사` 는 읽는 그대로다. */
+function skillOf(id, opt){
+  opt = opt || {};
+  const base = SKILLS[id];
+  const t = opt.targets == null ? 0 : opt.targets;
+  const head = (opt.hitsAll ? '무차별 ' : '') +
+               (t === 0 ? '범위' : t === 1 ? '단일' : t + '명') + ' ';
+  return Object.assign({}, base, {
+    kind:'attack', name:head + base.name, targets:t,
+    hitsAll:!!opt.hitsAll, allyDmg:opt.allyDmg,
+  });
+}
+
 const CARDS = {
-  // 공격은 직사각형 세 수로 적는다. 앞 fwd · 뒤 bwd · 옆 side (걸음).
-  //   targets 0 = 안에 든 모두, N = 가까운 순서로 N
-  attack: { id:'attack', name:'공격', ticks:3, kind:'attack', needsTarget:true,
-            fwd:4, bwd:0, side:2, dmg:3, targets:0,
-            brief:'대상 쪽으로 돌아<br>앞 4 · 옆 2<br>피해 3 · 모두',
-            text:'3틱 뒤, 대상 쪽으로 돌아서 친다. 앞 4걸음 · 옆 2걸음 · 피해 3 · 안에 든 모두' },
-  shoot:  { id:'shoot',  name:'사격', ticks:2, kind:'attack', needsTarget:true,
-            fwd:8, bwd:0, side:1, dmg:2, targets:1,
-            brief:'대상 쪽으로 돌아<br>앞 8 · 옆 1<br>피해 2 · 단일',
-            text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 앞 8걸음 · 옆 1걸음 · 피해 2 · 가장 가까운 하나' },
-  whirl:  { id:'whirl',  name:'선풍', ticks:4, kind:'whirl', needsTarget:false,
-            fwd:3, bwd:3, side:3, dmg:3, targets:0,
-            brief:'주위 3걸음<br>피해 3<br>모두',
-            text:'4틱 뒤, 주위 3걸음 안 모두에게 3 피해. 사방이라 대상을 안 고른다' },
   step:   { id:'step',   name:'앞걸음', ticks:2, kind:'step', needsTarget:true,
             brief:'대상에게로<br>3걸음<br>그쪽을 본다',
             text:'2틱에 걸쳐 대상을 향해 3걸음. 그쪽을 본다' },
@@ -286,6 +297,20 @@ const CARDS = {
             text:'대상 방향에 수직으로 곧게 2걸음. 거리는 거의 그대로다' },
 };
 
+// 공격 카드 셋. 기술에 형용사를 얹어 만든다.
+CARDS.attack = Object.assign(skillOf('slash', { targets:0 }),
+  { id:'attack', needsTarget:true,
+    brief:'대상 쪽으로 돌아<br>앞 4 · 옆 2<br>범위',
+    text:'3틱 뒤, 대상 쪽으로 돌아서 벤다. 앞 4걸음 · 옆 2걸음 · 안에 든 모두' });
+CARDS.shoot = Object.assign(skillOf('shot', { targets:1 }),
+  { id:'shoot', needsTarget:true,
+    brief:'대상 쪽으로 돌아<br>앞 8 · 옆 1<br>단일',
+    text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 앞 8걸음 · 옆 1걸음 · 가장 가까운 하나' });
+CARDS.whirl = Object.assign(skillOf('sweep', { targets:0 }),
+  { id:'whirl', needsTarget:true,
+    brief:'대상 쪽으로 돌아<br>주위 3걸음<br>범위',
+    text:'4틱 뒤, 주위 3걸음 안 모두를 휩쓴다' });
+
 // 버리기 — 카드가 아니라 행동이다. 아무 카드나 무덤에 떨구면 이것이 된다.
 // 옛 대기 카드를 대신한다. 같은 1틱인데 죽은 패까지 치운다.
 const TOSS = { id:'toss', name:'버리기', ticks:1, kind:'wait', needsTarget:false,
@@ -293,7 +318,7 @@ const TOSS = { id:'toss', name:'버리기', ticks:1, kind:'wait', needsTarget:fa
                text:'카드를 무덤에 버리고 한 틱 흘린다' };
 
 const MOVE_KINDS   = { step:1, back:1, side:1 };
-const ATTACK_KINDS = { attack:1, whirl:1 };
+const ATTACK_KINDS = { attack:1 };
 
 const PLAYER_BASE = {
   hp:20, maxHp:20, atk:3, aims:true,   // aims = 공격 예고를 시작할 때 조준하는가
@@ -305,21 +330,18 @@ const PLAYER_BASE = {
 const KINDS = {
   // 졸개 — 다가와서 친다. 그게 전부다.
   grunt: {
-    id:'grunt', name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
+    id:'grunt', name:'졸개', hp:6, maxHp:6, atk:2, aims:true, recover:1,
     fwdStep:2, backStep:0, sideStep:0,
     size:1, skin:'#7A6B52', skin2:'#9C8A6A',
-    atkAct:{ kind:'attack', name:'후려치기', ticks:3,
-             fwd:3, bwd:0, side:1.5, dmg:2, targets:0 },
+    atkAct:skillOf('slash', { targets:0 }),
     moveAct:{ kind:'step', name:'다가옴', ticks:2 },
   },
   // 무식한 놈 — 곧게 쓸어버린다. 제 아군도 같이 맞는다.
   brute: {
-    id:'brute', name:'무식한 놈', hp:16, maxHp:16, atk:5, aims:true,
+    id:'brute', name:'무식한 놈', hp:16, maxHp:16, atk:5, aims:true, recover:3,
     fwdStep:2, backStep:0, sideStep:0,
     size:1.55, skin:'#6B4652', skin2:'#A06A78',
-    atkAct:{ kind:'attack', name:'쓸어내기', ticks:5,
-             fwd:8, bwd:0, side:1.5, dmg:5, targets:0,
-             hitsAll:true, allyDmg:0.5 },
+    atkAct:skillOf('shot', { targets:0, hitsAll:true, allyDmg:0.5 }),
     moveAct:{ kind:'step', name:'다가옴', ticks:3 },
   },
 };
@@ -421,13 +443,13 @@ function startAct(a, card, target){
   const foe = (target && target.hp > 0) ? target : nearestFoe(a);
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
                 left:card.ticks, mv:null, target:foe,
-                fwd:card.fwd, bwd:card.bwd, side:card.side,
+                fwd:card.fwd, bwd:card.bwd, side:card.side, skill:card.skill,
                 dmg:card.dmg, targets:card.targets || 0,
                 hitsAll:!!card.hitsAll, allyDmg:card.allyDmg };
   a.act = act;
   if (MOVE_KINDS[act.kind]){
     planMove(a, act);
-  } else if (act.kind === 'attack'){
+  } else if (ATTACK_KINDS[act.kind]){
     // 예고를 시작할 때 대상 쪽으로 조준한다. 그 뒤 발동까지 방향은 굳는다.
     // 선풍은 전방위라 조준을 안 쓰므로 방향을 건드리지 않는다.
     if (a.aims && foe) a.f = Math.atan2(foe.y - a.y, foe.x - a.x);
@@ -492,9 +514,10 @@ function covers(a, act, x, y){
   const ux = Math.cos(a.f), uy = Math.sin(a.f);
   const along = dx * ux + dy * uy;             // 앞이 +, 뒤가 -
   const side = Math.abs(dy * ux - dx * uy);
-  return along <= (act.fwd || 0) + 1e-9
-      && along >= -(act.bwd || 0) - 1e-9
-      && side <= (act.side || 0) + 1e-9;
+  // 가장자리에 정확히 걸치면 벗어난 것으로 본다. 그 자리가 `한 뼘`이다.
+  return along < (act.fwd || 0) - 1e-9
+      && along > -(act.bwd || 0) - 1e-9
+      && side < (act.side || 0) - 1e-9;
 }
 
 /* ============================================================
@@ -554,7 +577,9 @@ function missReason(a, act, near){
    졸개 AI — 분기 하나
    ============================================================ */
 function chooseAct(m){
-  startAct(m, dist(m, player) <= m.atkAct.fwd + 1e-9 ? m.atkAct : m.moveAct);
+  // 한 뼘 규칙 때문에 가장자리는 안 맞는다. 안쪽까지 들어와야 친다.
+  // covers 와 부등호를 맞추지 않으면 못 맞히는 자리에서 계속 치는 교착이 생긴다.
+  startAct(m, dist(m, player) < m.atkAct.fwd - 1e-9 ? m.atkAct : m.moveAct);
 }
 
 /* ============================================================
@@ -588,8 +613,16 @@ function stepTick(){
   // 4) 죽은 몹의 행동을 지운다
   for (const m of mobs) if (m.hp <= 0) m.act = null;
 
-  // 5) 행동을 마친 몹은 그 자리에서 다음 행동을 고른다
-  for (const m of livingMobs()) if (!m.act || m.act.left <= 0) chooseAct(m);
+  // 5) 행동을 마친 몹은 다음을 고른다.
+  //    기술 틱은 나와 몹이 같으므로, 몹의 공격 주기는 `숨고르기`로 정한다.
+  //    같은 발사라도 숨을 오래 고르는 놈은 느리게 쏜다.
+  for (const m of livingMobs()){
+    if (m.act && m.act.left > 0) continue;
+    const done = m.act;
+    if (done && ATTACK_KINDS[done.kind] && m.recover > 0)
+      startAct(m, { kind:'wait', name:'숨고르기', ticks:m.recover });
+    else chooseAct(m);
+  }
 
   clock++;
   return events;
@@ -741,7 +774,7 @@ function currentMarks(){
 }
 
 function markOf(a, act){
-  const k = { kind:act.kind, name:act.name, futile:null,
+  const k = { kind:act.kind, name:act.name, skill:act.skill, futile:null,
               from:{ x:a.x, y:a.y }, at:{ x:a.x, y:a.y, f:a.f }, left:act.left };
   if (MOVE_KINDS[act.kind]){
     // 남은 틱만큼 더 간 자리를 끝점으로 삼는다
@@ -894,7 +927,7 @@ function previewMark(card, target){
   // 표식이 조용히 엉뚱한 모양으로 나온다 (선풍이 부채꼴로 그려졌던 버그).
   const k = markOf(player, Object.assign({}, card, {
     left:card.ticks, mv:r.mv, target:target }));
-  if (ATTACK_KINDS[card.kind] && card.kind !== 'whirl') k.at.f = r.aimF;
+  if (ATTACK_KINDS[card.kind]) k.at.f = r.aimF;
   k.preview = true;
   return k;
 }
@@ -904,7 +937,7 @@ function previewMark(card, target){
    ============================================================ */
 const ISO_W = 30, ISO_H = 15;    // 걸음 하나가 화면에서 차지하는 크기
 const MARK_COLOR = { step:'#7FD4EC', back:'#86DFAE', side:'#B9A8F0',
-                     attack:'#FF9E8E', whirl:'#FFC489' };
+                     slash:'#FF9E8E', shot:'#FF7BA8', sweep:'#FFC489' };
 const FUTILE_COLOR = '#D8B45E';
 
 function fitCanvas(){
@@ -931,7 +964,7 @@ function drawMarks(S, marks){
 
   for (const k of marks || []){
     if (k.kind === 'wait') continue;
-    let color = MARK_COLOR[k.kind] || '#8E8C82';
+    let color = MARK_COLOR[k.skill || k.kind] || '#8E8C82';
     let alpha = k.preview ? .95 : .7, wide = k.fires ? 3.5 : 2;
     // 예측 상자를 그림으로 옮긴 것 — 이 카드를 쓰면 이 위협이 나를 맞히나
     if (k.state === 'safe'){ alpha = .2; wide = 1.5; }
