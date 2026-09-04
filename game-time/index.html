@@ -269,18 +269,19 @@ const SKILLS = {
   sweep: { skill:'sweep', name:'휩쓸기', ticks:4, fwd:3, bwd:3, side:3 },
 };
 
-/* 형용사 — 기술 앞에 붙어 누구를 몇이나 치는지 정한다.
+/* 형용사 — 누구를 몇이나 치는지.
      무차별        아군도 맞는다 (없으면 상대편만)
      범위 · 단일 · N명   범위 안 몇을 치나 (targets 0 · 1 · N)
-   이름이 곧 규칙이다. `무차별 범위 발사` 는 읽는 그대로다. */
+   이름에는 안 붙인다. 이름은 기술 그대로 두고 설명에 적는다.
+   `adj` 로 꺼내 쓴다. */
 function skillOf(id, opt){
   opt = opt || {};
   const base = SKILLS[id];
   const t = opt.targets == null ? 0 : opt.targets;
-  const head = (opt.hitsAll ? '무차별 ' : '') +
-               (t === 0 ? '범위' : t === 1 ? '단일' : t + '명') + ' ';
+  const adj = (opt.hitsAll ? '무차별 · ' : '') +
+              (t === 0 ? '범위' : t === 1 ? '단일' : t + '명');
   return Object.assign({}, base, {
-    kind:'attack', name:head + base.name, targets:t,
+    kind:'attack', adj:adj, targets:t,
     hitsAll:!!opt.hitsAll, allyDmg:opt.allyDmg,
   });
 }
@@ -300,16 +301,16 @@ const CARDS = {
 // 공격 카드 셋. 기술에 형용사를 얹어 만든다.
 CARDS.attack = Object.assign(skillOf('slash', { targets:0 }),
   { id:'attack', needsTarget:true,
-    brief:'대상 쪽으로 돌아<br>앞 4 · 옆 2<br>범위',
-    text:'3틱 뒤, 대상 쪽으로 돌아서 벤다. 앞 4걸음 · 옆 2걸음 · 안에 든 모두' });
+    brief:'앞 4 · 옆 2<br>범위<br>대상 쪽으로 돌아',
+    text:'베기 — 범위. 3틱 뒤, 대상 쪽으로 돌아서 벤다. 앞 4걸음 · 옆 2걸음 · 안에 든 모두' });
 CARDS.shoot = Object.assign(skillOf('shot', { targets:1 }),
   { id:'shoot', needsTarget:true,
-    brief:'대상 쪽으로 돌아<br>앞 8 · 옆 1<br>단일',
-    text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 앞 8걸음 · 옆 1걸음 · 가장 가까운 하나' });
+    brief:'앞 8 · 옆 1<br>단일<br>대상 쪽으로 돌아',
+    text:'발사 — 단일. 2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 앞 8걸음 · 옆 1걸음 · 가장 가까운 하나' });
 CARDS.whirl = Object.assign(skillOf('sweep', { targets:0 }),
   { id:'whirl', needsTarget:true,
-    brief:'대상 쪽으로 돌아<br>주위 3걸음<br>범위',
-    text:'4틱 뒤, 주위 3걸음 안 모두를 휩쓴다' });
+    brief:'주위 3걸음<br>범위<br>대상 쪽으로 돌아',
+    text:'휩쓸기 — 범위. 4틱 뒤, 주위 3걸음 안 모두를 휩쓴다' });
 
 // 버리기 — 카드가 아니라 행동이다. 아무 카드나 무덤에 떨구면 이것이 된다.
 // 옛 대기 카드를 대신한다. 같은 1틱인데 죽은 패까지 치운다.
@@ -444,6 +445,7 @@ function startAct(a, card, target){
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
                 left:card.ticks, mv:null, target:foe,
                 fwd:card.fwd, bwd:card.bwd, side:card.side, skill:card.skill,
+                adj:card.adj,
                 dmg:card.dmg, targets:card.targets || 0,
                 hitsAll:!!card.hitsAll, allyDmg:card.allyDmg };
   a.act = act;
