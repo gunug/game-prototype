@@ -74,9 +74,9 @@
     font-size:11px;color:var(--muted);align-items:center;}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend .sw{width:14px;height:2px;border-radius:2px;display:inline-block;}
-  .sw-move{background:#7FD4EC;} .sw-dodge{background:#86DFAE;}
-  .sw-turn{background:#B9A8F0;} .sw-attack{background:#FF9E8E;}
-  .sw-whirl{background:#FFC489;} .sw-shoot{background:#FF7BA8;}
+  .sw-step{background:#7FD4EC;} .sw-back{background:#86DFAE;}
+  .sw-side{background:#B9A8F0;} .sw-attack{background:#FF9E8E;}
+  .sw-whirl{background:#FFC489;}
   .sw-futile{background:#D8B45E;}
   .legend .tip{margin-left:auto;opacity:.75;}
 
@@ -103,12 +103,11 @@
   .pc .tk{flex:none;font-size:10px;font-weight:800;padding:2px 6px;
     border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);}
   .pc .tx{margin-top:auto;font-size:10px;line-height:1.35;color:var(--muted);}
-  .pc.k-move{border-top-color:#2E5A69;}
-  .pc.k-dodge{border-top-color:#2F5C42;}
-  .pc.k-turn{border-top-color:#453A6B;}
+  .pc.k-step{border-top-color:#2E5A69;}
+  .pc.k-back{border-top-color:#2F5C42;}
+  .pc.k-side{border-top-color:#453A6B;}
   .pc.k-attack{border-top-color:#7A3A34;}
   .pc.k-whirl{border-top-color:#7A542C;}
-  .pc.k-shoot{border-top-color:#7A3A5A;}
   .pc.k-wait{border-top-color:#3A3A31;}
   .pc.slot{opacity:.12;cursor:default;box-shadow:none;
     background:none;border-style:dashed;border-top-color:var(--hairline);}
@@ -196,12 +195,11 @@
           </div>
         </div>
         <div class="legend">
-          <span><i class="sw sw-move"></i>이동</span>
-          <span><i class="sw sw-dodge"></i>회피</span>
-          <span><i class="sw sw-turn"></i>선회</span>
-          <span><i class="sw sw-attack"></i>공격 (전방)</span>
-          <span><i class="sw sw-shoot"></i>사격 (직선)</span>
-          <span><i class="sw sw-whirl"></i>선풍 (범위)</span>
+          <span><i class="sw sw-step"></i>앞걸음</span>
+          <span><i class="sw sw-back"></i>뒷걸음</span>
+          <span><i class="sw sw-side"></i>옆걸음</span>
+          <span><i class="sw sw-attack"></i>공격 · 사격</span>
+          <span><i class="sw sw-whirl"></i>선풍 (주위)</span>
           <span><i class="sw sw-futile"></i>소용없음</span>
           <span class="tip">머리 숫자 = 남은 틱 · 지면 한 칸 = 1걸음 · 굵은 선 = 4걸음</span>
         </div>
@@ -257,37 +255,41 @@ const D2R = Math.PI / 180;
 const HAND_SIZE = 5;          // 손패. 한 장 던지면 한 장 즉시 보충
 const TICK_MS = 190;          // 한 틱 재생 시간
 
-// 시간의 단위가 틱이듯, 거리의 단위는 걸음이다. 모든 거리는 걸음으로 잰다.
-// 정수 단위라고 격자가 되는 것은 아니다 — 정해지는 것은 양이지 자리가 아니다.
-// 각도의 단위는 눈금. 원을 12로 나눈 하나 = 30도.
-const NOTCH = 30 * D2R;
-const CONTACT = 1;            // 이보다 가까이 못 붙는다 (몸통 반지름 합)
+/* 시간의 단위가 틱이듯, 거리의 단위는 걸음이다. 자가 하나뿐이다 — 각도는 안 쓴다.
+   공격은 모양이 아니라 직사각형 세 수로 적는다.
+     앞 fwd · 뒤 bwd · 옆 side   (전부 걸음, 중심에서 가장자리까지)
+   그래서 걸음 카드와 공격 크기를 그냥 견줄 수 있다.
+     옆걸음 2 vs 옆 1  → 한 번에 벗어남
+     옆걸음 2 vs 옆 2  → 아슬아슬
+     옆걸음 2 vs 옆 3  → 두 번이면 벗어남
+   정수 단위라고 격자가 되는 것은 아니다 — 정해지는 것은 양이지 자리가 아니다. */
+const CONTACT = 2;            // 이보다 가까이 못 붙는다 (몸통 지름)
 
 // 카드 = 이름 + 틱 수 하나. 공격 계열은 마지막 틱에 발동한다.
 const CARDS = {
-  // 공격 계열은 모양(shape) · 크기(reach/width) · 대상 수(targets) · 피해(dmg) 를 싣는다
-  //   targets 0 = 범위 안 모두, N = 가까운 순서로 N
+  // 공격은 직사각형 세 수로 적는다. 앞 fwd · 뒤 bwd · 옆 side (걸음).
+  //   targets 0 = 안에 든 모두, N = 가까운 순서로 N
   attack: { id:'attack', name:'공격', ticks:3, kind:'attack', needsTarget:true,
-            shape:'fan', reach:4, dmg:3, targets:0,
-            brief:'대상 쪽으로 돌아<br>전방 1눈금<br>4걸음 · 피해 3 · 모두',
-            text:'3틱 뒤, 대상 쪽으로 돌아서 친다. 전방 1눈금 · 사거리 4걸음 · 피해 3 · 범위 안 모두' },
+            fwd:4, bwd:0, side:2, dmg:3, targets:0,
+            brief:'대상 쪽으로 돌아<br>앞 4 · 옆 2<br>피해 3 · 모두',
+            text:'3틱 뒤, 대상 쪽으로 돌아서 친다. 앞 4걸음 · 옆 2걸음 · 피해 3 · 안에 든 모두' },
   shoot:  { id:'shoot',  name:'사격', ticks:2, kind:'attack', needsTarget:true,
-            shape:'line', reach:8, width:2, dmg:2, targets:1,
-            brief:'대상 쪽으로 돌아<br>직선 8걸음<br>폭 2 · 피해 2 · 단일',
-            text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 직선 8걸음 · 폭 2걸음 · 피해 2 · 줄에서 가장 가까운 하나' },
+            fwd:8, bwd:0, side:1, dmg:2, targets:1,
+            brief:'대상 쪽으로 돌아<br>앞 8 · 옆 1<br>피해 2 · 단일',
+            text:'2틱 뒤, 대상 쪽으로 돌아 곧게 쏜다. 앞 8걸음 · 옆 1걸음 · 피해 2 · 가장 가까운 하나' },
   whirl:  { id:'whirl',  name:'선풍', ticks:4, kind:'whirl', needsTarget:false,
-            shape:'ring', reach:3, dmg:3, targets:0,
-            brief:'범위 3걸음<br>피해 3<br>모두',
-            text:'4틱 뒤, 범위 3걸음 안 모두에게 3 피해. 둘레 전부라 대상을 안 고른다' },
-  move:   { id:'move',   name:'이동', ticks:2, kind:'move', needsTarget:true,
+            fwd:3, bwd:3, side:3, dmg:3, targets:0,
+            brief:'주위 3걸음<br>피해 3<br>모두',
+            text:'4틱 뒤, 주위 3걸음 안 모두에게 3 피해. 사방이라 대상을 안 고른다' },
+  step:   { id:'step',   name:'앞걸음', ticks:2, kind:'step', needsTarget:true,
             brief:'대상에게로<br>3걸음<br>그쪽을 본다',
-            text:'2틱에 걸쳐 대상을 향해 3걸음 활주. 그쪽을 본다' },
-  dodge:  { id:'dodge',  name:'회피', ticks:1, kind:'dodge', needsTarget:true,
+            text:'2틱에 걸쳐 대상을 향해 3걸음. 그쪽을 본다' },
+  back:   { id:'back',   name:'뒷걸음', ticks:1, kind:'back', needsTarget:true,
             brief:'대상 반대로<br>4걸음<br>마주 본 채',
-            text:'대상의 반대로 4걸음 물러난다. 계속 마주 본다' },
-  turn:   { id:'turn',   name:'선회', ticks:1, kind:'turn', needsTarget:true,
-            brief:'대상을 축으로<br>옆으로 2걸음<br>거리 유지',
-            text:'대상을 축으로 옆으로 2걸음 돈다. 거리는 지키고 방향은 안 바뀐다' },
+            text:'대상의 반대로 곧게 4걸음. 계속 마주 본다' },
+  side:   { id:'side',   name:'옆걸음', ticks:1, kind:'side', needsTarget:true,
+            brief:'대상과 수직으로<br>2걸음<br>거리 거의 유지',
+            text:'대상 방향에 수직으로 곧게 2걸음. 거리는 거의 그대로다' },
 };
 
 // 버리기 — 카드가 아니라 행동이다. 아무 카드나 무덤에 떨구면 이것이 된다.
@@ -296,13 +298,12 @@ const TOSS = { id:'toss', name:'버리기', ticks:1, kind:'wait', needsTarget:fa
                brief:'한 틱 흘림<br>패를 하나 치움',
                text:'카드를 무덤에 버리고 한 틱 흘린다' };
 
-const MOVE_KINDS   = { move:1, dodge:1, turn:1 };
+const MOVE_KINDS   = { step:1, back:1, side:1 };
 const ATTACK_KINDS = { attack:1, whirl:1 };
 
 const PLAYER_BASE = {
   hp:20, maxHp:20, atk:3, aims:true,   // aims = 공격 예고를 시작할 때 조준하는가
-  range:4, aimArc:1 * NOTCH,
-  moveDist:3, dodgeDist:4, turnStep:2,
+  fwdStep:3, backStep:4, sideStep:2,
 };
 
 /* 몹 종류. 행동도 카드와 같은 그릇을 쓴다.
@@ -311,21 +312,21 @@ const KINDS = {
   // 졸개 — 다가와서 친다. 그게 전부다.
   grunt: {
     id:'grunt', name:'졸개', hp:6, maxHp:6, atk:2, aims:true,
-    range:3, aimArc:1 * NOTCH, moveDist:2, dodgeDist:0, turnStep:0,
+    fwdStep:2, backStep:0, sideStep:0,
     size:1, skin:'#7A6B52', skin2:'#9C8A6A',
     atkAct:{ kind:'attack', name:'후려치기', ticks:3,
-             shape:'fan', reach:3, dmg:2, targets:0 },
-    moveAct:{ kind:'move', name:'이동', ticks:2 },
+             fwd:3, bwd:0, side:1.5, dmg:2, targets:0 },
+    moveAct:{ kind:'step', name:'다가옴', ticks:2 },
   },
   // 무식한 놈 — 곧게 쓸어버린다. 제 아군도 같이 맞는다.
   brute: {
-    id:'brute', name:'무식한 놈', hp:12, maxHp:12, atk:5, aims:true,
-    range:12, aimArc:1 * NOTCH, moveDist:2, dodgeDist:0, turnStep:0,
+    id:'brute', name:'무식한 놈', hp:16, maxHp:16, atk:5, aims:true,
+    fwdStep:2, backStep:0, sideStep:0,
     size:1.55, skin:'#6B4652', skin2:'#A06A78',
     atkAct:{ kind:'attack', name:'쓸어내기', ticks:5,
-             shape:'line', reach:12, width:3, dmg:5, targets:0,
+             fwd:8, bwd:0, side:1.5, dmg:5, targets:0,
              hitsAll:true, allyDmg:0.5 },
-    moveAct:{ kind:'move', name:'이동', ticks:3 },
+    moveAct:{ kind:'step', name:'다가옴', ticks:3 },
   },
 };
 const GRUNT = KINDS.grunt;                 // 옛 이름
@@ -380,14 +381,6 @@ const cv = $('arena'), ctx = cv.getContext('2d');
 
 function dist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 
-// 각을 -π..π 로 접는다. 조준각 비교는 전부 이걸 거친다.
-function wrapAngle(r){
-  r = r % (Math.PI * 2);
-  if (r > Math.PI) r -= Math.PI * 2;
-  if (r < -Math.PI) r += Math.PI * 2;
-  return r;
-}
-
 function livingMobs(){ return mobs.filter(m => m.hp > 0); }
 function foesOf(a){ return a === player ? livingMobs() : [player]; }
 function nearestFoe(a){
@@ -434,7 +427,7 @@ function startAct(a, card, target){
   const foe = (target && target.hp > 0) ? target : nearestFoe(a);
   const act = { kind:card.kind, name:card.name, ticks:card.ticks,
                 left:card.ticks, mv:null, futile:null, target:foe,
-                shape:card.shape || null, reach:card.reach, width:card.width,
+                fwd:card.fwd, bwd:card.bwd, side:card.side,
                 dmg:card.dmg, targets:card.targets || 0,
                 hitsAll:!!card.hitsAll, allyDmg:card.allyDmg };
   a.act = act;
@@ -461,32 +454,35 @@ function planMove(a, act){
   act.target = foe;
   const d = dist(a, foe);
 
-  if (act.kind === 'turn'){
-    // 대상을 축으로 돈다. 거리는 그대로, 방향은 안 바뀐다.
-    // 도는 양은 각도가 아니라 **호를 따라 걷는 걸음 수**다.
-    // 각도로 고정하면 멀수록 이동량이 폭발한다 (거리 5에서 이동 카드보다 멀리 갔다).
-    // 호 길이를 고정하면 어디서든 같은 걸음이고, 각도는 1/거리로 저절로 붙는다.
-    const bearing = Math.atan2(a.y - foe.y, a.x - foe.x);
-    const sweep = Math.min(Math.PI, d > 1e-6 ? a.turnStep / d : Math.PI);
-    const total = sweep * (wrapAngle(bearing - foe.f) >= 0 ? 1 : -1);
-    act.mv = { rot:true, px:foe.x, py:foe.y, dphi:total / act.ticks };
-    act.futile = threatFutile(a, foe.x + Math.cos(bearing + total) * d,
-                                 foe.y + Math.sin(bearing + total) * d);
-  } else if (act.kind === 'dodge'){
+  const ux = d < 1e-6 ? 1 : (foe.x - a.x) / d;         // 대상 쪽 단위벡터
+  const uy = d < 1e-6 ? 0 : (foe.y - a.y) / d;
+
+  if (act.kind === 'side'){
+    // 옆걸음 — 대상 방향에 **수직으로 곧게** 간다. 호가 아니다.
+    // 곧게 가야 걸음이 그대로 쌓인다. 두 번 쓰면 두 배 벗어난다.
+    // 호로 돌면 sin 때문에 안 쌓이고, 가까이서는 되레 제자리로 돌아온다.
+    const total = a.sideStep;
+    const px = -uy, py = ux;                            // 수직 단위벡터
+    // 위협 축에서 더 멀어지는 쪽을 고른다
+    const off = sgn => {
+      const nx = a.x + px * total * sgn, ny = a.y + py * total * sgn;
+      const ex = nx - foe.x, ey = ny - foe.y;
+      return Math.abs(ey * Math.cos(foe.f) - ex * Math.sin(foe.f));
+    };
+    const sgn = off(1) >= off(-1) ? 1 : -1;
+    act.mv = { dx:px * (total / act.ticks) * sgn, dy:py * (total / act.ticks) * sgn };
+    act.futile = threatFutile(a, a.x + px * total * sgn, a.y + py * total * sgn);
+  } else if (act.kind === 'back'){
     a.f = Math.atan2(foe.y - a.y, foe.x - a.x);         // 마주 본 채 물러난다
-    const ux = d < 1e-6 ? -1 : (foe.x - a.x) / d;
-    const uy = d < 1e-6 ? 0 : (foe.y - a.y) / d;
-    const step = a.dodgeDist / act.ticks;
-    act.mv = { dx:-ux * step, dy:-uy * step };
-    act.futile = threatFutile(a, a.x - ux * a.dodgeDist, a.y - uy * a.dodgeDist);
+    const total = a.backStep;
+    act.mv = { dx:-ux * (total / act.ticks), dy:-uy * (total / act.ticks) };
+    act.futile = threatFutile(a, a.x - ux * total, a.y - uy * total);
   } else {
-    // 이동 — 접촉거리보다 가까이는 못 붙는다 (뚫고 지나가지도 않는다)
+    // 앞걸음 — 접촉거리보다 가까이는 못 붙는다 (뚫고 지나가지도 않는다)
     const room = Math.max(0, d - CONTACT);
-    const total = Math.min(a.moveDist, room);
+    const total = Math.min(a.fwdStep, room);
     a.f = Math.atan2(foe.y - a.y, foe.x - a.x);         // 다가가며 그쪽을 본다
-    const step = total / act.ticks;
-    act.mv = d < 1e-6 ? { dx:0, dy:0 }
-           : { dx:(foe.x - a.x) / d * step, dy:(foe.y - a.y) / d * step };
+    act.mv = { dx:ux * (total / act.ticks), dy:uy * (total / act.ticks) };
     act.futile = room <= 1e-9 ? '이미 끝까지 붙음' : null;
   }
 }
@@ -494,34 +490,20 @@ function planMove(a, act){
 function applyMove(a){
   const mv = a.act && a.act.mv;
   if (!mv) return;
-  if (mv.rot){
-    const rx = a.x - mv.px, ry = a.y - mv.py;
-    const c = Math.cos(mv.dphi), s = Math.sin(mv.dphi);
-    a.x = mv.px + rx * c - ry * s;
-    a.y = mv.py + rx * s + ry * c;
-  } else {
-    a.x += mv.dx; a.y += mv.dy;
-  }
+  a.x += mv.dx; a.y += mv.dy;
 }
 
-/* 이 행동이 (x,y) 를 덮나 — 세 모양을 여기 한 곳에서만 판정한다.
-   전방 : 사거리 안 + 조준각 안
-   직선 : 축 방향으로 0..길이 + 축과의 수직 거리가 폭/2 이하
-   범위 : 사거리 안 (각도를 안 본다) */
+/* 이 행동이 (x,y) 를 덮나 — 모양이 하나뿐이라 판정도 한 곳이다.
+   액터가 보는 쪽을 앞으로 놓고 직사각형에 드는지만 본다.
+     앞 fwd · 뒤 bwd · 옆 side   (전부 걸음, 중심에서 가장자리까지) */
 function covers(a, act, x, y){
-  const reach = act.reach != null ? act.reach : a.range;
   const dx = x - a.x, dy = y - a.y;
-  if (act.shape === 'line'){
-    const ux = Math.cos(a.f), uy = Math.sin(a.f);
-    const along = dx * ux + dy * uy;
-    const side = Math.abs(dy * ux - dx * uy);
-    return along >= -1e-9 && along <= reach + 1e-9
-        && side <= (act.width || 0) / 2 + 1e-9;
-  }
-  const d = Math.hypot(dx, dy);
-  if (d > reach + 1e-9) return false;
-  if (act.shape === 'ring') return true;
-  return Math.abs(wrapAngle(Math.atan2(dy, dx) - a.f)) <= a.aimArc + 1e-9;
+  const ux = Math.cos(a.f), uy = Math.sin(a.f);
+  const along = dx * ux + dy * uy;             // 앞이 +, 뒤가 -
+  const side = Math.abs(dy * ux - dx * uy);
+  return along <= (act.fwd || 0) + 1e-9
+      && along >= -(act.bwd || 0) - 1e-9
+      && side <= (act.side || 0) + 1e-9;
 }
 
 // 지금 나에게 들어오고 있는 위협이 (nx,ny) 에서도 닿나
@@ -539,7 +521,6 @@ function threatFutile(a, nx, ny){
    ============================================================ */
 function fire(a, events){
   const act = a.act;
-  const reach = act.reach != null ? act.reach : a.range;
   const dmg = act.dmg != null ? act.dmg : a.atk;
   const near = actTarget(a);
 
@@ -560,7 +541,7 @@ function fire(a, events){
   const key = x => x === player ? 'p' : String(mobs.indexOf(x));
   if (!struck.length){
     events.push({ type:'miss', who:label, si:key(a), name:act.name,
-                  why:missReason(a, act, near, reach),
+                  why:missReason(a, act, near),
                   d:near ? dist(a, near) : 0 });
     return;
   }
@@ -577,23 +558,22 @@ function fire(a, events){
   }
 }
 
-// 왜 안 맞았나 — 모양마다 말이 다르다
-function missReason(a, act, near, reach){
+// 왜 안 맞았나 — 앞이 모자란지 옆으로 샜는지
+function missReason(a, act, near){
   if (!near) return '대상이 없음';
-  const d = dist(a, near);
-  if (act.shape === 'line'){
-    const along = (near.x - a.x) * Math.cos(a.f) + (near.y - a.y) * Math.sin(a.f);
-    return (along < 0 || along > reach + 1e-9) ? '사거리 밖' : '줄 밖';
-  }
-  if (d > reach + 1e-9) return '사거리 밖';
-  return act.shape === 'ring' ? '사거리 밖' : '조준 밖';
+  const dx = near.x - a.x, dy = near.y - a.y;
+  const ux = Math.cos(a.f), uy = Math.sin(a.f);
+  const along = dx * ux + dy * uy, side = Math.abs(dy * ux - dx * uy);
+  if (along > (act.fwd || 0) + 1e-9 || along < -(act.bwd || 0) - 1e-9) return '앞 밖';
+  if (side > (act.side || 0) + 1e-9) return '옆으로 샘';
+  return '빗나감';
 }
 
 /* ============================================================
    졸개 AI — 분기 하나
    ============================================================ */
 function chooseAct(m){
-  startAct(m, dist(m, player) <= m.range + 1e-9 ? m.atkAct : m.moveAct);
+  startAct(m, dist(m, player) <= m.atkAct.fwd + 1e-9 ? m.atkAct : m.moveAct);
 }
 
 /* ============================================================
@@ -605,6 +585,17 @@ function stepTick(){
 
   // 1) 이동 계열 먼저 — 같은 틱에 빠져나가 피하는 것이 성립하도록
   for (const a of actors) if (a.act && MOVE_KINDS[a.act.kind]) applyMove(a);
+
+  // 1-2) 겹침 밀어내기 — 둘이 동시에 다가오면 접촉거리보다 가까워진다.
+  //      계획할 때 한 번 자르는 것만으로는 못 막는다.
+  for (const m of livingMobs()){
+    const d = dist(player, m);
+    if (d > 1e-9 && d < CONTACT){
+      const push = (CONTACT - d) / d;
+      m.x += (m.x - player.x) * push;
+      m.y += (m.y - player.y) * push;
+    }
+  }
 
   // 2) 마지막 틱인 공격이 터진다
   for (const a of actors)
@@ -768,23 +759,10 @@ function markOf(a, act){
   if (MOVE_KINDS[act.kind]){
     // 남은 틱만큼 더 간 자리를 끝점으로 삼는다
     const p = { x:a.x, y:a.y }, mv = act.mv;
-    if (mv){
-      if (mv.rot){
-        const ang = mv.dphi * act.left;
-        const rx = a.x - mv.px, ry = a.y - mv.py;
-        p.x = mv.px + rx * Math.cos(ang) - ry * Math.sin(ang);
-        p.y = mv.py + rx * Math.sin(ang) + ry * Math.cos(ang);
-        k.pivot = { x:mv.px, y:mv.py };
-      } else {
-        p.x = a.x + mv.dx * act.left; p.y = a.y + mv.dy * act.left;
-      }
-    }
+    if (mv){ p.x = a.x + mv.dx * act.left; p.y = a.y + mv.dy * act.left; }
     k.to = p;
   } else if (ATTACK_KINDS[act.kind]){
-    k.shape = act.shape || 'fan';
-    k.range = act.reach != null ? act.reach : a.range;
-    k.width = act.width || 0;
-    k.arc = k.shape === 'ring' ? Math.PI : a.aimArc;
+    k.fwd = act.fwd || 0; k.bwd = act.bwd || 0; k.side = act.side || 0;
     // 굳은 방향 그대로 그린다. 예고가 곧 약속이다.
     const foe = actTarget(a);
     if (foe) k.tgt = { x:foe.x, y:foe.y };
@@ -853,9 +831,7 @@ function dryRun(card, target){
   let why = moveFutile;
   if (ATTACK_KINDS[card.kind] && !hits){
     const foe = (target && target.hp > 0) ? target : nearestFoe(player);
-    const reach = card.reach != null ? card.reach : player.range;
-    why = !foe ? '대상이 없음'
-        : dist(player, foe) > reach + 1e-9 ? '사거리 밖' : '빗나감';
+    why = !foe ? '대상이 없음' : missReason(player, card, foe);
   }
   return { why:why, mv:mv, hits:hits, aimF:aimF, struck:struck,
            dealt:dealt, kills:kills, taken:taken, incoming:incoming, firing:firing,
@@ -888,7 +864,7 @@ function previewMark(card, target){
   // 표식이 조용히 엉뚱한 모양으로 나온다 (선풍이 부채꼴로 그려졌던 버그).
   const k = markOf(player, Object.assign({}, card, {
     left:card.ticks, mv:r.mv, futile:r.why, target:target }));
-  if (ATTACK_KINDS[card.kind] && card.shape !== 'ring') k.at.f = r.aimF;
+  if (ATTACK_KINDS[card.kind] && card.kind !== 'whirl') k.at.f = r.aimF;
   k.preview = true;
   return k;
 }
@@ -897,8 +873,8 @@ function previewMark(card, target){
    렌더 — 쿼터뷰
    ============================================================ */
 const ISO_W = 30, ISO_H = 15;    // 걸음 하나가 화면에서 차지하는 크기
-const MARK_COLOR = { move:'#7FD4EC', dodge:'#86DFAE', turn:'#B9A8F0',
-                     attack:'#FF9E8E', whirl:'#FFC489', shoot:'#FF7BA8' };
+const MARK_COLOR = { step:'#7FD4EC', back:'#86DFAE', side:'#B9A8F0',
+                     attack:'#FF9E8E', whirl:'#FFC489' };
 const FUTILE_COLOR = '#D8B45E';
 
 function fitCanvas(){
@@ -909,19 +885,6 @@ function fitCanvas(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 function iso(x, y){ return { sx:(x - y) * ISO_W / 2, sy:(x + y) * ISO_H / 2 }; }
-
-// 세계의 부채꼴을 아이소 화면에 그린다. 호를 잘게 찍어 잇는다.
-function sectorPath(S, cx, cy, r, mid, half){
-  const N = 40, c = S(cx, cy), full = half >= Math.PI - 1e-6;
-  ctx.beginPath();
-  if (!full) ctx.moveTo(c[0], c[1]);
-  for (let i = 0; i <= N; i++){
-    const ang = mid - half + half * 2 * i / N;
-    const p = S(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r);
-    if (full && i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
-  }
-  ctx.closePath();
-}
 
 function drawMarks(S, marks){
   const arrowHead = (b, from) => {
@@ -950,23 +913,17 @@ function drawMarks(S, marks){
     else if (k.preview) ctx.setLineDash([7, 4]);
 
     if (ATTACK_KINDS[k.kind]){
-      if (k.shape === 'line'){
-        // 방향으로 뻗는 띠. 아이소에서는 평행사변형이 된다.
-        const ux = Math.cos(k.at.f), uy = Math.sin(k.at.f);
-        const px = -uy * k.width / 2, py = ux * k.width / 2;
-        const c = [
-          S(k.at.x + px, k.at.y + py),
-          S(k.at.x + ux * k.range + px, k.at.y + uy * k.range + py),
-          S(k.at.x + ux * k.range - px, k.at.y + uy * k.range - py),
-          S(k.at.x - px, k.at.y - py),
-        ];
-        ctx.beginPath();
-        ctx.moveTo(c[0][0], c[0][1]);
-        for (let i = 1; i < 4; i++) ctx.lineTo(c[i][0], c[i][1]);
-        ctx.closePath();
-      } else {
-        sectorPath(S, k.at.x, k.at.y, k.range, k.at.f, k.arc);
-      }
+      // 공격은 전부 직사각형이다. 아이소에서는 평행사변형으로 보인다.
+      const ux = Math.cos(k.at.f), uy = Math.sin(k.at.f);
+      const px = -uy * k.side, py = ux * k.side;
+      const bx = k.at.x - ux * k.bwd, by = k.at.y - uy * k.bwd;
+      const fx = k.at.x + ux * k.fwd, fy = k.at.y + uy * k.fwd;
+      const c = [ S(bx + px, by + py), S(fx + px, fy + py),
+                  S(fx - px, fy - py), S(bx - px, by - py) ];
+      ctx.beginPath();
+      ctx.moveTo(c[0][0], c[0][1]);
+      for (let i = 1; i < 4; i++) ctx.lineTo(c[i][0], c[i][1]);
+      ctx.closePath();
       ctx.stroke();
       if (!k.futile){
         ctx.globalAlpha = alpha * (k.fires ? .3 : .15);
@@ -985,23 +942,6 @@ function drawMarks(S, marks){
         }
         ctx.stroke();
       }
-    } else if (k.kind === 'turn'){
-      const a = S(k.from.x, k.from.y);
-      const piv = k.pivot || k.from;
-      const r = Math.hypot(k.from.x - piv.x, k.from.y - piv.y);
-      const a0 = Math.atan2(k.from.y - piv.y, k.from.x - piv.x);
-      const a1 = Math.atan2(k.to.y - piv.y, k.to.x - piv.x);
-      const sweep = wrapAngle(a1 - a0), N = 24;
-      let prev = a;
-      ctx.beginPath(); ctx.moveTo(a[0], a[1]);
-      for (let i = 1; i <= N; i++){
-        const ang = a0 + sweep * i / N;
-        const p = S(piv.x + Math.cos(ang) * r, piv.y + Math.sin(ang) * r);
-        ctx.lineTo(p[0], p[1]);
-        if (i === N - 1) prev = p;
-      }
-      ctx.stroke();
-      arrowHead(S(k.to.x, k.to.y), prev);
     } else {
       const a = S(k.from.x, k.from.y), b = S(k.to.x, k.to.y);
       if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 2){
@@ -1481,8 +1421,8 @@ function reset(){
 
   // 덱 20장 = 공격 5 · 이동 4 · 회피 3 · 선회 3 · 사격 3 · 선풍 2
   // 덱 20장
-  const mix = [[CARDS.attack, 5], [CARDS.move, 4], [CARDS.dodge, 3],
-               [CARDS.turn, 3], [CARDS.shoot, 3], [CARDS.whirl, 2]];
+  const mix = [[CARDS.attack, 5], [CARDS.step, 4], [CARDS.back, 3],
+               [CARDS.side, 3], [CARDS.shoot, 3], [CARDS.whirl, 2]];
   const cards = [];
   for (const pair of mix) for (let i = 0; i < pair[1]; i++) cards.push(pair[0]);
   deck = shuffle(cards);
