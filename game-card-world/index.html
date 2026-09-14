@@ -181,7 +181,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.13.0';
+const VERSION = 'v0.14.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -534,10 +534,42 @@ function toast(msg){
 }
 
 // ── 갓의 말 ───────────────────────────────────────────
+const SPEAKERS = ['god', 'knight'];            // 대사 우선순위 — 앞일수록 먼저
+const talkQ = { god: [], knight: [] };          // 사람마다 할 말 줄 [{ text, done }]
+let talking = null, talkTimer = null;           // 지금 말하는 사람
+function enqueueTalk(who, items){
+  talkQ[who].push(...items);
+  if (!talking) showNextTalk(null);
+}
+// 이 사람이 말하는 중이거나 할 말이 남아 있나
+const isTalking = who => talking === who || talkQ[who].length > 0;
+function setLine(who, text){
+  if (who === 'god') speech = text; else knightSpeech = text;
+  repaint(who);
+}
+function showNextTalk(prev){
+  // 방금 말한 사람이 이어서 할 말이 있으면 계속 (한쪽 대화가 다 끝나야 다음 사람)
+  // 아니면 할 말이 있는 사람 중 우선순위가 높은 쪽
+  const who = (prev && talkQ[prev].length) ? prev : SPEAKERS.find(w => talkQ[w].length);
+  if (!who){ talking = null; return; }
+  const item = talkQ[who].shift();
+  talking = who;
+  setLine(who, item.text);
+  if (!S.cards.some(c => c.type === who)) toast((who === 'god' ? '😇 ' : '🛡️ ') + item.text);
+  talkTimer = setTimeout(() => {
+    setLine(who, null);
+    talking = null;
+    if (item.done) item.done();
+    if (who === 'god' && !talkQ.god.length){
+      const ws = speechWaiters;
+      speechWaiters = [];
+      for (const fn of ws) fn();
+    }
+    if (!talking) showNextTalk(who);
+  }, Math.max(1800, item.text.length * 110));
+}
 function say(x){
-  const arr = Array.isArray(x) ? x : [x];
-  speechQ.push(...arr);
-  if (!speechTimer) nextSpeech();
+  enqueueTalk('god', (Array.isArray(x) ? x : [x]).map(text => ({ text })));
 }
 function sayMaybe(arr){
   const now = Date.now();
@@ -545,24 +577,10 @@ function sayMaybe(arr){
   lastMaybe = now;
   say(pick(arr));
 }
+// 갓의 할 말이 다 끝나면 부름
 function afterSpeech(fn){
-  if (!speechTimer && !speechQ.length){ fn(); return; }
+  if (!isTalking('god')){ fn(); return; }
   speechWaiters.push(fn);
-}
-function nextSpeech(){
-  speechTimer = null;
-  if (!speechQ.length){
-    speech = null;
-    renderGod();
-    const ws = speechWaiters;
-    speechWaiters = [];
-    for (const fn of ws) fn();
-    return;
-  }
-  speech = speechQ.shift();
-  if (!S.cards.some(c => c.type === 'god')) toast('😇 ' + speech);
-  renderGod();
-  speechTimer = setTimeout(nextSpeech, Math.max(1800, speech.length * 110));
 }
 
 // ── 상태 태그 (카드 한 장에 붙고 떨어짐) ──────────────
@@ -631,14 +649,7 @@ function repaint(type){
   if (el) paint(el, c);
 }
 function knightSay(text, done){
-  clearTimeout(knightTimer);
-  knightSpeech = text;
-  repaint('knight');
-  knightTimer = setTimeout(() => {
-    knightSpeech = null;
-    repaint('knight');
-    if (done) done();
-  }, Math.max(1800, text.length * 300));
+  enqueueTalk('knight', [{ text, done }]);
 }
 function knightLine(k){
   const st = statusOf(k);
@@ -663,7 +674,7 @@ function giveKnightQuest(kind){
   renderAll();
 }
 function knightCheck(){
-  if (!S || knightSpeech || drag || tear || busy) return;
+  if (!S || isTalking('knight') || drag || tear || busy) return;
   const k = S.cards.find(c => c.type === 'knight');
   if (!k) return;
   const stage = S.flags.knightStage || 0;
@@ -755,7 +766,7 @@ function apply(ev, d, t){
   if (ev.act === 'eat'){
     if (ev.feed){ bumpIds.add(t.id); t = ev.feed; }              // request에 내려놓음 → 대상에게 먹임
     const max = DEFS[t.type].hp;
-    const talk = () => { if (t.type === 'knight' && !knightSpeech && knightLine(t)) knightSay(knightLine(t)); };
+    const talk = () => { if (t.type === 'knight' && !isTalking('knight') && knightLine(t)) knightSay(knightLine(t)); };
     if (statusOf(t).includes('빈사')){
       // 빈사는 빈사 치유 아이템으로만 해결 → 허기짐
       if (!tagLevel(dd, '빈사 치유')){ toast('빈사 상태 — 빈사 치유가 필요함'); talk(); return false; }
@@ -1546,10 +1557,10 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
   try { localStorage.removeItem(STORE); } catch (e) {}
   clearTimeout(godTimer);
-  clearTimeout(speechTimer);
-  speechTimer = null; speechQ = []; speech = null;
+  clearTimeout(talkTimer);
+  talkTimer = null; talking = null; talkQ.god = []; talkQ.knight = [];
+  speech = null; knightSpeech = null;
   gift = null; speechWaiters = [];
-  clearTimeout(knightTimer); knightSpeech = null;
   settling.clear();
   drag = null; tear = null; busy = false;
   for (const el of els.values()) el.remove();
