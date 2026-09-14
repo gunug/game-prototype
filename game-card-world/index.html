@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.6';
+const VERSION = 'v0.17.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -759,7 +759,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'visit'){
-    d.visit = t.id;                     // 방문: 장소와 선으로 이어지고 거리를 유지함
+    if (d.visit !== t.id){ d.visit = t.id; d.visitSeq = ++S.z; }   // 방문: 장소 오른쪽 줄 끝에 섬
     bumpIds.add(t.id);
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
     return true;
@@ -1505,10 +1505,12 @@ function physStep(){
   let moved = false;
   if (S && !busy){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
-    if (solveAttach()) moved = true;           // request는 발주자 옆에 붙음 (끌고 있는 쪽 기준)
+    if (solveAttach()) moved = true;           // 잡은 request → 발주자
+    if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
+    if (solveAttach()) moved = true;           // 방문자 → 붙은 request
     if (phys && physMove()) moved = true;
-    if (solveTethers()) moved = true;          // 방문 연결. 밀어내기 체크와 상관없이 항상
-    if (solveAttach()) moved = true;           // 끌려간 발주자에 request 다시 붙임
+    if (solveVisit()) moved = true;
+    if (solveAttach()) moved = true;
   }
   if (moved) physDirty = true;
   else if (physDirty && !drag){ physDirty = false; save(); }   // 멈추면 한 번 저장
@@ -1535,11 +1537,13 @@ function slideOutFrom(rq, g){
 }
 // 붙어 있는 request의 몸통 = 발주자. 나머지 카드는 자기 자신
 function bodyOf(c){
-  if (c && c.type === 'request' && c.giver != null){
-    const g = byId(c.giver);
-    if (g) return g;
+  let cur = c;
+  for (let i = 0; cur && i < 6; i++){
+    if (cur.type === 'request' && cur.giver != null){ const g = byId(cur.giver); if (g){ cur = g; continue; } }
+    if (cur.visit != null){ const pl = byId(cur.visit); if (pl){ cur = pl; continue; } }
+    break;
   }
-  return c;
+  return cur;
 }
 function moveEl(c){
   const el = els.get(c.id);
@@ -1563,6 +1567,8 @@ function attachLimits(c){
       return { minX: 8 + step * (i + 1), maxX: maxBase - step * (list.length - 1 - i) };
     }
   }
+  const units = rowUnits(c);
+  if (units) return { minX: 8, maxX: maxBase - step * units };  // 장소: 방문자 줄까지 화면 안에
   return { minX: 8, maxX: maxBase - step * attachedList(c).length };
 }
 function solveAttach(){
@@ -1604,14 +1610,72 @@ function solveAttach(){
 //   끌고 있는 카드에서 연결을 따라 퍼져나가며 차례로 끌려감 (사슬)
 //   아무도 안 끌 때는 b쪽(request·방문자)이 제 거리로 천천히 돌아감
 const tetherLen = () => CW * 1.6;              // 카드 중심 사이 거리. 밀어내기 간격보다 길게
-function tetherLinks(){
-  const out = [];
+// ── 방문 줄 ───────────────────────────────────────────
+// 방문한 캐릭터는 장소 오른쪽에 방문 순서대로 줄지어 섬 (캐릭터에 붙은 request 자리까지 비워둠)
+// 장소를 끌면 줄이 딸려 움직임. 캐릭터를 잡아당겨 자리에서 멀어지면 떠남
+const detachDist = () => CW * 1.1;           // 자리에서 이만큼(카드 위치 거리) 벗어나면 떠남
+function visitorsOf(pl){
+  return S.cards.filter(c => c.visit === pl.id).sort((a, b) => ((a.visitSeq || 0) - (b.visitSeq || 0)) || (a.id - b.id));
+}
+function rowUnits(pl){
+  return visitorsOf(pl).reduce((n, v) => n + 1 + attachedList(v).length, 0);
+}
+function heldVisitor(){
+  const hid = heldId();
+  const h = hid != null ? byId(hid) : null;
+  if (!h) return null;
+  if (h.visit != null) return h;
+  if (h.type === 'request' && h.giver != null){ const g = byId(h.giver); if (g && g.visit != null) return g; }
+  return null;
+}
+function solveVisit(){
+  let moved = false;
+  const step = CW + ATTACH_GAP;
+  const hid = heldId();
+  const hv = heldVisitor();
+  const places = new Map();
   for (const c of S.cards){
-    if (c.visit != null){
-      const pl = byId(c.visit);
-      if (pl) out.push({ a: pl, b: c, kind: 'visit' });
+    if (c.visit == null) continue;
+    const pl = byId(c.visit);
+    if (!pl){ delete c.visit; delete c.visitSeq; continue; }
+    places.set(pl.id, pl);
+  }
+  for (const pl of places.values()){
+    if (hid !== pl.id){
+      // 장소가 오른쪽 끝에 몰려 줄이 화면 밖이면 안쪽으로
+      const maxX = tableSize().w - CW - 8 - step * rowUnits(pl);
+      if (maxX >= 8 && pl.x > maxX + 0.05){ pl.x = maxX; moveEl(pl); moved = true; }
+    }
+    let cursor = pl.x + step;
+    for (const v of visitorsOf(pl)){
+      const tx = cursor, ty = pl.y;
+      cursor += step * (1 + attachedList(v).length);
+      if (hv && hv.id === v.id){
+        // 잡아당기는 중: 자리로 끌어오지 않음. 멀어지면 떠남
+        if (drag && Math.hypot(v.x - tx, v.y - ty) > detachDist()){
+          delete v.visit;
+          delete v.visitSeq;
+          toast(`👋 ${DEFS[v.type].name} — ${DEFS[pl.type].name}에서 떠남`);
+          moved = true;
+        }
+        continue;
+      }
+      if (Math.abs(v.x - tx) > 0.05 || Math.abs(v.y - ty) > 0.05){
+        const k = hid === pl.id ? 1 : 0.35;            // 장소를 끌 땐 바로, 아니면 부드럽게 제자리로
+        const p = clampPos(v.x + (tx - v.x) * k, v.y + (ty - v.y) * k);
+        v.x = p.x; v.y = p.y;
+        moveEl(v);
+        moved = true;
+      }
     }
   }
+  return moved;
+}
+// 선: 방문자를 잡아당기는 동안에만 장소와 이음 (아직 떠나지 않았다는 표시)
+function tetherLinks(){
+  const out = [];
+  const v = heldVisitor();
+  if (v){ const pl = byId(v.visit); if (pl) out.push({ a: pl, b: v, kind: 'visit' }); }
   return out;
 }
 function pullTo(anchor, mover, L, k){
