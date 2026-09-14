@@ -157,8 +157,15 @@
   @keyframes toast{0%{opacity:0;transform:translateY(-6px);}10%{opacity:1;transform:none;}85%{opacity:1;}100%{opacity:0;}}
 
   /* 콜렉터북 */
-  .book{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;padding:16px;}
-  .book-panel{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-lg);width:100%;max-width:660px;max-height:90vh;overflow:auto;padding:20px;box-shadow:var(--sh-lg);}
+  /* 콜렉터북 = 하단에서 올라오는 시트 */
+  .book{position:fixed;left:0;right:0;bottom:0;z-index:2147483200;display:flex;justify-content:center;pointer-events:none;
+    transform:translateY(105%);transition:transform .38s cubic-bezier(.2,.85,.25,1);}
+  .book.open{transform:translateY(0);}
+  .book-grip{width:44px;height:4px;border-radius:4px;background:var(--hairline);margin:0 auto 12px;}
+  .slot.reg{animation:reg .55s cubic-bezier(.2,1.4,.4,1);border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.5),0 0 18px rgba(255,212,0,.35);}
+  @keyframes reg{0%{transform:scale(.4) rotate(-12deg);opacity:.2;}60%{transform:scale(1.15) rotate(3deg);opacity:1;}100%{transform:scale(1) rotate(0);opacity:1;}}
+  .book-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--hairline);border-bottom:none;border-radius:var(--r-lg) var(--r-lg) 0 0;
+    width:100%;max-width:720px;max-height:62vh;overflow:auto;padding:10px 20px calc(env(safe-area-inset-bottom,0px) + 20px);box-shadow:0 -12px 40px rgba(0,0,0,.55);}
   .book-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
   .book-head h2{margin:0 0 12px;font-size:22px;}
   .book-head small,.book-sub small{color:var(--muted);font-weight:600;font-size:14px;margin-left:6px;}
@@ -184,14 +191,14 @@
     <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
   </div>
   <div class="toasts" id="toasts"></div>
-  <div class="book" id="book" hidden></div>
+  <div class="book" id="book"></div>
   <div class="devnote" id="devnote" hidden></div>
 
 <script>
 (() => {
 'use strict';
 
-const VERSION = 'v0.21.0';
+const VERSION = 'v0.22.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -560,8 +567,7 @@ function renderAll(){
   popFrom.clear();
   bumpIds.clear();
   if (newSeen.length){
-    if (newSeen.length === 1) toast(`📖 새 카드: ${DEFS[newSeen[0]].emoji} ${DEFS[newSeen[0]].name}`);
-    else toast(`📖 새 카드 ${newSeen.length}장 기록 ` + newSeen.map(t => DEFS[t].emoji).join(' '));
+    showDiscoveries(newSeen);                 // 콜렉터북이 올라와 새 카드를 등록
     newSeen = [];
   }
   const n = PAGE.ids.filter(id => S.seen.includes(id)).length;
@@ -872,6 +878,7 @@ function apply(ev, d, t){
     }
     if (!S.found.includes(r.id)){
       S.found.push(r.id);
+      if (bookOpen && !discoRunning) renderBook();
       toast('✨ 새 조합: ' + recipeText(r));
       if (!S.flags.discovered){
         S.flags.discovered = true;
@@ -1504,29 +1511,84 @@ async function copyField(){
 }
 
 // ── 콜렉터북 (카드 아님) ──────────────────────────────
-function openBook(){
+let bookOpen = false;          // 시트가 올라와 있나
+let bookManual = false;        // 버튼으로 연 상태 (자동으로 닫지 않음)
+let bookPending = new Set();   // 아직 등록 연출 전이라 ??? 로 보일 카드
+let discoQ = [], discoRunning = false, discoTimer = null;
+function renderBook(){
   const seen = new Set(S.seen);
-  const n = PAGE.ids.filter(id => seen.has(id)).length;
-  let html = '<div class="book-panel"><div class="book-head"><div>';
-  html += `<span class="eyebrow">콜렉터북</span><h2>${esc(PAGE.title)}<small>${n} / ${PAGE.ids.length}</small></h2>`;
+  const shown = id => seen.has(id) && !bookPending.has(id);
+  const n = PAGE.ids.filter(shown).length;
+  let html = '<div class="book-panel"><div class="book-grip"></div><div class="book-head"><div>';
+  html += `<span class="eyebrow">콜렉터북</span><h2>${esc(PAGE.title)}<small class="book-count">${n} / ${PAGE.ids.length}</small></h2>`;
   html += '</div><button class="btn btn-secondary btn-sm" data-close>닫기</button></div><div class="book-grid">';
   for (const id of PAGE.ids){
     const d = DEFS[id];
-    html += seen.has(id)
-      ? `<div class="slot"><div class="e">${d.emoji}</div><div class="n">${esc(d.name)}</div></div>`
-      : '<div class="slot unseen"><div class="e">❔</div><div class="n">???</div></div>';
+    html += shown(id)
+      ? `<div class="slot" data-slot="${id}"><div class="e">${d.emoji}</div><div class="n">${esc(d.name)}</div></div>`
+      : `<div class="slot unseen" data-slot="${id}"><div class="e">❔</div><div class="n">???</div></div>`;
   }
   html += `</div><h3 class="book-sub">발견한 조합<small>${S.found.length} / ${RECIPES.length}</small></h3><ul class="recipes">`;
   for (const r of RECIPES){
-    if (S.found.includes(r.id)){
-      html += `<li>${esc(recipeText(r))}</li>`;
-    } else {
-      html += '<li class="unknown">??? + ??? → ???</li>';
-    }
+    html += S.found.includes(r.id) ? `<li>${esc(recipeText(r))}</li>` : '<li class="unknown">??? + ??? → ???</li>';
   }
   html += '</ul></div>';
   book.innerHTML = html;
-  book.hidden = false;
+}
+function setBookOpen(open){
+  bookOpen = open;
+  book.classList.toggle('open', open);
+}
+// 상단 버튼: 하단에서 올라오고, 다시 누르면 하단으로 사라짐
+function toggleBook(){
+  if (bookOpen){
+    bookManual = false;
+    setBookOpen(false);
+  } else {
+    bookManual = true;
+    renderBook();
+    setBookOpen(true);
+  }
+}
+// 새 카드 발견: 시트가 올라오고 칸마다 아이콘이 차례로 등록됨 → 잠시 뒤 내려감
+function showDiscoveries(types){
+  const add = types.filter(t => PAGE.ids.includes(t) && !discoQ.includes(t));
+  if (!add.length) return;
+  discoQ.push(...add);
+  for (const t of add) bookPending.add(t);
+  if (!discoRunning) runDiscoveries();
+}
+function runDiscoveries(){
+  clearTimeout(discoTimer);
+  if (!discoQ.length){
+    discoRunning = false;
+    if (!bookManual) discoTimer = setTimeout(() => { if (!bookManual && !discoRunning) setBookOpen(false); }, 1200);
+    return;
+  }
+  discoRunning = true;
+  const batch = discoQ.splice(0);
+  renderBook();
+  const delay = bookOpen ? 150 : 430;             // 막 올라오는 중이면 다 올라온 뒤에 등록
+  setBookOpen(true);
+  batch.forEach((t, i) => setTimeout(() => registerSlot(t), delay + i * 320));
+  discoTimer = setTimeout(runDiscoveries, delay + batch.length * 320 + 250);
+}
+function registerSlot(t){
+  bookPending.delete(t);
+  const slot = book.querySelector(`.slot[data-slot="${t}"]`);
+  if (!slot) return;
+  const d = DEFS[t];
+  slot.classList.remove('unseen');
+  slot.innerHTML = `<div class="e">${d.emoji}</div><div class="n">${esc(d.name)}</div>`;
+  slot.classList.remove('reg');
+  void slot.offsetWidth;                          // 애니메이션 다시 시작
+  slot.classList.add('reg');
+  slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const cnt = book.querySelector('.book-count');
+  if (cnt){
+    const seen = new Set(S.seen);
+    cnt.textContent = `${PAGE.ids.filter(id => seen.has(id) && !bookPending.has(id)).length} / ${PAGE.ids.length}`;
+  }
 }
 
 // ── 밀어내기 (물리) ───────────────────────────────────
@@ -1865,10 +1927,10 @@ table.addEventListener('pointerdown', onDown);
 window.addEventListener('pointermove', onMove);
 window.addEventListener('pointerup', onUp);
 window.addEventListener('pointercancel', onUp);
-document.getElementById('bookBtn').addEventListener('click', openBook);
+document.getElementById('bookBtn').addEventListener('click', toggleBook);
 document.getElementById('copyBtn').addEventListener('click', copyField);
 book.addEventListener('click', e => {
-  if (e.target === book || e.target.closest('[data-close]')) book.hidden = true;
+  if (e.target.closest('[data-close]')){ bookManual = false; setBookOpen(false); }
 });
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
