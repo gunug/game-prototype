@@ -187,16 +187,16 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.17.2';
+const VERSION = 'v0.18.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   request:   { name:'request',     emoji:'📜', kind:'request' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['칼', '방패'], baseAtk:0 },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0 },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
-  stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
+  stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   grass:     { name:'마른 풀',     emoji:'🌾', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
@@ -204,7 +204,7 @@ const DEFS = {
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
   shell:     { name:'조개',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
-  handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2'] },
+  handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
   marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
   clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
   meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
@@ -215,7 +215,7 @@ const DEFS = {
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
   campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불', '장소'] },
   ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
-  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['칼'], atk:1 },
+  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['무기'], atk:3 },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -431,6 +431,10 @@ function load(){
     st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
     st.flags = st.flags || {};
     for (const c of st.cards) if (c.type === 'request' && !Array.isArray(c.stack)) c.stack = [];
+    for (const c of st.cards){                      // v0.18.0: 칼 → 무기 이름 변경
+      if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
+      if (c.type === 'request' && c.slot === '칼') c.slot = '무기';
+    }
     if (!st.cards.length) return false;
     S = st;
     return true;
@@ -685,7 +689,7 @@ function giveKnightQuest(kind){
   const spec = {
     bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
     food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], reward: 'hilt' },
-    sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '칼', target: k.id, need: 0, stack: [] },
+    sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
