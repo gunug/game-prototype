@@ -65,6 +65,9 @@
   .cw .equip span[data-slot]{pointer-events:auto;cursor:grab;touch-action:none;}
   .cw .equip span.empty{font-size:calc(var(--cw) * .085);color:var(--muted);border-style:dashed;padding:0 3px;}
   .cw .heal{color:#ff8f8f;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
+  .cw .cap{position:absolute;left:6px;top:5px;font-size:calc(var(--cw) * .1);font-weight:700;color:var(--body);pointer-events:none;}
+  .cw .pie{position:absolute;right:6px;top:6px;width:calc(var(--cw) * .2);height:calc(var(--cw) * .2);border-radius:50%;
+    background:conic-gradient(#7fdc9a calc(var(--p, 0) * 360deg), rgba(255,255,255,.14) 0);box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;transition:background .3s;}
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
   .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
   .cw .tags{position:absolute;left:3px;right:3px;bottom:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
@@ -198,7 +201,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.22.0';
+const VERSION = 'v0.23.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -222,9 +225,9 @@ const DEFS = {
   hide:      { name:'가죽',        emoji:'🟫', kind:'material', tags:[] },
   stick:     { name:'뾰족한 막대', emoji:'🥢', kind:'tool', tags:['불에 타는'] },
   tinder:    { name:'불쏘시개',    emoji:'🪹', kind:'material', tags:['불에 타는'] },
-  bedding:   { name:'풀 깔개',     emoji:'🛏️', kind:'material', tags:['불에 타는'] },
+  bedding:   { name:'풀 깔개',     emoji:'🛏️', kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
-  campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불', '장소'] },
+  campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불', '장소'], capacity:3 },
   ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['무기'], atk:3 },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
@@ -447,6 +450,7 @@ function load(){
     for (const c of st.cards){                      // v0.18.0: 칼 → 무기 이름 변경
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
+      if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
     if (!st.cards.length) return false;
@@ -512,6 +516,8 @@ function paint(el, c){
       html += `<div class="speech">${esc(speech)}</div>`;             // 갇힌 갓이 package 안에서 말함
     }
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
+    if (d.capacity) html += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
+    if (tagLevel(d, '체력 회복') && visitorsOf(c).length) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
     if (tags.length || combo){
       html += '<div class="tags">' + (combo ? '<span class="tag combo">조합 가능</span>' : '')
         + tags.map(t => `<span class="tag${statusOf(c).includes(t) ? ' st' : ''}">${esc(t)}</span>`).join('') + '</div>';
@@ -669,6 +675,10 @@ function reqDone(rq){
     const t = byId(rq.target);
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
   }
+  if (rq.goal === 'hpMin'){
+    const t = byId(rq.target);
+    return !!t && t.hp >= rq.min && !statusOf(t).includes('빈사');
+  }
   if (rq.goal === 'equip'){
     const t = byId(rq.target);
     return !!t && !!(t.equip && t.equip[rq.slot]);          // 그 칸에 뭐든 장비하면 완료
@@ -679,6 +689,10 @@ function reqProgress(rq){
   if (rq.goal === 'fullHp'){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
+  }
+  if (rq.goal === 'hpMin'){
+    const t = byId(rq.target);
+    return t ? `체력 ${t.hp} / ${rq.min}` : '대상 없음';
   }
   if (rq.goal === 'equip'){
     const t = byId(rq.target);
@@ -701,7 +715,8 @@ function reqReward(rq){
 //   stage 0: 시작 (빈사) → "..." → 뼛가루의 치유력
 //   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
 //   stage 3: 밥이 보약 완료 (빈사 해결) → 칼을 들어라
-//   stage 4: 칼을 들어라 완료
+//   stage 4: 무기를 들어라 완료 → 잠이 보약
+//   stage 5: 잠이 보약 완료
 let knightSpeech = null, knightTimer = null;
 function repaint(type){
   if (drag) return;
@@ -725,7 +740,8 @@ function giveKnightQuest(kind){
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
     bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
-    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], reward: 'hilt' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'hpMin', min: 5, target: k.id, need: 0, stack: [], reward: 'hilt' },
+    sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], rewardText: '보상 없음' },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
@@ -749,12 +765,17 @@ function knightCheck(){
   if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
   if (stage === 2 && !questExists('foodmedicine')) giveKnightQuest('food');
   if (stage === 3 && !questExists('takesword')) giveKnightQuest('sword');
+  if (stage === 4 && !questExists('sleepmedicine')) giveKnightQuest('sleep');
 }
 
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
 function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
-  if (dd.kind === 'character' && tagLevel(td, '장소')) return { act: 'visit' };   // 방문
+  if (dd.kind === 'character' && tagLevel(td, '장소')){
+    // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
+    const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
+    return { act: 'visit', full: others >= (td.capacity || Infinity) };
+  }
   const edible = tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유');
   if (td.kind === 'quest'){
     if (t.goal === 'equip'){
@@ -762,7 +783,7 @@ function evaluate(d, t){
       const tg = byId(t.target);
       return tg && tagLevel(dd, t.slot) ? { act: 'equip', slot: t.slot, onto: tg } : null;
     }
-    if (t.goal === 'fullHp'){
+    if (t.goal === 'fullHp' || t.goal === 'hpMin'){
       // 조건형 request에 음식을 내려놓으면 대상에게 먹인 것과 같음
       const tg = byId(t.target);
       return tg && edible ? { act: 'eat', feed: tg } : null;
@@ -800,6 +821,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'visit'){
+    if (ev.full){ toast(`자리가 가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].capacity}명`); return false; }
     if (d.visit !== t.id){ d.visit = t.id; d.visitSeq = ++S.z; }   // 방문: 장소 오른쪽 줄 끝에 섬
     bumpIds.add(t.id);
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
@@ -975,6 +997,11 @@ function rewardFor(rq, x, y){
   if (rq.quest === 'takesword'){
     S.flags.knightStage = 4;
     toast('⚔ 무기를 들었다');
+    return;
+  }
+  if (rq.quest === 'sleepmedicine'){
+    S.flags.knightStage = 5;
+    toast('💤 잠이 보약 완료');
     return;
   }
   addCard('package', x, y, { contents: 'tutorial' });
@@ -1295,7 +1322,8 @@ function pickTarget(clientX, clientY, c){
     if (ox <= 0 || oy <= 0) continue;
     const area = ox * oy;
     if (area < minArea) continue;
-    const score = area * (evaluate(c, o) ? 2 : 1);
+    const ev = evaluate(c, o);
+    const score = area * (ev && !ev.full ? 2 : 1);
     if (score > bestScore){ bestScore = score; best = o; }
   }
   if (best) return best;
@@ -1323,7 +1351,8 @@ function setTarget(t, c){
   const el = els.get(t.id);
   if (!el) return;
   el.classList.add('is-target');
-  if (!evaluate(c, t)) el.classList.add('no');
+  const ev = evaluate(c, t);
+  if (!ev || ev.full) el.classList.add('no');
 }
 function onMove(e){
   if (tear && e.pointerId === tear.pid){
@@ -1438,6 +1467,49 @@ function onUp(e){
     return;
   }
   afterChange();                                  // 빈 자리 → 이동
+}
+
+// ── 체력 회복 장소 ─────────────────────────────────────
+//   "체력 회복 lvN" 장소를 방문한 캐릭터는 60초 / N 마다 체력 +1
+//   빈사는 회복 안 됨 (빈사 치유가 필요). 체력이 가득이면 게이지 멈춤
+const REST_MS = 60000;
+function pieValue(pl){
+  const lv = tagLevel(DEFS[pl.type], '체력 회복');
+  const v = visitorsOf(pl)[0];
+  if (!lv || !v) return 0;
+  return Math.min(1, (v.restMs || 0) / (REST_MS / lv));
+}
+function restTick(){
+  if (!S) return;
+  let hpChanged = false;
+  for (const v of S.cards){
+    if (v.visit == null || v.hp == null) continue;
+    const pl = byId(v.visit);
+    if (!pl) continue;
+    const lv = tagLevel(DEFS[pl.type], '체력 회복');
+    if (!lv) continue;
+    const max = DEFS[v.type].hp;
+    if (v.hp >= max || statusOf(v).includes('빈사')){ v.restMs = 0; continue; }
+    const period = REST_MS / lv;
+    v.restMs = (v.restMs || 0) + 1000;
+    if (v.restMs >= period){
+      v.restMs -= period;
+      v.hp = Math.min(max, v.hp + 1);
+      bumpIds.add(v.id);
+      toast(`💤 ${DEFS[v.type].name} 체력 +1`);
+      if (v.hp >= max && statusOf(v).includes('허기짐')){
+        setStatus(v, ['허기짐'], []);
+        toast(`🍽️ ${DEFS[v.type].name}: 허기짐 해결`);
+      }
+      hpChanged = true;
+    }
+  }
+  if (hpChanged){ afterChange(); return; }
+  for (const pl of S.cards){                    // 게이지만 갱신
+    const el = els.get(pl.id);
+    const pie = el && el.querySelector('.pie');
+    if (pie) pie.style.setProperty('--p', pieValue(pl));
+  }
 }
 
 // ── 첫 package: 안에 갇힌 갓이 모서리를 당기라고 함 ───
@@ -1965,6 +2037,7 @@ validateRecipes();
 
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!drag && !tear && !busy){ godCheck(); trappedHint(false); } }, 5000);
+setInterval(restTick, 1000);                   // 체력 회복 장소
 
 measure();
 if (load()){
