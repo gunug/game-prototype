@@ -151,7 +151,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.1.0';
+const VERSION = 'v0.1.1';
 const STORE = 'card-world-rpg.v1';
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -226,6 +226,7 @@ const LINES = {
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
   bounce:         ['그건 안 돼. 나도 해봤어.', '신도 모르는 조합이네.', '…아니야, 그거.'],
   stuck:          ['막혔지? 아무거나 줘봐.', '할 게 없으면 나한테 와.'],
+  reissue:        ['어? 그걸로는 못 채우겠네. 다시 줄게.', '막혔구나. 조건 바꿔줄게.', '신은 관대하지. 이번만.'],
   free:           '빈손이야? …이번만이다.',
   fullHp:         ['배부르대. 말은 안 해도.'],
 };
@@ -561,29 +562,55 @@ function scheduleGod(){
   clearTimeout(godTimer);
   godTimer = setTimeout(godCheck, 1400);
 }
+// 고착: package도 없고, 할 수 있는 조합도 없고, 남은 request는 전부 채울 수 없음
+function submittableCount(){
+  return S.cards.filter(c => submittable(DEFS[c.type])).length;
+}
+function impossible(rq){
+  return rq.stack.length + submittableCount() < rq.need;
+}
 function godCheck(){
   if (drag || tear || busy || settling.size){ scheduleGod(); return; }
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god')) return;
-  if (has('request') || has('package')) return;
+  if (has('package')) return;
+  const requests = S.cards.filter(c => c.type === 'request');
+  if (requests.length){
+    if (!anyRecipe() && requests.every(impossible)) reissueRequest(requests);
+    return;
+  }
   if (S.flags.discovered && anyRecipe()) return;   // 첫 발견 뒤엔 막혔을 때만
   giveRequest();
 }
-function giveRequest(){
+function reissueRequest(requests){
+  // 채울 수 없는 request는 치우고, 쌓여 있던 카드는 테이블로 돌려준다
+  for (const rq of requests){
+    for (const type of rq.stack){
+      const p = findSpot(rq.x, rq.y + CH * 0.3);
+      addCard(type, p.x, p.y, null, true);
+    }
+    removeCard(rq.id);
+  }
+  say(pick(LINES.reissue));
+  giveRequest(true);
+}
+function giveRequest(silent){
   const god = S.cards.find(c => c.type === 'god');
   const { w, h } = tableSize();
   const gx = god ? god.x : w / 2, gy = god ? god.y : h / 2;
-  const avail = S.cards.filter(c => submittable(DEFS[c.type])).length;
+  const avail = submittableCount();
   const p = findSpot(gx + CW * 1.1, gy);
   if (avail === 0){
     addCard('package', p.x, p.y, { contents: 'tutorial' });
-    say(LINES.free);
+    if (!silent) say(LINES.free);
   } else {
     const need = Math.min(3, avail);
     addCard('request', p.x, p.y, { need, stack: [], title: `아무거나 ${need}개만 줘봐` });
-    if (S.flags.discovered) say(pick(LINES.stuck));
-    else if (S.flags.requestsGiven) say(pick(LINES.again));
-    else say(LINES.firstRequest);
+    if (!silent){
+      if (S.flags.discovered) say(pick(LINES.stuck));
+      else if (S.flags.requestsGiven) say(pick(LINES.again));
+      else say(LINES.firstRequest);
+    }
     S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
   }
   save();
@@ -857,6 +884,9 @@ window.addEventListener('resize', () => {
   }
   renderAll();
 });
+
+// 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
+setInterval(() => { if (!drag && !tear && !busy) godCheck(); }, 5000);
 
 measure();
 if (load()){
