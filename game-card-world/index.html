@@ -92,6 +92,10 @@
   @keyframes pop{from{transform:translate(var(--fx),var(--fy)) scale(.2);opacity:0;}60%{opacity:1;}to{transform:none;opacity:1;}}
   .cw.bump{animation:bump .3s ease-out;}
   .cw.gone{animation:gone .3s ease-in forwards;}
+  /* 카드 위로 떠오르는 수치 (체력 +N 등) */
+  .float{position:absolute;z-index:2147482500;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cw) * .22);
+    color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1.2s ease-out forwards;}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,10px) scale(.7);}15%{opacity:1;transform:translate(-50%,0) scale(1.15);}100%{opacity:0;transform:translate(-50%,-44px) scale(1);}}
   @keyframes spawn{from{transform:scale(.4);opacity:0;}to{transform:scale(1);opacity:1;}}
   @keyframes bump{0%{transform:scale(1);}40%{transform:scale(1.12);}100%{transform:scale(1);}}
   @keyframes gone{to{transform:scale(.3);opacity:0;}}
@@ -203,7 +207,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.25.3';
+const VERSION = 'v0.25.4';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -908,7 +912,9 @@ function apply(ev, d, t){
     const heal = healOf(dd);
     if (heal <= 0){ toast('효과 없음'); return false; }
     if (t.hp >= max){ toast('체력이 가득함'); return false; }
+    const before = t.hp;
     t.hp = Math.min(max, t.hp + heal);
+    floatText(t, `❤ +${t.hp - before}`);          // 먹어서 오른 체력
     removeCard(d.id);
     bumpIds.add(t.id);
     // 허기짐은 체력을 최대치까지 채우면 해결
@@ -1518,6 +1524,17 @@ function onUp(e){
   afterChange();                                  // 빈 자리 → 이동
 }
 
+// 카드 위에 +N 같은 수치를 띄움 (떠오르며 사라짐)
+function floatText(c, text){
+  const f = document.createElement('div');
+  f.className = 'float';
+  f.textContent = text;
+  f.style.left = (c.x + CW / 2) + 'px';
+  f.style.top = (c.y - CH * 0.05) + 'px';
+  table.appendChild(f);
+  setTimeout(() => f.remove(), 1250);
+}
+
 // ── 체력 회복 장소 ─────────────────────────────────────
 //   "체력 회복 lvN" 장소를 방문한 캐릭터는 15초 / N 마다 체력 +1
 //   장소마다 게이지 하나. 다 차면 방문자 전원 한꺼번에 +1. 빈사는 회복 안 됨 (빈사 치유가 필요)
@@ -1544,6 +1561,7 @@ function restTick(){
     pl.restMs -= period;
     for (const v of healable){
       v.hp = Math.min(DEFS[v.type].hp, v.hp + 1);
+      floatText(v, '❤ +1');                               // 쉬어서 오른 체력
       bumpIds.add(v.id);
       if (v.hp >= DEFS[v.type].hp && statusOf(v).includes('허기짐')){
         setStatus(v, ['허기짐'], []);
@@ -1551,7 +1569,6 @@ function restTick(){
       }
     }
     bumpIds.add(pl.id);
-    toast(`💤 ${DEFS[pl.type].name}: ${healable.map(v => DEFS[v.type].name).join(', ')} 체력 +1`);
     hpChanged = true;
   }
   if (hpChanged){ afterChange(); return; }
