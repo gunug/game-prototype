@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.17.0';
+const VERSION = 'v0.17.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1299,6 +1299,7 @@ function onMove(e){
   const p = clampPos(px - drag.offX, py - drag.offY);
   const lim = attachLimits(c);                                  // 붙음 묶음은 통째로 화면 안에
   p.x = Math.max(lim.minX, Math.min(p.x, Math.max(lim.minX, lim.maxX)));
+  if (lim.maxY != null) p.y = Math.min(p.y, Math.max(TOP_PAD, lim.maxY));
   c.x = p.x; c.y = p.y;
   drag.el.style.left = p.x + 'px';
   drag.el.style.top = p.y + 'px';
@@ -1568,7 +1569,11 @@ function attachLimits(c){
     }
   }
   const units = rowUnits(c);
-  if (units) return { minX: 8, maxX: maxBase - step * units };  // 장소: 방문자 줄까지 화면 안에
+  if (units){
+    // 장소: 방문자 열(가로는 가장 긴 줄, 세로는 방문자 수)까지 화면 안에
+    const n = visitorsOf(c).length;
+    return { minX: 8, maxX: maxBase - step * units, maxY: tableSize().h - CH - 8 - (CH + 6) * (n - 1) };
+  }
   return { minX: 8, maxX: maxBase - step * attachedList(c).length };
 }
 function solveAttach(){
@@ -1611,14 +1616,15 @@ function solveAttach(){
 //   아무도 안 끌 때는 b쪽(request·방문자)이 제 거리로 천천히 돌아감
 const tetherLen = () => CW * 1.6;              // 카드 중심 사이 거리. 밀어내기 간격보다 길게
 // ── 방문 줄 ───────────────────────────────────────────
-// 방문한 캐릭터는 장소 오른쪽에 방문 순서대로 줄지어 섬 (캐릭터에 붙은 request 자리까지 비워둠)
+// 방문한 캐릭터는 장소 오른쪽에 위에서 아래로 섬 (먼저 방문한 캐릭터가 위). 장소와 선으로 이어짐
 // 장소를 끌면 줄이 딸려 움직임. 캐릭터를 잡아당겨 자리에서 멀어지면 떠남
 const detachDist = () => CW * 1.1;           // 자리에서 이만큼(카드 위치 거리) 벗어나면 떠남
 function visitorsOf(pl){
   return S.cards.filter(c => c.visit === pl.id).sort((a, b) => ((a.visitSeq || 0) - (b.visitSeq || 0)) || (a.id - b.id));
 }
 function rowUnits(pl){
-  return visitorsOf(pl).reduce((n, v) => n + 1 + attachedList(v).length, 0);
+  // 가장 긴 줄의 칸 수 (방문자 1칸 + 그 방문자에 붙은 request 수)
+  return visitorsOf(pl).reduce((n, v) => Math.max(n, 1 + attachedList(v).length), 0);
 }
 function heldVisitor(){
   const hid = heldId();
@@ -1640,16 +1646,20 @@ function solveVisit(){
     if (!pl){ delete c.visit; delete c.visitSeq; continue; }
     places.set(pl.id, pl);
   }
+  const vstep = CH + 6;
   for (const pl of places.values()){
+    const list = visitorsOf(pl);
     if (hid !== pl.id){
-      // 장소가 오른쪽 끝에 몰려 줄이 화면 밖이면 안쪽으로
-      const maxX = tableSize().w - CW - 8 - step * rowUnits(pl);
+      // 장소가 끝에 몰려 방문자 열이 화면 밖이면 안쪽으로
+      const { w, h } = tableSize();
+      const maxX = w - CW - 8 - step * rowUnits(pl);
+      const maxY = h - CH - 8 - vstep * (list.length - 1);
       if (maxX >= 8 && pl.x > maxX + 0.05){ pl.x = maxX; moveEl(pl); moved = true; }
+      if (maxY >= TOP_PAD && pl.y > maxY + 0.05){ pl.y = maxY; moveEl(pl); moved = true; }
     }
-    let cursor = pl.x + step;
-    for (const v of visitorsOf(pl)){
-      const tx = cursor, ty = pl.y;
-      cursor += step * (1 + attachedList(v).length);
+    for (let i = 0; i < list.length; i++){
+      const v = list[i];
+      const tx = pl.x + step, ty = pl.y + vstep * i;           // 오른쪽 열, 방문 순서대로 아래로
       if (hv && hv.id === v.id){
         // 잡아당기는 중: 자리로 끌어오지 않음. 멀어지면 떠남
         if (drag && Math.hypot(v.x - tx, v.y - ty) > detachDist()){
@@ -1671,11 +1681,14 @@ function solveVisit(){
   }
   return moved;
 }
-// 선: 방문자를 잡아당기는 동안에만 장소와 이음 (아직 떠나지 않았다는 표시)
+// 선: 장소와 방문자를 항상 이음
 function tetherLinks(){
   const out = [];
-  const v = heldVisitor();
-  if (v){ const pl = byId(v.visit); if (pl) out.push({ a: pl, b: v, kind: 'visit' }); }
+  for (const c of S.cards){
+    if (c.visit == null) continue;
+    const pl = byId(c.visit);
+    if (pl) out.push({ a: pl, b: c, kind: 'visit' });
+  }
   return out;
 }
 function pullTo(anchor, mover, L, k){
