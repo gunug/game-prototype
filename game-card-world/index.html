@@ -137,7 +137,10 @@
     background:var(--ink);color:#1a1a17;font-size:13px;font-weight:600;line-height:1.35;
     padding:8px 12px;border-radius:12px;box-shadow:var(--sh-md);pointer-events:none;
   }
-  .speech::after{content:'';position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:var(--ink);}
+  .speech::after{content:'';position:absolute;top:100%;left:calc(50% + var(--arrow-x, 0px));margin-left:-6px;border:6px solid transparent;border-top-color:var(--ink);}
+  /* 위로 나갈 자리가 없으면 카드 아래에 */
+  .speech.below{bottom:auto;top:calc(100% + 10px);}
+  .speech.below::after{top:auto;bottom:100%;border-top-color:transparent;border-bottom-color:var(--ink);}
 
   /* 알림 */
   .toasts{
@@ -187,7 +190,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.18.0';
+const VERSION = 'v0.19.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -354,7 +357,7 @@ const submittable = def => !['character', 'package', 'request'].includes(def.kin
 
 function measure(){
   const m = Math.min(innerWidth, innerHeight);
-  CW = Math.round(Math.max(68, Math.min(104, m / 6.2)));
+  CW = Math.round(Math.max(102, Math.min(156, m / 4.13)));     // v0.19.0: 1.5배
   CH = Math.round(CW * 1.36);
   table.style.setProperty('--cw', CW + 'px');
   table.style.setProperty('--ch', CH + 'px');
@@ -434,6 +437,7 @@ function load(){
     for (const c of st.cards){                      // v0.18.0: 칼 → 무기 이름 변경
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
       if (c.type === 'request' && c.slot === '칼') c.slot = '무기';
+      if (c.type === 'request' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
     if (!st.cards.length) return false;
     S = st;
@@ -505,6 +509,29 @@ function paint(el, c){
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
   el.innerHTML = html;
+  const bubble = el.querySelector('.speech');
+  if (bubble) fitBubble(bubble);
+}
+// 말풍선이 화면 밖으로 나가지 않게: 좌우로 밀어 넣고(꼬리는 말하는 카드 쪽 유지), 위로 나가면 카드 아래로
+function fitBubble(b){
+  const tr = table.getBoundingClientRect();
+  const cr = b.parentElement.getBoundingClientRect();
+  const bw = b.offsetWidth, bh = b.offsetHeight;
+  const margin = 8;
+  const center = cr.left + cr.width / 2 - tr.left;
+  let shift = 0;
+  if (center - bw / 2 < margin) shift = margin - (center - bw / 2);
+  else if (center + bw / 2 > tr.width - margin) shift = (tr.width - margin) - (center + bw / 2);
+  const below = (cr.top - tr.top) - bh - 12 < margin;
+  const key = Math.round(shift) + (below ? 'b' : 't');
+  if (b.dataset.fit === key) return;
+  b.dataset.fit = key;
+  b.style.transform = `translateX(calc(-50% + ${shift}px))`;
+  b.style.setProperty('--arrow-x', `${-shift}px`);
+  b.classList.toggle('below', below);
+}
+function fitBubbles(){
+  for (const b of table.querySelectorAll('.speech')) fitBubble(b);
 }
 function renderAll(){
   if (drag) return;
@@ -689,7 +716,7 @@ function giveKnightQuest(kind){
   const spec = {
     bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
     food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], reward: 'hilt' },
-    sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
+    sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
@@ -936,7 +963,7 @@ function rewardFor(rq, x, y){
   }
   if (rq.quest === 'takesword'){
     S.flags.knightStage = 4;
-    toast('⚔ 칼을 들었다');
+    toast('⚔ 무기를 들었다');
     return;
   }
   addCard('package', x, y, { contents: 'tutorial' });
@@ -1520,6 +1547,7 @@ function physStep(){
   if (moved) physDirty = true;
   else if (physDirty && !drag){ physDirty = false; save(); }   // 멈추면 한 번 저장
   drawLinks();
+  fitBubbles();                                // 카드가 움직여도 말풍선은 화면 안에
 }
 // ── request 붙이기 ─────────────────────────────────────
 // 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 왼쪽으로는 가지 않음
