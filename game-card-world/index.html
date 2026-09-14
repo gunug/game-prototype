@@ -98,6 +98,11 @@
   .tab svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
   .tab path{fill:none;stroke:var(--brand-yellow);stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   .cw.peeling{cursor:grabbing;}
+  .tab-piece{position:absolute;z-index:2000000002;pointer-events:none;transform-origin:35% 35%;
+    background:linear-gradient(135deg,rgba(255,212,0,.38),#3b3521 75%);}
+  .tab-piece.ready{background:linear-gradient(135deg,rgba(255,212,0,.7),#4a4226 75%);}
+  .tab-piece svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+  .tab-piece path{fill:none;stroke:var(--brand-yellow);stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;}
   .cw.ready{box-shadow:0 0 0 2px var(--brand-yellow),var(--sh-lg);}
   .half{pointer-events:none;}
   .half-l{clip-path:inset(0 50% 0 0);animation:tearL .5s ease-in forwards;}
@@ -176,7 +181,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.12.0';
+const VERSION = 'v0.13.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -496,7 +501,7 @@ function renderAll(){
       els.set(c.id, el);
     }
     el.style.visibility = '';
-    el.style.transform = '';
+    if (!(tear && tear.id === c.id)){ el.style.transform = ''; el.style.clipPath = ''; }
     paint(el, c);
   }
   for (const [id, el] of els){
@@ -970,41 +975,111 @@ function deliverGift(){
 
 // ── package 오픈 ──────────────────────────────────────
 const tearLen = () => CW * 0.9;
+// 택 = 좌상단 삼각형. 뜯긴 선은 들쭉날쭉
+const tabSize = () => ({ tw: CW * 0.36, th: CH * 0.27 });
+// (x1,y1) → (x2,y2) 사이 들쭉날쭉한 점들 (양 끝점 제외). 모양은 고정이라 매 프레임 흔들리지 않음
+function jagLine(x1, y1, x2, y2, n, amp, seed){
+  const pts = [];
+  const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+  const nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
+  for (let i = 1; i < n; i++){
+    const t = i / n;
+    const a = ((((i * 7 + seed) % 5) / 4) - 0.5) * 2 * amp;
+    pts.push([x1 + (x2 - x1) * t + nx * a, y1 + (y2 - y1) * t + ny * a]);
+  }
+  return pts;
+}
+const poly = pts => 'polygon(' + pts.map(([x, y]) => `${x.toFixed(1)}px ${y.toFixed(1)}px`).join(', ') + ')';
+const tearEdge = () => { const { tw, th } = tabSize(); return jagLine(tw, 0, 0, th, 9, 2.2, 3); };
+// 모서리가 뜯겨 나간 카드 모양
+function cardMinusTab(){
+  const { tw, th } = tabSize();
+  return [[tw, 0], [CW, 0], [CW, CH], [0, CH], [0, th], ...tearEdge().reverse()];
+}
+function startPeel(){
+  const c = byId(tear.id);
+  const { tw, th } = tabSize();
+  const piece = document.createElement('div');
+  piece.className = 'tab-piece';
+  piece.style.left = c.x + 'px';
+  piece.style.top = c.y + 'px';
+  piece.style.width = tw + 'px';
+  piece.style.height = th + 'px';
+  piece.style.clipPath = poly([[0, 0], [tw, 0], ...tearEdge(), [0, th]]);
+  piece.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>';
+  table.appendChild(piece);
+  tear.piece = piece;
+  if (tear.tab) tear.tab.style.visibility = 'hidden';
+  tear.el.style.clipPath = poly(cardMinusTab());     // 카드의 모서리가 뜯겨 나감
+}
 function updateTear(px, py){
   const dx = px - tear.sx, dy = py - tear.sy;
-  tear.dist = Math.hypot(dx, dy);
-  const k = Math.min(1, tear.dist / tearLen());
-  const lim = CW * 0.5;
-  const tx = Math.max(-lim, Math.min(lim, dx)) * 0.6;
-  const ty = Math.max(-lim, Math.min(lim, dy)) * 0.6;
-  if (tear.tab) tear.tab.style.transform = `translate(${tx}px, ${ty}px) rotate(${-k * 25}deg)`;
-  tear.el.style.transform = `rotate(${k * 4}deg)`;
+  const dist = Math.hypot(dx, dy);
+  tear.dist = dist;
+  if (!tear.piece && dist > 3) startPeel();
+  if (!tear.piece) return;
+  const k = Math.min(1, dist / tearLen());
+  const ux = dist ? dx / dist : 0, uy = dist ? dy / dist : 0;
+  // 가까울 땐 카드에 붙어 버티고, 멀어질수록 떨어짐 (고무줄처럼)
+  const off = dist * Math.pow(k, 1.8);
+  tear.ux = ux; tear.uy = uy; tear.off = off;
+  tear.piece.style.transform = `translate(${ux * off}px, ${uy * off}px) rotate(${-k * 28}deg)`;
+  // 카드는 당기는 쪽으로 살짝 끌려옴
+  const tug = k * CW * 0.05;
+  tear.el.style.transform = `translate(${ux * tug}px, ${uy * tug}px) rotate(${k * 3}deg)`;
   tear.el.classList.toggle('ready', k >= 1);
+  tear.piece.classList.toggle('ready', k >= 1);
 }
 function endTear(){
   const t = tear;
   tear = null;
   t.el.classList.remove('peeling', 'ready');
-  if (t.dist >= tearLen()){ openPackage(t.id); return; }
-  // 기준 길이 미만 → 되돌림
-  if (t.tab){ t.tab.style.transition = 'transform .2s'; t.tab.style.transform = ''; }
+  if (t.piece && t.dist >= tearLen()){ openPackage(t.id, t); return; }
+  // 기준 길이 미만 → 택이 제자리로 붙음
+  busy = true;
   t.el.style.transition = 'transform .2s';
   t.el.style.transform = '';
+  if (t.piece){
+    t.piece.style.transition = 'transform .2s';
+    t.piece.style.transform = '';
+  }
   setTimeout(() => {
-    if (t.tab) t.tab.style.transition = '';
     t.el.style.transition = '';
+    t.el.style.clipPath = '';
+    if (t.tab) t.tab.style.visibility = '';
+    if (t.piece) t.piece.remove();
+    busy = false;
   }, 220);
 }
-function openPackage(id){
+function openPackage(id, t){
   const c = byId(id);
   const el = els.get(id);
   if (!c || !el) return;
   busy = true;
-  for (const side of ['l', 'r']){
+  // 뜯긴 택 조각은 당긴 방향으로 날아가며 사라짐
+  if (t && t.piece){
+    const piece = t.piece;
+    const far = (t.off || 0) + CW * 1.2;
+    piece.style.transition = 'transform .45s ease-out, opacity .45s ease-out';
+    requestAnimationFrame(() => {
+      piece.style.transform = `translate(${(t.ux || 0) * far}px, ${(t.uy || 0) * far}px) rotate(-75deg)`;
+      piece.style.opacity = '0';
+    });
+    setTimeout(() => piece.remove(), 480);
+  }
+  // 카드는 뜯긴 모서리를 가진 채 가운데가 들쭉날쭉 찢어져 둘로 갈라짐
+  const { tw, th } = tabSize();
+  const mid = CW / 2;
+  const split = jagLine(mid + 2, 0, mid - 2, CH, 12, 3, 1);            // 위 → 아래
+  const edgeBack = tearEdge().reverse();                               // (0,th) 쪽 → (tw,0) 쪽
+  const left  = [[tw, 0], [mid + 2, 0], ...split, [mid - 2, CH], [0, CH], [0, th], ...edgeBack];
+  const right = [[mid + 2, 0], [CW, 0], [CW, CH], [mid - 2, CH], ...split.slice().reverse()];
+  for (const [side, pts] of [['l', left], ['r', right]]){
     const half = el.cloneNode(true);
     half.className = 'cw k-package half half-' + side;
     half.removeAttribute('data-id');
     half.style.transform = '';
+    half.style.clipPath = poly(pts);
     half.style.zIndex = 2000000001;
     const tab = half.querySelector('.tab');
     if (tab) tab.remove();
