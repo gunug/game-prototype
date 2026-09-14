@@ -57,6 +57,11 @@
   .cw::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--tone);opacity:.10;pointer-events:none;}
   .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
+  .cw .atk{color:#9fd0ff;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
+  .cw .atkv{position:absolute;left:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#9fd0ff;pointer-events:none;}
+  .cw .equip{display:flex;gap:3px;pointer-events:none;}
+  .cw .equip span{min-width:calc(var(--cw) * .24);height:calc(var(--cw) * .24);display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw) * .15);border:1px solid rgba(255,255,255,.15);border-radius:4px;background:rgba(0,0,0,.3);}
+  .cw .equip span.empty{font-size:calc(var(--cw) * .085);color:var(--muted);border-style:dashed;padding:0 3px;}
   .cw .heal{color:#ff8f8f;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
   .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
@@ -168,14 +173,14 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.8.1';
+const VERSION = 'v0.9.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   request:   { name:'request',     emoji:'📜', kind:'request' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능', '과묵'], hp:10, startHp:0, startStatus:['빈사'] },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['칼', '방패'] },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능', '수다쟁이'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -196,7 +201,7 @@ const DEFS = {
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
   campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불'] },
   ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
-  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:[] },
+  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['칼'], atk:1 },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -454,6 +459,16 @@ function paint(el, c){
     html += `<div class="emoji">${d.emoji}</div><div class="name">${esc(d.name)}</div>`;
     const heal = healOf(d);
     if (heal > 0) html += `<div class="heal">❤ +${heal}</div>`;       // 음식 회복량을 이름 아래에
+    if (d.atk) html += `<div class="atk">⚔ +${d.atk}</div>`;           // 장비 공격력
+    if (d.slots){
+      // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름. 왼쪽 위에 공격력 합계
+      const eq = c.equip || {};
+      const atk = Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+      html += `<div class="atkv">⚔ ${atk}</div>`;
+      html += '<div class="equip">' + d.slots.map(sl => eq[sl] && DEFS[eq[sl]]
+        ? `<span title="${esc(sl)}">${DEFS[eq[sl]].emoji}</span>`
+        : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
+    }
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg></div>';
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (tags.length || combo){
@@ -654,6 +669,11 @@ function evaluate(d, t){
     if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
     return submittable(dd) ? { act: 'submit' } : null;
   }
+  if (td.kind === 'character'){
+    // 캐릭터의 장비 칸(칼·방패)과 같은 태그를 가진 카드 → 장비
+    const slot = (td.slots || []).find(sl => tagLevel(dd, sl));
+    if (slot) return { act: 'equip', slot };
+  }
   if (td.kind === 'character' && edible){
     // 이 캐릭터가 준 제출형 request가 이 카드를 원하면, 직접 먹여도 그 request에 들어감
     const into = S.cards.find(r => r.type === 'request' && r.giver === t.id && r.wants === d.type && r.stack.length < r.need);
@@ -675,6 +695,24 @@ function apply(ev, d, t){
     rq.z = ++S.z;
     bumpIds.add(rq.id);
     if (ev.into) bumpIds.add(t.id);
+    return true;
+  }
+  if (ev.act === 'equip'){
+    const slot = ev.slot;
+    t.equip = t.equip || {};
+    const prev = t.equip[slot];
+    removeCard(d.id);
+    t.equip[slot] = d.type;
+    bumpIds.add(t.id);
+    toast(`⚔ ${DEFS[t.type].name}: ${DEFS[d.type].name} 장비 (${slot})`);
+    if (prev && DEFS[prev]){
+      // 같은 칸에 다른 장비가 올라오면 이전 장비는 방출
+      const p = findSpot(t.x + CW * 1.1, t.y + CH * 0.3);
+      const pc = addCard(prev, p.x, p.y, null, true);
+      spawned.delete(pc.id);
+      popFrom.set(pc.id, { x: t.x, y: t.y });
+      toast(`↩ ${DEFS[prev].name} 방출`);
+    }
     return true;
   }
   if (ev.act === 'eat'){
