@@ -61,6 +61,7 @@
   .cw .atkv{position:absolute;left:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#9fd0ff;pointer-events:none;}
   .cw .equip{display:flex;gap:3px;pointer-events:none;}
   .cw .equip span{min-width:calc(var(--cw) * .24);height:calc(var(--cw) * .24);display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw) * .15);border:1px solid rgba(255,255,255,.15);border-radius:4px;background:rgba(0,0,0,.3);}
+  .cw .equip span[data-slot]{pointer-events:auto;cursor:grab;touch-action:none;}
   .cw .equip span.empty{font-size:calc(var(--cw) * .085);color:var(--muted);border-style:dashed;padding:0 3px;}
   .cw .heal{color:#ff8f8f;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
@@ -173,14 +174,14 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.9.0';
+const VERSION = 'v0.9.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   request:   { name:'request',     emoji:'📜', kind:'request' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['칼', '방패'] },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['칼', '방패'], baseAtk:0 },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능', '수다쟁이'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -463,10 +464,10 @@ function paint(el, c){
     if (d.slots){
       // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름. 왼쪽 위에 공격력 합계
       const eq = c.equip || {};
-      const atk = Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+      const atk = (d.baseAtk || 0) + Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
       html += `<div class="atkv">⚔ ${atk}</div>`;
       html += '<div class="equip">' + d.slots.map(sl => eq[sl] && DEFS[eq[sl]]
-        ? `<span title="${esc(sl)}">${DEFS[eq[sl]].emoji}</span>`
+        ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${DEFS[eq[sl]].emoji}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg></div>';
@@ -1032,6 +1033,20 @@ function onDown(e){
     return;
   }
 
+  // 장비 칸에서 장비 끌어내기
+  const eqEl = e.target.closest('.equip span[data-slot]');
+  if (eqEl && c.equip){
+    const slot = eqEl.dataset.slot;
+    const type = c.equip[slot];
+    if (!type) return;
+    delete c.equip[slot];
+    const nc = addCard(type, px - CW / 2, py - CH / 2, null, true);
+    spawned.delete(nc.id);
+    renderAll();
+    startDrag(nc, px, py, e.pointerId, { ox: c.x, oy: c.y, fromEquip: { id: c.id, slot } });
+    return;
+  }
+
   // package 택 당기기
   if (c.type === 'package' && e.target.closest('.tab')){
     tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.tab'), pid: e.pointerId, dist: 0 };
@@ -1049,9 +1064,10 @@ function startDrag(c, px, py, pid, o){
     id: c.id, pid, el,
     offX: px - c.x, offY: py - c.y,
     sx: px, sy: py,
-    moved: !!o.fromRequest,
+    moved: !!(o.fromRequest || o.fromEquip),
     ox: o.ox, oy: o.oy,
     fromRequest: o.fromRequest || null,
+    fromEquip: o.fromEquip || null,
     target: null,
   };
   el.style.zIndex = 2000000000;
@@ -1134,6 +1150,19 @@ function animateTo(el, x, y, done){
 function bounce(c, d0){
   const el = els.get(c.id);
   sayMaybe(LINES.bounce);
+  if (d0.fromEquip){
+    const owner = byId(d0.fromEquip.id);
+    const slot = d0.fromEquip.slot;
+    if (owner && !(owner.equip && owner.equip[slot])){
+      animateTo(el, owner.x, owner.y, () => {
+        removeCard(c.id);
+        owner.equip = owner.equip || {};
+        owner.equip[slot] = c.type;
+        afterChange();
+      });
+      return;
+    }
+  }
   if (d0.fromRequest){
     const rq = byId(d0.fromRequest);
     if (rq){
