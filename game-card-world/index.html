@@ -174,7 +174,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.9.1';
+const VERSION = 'v0.10.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -576,12 +576,16 @@ function healOf(def){
 // ── request 종류 ──────────────────────────────────────
 //   갓: { need:3, stack } 아무거나 → package
 //   제출형 퀘스트: { quest, wants:'카드', need, stack, reward:'카드' }
-//   조건형 퀘스트: { quest, goal:'fullHp', target }
+//   조건형 퀘스트: { quest, goal:'fullHp', target } / { quest, goal:'equip', slot, target }
 const isGodRequest = rq => !rq.quest;
 function reqDone(rq){
   if (rq.goal === 'fullHp'){
     const t = byId(rq.target);
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
+  }
+  if (rq.goal === 'equip'){
+    const t = byId(rq.target);
+    return !!t && !!(t.equip && t.equip[rq.slot]);          // 그 칸에 뭐든 장비하면 완료
   }
   return rq.stack.length >= rq.need;
 }
@@ -590,11 +594,17 @@ function reqProgress(rq){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
   }
+  if (rq.goal === 'equip'){
+    const t = byId(rq.target);
+    const it = t && t.equip && t.equip[rq.slot];
+    return `${rq.slot} 칸: ${it && DEFS[it] ? DEFS[it].emoji : '비어 있음'}`;
+  }
   if (rq.wants) return `${DEFS[rq.wants].emoji} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
   return `${rq.stack.length} / ${rq.need}`;
 }
 function reqReward(rq){
   if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
+  if (rq.goal === 'equip') return '보상 없음';
   if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
   return '보상 📦';
 }
@@ -602,7 +612,8 @@ function reqReward(rq){
 // ── 기사의 퀘스트 ─────────────────────────────────────
 //   stage 0: 시작 (빈사) → "..." → 뼛가루의 치유력
 //   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
-//   stage 3: 밥이 보약 완료 (빈사 해결)
+//   stage 3: 밥이 보약 완료 (빈사 해결) → 칼을 들어라
+//   stage 4: 칼을 들어라 완료
 let knightSpeech = null, knightTimer = null;
 function repaint(type){
   if (drag) return;
@@ -631,9 +642,11 @@ function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
   if (!k) return;
   const p = findSpot(k.x - CW * 1.1, k.y);
-  const spec = kind === 'bone'
-    ? { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], reward: 'hilt' }
-    : { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [] };
+  const spec = {
+    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], reward: 'hilt' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [] },
+    sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '칼', target: k.id, need: 0, stack: [] },
+  }[kind];
   const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
   popFrom.set(rq.id, { x: k.x, y: k.y });                   // 기사에게서 튀어나옴
   bumpIds.add(k.id);
@@ -654,6 +667,7 @@ function knightCheck(){
   }
   if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
   if (stage === 2 && !questExists('foodmedicine')) giveKnightQuest('food');
+  if (stage === 3 && !questExists('takesword')) giveKnightQuest('sword');
 }
 
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
@@ -661,6 +675,11 @@ function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
   const edible = tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유');
   if (td.kind === 'request'){
+    if (t.goal === 'equip'){
+      // 조건형 request에 맞는 장비를 놓으면 대상에게 장비한 것과 같음
+      const tg = byId(t.target);
+      return tg && tagLevel(dd, t.slot) ? { act: 'equip', slot: t.slot, onto: tg } : null;
+    }
     if (t.goal === 'fullHp'){
       // 조건형 request에 음식을 내려놓으면 대상에게 먹인 것과 같음
       const tg = byId(t.target);
@@ -699,6 +718,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'equip'){
+    if (ev.onto){ bumpIds.add(t.id); t = ev.onto; }            // request에 놓음 → 대상에게 장비
     const slot = ev.slot;
     t.equip = t.equip || {};
     const prev = t.equip[slot];
@@ -860,6 +880,11 @@ function rewardFor(rq, x, y){
     if (k) setStatus(k, ['빈사', '허기짐'], []);
     S.flags.knightStage = 3;
     toast('🩹 빈사 해결');
+    return;
+  }
+  if (rq.quest === 'takesword'){
+    S.flags.knightStage = 4;
+    toast('⚔ 칼을 들었다');
     return;
   }
   addCard('package', x, y, { contents: 'tutorial' });
