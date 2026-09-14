@@ -159,7 +159,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.3.0';
+const VERSION = 'v0.4.0';
 const STORE = 'card-world-rpg.v1';
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -186,6 +186,7 @@ const DEFS = {
   bedding:   { name:'풀 깔개',     emoji:'🛏️', kind:'material', tags:['불에 타는'] },
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
   campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불'] },
+  ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'], heal:4 },
   roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'], heal:3 },
 };
@@ -212,11 +213,10 @@ const RECIPES = [
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
-  { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, burn:true, keep:'a' },
+  { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
 ];
 const RECIPE_BY_ID = new Map(RECIPES.map(r => [r.id, r]));
 // "조합 가능" 태그: 결과가 나오는 조합에 들어갈 수 있는 카드. 없으면 최후의 카드
-//   태우기는 결과물이 없으므로 제외
 let COMBOABLE = new Set();
 
 function tagLevel(def, name){
@@ -247,7 +247,7 @@ function sideText(sd){
   return sd.card ? `${DEFS[sd.card].emoji} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 }
 function outText(r){
-  if (r.burn) return '태우기 (제거)';
+  if (r.burn) return '🌫️ 재 (태우기)';
   if (r.cook) return '익힘 (날것이 익은 것으로)';
   return r.out.map(o => DEFS[o].emoji + ' ' + DEFS[o].name).join(', ');
 }
@@ -259,7 +259,7 @@ const PAGE = {
   ids: ['package', 'request', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'roastmeat', 'roastclam'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam'],
 };
 
 // 갓의 대사
@@ -568,7 +568,7 @@ function apply(ev, d, t){
       }
       if (targetKept) bumpIds.add(t.id);
       if (!consumed.includes(d)) relocate(d);
-      if (r.burn) toast(`🔥 ${DEFS[B.type].name} 태우기`);
+      if (r.burn) toast(`🔥 ${DEFS[B.type].name} 태우기 → 🌫️ 재`);
     }
     if (!S.found.includes(r.id)){
       S.found.push(r.id);
@@ -650,12 +650,12 @@ function settle(id){
 }
 
 // ── 갓의 request 공급 ─────────────────────────────────
-// 이미 발견한 조합 중에 지금 테이블에서 할 수 있는 게 있나 (태우기 제외)
+// 이미 발견한 조합 중에 지금 테이블에서 할 수 있는 게 있나
 function anyKnownRecipe(){
   const cs = S.cards;
   for (let i = 0; i < cs.length; i++){
     for (let j = i + 1; j < cs.length; j++){
-      if (usableRecipes(cs[i].type, cs[j].type).some(m => !m.r.burn && S.found.includes(m.r.id))) return true;
+      if (usableRecipes(cs[i].type, cs[j].type).some(m => S.found.includes(m.r.id))) return true;
     }
   }
   return false;
@@ -985,7 +985,7 @@ validateRecipes();
 (() => {
   const types = Object.keys(DEFS);
   for (const x of types) for (const y of types){
-    if (usableRecipes(x, y).some(m => !m.r.burn)){ COMBOABLE.add(x); COMBOABLE.add(y); }
+    if (usableRecipes(x, y).length){ COMBOABLE.add(x); COMBOABLE.add(y); }
   }
 })();
 
