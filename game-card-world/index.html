@@ -167,7 +167,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.7.1';
+const VERSION = 'v0.8.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -182,8 +182,8 @@ const DEFS = {
   flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          emoji:'🦴', kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
-  shell:     { name:'조개껍데기',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
-  berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'] },
+  shell:     { name:'조개',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
+  berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2'] },
   marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
   clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
@@ -198,6 +198,7 @@ const DEFS = {
   hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:[] },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
@@ -268,7 +269,7 @@ const PAGE = {
   ids: ['package', 'request', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'hilt'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt'],
 };
 
 // 갓의 대사
@@ -1161,8 +1162,46 @@ function velOf(id){
 }
 function physStep(){
   requestAnimationFrame(physStep);
-  if (phys && S && !busy) physMove();
+  let moved = false;
+  if (S && !busy){
+    if (phys && physMove()) moved = true;
+    if (solveTethers()) moved = true;          // 밀어내기 체크와 상관없이 항상
+  }
+  if (moved) physDirty = true;
+  else if (physDirty && !drag){ physDirty = false; save(); }   // 멈추면 한 번 저장
   drawLinks();
+}
+// request ─ 발주자: 일정 거리를 유지하며 밀리거나 끌려감 (막대처럼)
+//   request를 끌면 발주자가, 발주자를 끌면 request가 따라옴
+//   아무도 안 끌 때는 request가 제 거리로 천천히 돌아감
+const tetherLen = () => CW * 1.6;              // 카드 중심 사이 거리. 밀어내기 간격보다 길게
+function solveTethers(){
+  let moved = false;
+  const L = tetherLen();
+  const dragId = drag ? drag.id : null;
+  for (const rq of S.cards){
+    if (rq.type !== 'request' || rq.giver == null) continue;
+    const g = byId(rq.giver);
+    if (!g || (tear && (tear.id === g.id || tear.id === rq.id))) continue;
+    let dx = rq.x - g.x, dy = rq.y - g.y;
+    let d = Math.hypot(dx, dy);
+    if (d < 0.001){ dx = 1; dy = 0; d = 1; }
+    if (Math.abs(d - L) < 0.5) continue;
+    const ux = dx / d, uy = dy / d;
+    let mover, k;
+    if (dragId === rq.id){ mover = g; k = 1; }
+    else if (dragId === g.id){ mover = rq; k = 1; }
+    else { mover = rq; k = 0.2; }
+    const tx = mover === rq ? g.x + ux * L : rq.x - ux * L;
+    const ty = mover === rq ? g.y + uy * L : rq.y - uy * L;
+    const p = clampPos(mover.x + (tx - mover.x) * k, mover.y + (ty - mover.y) * k);
+    if (Math.abs(p.x - mover.x) < 0.05 && Math.abs(p.y - mover.y) < 0.05) continue;
+    mover.x = p.x; mover.y = p.y;
+    const el = els.get(mover.id);
+    if (el){ el.style.left = mover.x + 'px'; el.style.top = mover.y + 'px'; }
+    moved = true;
+  }
+  return moved;
 }
 // request ─ 주체 실선. 카드 중심끼리 잇고, 바뀐 게 있을 때만 다시 그림
 let linksKey = '';
@@ -1216,8 +1255,7 @@ function physMove(){
     if (el){ el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
     moving = true;
   }
-  if (moving) physDirty = true;
-  else if (physDirty){ physDirty = false; save(); }   // 멈추면 한 번 저장
+  return moving;
 }
 const physToggle = document.getElementById('physToggle');
 physToggle.checked = phys;
