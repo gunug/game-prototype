@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.2';
+const VERSION = 'v0.16.3';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1199,15 +1199,31 @@ function onDown(e){
 
   startDrag(c, px, py, e.pointerId, { ox: c.x, oy: c.y });
 }
+// 붙음·방문으로 이어진 카드 전부 (사슬 포함)
+function linkedGroup(c){
+  const ids = new Set([c.id]);
+  const queue = [c];
+  while (queue.length){
+    const x = queue.shift();
+    for (const m of S.cards){
+      if (ids.has(m.id)) continue;
+      if (bodyOf(m) === bodyOf(x) || m.visit === x.id || x.visit === m.id){
+        ids.add(m.id);
+        queue.push(m);
+      }
+    }
+  }
+  return ids;
+}
 function startDrag(c, px, py, pid, o){
-  // 붙음: 같은 묶음(발주자와 request)은 끌고 있는 카드와 함께 맨 위로
-  const body = bodyOf(c);
-  for (const m of S.cards){
-    if (m.id === c.id || bodyOf(m) !== body) continue;
+  // 붙음·방문으로 이어진 카드는 끌고 있는 카드와 함께 맨 위로 (서로의 앞뒤 순서는 유지)
+  const group = linkedGroup(c);
+  const members = S.cards.filter(m => m.id !== c.id && group.has(m.id)).sort((a, b) => a.z - b.z);
+  members.forEach((m, i) => {
     m.z = ++S.z;
     const me = els.get(m.id);
-    if (me) me.style.zIndex = 1999999990;
-  }
+    if (me) me.style.zIndex = 1999999000 + i;
+  });
   c.z = ++S.z;
   const el = els.get(c.id);
   if (!el) return;
