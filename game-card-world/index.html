@@ -51,7 +51,11 @@
   .cw::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--tone);opacity:.10;pointer-events:none;}
   .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
-  .cw .hp{position:absolute;left:6px;bottom:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
+  .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
+  .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
+  .cw .tags{position:absolute;left:3px;right:3px;bottom:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
+  .cw .tag{font-size:calc(var(--cw) * .085);line-height:1.25;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:0 3px;white-space:nowrap;}
+  .devnote{position:fixed;left:10px;bottom:10px;z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
   .k-material{--tone:#b58c5a;}
   .k-tool{--tone:#9fb6cc;}
   .k-food{--tone:#7fc77f;}
@@ -146,12 +150,13 @@
   </div>
   <div class="toasts" id="toasts"></div>
   <div class="book" id="book" hidden></div>
+  <div class="devnote" id="devnote" hidden></div>
 
 <script>
 (() => {
 'use strict';
 
-const VERSION = 'v0.1.1';
+const VERSION = 'v0.2.0';
 const STORE = 'card-world-rpg.v1';
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -160,7 +165,7 @@ const DEFS = {
   request:   { name:'request',     emoji:'📜', kind:'request' },
   knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능'], hp:10 },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능'], hp:1 },
-  stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['합칠 수 있음'] },
+  stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   grass:     { name:'마른 풀',     emoji:'🌾', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
@@ -168,18 +173,18 @@ const DEFS = {
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
   shell:     { name:'조개껍데기',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '합칠 수 있음'], heal:1 },
-  handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:[] },
+  handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2'] },
   marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음'], heal:2 },
-  clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음'], heal:2 },
-  meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음'], heal:1 },
+  clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], heal:2, cooked:'roastclam' },
+  meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음', '날것'], heal:1, cooked:'roastmeat' },
   hide:      { name:'가죽',        emoji:'🟫', kind:'material', tags:[] },
   stick:     { name:'뾰족한 막대', emoji:'🥢', kind:'tool', tags:['불에 타는'] },
   tinder:    { name:'불쏘시개',    emoji:'🪹', kind:'material', tags:['불에 타는'] },
   bedding:   { name:'풀 깔개',     emoji:'🛏️', kind:'material', tags:['불에 타는'] },
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
-  campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:[] },
-  roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음'], heal:4 },
-  roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음'], heal:3 },
+  campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불'] },
+  roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'], heal:4 },
+  roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'], heal:3 },
 };
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
@@ -188,24 +193,59 @@ const POOL = [
   ['bone', 12], ['shell', 12], ['carcass', 6], ['flint', 4],
 ];
 
-// 2장 조합. keep = 조합해도 남는 쪽
+// 2장 조합
+//   각 쪽은 { card:'카드' } 또는 { tag:'태그', lv:최소 레벨 }
+//   레벨 태그("손질 lv2")는 요구 레벨 이상이면 맞음 — 상위 도구는 하위 손질도 함
+//   keep: 'a' / 'b' = 조합해도 남는 쪽
+//   조합끼리 겹치면 안 됨 → 겹치면 제작자 알림 (validateRecipes)
 const RECIPES = [
-  { a:'stone',    b:'stone',   out:['handaxe'] },
-  { a:'stone',    b:'bone',    out:['marrow'],        keep:['stone'] },
-  { a:'stone',    b:'shell',   out:['clam'],          keep:['stone'] },
-  { a:'stone',    b:'flint',   out:['ember'],         keep:['stone'] },
-  { a:'handaxe',  b:'bone',    out:['marrow'],        keep:['handaxe'] },
-  { a:'handaxe',  b:'shell',   out:['clam'],          keep:['handaxe'] },
-  { a:'handaxe',  b:'carcass', out:['meat', 'hide'],  keep:['handaxe'] },
-  { a:'handaxe',  b:'twig',    out:['stick'],         keep:['handaxe'] },
-  { a:'grass',    b:'twig',    out:['tinder'] },
-  { a:'grass',    b:'grass',   out:['bedding'] },
-  { a:'ember',    b:'tinder',  out:['campfire'] },
-  { a:'campfire', b:'meat',    out:['roastmeat'],     keep:['campfire'] },
-  { a:'campfire', b:'clam',    out:['roastclam'],     keep:['campfire'] },
+  { id:'handaxe',  a:{ card:'stone' },      b:{ card:'stone' },    out:['handaxe'] },
+  { id:'ember',    a:{ card:'stone' },      b:{ card:'flint' },    out:['ember'], keep:'a' },
+  { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
+  { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
+  { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
+  { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
+  { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
+  { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
+  { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
+  { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
+  { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, burn:true, keep:'a' },
 ];
-const recipeKey = (x, y) => [x, y].sort().join('+');
-const RECIPE_BY_KEY = new Map(RECIPES.map(r => [recipeKey(r.a, r.b), r]));
+const RECIPE_BY_ID = new Map(RECIPES.map(r => [r.id, r]));
+
+function tagLevel(def, name){
+  let lv = 0;
+  for (const t of (def.tags || [])){
+    if (t === name) lv = Math.max(lv, 1);
+    else if (t.startsWith(name + ' lv')){
+      const n = parseInt(t.slice(name.length + 3), 10);
+      if (n > lv) lv = n;
+    }
+  }
+  return lv;
+}
+const sideMatch = (side, type) => side.card ? side.card === type : tagLevel(DEFS[type], side.tag) >= (side.lv || 1);
+// x, y 두 카드에 맞는 조합 전부. aIsX = x가 a쪽
+function recipesFor(x, y){
+  const out = [];
+  for (const r of RECIPES){
+    if (sideMatch(r.a, x) && sideMatch(r.b, y)) out.push({ r, aIsX: true });
+    else if (sideMatch(r.a, y) && sideMatch(r.b, x)) out.push({ r, aIsX: false });
+  }
+  return out;
+}
+function usableRecipes(x, y){
+  return recipesFor(x, y).filter(m => !m.r.cook || DEFS[m.aIsX ? y : x].cooked);
+}
+function sideText(sd){
+  return sd.card ? `${DEFS[sd.card].emoji} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+}
+function outText(r){
+  if (r.burn) return '태우기 (제거)';
+  if (r.cook) return '익힘 (날것이 익은 것으로)';
+  return r.out.map(o => DEFS[o].emoji + ' ' + DEFS[o].name).join(', ');
+}
+const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
 
 // 콜렉터북 페이지 (시대별)
 const PAGE = {
@@ -236,6 +276,7 @@ const table = document.getElementById('table');
 const toasts = document.getElementById('toasts');
 const book = document.getElementById('book');
 const bookCount = document.getElementById('bookCount');
+const devnote = document.getElementById('devnote');
 document.getElementById('ver').textContent = VERSION;
 
 // ── 상태 ──────────────────────────────────────────────
@@ -332,7 +373,7 @@ function load(){
     if (!st || !Array.isArray(st.cards) || !st.cards.length) return false;
     st.cards = st.cards.filter(c => DEFS[c.type]);
     st.seen = (st.seen || []).filter(t => DEFS[t]);
-    st.found = (st.found || []).filter(k => RECIPE_BY_KEY.has(k));
+    st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
     st.flags = st.flags || {};
     for (const c of st.cards) if (c.type === 'request' && !Array.isArray(c.stack)) c.stack = [];
     if (!st.cards.length) return false;
@@ -352,6 +393,8 @@ function newGame(){
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind;
+  const tags = d.tags || [];
+  if (tags.length && d.kind !== 'request') cls += ' has-tags';
   if (spawned.has(c.id)) cls += ' spawn';
   if (bumpIds.has(c.id)) cls += ' bump';
   el.className = cls;
@@ -371,6 +414,7 @@ function paint(el, c){
     html += `<div class="emoji">${d.emoji}</div><div class="name">${esc(d.name)}</div>`;
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg></div>';
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
+    if (tags.length) html += '<div class="tags">' + tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') + '</div>';
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
   }
   el.innerHTML = html;
@@ -444,11 +488,12 @@ function nextSpeech(){
 function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
   if (td.kind === 'request') return submittable(dd) ? { act: 'submit' } : null;
-  if (t.type === 'campfire' && (dd.tags || []).includes('불에 타는')) return { act: 'burn' };
   if (td.kind === 'character' && dd.heal) return { act: 'eat' };
-  const r = RECIPE_BY_KEY.get(recipeKey(d.type, t.type));
-  if (r) return { act: 'recipe', r };
-  return null;
+  const ms = usableRecipes(d.type, t.type);
+  if (!ms.length) return null;
+  if (ms.length > 1) console.warn('[제작자 알림] 조합 겹침', d.type, t.type, ms.map(m => m.r.id));
+  const m = ms[0];
+  return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d };
 }
 function apply(ev, d, t){
   const dd = DEFS[d.type];
@@ -457,12 +502,6 @@ function apply(ev, d, t){
     t.stack.push(d.type);
     t.z = ++S.z;
     bumpIds.add(t.id);
-    return true;
-  }
-  if (ev.act === 'burn'){
-    removeCard(d.id);
-    bumpIds.add(t.id);
-    toast(`🔥 ${dd.name} 태우기`);
     return true;
   }
   if (ev.act === 'eat'){
@@ -478,27 +517,32 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'recipe'){
-    const r = ev.r;
-    const keep = (r.keep || []).slice();
-    const consumed = [];
-    for (const c of [t, d]){
-      const k = keep.indexOf(c.type);
-      if (k >= 0) keep.splice(k, 1); else consumed.push(c);
-    }
+    const { r, A, B } = ev;
     const bx = t.x, by = t.y;
-    const targetKept = !consumed.includes(t);
-    const draggedKept = !consumed.includes(d);
-    for (const c of consumed) removeCard(c.id);
-    for (const o of r.out){
-      const p = findSpot(targetKept ? bx + CW * 0.9 : bx, by);
-      addCard(o, p.x, p.y);
+    if (r.cook){
+      // 날것 태그가 떨어지고 익힘 태그가 붙음 → 익힌 카드로 바뀜
+      B.type = DEFS[B.type].cooked;
+      markSeen(B.type);
+      spawned.add(B.id);
+      bumpIds.add(A.id);
+      relocate(d);
+    } else {
+      const consumed = [];
+      if (r.keep !== 'a') consumed.push(A);
+      if (r.keep !== 'b') consumed.push(B);
+      const targetKept = !consumed.includes(t);
+      for (const c of consumed) removeCard(c.id);
+      for (const o of (r.out || [])){
+        const p = findSpot(targetKept ? bx + CW * 0.9 : bx, by);
+        addCard(o, p.x, p.y);
+      }
+      if (targetKept) bumpIds.add(t.id);
+      if (!consumed.includes(d)) relocate(d);
+      if (r.burn) toast(`🔥 ${DEFS[B.type].name} 태우기`);
     }
-    if (targetKept) bumpIds.add(t.id);
-    if (draggedKept) relocate(d);
-    const key = recipeKey(r.a, r.b);
-    if (!S.found.includes(key)){
-      S.found.push(key);
-      toast(`✨ 새 조합: ${DEFS[r.a].emoji} + ${DEFS[r.b].emoji} → ` + r.out.map(o => DEFS[o].emoji + ' ' + DEFS[o].name).join(', '));
+    if (!S.found.includes(r.id)){
+      S.found.push(r.id);
+      toast('✨ 새 조합: ' + recipeText(r));
       if (!S.flags.discovered){
         S.flags.discovered = true;
         say(LINES.firstDiscovery);
@@ -509,6 +553,33 @@ function apply(ev, d, t){
     return true;
   }
   return false;
+}
+
+// 조합 규칙 점검 — 겹치거나 빠진 게 있으면 제작자에게 알림
+function validateRecipes(){
+  const issues = [];
+  const types = Object.keys(DEFS);
+  for (const id of types){
+    const d = DEFS[id];
+    if (tagLevel(d, '날것') && tagLevel(d, '익힘')) issues.push(`${d.name}: 날것과 익힘은 상극인데 둘 다 붙어 있음`);
+  }
+  for (let i = 0; i < types.length; i++){
+    for (let j = i; j < types.length; j++){
+      const ms = recipesFor(types[i], types[j]);
+      for (const m of ms){
+        if (!m.r.cook) continue;
+        const raw = m.aIsX ? types[j] : types[i];
+        if (!DEFS[raw].cooked) issues.push(`${DEFS[raw].name}: 날것인데 익힌 결과(cooked)가 없음`);
+      }
+      const ids = [...new Set(ms.map(m => m.r.id))];
+      if (ids.length > 1) issues.push(`${DEFS[types[i]].name} + ${DEFS[types[j]].name}: 조합 겹침 (${ids.join(', ')}) — 하나를 해소해야 함`);
+    }
+  }
+  const uniq = [...new Set(issues)];
+  if (!uniq.length) return;
+  console.warn('[제작자 알림] 조합 규칙 문제', uniq);
+  devnote.innerHTML = '<b>⚠ 제작자 알림 · 조합 규칙</b><br>' + uniq.map(esc).join('<br>');
+  devnote.hidden = false;
 }
 
 // ── 변화 후 처리 ──────────────────────────────────────
@@ -553,7 +624,7 @@ function anyRecipe(){
   const cs = S.cards;
   for (let i = 0; i < cs.length; i++){
     for (let j = i + 1; j < cs.length; j++){
-      if (RECIPE_BY_KEY.has(recipeKey(cs[i].type, cs[j].type))) return true;
+      if (usableRecipes(cs[i].type, cs[j].type).some(m => !m.r.burn)) return true;   // 태우기는 진행이 아님
     }
   }
   return false;
@@ -843,9 +914,8 @@ function openBook(){
   }
   html += `</div><h3 class="book-sub">발견한 조합<small>${S.found.length} / ${RECIPES.length}</small></h3><ul class="recipes">`;
   for (const r of RECIPES){
-    if (S.found.includes(recipeKey(r.a, r.b))){
-      const outs = r.out.map(o => DEFS[o].emoji + ' ' + esc(DEFS[o].name)).join(', ');
-      html += `<li>${DEFS[r.a].emoji} ${esc(DEFS[r.a].name)} + ${DEFS[r.b].emoji} ${esc(DEFS[r.b].name)} → ${outs}</li>`;
+    if (S.found.includes(r.id)){
+      html += `<li>${esc(recipeText(r))}</li>`;
     } else {
       html += '<li class="unknown">??? + ??? → ???</li>';
     }
@@ -884,6 +954,8 @@ window.addEventListener('resize', () => {
   }
   renderAll();
 });
+
+validateRecipes();
 
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!drag && !tear && !busy) godCheck(); }, 5000);
