@@ -191,7 +191,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.20.0';
+const VERSION = 'v0.21.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -302,7 +302,7 @@ const LINES = {
   trappedNag:     ['모서리를 잡아당기라고!', '왼쪽 위! 깜빡이는 거!', '살살 말고 확 당겨. 찢어도 돼.'],
   intro:          ['푸하! …살았다.', '뭘 봐. 갓이다. 신… 비슷한 거.', '구해줬으니 거래 하나 하자고.'],
   firstRequest:   '거기, 아무거나 3개만 줘봐. 좋은 거 줄게.',
-  again:          ['또 3개. 이번엔 진짜 좋은 거.', '3개면 돼. 신을 믿어.', '한 번만 더. 느낌이 와.'],
+  refill:         ['언제든지 필요하면 말해.', '필요하면 또 3개. 언제든.', '신은 늘 여기 있어. 필요하면 말해.'],
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -995,16 +995,16 @@ function scheduleGod(){
 // 갓이 지금 무엇을 줘야 하나: null | 'quest' | 'package'
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
-  if (!has('god') || has('package')) return null;
+  if (!has('god')) return null;
   const avail = submittableCount();
   const requests = S.cards.filter(c => c.type === 'quest' && isGodRequest(c));
   if (requests.length){
-    // quest 3개를 달성할 수 없으면 package로 보태줌. request는 그대로 둠
-    return requests.some(rq => rq.stack.length + avail >= rq.need) ? null : 'package';
+    // quest 3개를 달성할 수 없으면 package로 보태줌 (이미 package가 있으면 그걸 열면 됨). quest는 그대로 둠
+    if (requests.some(rq => rq.stack.length + avail >= rq.need)) return null;
+    return has('package') ? null : 'package';
   }
-  // 첫 발견 뒤엔 플레이어가 아는 조합으로 할 게 없을 때만
-  if (S.flags.discovered && anyKnownRecipe()) return null;
-  return avail >= 3 ? 'quest' : 'package';
+  // 갓의 "아무거나 3개" quest는 클리어하면 다시 리필 — 늘 하나 떠 있음
+  return 'quest';
 }
 function godCheck(){
   knightCheck();
@@ -1015,8 +1015,7 @@ function godCheck(){
   gift = { kind };
   const hasRequest = S.cards.some(c => c.type === 'quest' && isGodRequest(c));
   if (kind === 'package') say(hasRequest ? pick(LINES.rescue) : LINES.free);
-  else if (S.flags.discovered) say(pick(LINES.stuck));
-  else if (S.flags.requestsGiven) say(pick(LINES.again));
+  else if (S.flags.requestsGiven) say(pick(LINES.refill));     // 리필: "언제든지 필요하면 말해"
   else say(LINES.firstRequest);
   afterSpeech(deliverGift);                                   // 멘트를 다 끝낸 다음 줌
 }
