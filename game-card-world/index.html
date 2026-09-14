@@ -123,7 +123,8 @@
   .quest-label{position:absolute;left:7px;top:5px;font-size:calc(var(--cw) * .1);font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);pointer-events:none;}
   .req-emoji{font-size:calc(var(--cw) * .24)!important;}
   .req-title{color:var(--ink);font-size:calc(var(--cw) * .12);font-weight:700;text-align:center;padding:0 6px;line-height:1.2;pointer-events:none;}
-  .req-need{color:var(--brand-yellow);font-size:calc(var(--cw) * .13);font-weight:800;pointer-events:none;}
+  .req-need{color:var(--brand-yellow);font-size:calc(var(--cw) * .12);font-weight:800;pointer-events:none;white-space:pre-line;text-align:center;line-height:1.25;}
+  .cw .defl{color:#b8e0a0;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .req-reward{color:var(--muted);font-size:calc(var(--cw) * .11);font-weight:600;pointer-events:none;}
   .req-stack{position:absolute;left:0;right:0;top:-14%;display:flex;justify-content:center;}
   .mini{
@@ -201,14 +202,14 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.23.0';
+const VERSION = 'v0.24.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   quest:   { name:'quest',     emoji:'📜', kind:'quest' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0 },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -230,6 +231,7 @@ const DEFS = {
   campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불', '장소'], capacity:3 },
   ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['무기'], atk:3 },
+  plank:     { name:'나무판',      emoji:'🪧', kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -254,6 +256,7 @@ const RECIPES = [
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
+  { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
@@ -303,7 +306,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank'],
 };
 
 // 갓의 대사
@@ -451,6 +454,8 @@ function load(){
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
+      if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상: 허기짐 해결'; }
+      if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
     if (!st.cards.length) return false;
@@ -501,11 +506,13 @@ function paint(el, c){
     const heal = healOf(d);
     if (heal > 0) html += `<div class="heal">❤ +${heal}</div>`;       // 음식 회복량을 이름 아래에
     if (d.atk) html += `<div class="atk">⚔ +${d.atk}</div>`;           // 장비 공격력
+    if (d.defense) html += `<div class="defl">🛡 +${d.defense}</div>`;  // 장비 방어
     if (d.slots){
       // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름. 왼쪽 위에 공격력 합계
       const eq = c.equip || {};
       const atk = (d.baseAtk || 0) + Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
-      html += `<div class="atkv">⚔ ${atk}</div>`;
+      const def = (d.baseDef || 0) + Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
+      html += `<div class="atkv">⚔ ${atk}<br>🛡 ${def}</div>`;
       html += '<div class="equip">' + d.slots.map(sl => eq[sl] && DEFS[eq[sl]]
         ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${DEFS[eq[sl]].emoji}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
@@ -675,6 +682,13 @@ function reqDone(rq){
     const t = byId(rq.target);
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
   }
+  if (rq.goal === 'sleep'){
+    const t = byId(rq.target);
+    if (!t) return false;
+    const pl = t.visit != null ? byId(t.visit) : null;
+    if (pl && pl.type === rq.place) rq.visited = true;         // 조건1: 풀 깔개 방문 (한 번 방문하면 체크 유지)
+    return !!rq.visited && t.hp >= DEFS[t.type].hp;            // 조건2: 체력 가득
+  }
   if (rq.goal === 'hpMin'){
     const t = byId(rq.target);
     return !!t && t.hp >= rq.min && !statusOf(t).includes('빈사');
@@ -690,6 +704,14 @@ function reqProgress(rq){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
   }
+  if (rq.goal === 'sleep'){
+    const t = byId(rq.target);
+    if (!t) return '대상 없음';
+    const pl = t.visit != null ? byId(t.visit) : null;
+    const visited = rq.visited || (pl && pl.type === rq.place);
+    const max = DEFS[t.type].hp;
+    return `${visited ? '✔' : '☐'} ${DEFS[rq.place].name} 방문\n${t.hp >= max ? '✔' : '☐'} 체력 ${t.hp} / ${max}`;
+  }
   if (rq.goal === 'hpMin'){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${rq.min}` : '대상 없음';
@@ -703,6 +725,7 @@ function reqProgress(rq){
   return `${rq.stack.length} / ${rq.need}`;
 }
 function reqReward(rq){
+  if (rq.rewards) return '보상 ' + rq.rewards.map(r => DEFS[r] ? DEFS[r].emoji : '').join(' ');
   if (rq.rewardText) return rq.rewardText;
   if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
   if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
@@ -714,9 +737,9 @@ function reqReward(rq){
 // ── 기사의 퀘스트 ─────────────────────────────────────
 //   stage 0: 시작 (빈사) → "..." → 뼛가루의 치유력
 //   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
-//   stage 3: 밥이 보약 완료 (빈사 해결) → 칼을 들어라
-//   stage 4: 무기를 들어라 완료 → 잠이 보약
-//   stage 5: 잠이 보약 완료
+//   stage 3: 밥이 보약 완료 (빈사 해결) → "졸려" → 잠이 보약
+//   stage 4: 잠이 보약 완료 → 부러진 칼자루·나무판 → "고맙다" → 무기를 들어라
+//   stage 5: 무기를 들어라 완료
 let knightSpeech = null, knightTimer = null;
 function repaint(type){
   if (drag) return;
@@ -740,8 +763,8 @@ function giveKnightQuest(kind){
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
     bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
-    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'hpMin', min: 5, target: k.id, need: 0, stack: [], reward: 'hilt' },
-    sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], rewardText: '보상 없음' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'hpMin', min: 5, target: k.id, need: 0, stack: [], rewardText: '보상: 허기짐 해결' },
+    sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'sleep', place: 'bedding', target: k.id, need: 0, stack: [], rewards: ['hilt', 'plank'] },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
@@ -764,8 +787,8 @@ function knightCheck(){
   }
   if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
   if (stage === 2 && !questExists('foodmedicine')) giveKnightQuest('food');
-  if (stage === 3 && !questExists('takesword')) giveKnightQuest('sword');
-  if (stage === 4 && !questExists('sleepmedicine')) giveKnightQuest('sleep');
+  if (stage === 3 && !questExists('sleepmedicine')) giveKnightQuest('sleep');
+  if (stage === 4 && !questExists('takesword')) giveKnightQuest('sword');
 }
 
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
@@ -783,7 +806,7 @@ function evaluate(d, t){
       const tg = byId(t.target);
       return tg && tagLevel(dd, t.slot) ? { act: 'equip', slot: t.slot, onto: tg } : null;
     }
-    if (t.goal === 'fullHp' || t.goal === 'hpMin'){
+    if (t.goal === 'fullHp' || t.goal === 'hpMin' || t.goal === 'sleep'){
       // 조건형 request에 음식을 내려놓으면 대상에게 먹인 것과 같음
       const tg = byId(t.target);
       return tg && edible ? { act: 'eat', feed: tg } : null;
@@ -988,20 +1011,23 @@ function rewardFor(rq, x, y){
   if (rq.quest === 'foodmedicine'){
     const k = byId(rq.target);
     if (k) setStatus(k, ['빈사', '허기짐'], []);
-    addCard('hilt', x, y);                                  // 칼자루가 먼저 보이고
     S.flags.knightStage = 3;
     toast('🩹 빈사 해결');
-    knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 칼을 들어라
+    knightSay('졸려', knightCheck);                          // "졸려" 뒤에 잠이 보약
     return;
   }
   if (rq.quest === 'takesword'){
-    S.flags.knightStage = 4;
+    S.flags.knightStage = 5;
     toast('⚔ 무기를 들었다');
     return;
   }
   if (rq.quest === 'sleepmedicine'){
-    S.flags.knightStage = 5;
+    addCard('hilt', x, y);                                  // 보상이 먼저 보이고
+    const p2 = findSpot(x + CW * 1.1, y);
+    addCard('plank', p2.x, p2.y);
+    S.flags.knightStage = 4;
     toast('💤 잠이 보약 완료');
+    knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
   addCard('package', x, y, { contents: 'tutorial' });
