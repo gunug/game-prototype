@@ -203,7 +203,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.25.2';
+const VERSION = 'v0.25.3';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1520,38 +1520,39 @@ function onUp(e){
 
 // ── 체력 회복 장소 ─────────────────────────────────────
 //   "체력 회복 lvN" 장소를 방문한 캐릭터는 15초 / N 마다 체력 +1
-//   빈사는 회복 안 됨 (빈사 치유가 필요). 체력이 가득이면 게이지 멈춤
+//   장소마다 게이지 하나. 다 차면 방문자 전원 한꺼번에 +1. 빈사는 회복 안 됨 (빈사 치유가 필요)
 const REST_MS = 15000;                         // lv1 = 15초에 +1
 function pieValue(pl){
   const lv = tagLevel(DEFS[pl.type], '체력 회복');
-  const v = visitorsOf(pl)[0];
-  if (!lv || !v) return 0;
-  return Math.min(1, (v.restMs || 0) / (REST_MS / lv));
+  if (!lv || !visitorsOf(pl).length) return 0;
+  return Math.min(1, (pl.restMs || 0) / (REST_MS / lv));
 }
+// 게이지는 장소 하나에 하나: 첫 방문자가 들어오면 차오르기 시작, 다 차는 순간 방문자 전원이 한꺼번에 +1
 function restTick(){
   if (!S || paused) return;
   let hpChanged = false;
-  for (const v of S.cards){
-    if (v.visit == null || v.hp == null) continue;
-    const pl = byId(v.visit);
-    if (!pl) continue;
+  for (const pl of S.cards){
     const lv = tagLevel(DEFS[pl.type], '체력 회복');
     if (!lv) continue;
-    const max = DEFS[v.type].hp;
-    if (v.hp >= max || statusOf(v).includes('빈사')){ v.restMs = 0; continue; }
+    const vs = visitorsOf(pl);
+    if (!vs.length){ pl.restMs = 0; continue; }            // 모두 떠나면 게이지 초기화
+    const healable = vs.filter(v => v.hp != null && v.hp < DEFS[v.type].hp && !statusOf(v).includes('빈사'));
+    if (!healable.length) continue;                         // 회복할 사람이 없으면 게이지 멈춤
     const period = REST_MS / lv;
-    v.restMs = (v.restMs || 0) + 1000;
-    if (v.restMs >= period){
-      v.restMs -= period;
-      v.hp = Math.min(max, v.hp + 1);
+    pl.restMs = (pl.restMs || 0) + 1000;
+    if (pl.restMs < period) continue;
+    pl.restMs -= period;
+    for (const v of healable){
+      v.hp = Math.min(DEFS[v.type].hp, v.hp + 1);
       bumpIds.add(v.id);
-      toast(`💤 ${DEFS[v.type].name} 체력 +1`);
-      if (v.hp >= max && statusOf(v).includes('허기짐')){
+      if (v.hp >= DEFS[v.type].hp && statusOf(v).includes('허기짐')){
         setStatus(v, ['허기짐'], []);
         toast(`🍽️ ${DEFS[v.type].name}: 허기짐 해결`);
       }
-      hpChanged = true;
     }
+    bumpIds.add(pl.id);
+    toast(`💤 ${DEFS[pl.type].name}: ${healable.map(v => DEFS[v.type].name).join(', ')} 체력 +1`);
+    hpChanged = true;
   }
   if (hpChanged){ afterChange(); return; }
   for (const pl of S.cards){                    // 게이지만 갱신
