@@ -76,6 +76,10 @@
   .cw .tag{font-size:calc(var(--cw) * .085);line-height:1.25;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:0 3px;white-space:nowrap;}
   .devnote{position:fixed;left:10px;bottom:10px;z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
   .k-material{--tone:#b58c5a;}
+  .k-creature{--tone:#e3a26f;}
+  /* 홉핑: 뛰어오르며 세로로 길어졌다가 착지하며 눌림 */
+  .cw.hop{animation:hop .36s ease-out;transform-origin:50% 100%;}
+  @keyframes hop{0%{transform:scale(1,1);}30%{transform:scale(.86,1.24);}72%{transform:scale(1.06,.93);}100%{transform:scale(1,1);}}
   .k-tool{--tone:#9fb6cc;}
   .k-food{--tone:#7fc77f;}
   .k-fire{--tone:#ff9a3c;}
@@ -207,7 +211,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.25.4';
+const VERSION = 'v0.26.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -222,6 +226,7 @@ const DEFS = {
   flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          emoji:'🦴', kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
+  animal:    { name:'동물',        emoji:'🐇', kind:'creature', tags:['동물'], hops:true },
   shell:     { name:'조개',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
@@ -246,6 +251,7 @@ const DEFS = {
 const POOL = [
   ['stone', 18], ['berry', 18], ['twig', 16], ['grass', 14],
   ['bone', 12], ['shell', 12], ['carcass', 6], ['flint', 4],
+  ['animal', 6],                                                  // v0.26.0 추가 (확인 필요)
 ];
 
 // 2장 조합
@@ -259,6 +265,7 @@ const RECIPES = [
   { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
   { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
+  { id:'hunt',     a:{ atk:1 },             b:{ card:'animal' },   out:['carcass'], keep:'a' },
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
   { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
@@ -282,7 +289,10 @@ function tagLevel(def, name){
   }
   return lv;
 }
-const sideMatch = (side, type) => side.card ? side.card === type : tagLevel(DEFS[type], side.tag) >= (side.lv || 1);
+// 조합 한쪽: { card } 카드 / { tag, lv } 태그 레벨 / { atk } 공격력 이상
+const sideMatch = (side, type) => side.card ? side.card === type
+  : side.atk ? (DEFS[type].atk || 0) >= side.atk
+  : tagLevel(DEFS[type], side.tag) >= (side.lv || 1);
 // x, y 두 카드에 맞는 조합 전부. aIsX = x가 a쪽
 function recipesFor(x, y){
   const out = [];
@@ -296,6 +306,7 @@ function usableRecipes(x, y){
   return recipesFor(x, y).filter(m => !m.r.cook || DEFS[m.aIsX ? y : x].cooked);
 }
 function sideText(sd){
+  if (sd.atk) return `⚔ 공격력 ${sd.atk} 이상`;
   return sd.card ? `${DEFS[sd.card].emoji} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 }
 function outText(r){
@@ -309,7 +320,7 @@ const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
 const PAGE = {
   title: '석기시대 초기',
   ids: ['package', 'quest', 'knight', 'god',
-        'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
+        'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
         'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank'],
 };
@@ -1535,6 +1546,51 @@ function floatText(c, text){
   setTimeout(() => f.remove(), 1250);
 }
 
+// ── 동물 홉핑 ─────────────────────────────────────────
+//   1초마다 일정 거리를 뜀. 뛰는 동안 카드가 세로로 길어졌다 눌림
+const HOP_MS = 320;
+const hops = new Map();          // id → { fx, fy, tx, ty, t0 }
+function animalTick(){
+  if (!S || paused || busy) return;
+  const hid = heldId();
+  const { w, h } = tableSize();
+  for (const c of S.cards){
+    if (!DEFS[c.type].hops || hops.has(c.id)) continue;
+    if (hid != null && bodyOf(byId(hid)) === bodyOf(c)) continue;   // 잡혀 있으면 안 뜀
+    if (tear && tear.id === c.id) continue;
+    const dist = CW * 0.55;
+    let ang = Math.random() * Math.PI * 2;
+    // 가장자리 근처면 절반 확률로 안쪽을 향해 뜀
+    const nearEdge = c.x < CW || c.y < TOP_PAD + CH * 0.5 || c.x > w - CW * 2 || c.y > h - CH * 1.5;
+    if (nearEdge && Math.random() < 0.5) ang = Math.atan2(h / 2 - (c.y + CH / 2), w / 2 - (c.x + CW / 2)) + (Math.random() - 0.5);
+    const p = clampPos(c.x + Math.cos(ang) * dist, c.y + Math.sin(ang) * dist);
+    hops.set(c.id, { fx: c.x, fy: c.y, tx: p.x, ty: p.y, t0: performance.now() });
+    const el = els.get(c.id);
+    if (el){ el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop'); }
+  }
+}
+function stepHops(){
+  if (!hops.size) return false;
+  const hid = heldId();
+  let moved = false;
+  for (const [id, hp] of hops){
+    const c = byId(id);
+    if (!c || (hid != null && bodyOf(byId(hid)) === bodyOf(c))){ hops.delete(id); continue; }
+    const t = Math.min(1, (performance.now() - hp.t0) / HOP_MS);
+    const e = 1 - Math.pow(1 - t, 2);
+    c.x = hp.fx + (hp.tx - hp.fx) * e;
+    c.y = hp.fy + (hp.ty - hp.fy) * e;
+    moveEl(c);
+    moved = true;
+    if (t >= 1){
+      hops.delete(id);
+      const el = els.get(id);
+      if (el) setTimeout(() => el.classList.remove('hop'), 80);
+    }
+  }
+  return moved;
+}
+
 // ── 체력 회복 장소 ─────────────────────────────────────
 //   "체력 회복 lvN" 장소를 방문한 캐릭터는 15초 / N 마다 체력 +1
 //   장소마다 게이지 하나. 다 차면 방문자 전원 한꺼번에 +1. 빈사는 회복 안 됨 (빈사 치유가 필요)
@@ -1757,6 +1813,7 @@ function physStep(){
   let moved = false;
   if (S && !busy && !paused){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
+    if (stepHops()) moved = true;              // 동물 홉핑
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
     if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
@@ -2122,6 +2179,7 @@ validateRecipes();
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!paused && !drag && !tear && !busy){ godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
+setInterval(animalTick, 1000);                 // 동물 홉핑
 
 measure();
 if (load()){
