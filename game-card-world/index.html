@@ -78,7 +78,7 @@
   .k-fire{--tone:#ff9a3c;}
   .k-character{--tone:var(--brand-yellow);border-color:#4a4428;}
   .k-package{--tone:var(--brand-yellow);background:linear-gradient(160deg,#3b3521,#221f14);border-color:#5e5431;}
-  .k-request{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
+  .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
 
   .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);border-color:var(--tone);pointer-events:none;}
   .cw.is-target{border-color:var(--brand-yellow);box-shadow:0 0 0 2px var(--brand-yellow),var(--sh-lg);}
@@ -116,7 +116,8 @@
   @keyframes tearL{to{transform:translate(-45%,25%) rotate(-20deg);opacity:0;}}
   @keyframes tearR{to{transform:translate(45%,25%) rotate(20deg);opacity:0;}}
 
-  /* request */
+  /* quest */
+  .quest-label{position:absolute;left:7px;top:5px;font-size:calc(var(--cw) * .1);font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);pointer-events:none;}
   .req-emoji{font-size:calc(var(--cw) * .24)!important;}
   .req-title{color:var(--ink);font-size:calc(var(--cw) * .12);font-weight:700;text-align:center;padding:0 6px;line-height:1.2;pointer-events:none;}
   .req-need{color:var(--brand-yellow);font-size:calc(var(--cw) * .13);font-weight:800;pointer-events:none;}
@@ -190,13 +191,13 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.19.0';
+const VERSION = 'v0.20.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
-  request:   { name:'request',     emoji:'📜', kind:'request' },
+  quest:   { name:'quest',     emoji:'📜', kind:'quest' },
   knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0 },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
@@ -289,7 +290,7 @@ const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
 // 콜렉터북 페이지 (시대별)
 const PAGE = {
   title: '석기시대 초기',
-  ids: ['package', 'request', 'knight', 'god',
+  ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
         'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt'],
@@ -328,10 +329,10 @@ let S = null;                 // 저장되는 상태
 const els = new Map();        // id → element
 const spawned = new Set();    // 이번 렌더에서 등장 연출할 id
 const bumpIds = new Set();    // 이번 렌더에서 튕김 연출할 id
-const settling = new Set();   // 정산 대기 중인 request id
+const settling = new Set();   // 정산 대기 중인 quest id
 let newSeen = [];
 let drag = null, tear = null, busy = false;
-let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'request' | 'package' }
+let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'quest' | 'package' }
 let speechWaiters = [];       // 멘트가 다 끝나면 부를 함수
 const popFrom = new Map();    // id → 튀어나온 출발점 {x, y}
 // 밀어내기(물리) — 상단 체크로 켜고 끔. 설정은 게임 저장과 따로 둠
@@ -353,7 +354,7 @@ const TOP_PAD = 52;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 const byId = id => S.cards.find(c => c.id === id);
-const submittable = def => !['character', 'package', 'request'].includes(def.kind);
+const submittable = def => !['character', 'package', 'quest'].includes(def.kind);
 
 function measure(){
   const m = Math.min(innerWidth, innerHeight);
@@ -429,15 +430,17 @@ function load(){
     if (!raw) return false;
     const st = JSON.parse(raw);
     if (!st || !Array.isArray(st.cards) || !st.cards.length) return false;
+    for (const c of st.cards) if (c.type === 'request') c.type = 'quest';   // v0.20.0: request → quest
+    if (Array.isArray(st.seen)) st.seen = st.seen.map(t => t === 'request' ? 'quest' : t);
     st.cards = st.cards.filter(c => DEFS[c.type]);
     st.seen = (st.seen || []).filter(t => DEFS[t]);
     st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
     st.flags = st.flags || {};
-    for (const c of st.cards) if (c.type === 'request' && !Array.isArray(c.stack)) c.stack = [];
+    for (const c of st.cards) if (c.type === 'quest' && !Array.isArray(c.stack)) c.stack = [];
     for (const c of st.cards){                      // v0.18.0: 칼 → 무기 이름 변경
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
-      if (c.type === 'request' && c.slot === '칼') c.slot = '무기';
-      if (c.type === 'request' && c.title === '칼을 들어라') c.title = '무기를 들어라';
+      if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
+      if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
     if (!st.cards.length) return false;
     S = st;
@@ -459,7 +462,7 @@ function paint(el, c){
   let cls = 'cw k-' + d.kind;
   const combo = COMBOABLE.has(c.type);
   const tags = tagsOf(c);
-  if ((tags.length || combo) && d.kind !== 'request') cls += ' has-tags';
+  if ((tags.length || combo) && d.kind !== 'quest') cls += ' has-tags';
   const pf = popFrom.get(c.id);
   if (pf){
     cls += ' pop';
@@ -473,7 +476,8 @@ function paint(el, c){
   const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
   el.style.zIndex = talkingHere ? 1999999999 : c.z;
   let html = '';
-  if (d.kind === 'request'){
+  if (d.kind === 'quest'){
+    html += '<div class="quest-label">Quest</div>';
     html += `<div class="emoji req-emoji">${d.emoji}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;
     html += `<div class="req-need">${esc(reqProgress(c))}</div>`;
@@ -649,7 +653,7 @@ function healOf(def){
   return def.heal || 0;
 }
 
-// ── request 종류 ──────────────────────────────────────
+// ── quest 종류 ──────────────────────────────────────
 //   갓: { need:3, stack } 아무거나 → package
 //   제출형 퀘스트: { quest, wants:'카드', need, stack, reward:'카드' }
 //   조건형 퀘스트: { quest, goal:'fullHp', target } / { quest, goal:'equip', slot, target }
@@ -708,7 +712,7 @@ function knightLine(k){
   if (st.includes('허기짐')) return '배고파';
   return null;
 }
-const questExists = q => S.cards.some(c => c.type === 'request' && c.quest === q);
+const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
   if (!k) return;
@@ -718,7 +722,7 @@ function giveKnightQuest(kind){
     food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], reward: 'hilt' },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
-  const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
+  const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
   save();
@@ -733,7 +737,7 @@ function knightCheck(){
     if (!statusOf(k).includes('빈사')) return;
     S.flags.knightStage = 1;
     save();
-    knightSay('...', knightCheck);                           // 대사 끝나고 request
+    knightSay('...', knightCheck);                           // 대사 끝나고 quest
     return;
   }
   if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
@@ -746,7 +750,7 @@ function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
   if (dd.kind === 'character' && tagLevel(td, '장소')) return { act: 'visit' };   // 방문
   const edible = tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유');
-  if (td.kind === 'request'){
+  if (td.kind === 'quest'){
     if (t.goal === 'equip'){
       // 조건형 request에 맞는 장비를 놓으면 대상에게 장비한 것과 같음
       const tg = byId(t.target);
@@ -768,7 +772,7 @@ function evaluate(d, t){
   }
   if (td.kind === 'character' && edible){
     // 이 캐릭터가 준 제출형 request가 이 카드를 원하면, 직접 먹여도 그 request에 들어감
-    const into = S.cards.find(r => r.type === 'request' && r.giver === t.id && r.wants === d.type && r.stack.length < r.need);
+    const into = S.cards.find(r => r.type === 'quest' && r.giver === t.id && r.wants === d.type && r.stack.length < r.need);
     if (into) return { act: 'submit', into };
     return { act: 'eat' };
   }
@@ -917,7 +921,7 @@ function afterChange(){
 }
 function checkSettle(){
   for (const rq of S.cards){
-    if (rq.type !== 'request') continue;
+    if (rq.type !== 'quest') continue;
     if (reqDone(rq) && !settling.has(rq.id)){
       settling.add(rq.id);
       const id = rq.id;
@@ -935,7 +939,7 @@ function settle(id){
   if (el) el.classList.add('gone');
   setTimeout(() => {
     const x = rq.x, y = rq.y;
-    removeCard(id);                       // 정산: 제출물과 request 제거
+    removeCard(id);                       // 정산: 제출물과 quest 제거
     busy = false;
     rewardFor(rq, x, y);
     save();
@@ -949,7 +953,7 @@ function rewardFor(rq, x, y){
     const k = byId(rq.giver);
     if (k && statusOf(k).includes('빈사')) setStatus(k, ['빈사'], ['허기짐']);
     S.flags.knightStage = 2;
-    knightSay('배고파', knightCheck);                      // 대사 끝나고 다음 request
+    knightSay('배고파', knightCheck);                      // 대사 끝나고 다음 quest
     return;
   }
   if (rq.quest === 'foodmedicine'){
@@ -970,7 +974,7 @@ function rewardFor(rq, x, y){
   say(pick(LINES.settle));
 }
 
-// ── 갓의 request 공급 ─────────────────────────────────
+// ── 갓의 quest 공급 ─────────────────────────────────
 // 이미 발견한 조합 중에 지금 테이블에서 할 수 있는 게 있나
 function anyKnownRecipe(){
   const cs = S.cards;
@@ -988,19 +992,19 @@ function scheduleGod(){
   clearTimeout(godTimer);
   godTimer = setTimeout(godCheck, 1400);
 }
-// 갓이 지금 무엇을 줘야 하나: null | 'request' | 'package'
+// 갓이 지금 무엇을 줘야 하나: null | 'quest' | 'package'
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god') || has('package')) return null;
   const avail = submittableCount();
-  const requests = S.cards.filter(c => c.type === 'request' && isGodRequest(c));
+  const requests = S.cards.filter(c => c.type === 'quest' && isGodRequest(c));
   if (requests.length){
-    // request 3개를 달성할 수 없으면 package로 보태줌. request는 그대로 둠
+    // quest 3개를 달성할 수 없으면 package로 보태줌. request는 그대로 둠
     return requests.some(rq => rq.stack.length + avail >= rq.need) ? null : 'package';
   }
   // 첫 발견 뒤엔 플레이어가 아는 조합으로 할 게 없을 때만
   if (S.flags.discovered && anyKnownRecipe()) return null;
-  return avail >= 3 ? 'request' : 'package';
+  return avail >= 3 ? 'quest' : 'package';
 }
 function godCheck(){
   knightCheck();
@@ -1009,7 +1013,7 @@ function godCheck(){
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
-  const hasRequest = S.cards.some(c => c.type === 'request' && isGodRequest(c));
+  const hasRequest = S.cards.some(c => c.type === 'quest' && isGodRequest(c));
   if (kind === 'package') say(hasRequest ? pick(LINES.rescue) : LINES.free);
   else if (S.flags.discovered) say(pick(LINES.stuck));
   else if (S.flags.requestsGiven) say(pick(LINES.again));
@@ -1026,9 +1030,9 @@ function deliverGift(){
   const p = findSpot(god.x + CW * 1.1, god.y);
   const c = kind === 'package'
     ? addCard('package', p.x, p.y, { contents: 'tutorial' })
-    : addCard('request', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐', giver: god.id });
-  if (kind === 'request') S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
-  if (kind === 'request') slideOutFrom(c, god);                // 갓 뒤에서 오른쪽으로 미끄러져 나옴
+    : addCard('quest', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐', giver: god.id });
+  if (kind === 'quest') S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
+  if (kind === 'quest') slideOutFrom(c, god);                // 갓 뒤에서 오른쪽으로 미끄러져 나옴
   else popFrom.set(c.id, { x: god.x, y: god.y });              // package는 갓에게서 튀어나옴
   bumpIds.add(god.id);
   save();
@@ -1194,9 +1198,9 @@ function onDown(e){
   e.preventDefault();
   const { px, py } = localPoint(e);
 
-  // request 위에 쌓인 카드 꺼내기
+  // quest 위에 쌓인 카드 꺼내기
   const mini = e.target.closest('.mini');
-  if (mini && c.type === 'request'){
+  if (mini && c.type === 'quest'){
     if (settling.has(c.id)) return;
     const idx = +mini.dataset.idx;
     const type = c.stack.splice(idx, 1)[0];
@@ -1464,7 +1468,7 @@ function fieldSnapshot(){
       }
       if (c.visit != null) o.visit = nameOf(c.visit);
       if (c.contents) o.contents = c.contents;
-      if (c.type === 'request'){
+      if (c.type === 'quest'){
         o.title = c.title;
         if (c.quest) o.quest = c.quest;
         o.giver = c.giver != null ? nameOf(c.giver) : null;
@@ -1537,9 +1541,9 @@ function physStep(){
   let moved = false;
   if (S && !busy){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
-    if (solveAttach()) moved = true;           // 잡은 request → 발주자
+    if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
-    if (solveAttach()) moved = true;           // 방문자 → 붙은 request
+    if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
     if (phys && physMove()) moved = true;
     if (solveVisit()) moved = true;
     if (solveAttach()) moved = true;
@@ -1549,12 +1553,12 @@ function physStep(){
   drawLinks();
   fitBubbles();                                // 카드가 움직여도 말풍선은 화면 안에
 }
-// ── request 붙이기 ─────────────────────────────────────
+// ── quest 붙이기 ─────────────────────────────────────
 // 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 왼쪽으로는 가지 않음
 const ATTACH_GAP = 4;
-// request 등장: 발주자 뒤에서 오른쪽으로 미끄러져 나옴
+// quest 등장: 발주자 뒤에서 오른쪽으로 미끄러져 나옴
 const SLIDE_MS = 350;
-const slideIn = new Map();     // request id → 등장 시작 시각
+const slideIn = new Map();     // quest id → 등장 시작 시각
 function slideProgress(id){
   const t0 = slideIn.get(id);
   if (t0 == null) return 1;
@@ -1572,7 +1576,7 @@ function slideOutFrom(rq, g){
 function bodyOf(c){
   let cur = c;
   for (let i = 0; cur && i < 6; i++){
-    if (cur.type === 'request' && cur.giver != null){ const g = byId(cur.giver); if (g){ cur = g; continue; } }
+    if (cur.type === 'quest' && cur.giver != null){ const g = byId(cur.giver); if (g){ cur = g; continue; } }
     if (cur.visit != null){ const pl = byId(cur.visit); if (pl){ cur = pl; continue; } }
     break;
   }
@@ -1582,9 +1586,9 @@ function moveEl(c){
   const el = els.get(c.id);
   if (el){ el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
 }
-// 발주자에 붙은 request 목록 (붙는 순서 = id 순)
+// 발주자에 붙은 quest 목록 (붙는 순서 = id 순)
 function attachedList(g){
-  return S.cards.filter(r => r.type === 'request' && r.giver === g.id).sort((a, b) => a.id - b.id);
+  return S.cards.filter(r => r.type === 'quest' && r.giver === g.id).sort((a, b) => a.id - b.id);
 }
 // 붙음 묶음이 화면 밖으로 나가지 않도록 카드별 x 범위
 //   request는 항상 발주자 오른쪽 → 경계에 닿으면 순서를 바꾸지 않고 더 안 움직임
@@ -1592,7 +1596,7 @@ function attachLimits(c){
   const { w } = tableSize();
   const step = CW + ATTACH_GAP;
   const maxBase = w - CW - 8;
-  if (c.type === 'request' && c.giver != null){
+  if (c.type === 'quest' && c.giver != null){
     const g = byId(c.giver);
     if (g){
       const list = attachedList(g);
@@ -1609,7 +1613,7 @@ function solveAttach(){
   const step = CW + ATTACH_GAP;
   const groups = new Map();
   for (const c of S.cards){
-    if (c.type !== 'request' || c.giver == null) continue;
+    if (c.type !== 'quest' || c.giver == null) continue;
     const g = byId(c.giver);
     if (!g) continue;
     if (!groups.has(g.id)) groups.set(g.id, { g, list: [] });
@@ -1620,12 +1624,12 @@ function solveAttach(){
     const hid = heldId();
     const di = hid != null ? list.findIndex(r => r.id === hid) : -1;
     if (di >= 0){
-      // request를 끌면 발주자가 따라옴 (request 위치는 onMove에서 이미 범위 안으로 제한됨)
+      // request를 끌면 발주자가 따라옴 (quest 위치는 onMove에서 이미 범위 안으로 제한됨)
       const r = list[di];
       const p = clampPos(r.x - step * (di + 1), r.y);
       if (Math.abs(p.x - g.x) > 0.05 || Math.abs(p.y - g.y) > 0.05){ g.x = p.x; g.y = p.y; moveEl(g); moved = true; }
     } else if (hid !== g.id){
-      // 밀어내기·방문 연결 등으로 발주자가 오른쪽 끝에 몰리면 request 자리만큼 안쪽으로
+      // 밀어내기·방문 연결 등으로 발주자가 오른쪽 끝에 몰리면 quest 자리만큼 안쪽으로
       const lim = attachLimits(g);
       if (lim.maxX >= lim.minX && g.x > lim.maxX + 0.05){ g.x = lim.maxX; moveEl(g); moved = true; }
     }
@@ -1641,7 +1645,7 @@ function solveAttach(){
 // 연결: 장소 ─ 방문한 캐릭터
 //   일정 거리를 유지하며 밀리거나 끌려감 (막대처럼)
 //   끌고 있는 카드에서 연결을 따라 퍼져나가며 차례로 끌려감 (사슬)
-//   아무도 안 끌 때는 b쪽(request·방문자)이 제 거리로 천천히 돌아감
+//   아무도 안 끌 때는 b쪽(quest·방문자)이 제 거리로 천천히 돌아감
 const tetherLen = () => CW * 1.6;              // 카드 중심 사이 거리. 밀어내기 간격보다 길게
 // ── 방문 줄 ───────────────────────────────────────────
 // 방문한 캐릭터는 장소 오른쪽에 위에서 아래로 섬 (먼저 방문한 캐릭터가 위). 장소와 선으로 이어짐
@@ -1672,7 +1676,7 @@ function visitorsOf(pl){
   return S.cards.filter(c => c.visit === pl.id).sort((a, b) => ((a.visitSeq || 0) - (b.visitSeq || 0)) || (a.id - b.id));
 }
 function rowUnits(pl){
-  // 가장 긴 줄의 칸 수 (방문자 1칸 + 그 방문자에 붙은 request 수)
+  // 가장 긴 줄의 칸 수 (방문자 1칸 + 그 방문자에 붙은 quest 수)
   return visitorsOf(pl).reduce((n, v) => Math.max(n, 1 + attachedList(v).length), 0);
 }
 function heldVisitor(){
@@ -1680,7 +1684,7 @@ function heldVisitor(){
   const h = hid != null ? byId(hid) : null;
   if (!h) return null;
   if (h.visit != null) return h;
-  if (h.type === 'request' && h.giver != null){ const g = byId(h.giver); if (g && g.visit != null) return g; }
+  if (h.type === 'quest' && h.giver != null){ const g = byId(h.giver); if (g && g.visit != null) return g; }
   return null;
 }
 function solveVisit(){
