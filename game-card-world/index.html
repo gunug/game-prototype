@@ -175,7 +175,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.11.0';
+const VERSION = 'v0.11.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -604,6 +604,8 @@ function reqProgress(rq){
   return `${rq.stack.length} / ${rq.need}`;
 }
 function reqReward(rq){
+  if (rq.rewardText) return rq.rewardText;
+  if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
   if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
   if (rq.goal === 'equip') return '보상 없음';
   if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
@@ -644,8 +646,8 @@ function giveKnightQuest(kind){
   if (!k) return;
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
-    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], reward: 'hilt' },
-    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [] },
+    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [], reward: 'hilt' },
     sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '칼', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
@@ -876,7 +878,6 @@ function settle(id){
 
 function rewardFor(rq, x, y){
   if (rq.quest === 'bonepowder'){
-    addCard('hilt', x, y);
     const k = byId(rq.giver);
     if (k && statusOf(k).includes('빈사')) setStatus(k, ['빈사'], ['허기짐']);
     S.flags.knightStage = 2;
@@ -886,8 +887,10 @@ function rewardFor(rq, x, y){
   if (rq.quest === 'foodmedicine'){
     const k = byId(rq.target);
     if (k) setStatus(k, ['빈사', '허기짐'], []);
+    addCard('hilt', x, y);                                  // 칼자루가 먼저 보이고
     S.flags.knightStage = 3;
     toast('🩹 빈사 해결');
+    knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 칼을 들어라
     return;
   }
   if (rq.quest === 'takesword'){
