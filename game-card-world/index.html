@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.5';
+const VERSION = 'v0.16.6';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -688,7 +688,7 @@ function giveKnightQuest(kind){
     sword: { quest: 'takesword', title: '칼을 들어라', goal: 'equip', slot: '칼', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
-  popFrom.set(rq.id, { x: k.x, y: k.y });                   // 기사에게서 튀어나옴
+  slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
   save();
   renderAll();
@@ -997,7 +997,8 @@ function deliverGift(){
     ? addCard('package', p.x, p.y, { contents: 'tutorial' })
     : addCard('request', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐', giver: god.id });
   if (kind === 'request') S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
-  popFrom.set(c.id, { x: god.x, y: god.y });                  // 갓에게서 튀어나옴
+  if (kind === 'request') slideOutFrom(c, god);                // 갓 뒤에서 오른쪽으로 미끄러져 나옴
+  else popFrom.set(c.id, { x: god.x, y: god.y });              // package는 갓에게서 튀어나옴
   bumpIds.add(god.id);
   save();
   renderAll();
@@ -1516,6 +1517,22 @@ function physStep(){
 // ── request 붙이기 ─────────────────────────────────────
 // 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 왼쪽으로는 가지 않음
 const ATTACH_GAP = 4;
+// request 등장: 발주자 뒤에서 오른쪽으로 미끄러져 나옴
+const SLIDE_MS = 350;
+const slideIn = new Map();     // request id → 등장 시작 시각
+function slideProgress(id){
+  const t0 = slideIn.get(id);
+  if (t0 == null) return 1;
+  const t = (performance.now() - t0) / SLIDE_MS;
+  if (t >= 1){ slideIn.delete(id); return 1; }
+  return 1 - Math.pow(1 - t, 3);
+}
+function slideOutFrom(rq, g){
+  rq.x = g.x; rq.y = g.y;       // 발주자와 같은 자리에서 시작
+  spawned.delete(rq.id);
+  slideIn.set(rq.id, performance.now());
+  g.z = ++S.z;                   // 발주자가 위 → request가 뒤에서 나오는 것처럼
+}
 // 붙어 있는 request의 몸통 = 발주자. 나머지 카드는 자기 자신
 function bodyOf(c){
   if (c && c.type === 'request' && c.giver != null){
@@ -1575,7 +1592,7 @@ function solveAttach(){
     }
     list.forEach((r, i) => {
       if (r.id === hid) return;
-      const p = clampPos(g.x + step * (i + 1), g.y);
+      const p = clampPos(g.x + step * (i + 1) * slideProgress(r.id), g.y);
       if (Math.abs(p.x - r.x) > 0.05 || Math.abs(p.y - r.y) > 0.05){ r.x = p.x; r.y = p.y; moveEl(r); moved = true; }
     });
   }
