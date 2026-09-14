@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.1';
+const VERSION = 'v0.16.2';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1200,6 +1200,14 @@ function onDown(e){
   startDrag(c, px, py, e.pointerId, { ox: c.x, oy: c.y });
 }
 function startDrag(c, px, py, pid, o){
+  // 붙음: 같은 묶음(발주자와 request)은 끌고 있는 카드와 함께 맨 위로
+  const body = bodyOf(c);
+  for (const m of S.cards){
+    if (m.id === c.id || bodyOf(m) !== body) continue;
+    m.z = ++S.z;
+    const me = els.get(m.id);
+    if (me) me.style.zIndex = 1999999990;
+  }
   c.z = ++S.z;
   const el = els.get(c.id);
   if (!el) return;
@@ -1457,7 +1465,7 @@ function physStep(){
   drawLinks();
 }
 // ── request 붙이기 ─────────────────────────────────────
-// request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 오른쪽에 자리가 없으면 왼쪽
+// 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 오른쪽에 자리가 없으면 왼쪽
 const ATTACH_GAP = 4;
 // 붙어 있는 request의 몸통 = 발주자. 나머지 카드는 자기 자신
 function bodyOf(c){
