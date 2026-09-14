@@ -57,6 +57,7 @@
   .cw::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--tone);opacity:.10;pointer-events:none;}
   .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
+  .cw .heal{color:#ff8f8f;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
   .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
   .cw .tags{position:absolute;left:3px;right:3px;bottom:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
@@ -167,7 +168,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.8.0';
+const VERSION = 'v0.8.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -451,6 +452,8 @@ function paint(el, c){
     }
   } else {
     html += `<div class="emoji">${d.emoji}</div><div class="name">${esc(d.name)}</div>`;
+    const heal = healOf(d);
+    if (heal > 0) html += `<div class="heal">❤ +${heal}</div>`;       // 음식 회복량을 이름 아래에
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg></div>';
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (tags.length || combo){
