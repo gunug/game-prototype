@@ -60,6 +60,7 @@
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
   .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
   .cw .tags{position:absolute;left:3px;right:3px;bottom:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
+  .cw .tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
   .cw .tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
   .cw .tag{font-size:calc(var(--cw) * .085);line-height:1.25;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:0 3px;white-space:nowrap;}
   .devnote{position:fixed;left:10px;bottom:10px;z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
@@ -166,14 +167,14 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.6.0';
-const STORE = 'card-world-rpg.v1';
+const VERSION = 'v0.7.0';
+const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   request:   { name:'request',     emoji:'📜', kind:'request' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능'], hp:10 },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능'], hp:10, startHp:0, startStatus:['빈사'] },
   god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -184,9 +185,9 @@ const DEFS = {
   shell:     { name:'조개껍데기',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '합칠 수 있음'], heal:1 },
   handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2'] },
-  marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음'], heal:2 },
-  clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], heal:2, cooked:'roastclam' },
-  meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음', '날것'], heal:1, cooked:'roastmeat' },
+  marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
+  clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
+  meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
   hide:      { name:'가죽',        emoji:'🟫', kind:'material', tags:[] },
   stick:     { name:'뾰족한 막대', emoji:'🥢', kind:'tool', tags:['불에 타는'] },
   tinder:    { name:'불쏘시개',    emoji:'🪹', kind:'material', tags:['불에 타는'] },
@@ -194,8 +195,9 @@ const DEFS = {
   ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
   campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불'] },
   ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
-  roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'], heal:4 },
-  roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'], heal:3 },
+  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:[] },
+  roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
 };
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
@@ -266,7 +268,7 @@ const PAGE = {
   ids: ['package', 'request', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'hilt'],
 };
 
 // 갓의 대사
@@ -307,7 +309,7 @@ let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'request' |
 let speechWaiters = [];       // 멘트가 다 끝나면 부를 함수
 const popFrom = new Map();    // id → 튀어나온 출발점 {x, y}
 // 밀어내기(물리) — 상단 체크로 켜고 끔. 설정은 게임 저장과 따로 둠
-const SETTINGS = STORE + '.settings';
+const SETTINGS = 'card-world-rpg.v1.settings';
 const DAMP = 0.86;            // 매 프레임 속도 감쇠
 const PUSH = 0.08;            // 겹친 만큼 밀어내는 힘
 const vel = new Map();        // id → 속도 {x, y}
@@ -374,7 +376,8 @@ function markSeen(type, quiet){
 function addCard(type, x, y, extra, quiet){
   const c = Object.assign({ id: S.nextId++, type, x, y, z: ++S.z }, extra || {});
   const d = DEFS[type];
-  if (d.hp && c.hp == null) c.hp = d.hp;
+  if (d.hp && c.hp == null) c.hp = d.startHp != null ? d.startHp : d.hp;
+  if (d.startStatus && !c.status) c.status = d.startStatus.slice();
   const p = clampPos(c.x, c.y);
   c.x = p.x; c.y = p.y;
   S.cards.push(c);
@@ -423,7 +426,7 @@ function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind;
   const combo = COMBOABLE.has(c.type);
-  const tags = d.tags || [];
+  const tags = tagsOf(c);
   if ((tags.length || combo) && d.kind !== 'request') cls += ' has-tags';
   const pf = popFrom.get(c.id);
   if (pf){
@@ -435,13 +438,13 @@ function paint(el, c){
   el.className = cls;
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
-  el.style.zIndex = (c.type === 'god' && speech) ? 1999999999 : c.z;
+  el.style.zIndex = ((c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech)) ? 1999999999 : c.z;
   let html = '';
   if (d.kind === 'request'){
     html += `<div class="emoji req-emoji">${d.emoji}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;
-    html += `<div class="req-need">${c.stack.length} / ${c.need}</div>`;
-    html += '<div class="req-reward">보상 📦</div>';
+    html += `<div class="req-need">${esc(reqProgress(c))}</div>`;
+    html += `<div class="req-reward">${esc(reqReward(c))}</div>`;
     if (c.stack.length){
       html += '<div class="req-stack">' + c.stack.map((t, i) => `<div class="mini" data-idx="${i}">${DEFS[t].emoji}</div>`).join('') + '</div>';
     }
@@ -451,9 +454,10 @@ function paint(el, c){
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (tags.length || combo){
       html += '<div class="tags">' + (combo ? '<span class="tag combo">조합 가능</span>' : '')
-        + tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') + '</div>';
+        + tags.map(t => `<span class="tag${statusOf(c).includes(t) ? ' st' : ''}">${esc(t)}</span>`).join('') + '</div>';
     }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
+    if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
   el.innerHTML = html;
 }
@@ -534,11 +538,113 @@ function nextSpeech(){
   speechTimer = setTimeout(nextSpeech, Math.max(1800, speech.length * 110));
 }
 
+// ── 상태 태그 (카드 한 장에 붙고 떨어짐) ──────────────
+const statusOf = c => c.status || [];
+const tagsOf = c => (DEFS[c.type].tags || []).concat(statusOf(c));
+function setStatus(c, remove, add){
+  const s = statusOf(c).filter(t => !remove.includes(t));
+  for (const a of add) if (!s.includes(a)) s.push(a);
+  c.status = s;
+}
+// 음식 회복량: 익힘 +2, 날것 +1, 그 밖엔 카드 정의값(열매 등)
+function healOf(def){
+  if (tagLevel(def, '익힘')) return 2;
+  if (tagLevel(def, '날것')) return 1;
+  return def.heal || 0;
+}
+
+// ── request 종류 ──────────────────────────────────────
+//   갓: { need:3, stack } 아무거나 → package
+//   제출형 퀘스트: { quest, wants:'카드', need, stack, reward:'카드' }
+//   조건형 퀘스트: { quest, goal:'fullHp', target }
+const isGodRequest = rq => !rq.quest;
+function reqDone(rq){
+  if (rq.goal === 'fullHp'){
+    const t = byId(rq.target);
+    return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
+  }
+  return rq.stack.length >= rq.need;
+}
+function reqProgress(rq){
+  if (rq.goal === 'fullHp'){
+    const t = byId(rq.target);
+    return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
+  }
+  if (rq.wants) return `${DEFS[rq.wants].emoji} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
+  return `${rq.stack.length} / ${rq.need}`;
+}
+function reqReward(rq){
+  if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
+  if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
+  return '보상 📦';
+}
+
+// ── 기사의 퀘스트 ─────────────────────────────────────
+//   stage 0: 시작 (빈사) → "..." → 뼛가루의 치유력
+//   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
+//   stage 3: 밥이 보약 완료 (빈사 해결)
+let knightSpeech = null, knightTimer = null;
+function repaint(type){
+  if (drag) return;
+  const c = S.cards.find(o => o.type === type);
+  const el = c && els.get(c.id);
+  if (el) paint(el, c);
+}
+function knightSay(text, done){
+  clearTimeout(knightTimer);
+  knightSpeech = text;
+  repaint('knight');
+  knightTimer = setTimeout(() => {
+    knightSpeech = null;
+    repaint('knight');
+    if (done) done();
+  }, Math.max(1800, text.length * 300));
+}
+function knightLine(k){
+  const st = statusOf(k);
+  if (st.includes('빈사')) return '...';
+  if (st.includes('허기짐')) return '배고파';
+  return null;
+}
+const questExists = q => S.cards.some(c => c.type === 'request' && c.quest === q);
+function giveKnightQuest(kind){
+  const k = S.cards.find(c => c.type === 'knight');
+  if (!k) return;
+  const p = findSpot(k.x - CW * 1.1, k.y);
+  const spec = kind === 'bone'
+    ? { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], reward: 'hilt' }
+    : { quest: 'foodmedicine', title: '밥이 보약', goal: 'fullHp', target: k.id, need: 0, stack: [] };
+  const rq = addCard('request', p.x, p.y, Object.assign({ giver: k.id }, spec));
+  popFrom.set(rq.id, { x: k.x, y: k.y });                   // 기사에게서 튀어나옴
+  bumpIds.add(k.id);
+  save();
+  renderAll();
+}
+function knightCheck(){
+  if (!S || knightSpeech || drag || tear || busy) return;
+  const k = S.cards.find(c => c.type === 'knight');
+  if (!k) return;
+  const stage = S.flags.knightStage || 0;
+  if (stage === 0){
+    if (!statusOf(k).includes('빈사')) return;
+    S.flags.knightStage = 1;
+    save();
+    knightSay('...', knightCheck);                           // 대사 끝나고 request
+    return;
+  }
+  if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
+  if (stage === 2 && !questExists('foodmedicine')) giveKnightQuest('food');
+}
+
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
 function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
-  if (td.kind === 'request') return submittable(dd) ? { act: 'submit' } : null;
-  if (td.kind === 'character' && dd.heal) return { act: 'eat' };
+  if (td.kind === 'request'){
+    if (t.goal || t.stack.length >= t.need) return null;      // 조건형이거나 이미 다 참
+    if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
+    return submittable(dd) ? { act: 'submit' } : null;
+  }
+  if (td.kind === 'character' && (tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유'))) return { act: 'eat' };
   const ms = usableRecipes(d.type, t.type);
   if (!ms.length) return null;
   if (ms.length > 1) console.warn('[제작자 알림] 조합 겹침', d.type, t.type, ms.map(m => m.r.id));
@@ -556,14 +662,29 @@ function apply(ev, d, t){
   }
   if (ev.act === 'eat'){
     const max = DEFS[t.type].hp;
-    if (t.hp >= max){
-      toast('체력이 가득함');
-      if (t.type === 'knight') sayMaybe(LINES.fullHp);
-      return false;
+    const talk = () => { if (t.type === 'knight' && !knightSpeech && knightLine(t)) knightSay(knightLine(t)); };
+    if (statusOf(t).includes('빈사')){
+      // 빈사는 빈사 치유 아이템으로만 해결 → 허기짐
+      if (!tagLevel(dd, '빈사 치유')){ toast('빈사 상태 — 빈사 치유가 필요함'); talk(); return false; }
+      setStatus(t, ['빈사'], ['허기짐']);
+      removeCard(d.id);
+      bumpIds.add(t.id);
+      toast(`💊 ${DEFS[t.type].name}: 빈사 → 허기짐`);
+      return true;
     }
-    t.hp = Math.min(max, t.hp + dd.heal);
+    const heal = healOf(dd);
+    if (heal <= 0){ toast('효과 없음'); return false; }
+    if (t.hp >= max){ toast('체력이 가득함'); return false; }
+    t.hp = Math.min(max, t.hp + heal);
     removeCard(d.id);
     bumpIds.add(t.id);
+    // 허기짐은 체력을 최대치까지 채우면 해결
+    if (t.hp >= max && statusOf(t).includes('허기짐')){
+      setStatus(t, ['허기짐'], []);
+      toast(`🍽️ ${DEFS[t.type].name}: 허기짐 해결`);
+    } else {
+      talk();
+    }
     return true;
   }
   if (ev.act === 'recipe'){
@@ -642,7 +763,7 @@ function afterChange(){
 function checkSettle(){
   for (const rq of S.cards){
     if (rq.type !== 'request') continue;
-    if (rq.stack.length >= rq.need && !settling.has(rq.id)){
+    if (reqDone(rq) && !settling.has(rq.id)){
       settling.add(rq.id);
       const id = rq.id;
       setTimeout(() => settle(id), 420);
@@ -653,20 +774,39 @@ function settle(id){
   if (drag || tear || busy){ setTimeout(() => settle(id), 200); return; }
   settling.delete(id);
   const rq = byId(id);
-  if (!rq || rq.stack.length < rq.need) return;
+  if (!rq || !reqDone(rq)) return;
   busy = true;
   const el = els.get(id);
   if (el) el.classList.add('gone');
   setTimeout(() => {
     const x = rq.x, y = rq.y;
     removeCard(id);                       // 정산: 제출물과 request 제거
-    addCard('package', x, y, { contents: 'tutorial' });
     busy = false;
-    say(pick(LINES.settle));
+    rewardFor(rq, x, y);
     save();
     renderAll();
     scheduleGod();
   }, 300);
+}
+
+function rewardFor(rq, x, y){
+  if (rq.quest === 'bonepowder'){
+    addCard('hilt', x, y);
+    const k = byId(rq.giver);
+    if (k && statusOf(k).includes('빈사')) setStatus(k, ['빈사'], ['허기짐']);
+    S.flags.knightStage = 2;
+    knightSay('배고파', knightCheck);                      // 대사 끝나고 다음 request
+    return;
+  }
+  if (rq.quest === 'foodmedicine'){
+    const k = byId(rq.target);
+    if (k) setStatus(k, ['빈사', '허기짐'], []);
+    S.flags.knightStage = 3;
+    toast('🩹 빈사 해결');
+    return;
+  }
+  addCard('package', x, y, { contents: 'tutorial' });
+  say(pick(LINES.settle));
 }
 
 // ── 갓의 request 공급 ─────────────────────────────────
@@ -692,7 +832,7 @@ function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god') || has('package')) return null;
   const avail = submittableCount();
-  const requests = S.cards.filter(c => c.type === 'request');
+  const requests = S.cards.filter(c => c.type === 'request' && isGodRequest(c));
   if (requests.length){
     // request 3개를 달성할 수 없으면 package로 보태줌. request는 그대로 둠
     return requests.some(rq => rq.stack.length + avail >= rq.need) ? null : 'package';
@@ -702,12 +842,13 @@ function decideGift(){
   return avail >= 3 ? 'request' : 'package';
 }
 function godCheck(){
+  knightCheck();
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
   if (drag || tear || busy || settling.size){ scheduleGod(); return; }
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
-  const hasRequest = S.cards.some(c => c.type === 'request');
+  const hasRequest = S.cards.some(c => c.type === 'request' && isGodRequest(c));
   if (kind === 'package') say(hasRequest ? pick(LINES.rescue) : LINES.free);
   else if (S.flags.discovered) say(pick(LINES.stuck));
   else if (S.flags.requestsGiven) say(pick(LINES.again));
@@ -1072,6 +1213,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   clearTimeout(speechTimer);
   speechTimer = null; speechQ = []; speech = null;
   gift = null; speechWaiters = [];
+  clearTimeout(knightTimer); knightSpeech = null;
   settling.clear();
   drag = null; tear = null; busy = false;
   for (const el of els.values()) el.remove();
