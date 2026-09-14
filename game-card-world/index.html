@@ -83,6 +83,7 @@
   .k-package{--tone:var(--brand-yellow);background:linear-gradient(160deg,#3b3521,#221f14);border-color:#5e5431;}
   .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
 
+  .table.paused{filter:saturate(.7) brightness(.82);transition:filter .2s;}
   .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);border-color:var(--tone);pointer-events:none;}
   .cw.is-target{border-color:var(--brand-yellow);box-shadow:0 0 0 2px var(--brand-yellow),var(--sh-lg);}
   .cw.is-target.no{border-color:var(--hairline);box-shadow:0 0 0 2px rgba(142,140,130,.55),var(--sh-md);}
@@ -202,7 +203,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.24.0';
+const VERSION = 'v0.25.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -620,7 +621,25 @@ function setLine(who, text){
     if (el && !drag && !(tear && tear.id === pk.id)) paint(el, pk);
   }
 }
+// ── 일시 정지 ─────────────────────────────────────────
+// 콜렉터북 등록 연출 동안 게임 필드를 멈춤: 조작, 밀어내기·붙이기, 체력 회복, 대사 진행, quest 지급·정산
+let paused = false, pausedAt = 0, talkWait = null;
+function setPaused(on){
+  if (on === paused) return;
+  paused = on;
+  table.classList.toggle('paused', on);
+  if (on){ pausedAt = performance.now(); return; }
+  // 멈춘 시간만큼 진행 중이던 애니메이션 시작 시각을 미룸
+  const dt = performance.now() - pausedAt;
+  if (returning) returning.t0 += dt;
+  for (const [id, t0] of slideIn) slideIn.set(id, t0 + dt);
+  scheduleGod();
+}
 function showNextTalk(prev){
+  if (paused){                                  // 멈춘 동안엔 새 대사를 시작하지 않음
+    if (!talkWait) talkWait = setTimeout(() => { talkWait = null; if (!talking) showNextTalk(prev); }, 250);
+    return;
+  }
   // 방금 말한 사람이 이어서 할 말이 있으면 계속 (한쪽 대화가 다 끝나야 다음 사람)
   // 아니면 할 말이 있는 사람 중 우선순위가 높은 쪽
   const who = (prev && talkQ[prev].length) ? prev : SPEAKERS.find(w => talkQ[w].length);
@@ -630,7 +649,10 @@ function showNextTalk(prev){
   setLine(who, item.text);
   const hasMouth = S.cards.some(c => c.type === who || (who === 'god' && c.type === 'package' && c.contents === 'first'));
   if (!hasMouth) toast((who === 'god' ? '😇 ' : '🛡️ ') + item.text);
-  talkTimer = setTimeout(() => {
+  talkTimer = setTimeout(function endLine(){
+    // 멈춘 동안엔 말풍선을 붙잡아 두고, 풀리면 조금 더 보여준 뒤 넘어감
+    if (paused){ item.held = true; talkTimer = setTimeout(endLine, 250); return; }
+    if (item.held){ item.held = false; talkTimer = setTimeout(endLine, 1200); return; }
     setLine(who, null);
     talking = null;
     if (item.done) item.done();
@@ -774,7 +796,7 @@ function giveKnightQuest(kind){
   renderAll();
 }
 function knightCheck(){
-  if (!S || isTalking('knight') || drag || tear || busy) return;
+  if (!S || paused || isTalking('knight') || drag || tear || busy) return;
   const k = S.cards.find(c => c.type === 'knight');
   if (!k) return;
   const stage = S.flags.knightStage || 0;
@@ -982,7 +1004,7 @@ function checkSettle(){
   }
 }
 function settle(id){
-  if (drag || tear || busy){ setTimeout(() => settle(id), 200); return; }
+  if (paused || drag || tear || busy){ setTimeout(() => settle(id), 200); return; }
   settling.delete(id);
   const rq = byId(id);
   if (!rq || !reqDone(rq)) return;
@@ -1069,7 +1091,7 @@ function decideGift(){
 function godCheck(){
   knightCheck();
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
-  if (drag || tear || busy || settling.size){ scheduleGod(); return; }
+  if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
@@ -1081,7 +1103,7 @@ function godCheck(){
 }
 function deliverGift(){
   if (!gift) return;
-  if (drag || tear || busy || settling.size){ setTimeout(deliverGift, 200); return; }
+  if (paused || drag || tear || busy || settling.size){ setTimeout(deliverGift, 200); return; }
   const kind = gift.kind;
   gift = null;
   if (decideGift() !== kind){ scheduleGod(); return; }       // 멘트 동안 상황이 바뀜 → 취소 후 다시 판단
@@ -1249,7 +1271,7 @@ function localPoint(e){
   return { px: e.clientX - r.left, py: e.clientY - r.top };
 }
 function onDown(e){
-  if (drag || tear || busy || returning) return;
+  if (paused || drag || tear || busy || returning) return;
   const cardEl = e.target.closest('.cw');
   if (!cardEl || cardEl.classList.contains('half')) return;
   const c = byId(+cardEl.dataset.id);
@@ -1506,7 +1528,7 @@ function pieValue(pl){
   return Math.min(1, (v.restMs || 0) / (REST_MS / lv));
 }
 function restTick(){
-  if (!S) return;
+  if (!S || paused) return;
   let hpChanged = false;
   for (const v of S.cards){
     if (v.visit == null || v.hp == null) continue;
@@ -1640,8 +1662,7 @@ function setBookOpen(open){
 // 상단 버튼: 하단에서 올라오고, 다시 누르면 하단으로 사라짐
 function toggleBook(){
   if (bookOpen){
-    bookManual = false;
-    setBookOpen(false);
+    closeBook();
   } else {
     bookManual = true;
     renderBook();
@@ -1660,16 +1681,33 @@ function runDiscoveries(){
   clearTimeout(discoTimer);
   if (!discoQ.length){
     discoRunning = false;
-    if (!bookManual) discoTimer = setTimeout(() => { if (!bookManual && !discoRunning) setBookOpen(false); }, 1200);
+    if (bookManual){ setPaused(false); return; }   // 버튼으로 연 상태면 시트는 두고 게임만 재개
+    // 등록이 끝나고 잠깐 보여준 뒤 내려감 → 다 내려가면 게임 재개
+    discoTimer = setTimeout(() => {
+      if (bookManual || discoRunning) return;
+      setBookOpen(false);
+      discoTimer = setTimeout(() => { if (!discoRunning) setPaused(false); }, 400);
+    }, 1200);
     return;
   }
   discoRunning = true;
+  setPaused(true);                                // 등록 연출 동안 게임 필드 일시 정지
   const batch = discoQ.splice(0);
   renderBook();
   const delay = bookOpen ? 150 : 430;             // 막 올라오는 중이면 다 올라온 뒤에 등록
   setBookOpen(true);
   batch.forEach((t, i) => setTimeout(() => registerSlot(t), delay + i * 320));
   discoTimer = setTimeout(runDiscoveries, delay + batch.length * 320 + 250);
+}
+// 닫기: 남은 등록 연출은 건너뛰고 바로 게임 재개
+function closeBook(){
+  clearTimeout(discoTimer);
+  discoQ = [];
+  discoRunning = false;
+  bookPending.clear();
+  bookManual = false;
+  setBookOpen(false);
+  setPaused(false);
 }
 function registerSlot(t){
   bookPending.delete(t);
@@ -1698,7 +1736,7 @@ function velOf(id){
 function physStep(){
   requestAnimationFrame(physStep);
   let moved = false;
-  if (S && !busy){
+  if (S && !busy && !paused){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
@@ -2028,7 +2066,7 @@ window.addEventListener('pointercancel', onUp);
 document.getElementById('bookBtn').addEventListener('click', toggleBook);
 document.getElementById('copyBtn').addEventListener('click', copyField);
 book.addEventListener('click', e => {
-  if (e.target.closest('[data-close]')){ bookManual = false; setBookOpen(false); }
+  if (e.target.closest('[data-close]')) closeBook();
 });
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
@@ -2038,6 +2076,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   talkTimer = null; talking = null; talkQ.god = []; talkQ.knight = [];
   speech = null; knightSpeech = null;
   gift = null; speechWaiters = [];
+  closeBook();
   settling.clear();
   drag = null; tear = null; busy = false;
   for (const el of els.values()) el.remove();
@@ -2062,7 +2101,7 @@ validateRecipes();
 })();
 
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
-setInterval(() => { if (!drag && !tear && !busy){ godCheck(); trappedHint(false); } }, 5000);
+setInterval(() => { if (!paused && !drag && !tear && !busy){ godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
 
 measure();
