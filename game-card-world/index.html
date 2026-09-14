@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.3';
+const VERSION = 'v0.16.4';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1296,6 +1296,8 @@ function onMove(e){
   const c = byId(drag.id);
   if (!c) return;
   const p = clampPos(px - drag.offX, py - drag.offY);
+  const lim = attachLimits(c);                                  // 붙음 묶음은 통째로 화면 안에
+  p.x = Math.max(lim.minX, Math.min(p.x, Math.max(lim.minX, lim.maxX)));
   c.x = p.x; c.y = p.y;
   drag.el.style.left = p.x + 'px';
   drag.el.style.top = p.y + 'px';
@@ -1481,7 +1483,7 @@ function physStep(){
   drawLinks();
 }
 // ── request 붙이기 ─────────────────────────────────────
-// 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 오른쪽에 자리가 없으면 왼쪽
+// 붙음: request는 선 없이 발주자(캐릭터) 오른쪽에 붙어서 같이 움직임. 왼쪽으로는 가지 않음
 const ATTACH_GAP = 4;
 // 붙어 있는 request의 몸통 = 발주자. 나머지 카드는 자기 자신
 function bodyOf(c){
@@ -1495,9 +1497,29 @@ function moveEl(c){
   const el = els.get(c.id);
   if (el){ el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
 }
+// 발주자에 붙은 request 목록 (붙는 순서 = id 순)
+function attachedList(g){
+  return S.cards.filter(r => r.type === 'request' && r.giver === g.id).sort((a, b) => a.id - b.id);
+}
+// 붙음 묶음이 화면 밖으로 나가지 않도록 카드별 x 범위
+//   request는 항상 발주자 오른쪽 → 경계에 닿으면 순서를 바꾸지 않고 더 안 움직임
+function attachLimits(c){
+  const { w } = tableSize();
+  const step = CW + ATTACH_GAP;
+  const maxBase = w - CW - 8;
+  if (c.type === 'request' && c.giver != null){
+    const g = byId(c.giver);
+    if (g){
+      const list = attachedList(g);
+      const i = list.findIndex(r => r.id === c.id);
+      return { minX: 8 + step * (i + 1), maxX: maxBase - step * (list.length - 1 - i) };
+    }
+  }
+  return { minX: 8, maxX: maxBase - step * attachedList(c).length };
+}
 function solveAttach(){
   let moved = false;
-  const { w } = tableSize();
+  const step = CW + ATTACH_GAP;
   const groups = new Map();
   for (const c of S.cards){
     if (c.type !== 'request' || c.giver == null) continue;
@@ -1506,23 +1528,22 @@ function solveAttach(){
     if (!groups.has(g.id)) groups.set(g.id, { g, list: [] });
     groups.get(g.id).list.push(c);
   }
-  const step = CW + ATTACH_GAP;
   for (const { g, list } of groups.values()){
     list.sort((a, b) => a.id - b.id);
     const di = drag ? list.findIndex(r => r.id === drag.id) : -1;
     if (di >= 0){
-      // request를 끌면 발주자가 따라옴
-      const dir = g.reqSide === 'l' ? -1 : 1;
+      // request를 끌면 발주자가 따라옴 (request 위치는 onMove에서 이미 범위 안으로 제한됨)
       const r = list[di];
-      const p = clampPos(r.x - step * (di + 1) * dir, r.y);
+      const p = clampPos(r.x - step * (di + 1), r.y);
       if (Math.abs(p.x - g.x) > 0.05 || Math.abs(p.y - g.y) > 0.05){ g.x = p.x; g.y = p.y; moveEl(g); moved = true; }
-    } else {
-      g.reqSide = (g.x + step * list.length + CW + 8 <= w) ? 'r' : 'l';
+    } else if (!(drag && drag.id === g.id)){
+      // 밀어내기·방문 연결 등으로 발주자가 오른쪽 끝에 몰리면 request 자리만큼 안쪽으로
+      const lim = attachLimits(g);
+      if (lim.maxX >= lim.minX && g.x > lim.maxX + 0.05){ g.x = lim.maxX; moveEl(g); moved = true; }
     }
-    const dir = g.reqSide === 'l' ? -1 : 1;
     list.forEach((r, i) => {
       if (drag && r.id === drag.id) return;
-      const p = clampPos(g.x + step * (i + 1) * dir, g.y);
+      const p = clampPos(g.x + step * (i + 1), g.y);
       if (Math.abs(p.x - r.x) > 0.05 || Math.abs(p.y - r.y) > 0.05){ r.x = p.x; r.y = p.y; moveEl(r); moved = true; }
     });
   }
