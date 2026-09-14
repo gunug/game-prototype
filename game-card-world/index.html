@@ -203,7 +203,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.25.0';
+const VERSION = 'v0.25.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -603,6 +603,7 @@ function toast(msg){
 }
 
 // ── 갓의 말 ───────────────────────────────────────────
+const TALK_SCALE = 1.5;                        // 대사 머무는 시간 배율 — 모든 캐릭터 공통
 const SPEAKERS = ['god', 'knight'];            // 대사 우선순위 — 앞일수록 먼저
 const talkQ = { god: [], knight: [] };          // 사람마다 할 말 줄 [{ text, done }]
 let talking = null, talkTimer = null;           // 지금 말하는 사람
@@ -652,7 +653,7 @@ function showNextTalk(prev){
   talkTimer = setTimeout(function endLine(){
     // 멈춘 동안엔 말풍선을 붙잡아 두고, 풀리면 조금 더 보여준 뒤 넘어감
     if (paused){ item.held = true; talkTimer = setTimeout(endLine, 250); return; }
-    if (item.held){ item.held = false; talkTimer = setTimeout(endLine, 1200); return; }
+    if (item.held){ item.held = false; talkTimer = setTimeout(endLine, 1200 * TALK_SCALE); return; }
     setLine(who, null);
     talking = null;
     if (item.done) item.done();
@@ -662,7 +663,7 @@ function showNextTalk(prev){
       for (const fn of ws) fn();
     }
     if (!talking) showNextTalk(who);
-  }, Math.max(1800, item.text.length * 110));
+  }, Math.max(1800, item.text.length * 110) * TALK_SCALE);
 }
 function say(x){
   enqueueTalk('god', (Array.isArray(x) ? x : [x]).map(text => ({ text })));
