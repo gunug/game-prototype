@@ -187,7 +187,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.16.4';
+const VERSION = 'v0.16.5';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1154,7 +1154,7 @@ function localPoint(e){
   return { px: e.clientX - r.left, py: e.clientY - r.top };
 }
 function onDown(e){
-  if (drag || tear || busy) return;
+  if (drag || tear || busy || returning) return;
   const cardEl = e.target.closest('.cw');
   if (!cardEl || cardEl.classList.contains('half')) return;
   const c = byId(+cardEl.dataset.id);
@@ -1316,14 +1316,46 @@ function animateTo(el, x, y, done){
     done();
   }, 240);
 }
+// 되돌아가기 — 매 프레임 실제 위치를 옮김
+//   CSS 전환으로 겉모습만 옮기면 붙은 request가 따라오지 않고, 밀어내기도 멈춰 어색하게 겹쳤음
+let returning = null;         // { id, fx, fy, tx, ty, t0, dur, done }
+const heldId = () => drag ? drag.id : (returning ? returning.id : null);   // 끌거나 되돌아가는 중인 카드
+function tweenTo(c, x, y, done){
+  returning = { id: c.id, fx: c.x, fy: c.y, tx: x, ty: y, t0: performance.now(), dur: 240, done };
+}
+function stepReturn(){
+  if (!returning) return false;
+  const r = returning;
+  const c = byId(r.id);
+  if (!c){ returning = null; return false; }
+  const t = Math.min(1, (performance.now() - r.t0) / r.dur);
+  const e = 1 - Math.pow(1 - t, 3);                           // 끝에서 부드럽게 멈춤
+  c.x = r.fx + (r.tx - r.fx) * e;
+  c.y = r.fy + (r.ty - r.fy) * e;
+  moveEl(c);
+  if (t >= 1){
+    returning = null;
+    vel.delete(c.id);
+    r.done();
+  }
+  return true;
+}
+// 원래 자리가 그사이 다른 카드로 막혔으면 가장 가까운 빈자리 (자기 묶음은 빈자리 판단에서 뺌)
+function freeSpotFor(c, x, y){
+  const group = linkedGroup(c);
+  const all = S.cards;
+  S.cards = all.filter(o => !group.has(o.id));
+  const p = findSpot(x, y);
+  S.cards = all;
+  return p;
+}
 function bounce(c, d0){
-  const el = els.get(c.id);
   sayMaybe(LINES.bounce);
   if (d0.fromEquip){
     const owner = byId(d0.fromEquip.id);
     const slot = d0.fromEquip.slot;
     if (owner && !(owner.equip && owner.equip[slot])){
-      animateTo(el, owner.x, owner.y, () => {
+      tweenTo(c, owner.x, owner.y, () => {
         removeCard(c.id);
         owner.equip = owner.equip || {};
         owner.equip[slot] = c.type;
@@ -1335,7 +1367,7 @@ function bounce(c, d0){
   if (d0.fromRequest){
     const rq = byId(d0.fromRequest);
     if (rq){
-      animateTo(el, rq.x, rq.y, () => {
+      tweenTo(c, rq.x, rq.y, () => {
         removeCard(c.id);
         rq.stack.push(c.type);
         afterChange();
@@ -1343,10 +1375,8 @@ function bounce(c, d0){
       return;
     }
   }
-  animateTo(el, d0.ox, d0.oy, () => {
-    c.x = d0.ox; c.y = d0.oy;
-    afterChange();
-  });
+  const spot = freeSpotFor(c, d0.ox, d0.oy);
+  tweenTo(c, spot.x, spot.y, () => afterChange());
 }
 function onUp(e){
   if (tear && e.pointerId === tear.pid){ endTear(); return; }
@@ -1473,6 +1503,7 @@ function physStep(){
   requestAnimationFrame(physStep);
   let moved = false;
   if (S && !busy){
+    if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
     if (solveAttach()) moved = true;           // request는 발주자 옆에 붙음 (끌고 있는 쪽 기준)
     if (phys && physMove()) moved = true;
     if (solveTethers()) moved = true;          // 방문 연결. 밀어내기 체크와 상관없이 항상
@@ -1530,19 +1561,20 @@ function solveAttach(){
   }
   for (const { g, list } of groups.values()){
     list.sort((a, b) => a.id - b.id);
-    const di = drag ? list.findIndex(r => r.id === drag.id) : -1;
+    const hid = heldId();
+    const di = hid != null ? list.findIndex(r => r.id === hid) : -1;
     if (di >= 0){
       // request를 끌면 발주자가 따라옴 (request 위치는 onMove에서 이미 범위 안으로 제한됨)
       const r = list[di];
       const p = clampPos(r.x - step * (di + 1), r.y);
       if (Math.abs(p.x - g.x) > 0.05 || Math.abs(p.y - g.y) > 0.05){ g.x = p.x; g.y = p.y; moveEl(g); moved = true; }
-    } else if (!(drag && drag.id === g.id)){
+    } else if (hid !== g.id){
       // 밀어내기·방문 연결 등으로 발주자가 오른쪽 끝에 몰리면 request 자리만큼 안쪽으로
       const lim = attachLimits(g);
       if (lim.maxX >= lim.minX && g.x > lim.maxX + 0.05){ g.x = lim.maxX; moveEl(g); moved = true; }
     }
     list.forEach((r, i) => {
-      if (drag && r.id === drag.id) return;
+      if (r.id === hid) return;
       const p = clampPos(g.x + step * (i + 1), g.y);
       if (Math.abs(p.x - r.x) > 0.05 || Math.abs(p.y - r.y) > 0.05){ r.x = p.x; r.y = p.y; moveEl(r); moved = true; }
     });
@@ -1585,12 +1617,13 @@ function solveTethers(){
   const done = new Set();
   let moved = false;
   const dragIds = new Set();
-  if (drag){
-    dragIds.add(drag.id);
-    const body = bodyOf(byId(drag.id));
+  const hid = heldId();
+  if (hid != null){
+    dragIds.add(hid);
+    const body = bodyOf(byId(hid));
     if (body) dragIds.add(body.id);
   }
-  if (drag){
+  if (hid != null){
     const reached = new Set(dragIds);
     const queue = [...dragIds];
     while (queue.length){
@@ -1630,7 +1663,8 @@ function drawLinks(){
 function physMove(){
   // 드래그 중인 카드와 찢는 중인 package는 밀지도 밀리지도 않음 (대상 위에 놓을 수 있게)
   // 붙어 있는 request는 발주자와 한 몸으로 밀림. 끌고 있는 묶음은 밀지도 밀리지도 않음
-  const dragBody = drag ? bodyOf(byId(drag.id)) : null;
+  const hid = heldId();
+  const dragBody = hid != null ? bodyOf(byId(hid)) : null;
   const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id));
   const gapX = CW * 1.06, gapY = CH * 1.04;
   for (let i = 0; i < cs.length; i++){
