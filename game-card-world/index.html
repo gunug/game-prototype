@@ -167,15 +167,15 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.7.0';
+const VERSION = 'v0.7.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   request:   { name:'request',     emoji:'📜', kind:'request' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능'], hp:10, startHp:0, startStatus:['빈사'] },
-  god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능'], hp:1 },
+  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['출전 가능', '과묵'], hp:10, startHp:0, startStatus:['빈사'] },
+  god:       { name:'갓',          emoji:'😇', kind:'character', tags:['출전 가능', '수다쟁이'], hp:1 },
   stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '합칠 수 있음'] },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   grass:     { name:'마른 풀',     emoji:'🌾', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -183,7 +183,7 @@ const DEFS = {
   bone:      { name:'뼈',          emoji:'🦴', kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
   shell:     { name:'조개껍데기',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
-  berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '합칠 수 있음'], heal:1 },
+  berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'] },
   handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2'] },
   marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
   clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
@@ -639,12 +639,23 @@ function knightCheck(){
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
 function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
+  const edible = tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유');
   if (td.kind === 'request'){
-    if (t.goal || t.stack.length >= t.need) return null;      // 조건형이거나 이미 다 참
+    if (t.goal === 'fullHp'){
+      // 조건형 request에 음식을 내려놓으면 대상에게 먹인 것과 같음
+      const tg = byId(t.target);
+      return tg && edible ? { act: 'eat', feed: tg } : null;
+    }
+    if (t.goal || t.stack.length >= t.need) return null;      // 이미 다 참
     if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
     return submittable(dd) ? { act: 'submit' } : null;
   }
-  if (td.kind === 'character' && (tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유'))) return { act: 'eat' };
+  if (td.kind === 'character' && edible){
+    // 이 캐릭터가 준 제출형 request가 이 카드를 원하면, 직접 먹여도 그 request에 들어감
+    const into = S.cards.find(r => r.type === 'request' && r.giver === t.id && r.wants === d.type && r.stack.length < r.need);
+    if (into) return { act: 'submit', into };
+    return { act: 'eat' };
+  }
   const ms = usableRecipes(d.type, t.type);
   if (!ms.length) return null;
   if (ms.length > 1) console.warn('[제작자 알림] 조합 겹침', d.type, t.type, ms.map(m => m.r.id));
@@ -654,13 +665,16 @@ function evaluate(d, t){
 function apply(ev, d, t){
   const dd = DEFS[d.type];
   if (ev.act === 'submit'){
+    const rq = ev.into || t;
     removeCard(d.id);
-    t.stack.push(d.type);
-    t.z = ++S.z;
-    bumpIds.add(t.id);
+    rq.stack.push(d.type);
+    rq.z = ++S.z;
+    bumpIds.add(rq.id);
+    if (ev.into) bumpIds.add(t.id);
     return true;
   }
   if (ev.act === 'eat'){
+    if (ev.feed){ bumpIds.add(t.id); t = ev.feed; }              // request에 내려놓음 → 대상에게 먹임
     const max = DEFS[t.type].hp;
     const talk = () => { if (t.type === 'knight' && !knightSpeech && knightLine(t)) knightSay(knightLine(t)); };
     if (statusOf(t).includes('빈사')){
@@ -1001,10 +1015,26 @@ function startDrag(c, px, py, pid, o){
   el.style.zIndex = 2000000000;
   el.classList.add('dragging');
 }
-function pickTarget(clientX, clientY){
+// 대상 고르기: 끌고 있는 카드와 겹친 넓이로 판단 (포인터 아래만 보던 v0.7.0보다 넓음)
+//   카드 넓이의 15% 이상 겹친 카드 중에서, 되는 조합이면 2배 가산해 가장 점수 높은 카드
+//   겹친 카드가 없으면 포인터 아래 카드
+function pickTarget(clientX, clientY, c){
+  let best = null, bestScore = 0;
+  const minArea = CW * CH * 0.15;
+  for (const o of S.cards){
+    if (o.id === c.id) continue;
+    const ox = Math.min(c.x, o.x) + CW - Math.max(c.x, o.x);
+    const oy = Math.min(c.y, o.y) + CH - Math.max(c.y, o.y);
+    if (ox <= 0 || oy <= 0) continue;
+    const area = ox * oy;
+    if (area < minArea) continue;
+    const score = area * (evaluate(c, o) ? 2 : 1);
+    if (score > bestScore){ bestScore = score; best = o; }
+  }
+  if (best) return best;
   for (const h of document.elementsFromPoint(clientX, clientY)){
     const ce = h.closest ? h.closest('.cw') : null;
-    if (ce && !ce.classList.contains('half') && +ce.dataset.id !== drag.id){
+    if (ce && !ce.classList.contains('half') && +ce.dataset.id !== c.id){
       const t = byId(+ce.dataset.id);
       if (t) return t;
     }
@@ -1044,7 +1074,7 @@ function onMove(e){
   c.x = p.x; c.y = p.y;
   drag.el.style.left = p.x + 'px';
   drag.el.style.top = p.y + 'px';
-  setTarget(pickTarget(e.clientX, e.clientY), c);
+  setTarget(pickTarget(e.clientX, e.clientY, c), c);
 }
 function animateTo(el, x, y, done){
   busy = true;
