@@ -38,6 +38,8 @@
   .hud .btn{background:rgba(28,28,23,.85);border-color:var(--hairline);color:var(--ink);backdrop-filter:blur(6px);}
   .hud .btn:hover{background:var(--surface-soft);}
   .hud .count{color:var(--brand-yellow);font-weight:700;}
+  .hud .toggle{gap:6px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+  .hud .toggle input{accent-color:var(--brand-yellow);margin:0;cursor:pointer;}
 
   /* 카드 */
   .cw{
@@ -148,6 +150,7 @@
   <div class="table" id="table"></div>
   <div class="title"><a href="../index.html">← 목록</a> · 카드 월드 RPG <span id="ver"></span></div>
   <div class="hud">
+    <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 밀어내기</label>
     <button class="btn btn-sm" id="bookBtn">📖 콜렉터북 <span class="count" id="bookCount"></span></button>
     <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
   </div>
@@ -159,7 +162,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.4.0';
+const VERSION = 'v0.5.0';
 const STORE = 'card-world-rpg.v1';
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -296,6 +299,16 @@ let drag = null, tear = null, busy = false;
 let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'request' | 'package' }
 let speechWaiters = [];       // 멘트가 다 끝나면 부를 함수
 const popFrom = new Map();    // id → 튀어나온 출발점 {x, y}
+// 밀어내기(물리) — 상단 체크로 켜고 끔. 설정은 게임 저장과 따로 둠
+const SETTINGS = STORE + '.settings';
+const DAMP = 0.86;            // 매 프레임 속도 감쇠
+const PUSH = 0.08;            // 겹친 만큼 밀어내는 힘
+const vel = new Map();        // id → 속도 {x, y}
+let phys = true, physDirty = false;
+try {
+  const st = JSON.parse(localStorage.getItem(SETTINGS) || '{}');
+  if (typeof st.physics === 'boolean') phys = st.physics;
+} catch (e) {}
 let speech = null, speechQ = [], speechTimer = null, lastMaybe = 0;
 let godTimer = null;
 let CW = 92, CH = 125;
@@ -322,8 +335,8 @@ function clampPos(x, y){
     y: Math.max(TOP_PAD, Math.min(y, h - CH - 8)),
   };
 }
-function findSpot(x, y){
-  const step = CW * 0.95;
+function findSpot(x, y, spread){
+  const step = CW * 0.95 * (spread || 1);
   for (let r = 0; r < 9; r++){
     const n = r === 0 ? 1 : r * 6;
     for (let i = 0; i < n; i++){
@@ -362,7 +375,7 @@ function addCard(type, x, y, extra, quiet){
   markSeen(type, quiet);
   return c;
 }
-function removeCard(id){ S.cards = S.cards.filter(c => c.id !== id); }
+function removeCard(id){ S.cards = S.cards.filter(c => c.id !== id); vel.delete(id); }
 function relocate(c){
   S.cards = S.cards.filter(o => o.id !== c.id);
   const p = findSpot(c.x + CW * 0.6, c.y + CH * 0.2);
@@ -763,10 +776,22 @@ function openPackage(id){
     const list = [];
     if (contents === 'first') list.push('knight', 'god');
     list.push(...drawPool(5));
-    for (const type of list){
-      const p = findSpot(cx, cy);
-      addCard(type, p.x, p.y);
-    }
+    const n = list.length, base = Math.random() * Math.PI * 2;
+    list.forEach((type, i) => {
+      if (phys){
+        // 중앙에 놓고 바깥쪽으로 튕겨냄 → 날아가며 서로 밀어냄
+        const nc = addCard(type, cx + (Math.random() - 0.5) * 6, cy + (Math.random() - 0.5) * 6);
+        const ang = base + (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const speed = CW * 1.9 * (1 - DAMP) * (0.8 + Math.random() * 0.4);   // 이동 거리 ≈ 예전의 2배
+        vel.set(nc.id, { x: Math.cos(ang) * speed, y: Math.sin(ang) * speed * 0.9 });
+      } else {
+        // 물리 꺼짐: 2배 넓게 자리 잡고 중앙에서 튀어나오는 연출만
+        const p = findSpot(cx, cy, 2);
+        const nc = addCard(type, p.x, p.y);
+        spawned.delete(nc.id);
+        popFrom.set(nc.id, { x: cx, y: cy });
+      }
+    });
     busy = false;
     if (contents === 'first') say(LINES.intro);
     save();
@@ -950,6 +975,61 @@ function openBook(){
   book.hidden = false;
 }
 
+// ── 밀어내기 (물리) ───────────────────────────────────
+function velOf(id){
+  let v = vel.get(id);
+  if (!v){ v = { x: 0, y: 0 }; vel.set(id, v); }
+  return v;
+}
+function physStep(){
+  requestAnimationFrame(physStep);
+  if (!phys || !S || busy) return;
+  // 드래그 중인 카드와 찢는 중인 package는 밀지도 밀리지도 않음 (대상 위에 놓을 수 있게)
+  const cs = S.cards.filter(c => !(drag && c.id === drag.id) && !(tear && c.id === tear.id));
+  const gapX = CW * 1.06, gapY = CH * 1.04;
+  for (let i = 0; i < cs.length; i++){
+    const a = cs[i];
+    for (let j = i + 1; j < cs.length; j++){
+      const b = cs[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const ox = gapX - Math.abs(dx), oy = gapY - Math.abs(dy);
+      if (ox <= 0 || oy <= 0) continue;
+      const va = velOf(a.id), vb = velOf(b.id);
+      if (ox < oy){
+        const f = ox * PUSH * (dx < 0 ? -1 : 1);
+        va.x -= f; vb.x += f;
+      } else {
+        const f = oy * PUSH * (dy < 0 ? -1 : 1);
+        va.y -= f; vb.y += f;
+      }
+    }
+  }
+  let moving = false;
+  for (const c of cs){
+    const v = vel.get(c.id);
+    if (!v) continue;
+    if (Math.abs(v.x) < 0.02 && Math.abs(v.y) < 0.02){ vel.delete(c.id); continue; }
+    const nx = c.x + v.x, ny = c.y + v.y;
+    const p = clampPos(nx, ny);
+    if (p.x !== nx) v.x = 0;                       // 벽에 닿으면 그 방향 속도 0
+    if (p.y !== ny) v.y = 0;
+    c.x = p.x; c.y = p.y;
+    v.x *= DAMP; v.y *= DAMP;
+    const el = els.get(c.id);
+    if (el){ el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
+    moving = true;
+  }
+  if (moving) physDirty = true;
+  else if (physDirty){ physDirty = false; save(); }   // 멈추면 한 번 저장
+}
+const physToggle = document.getElementById('physToggle');
+physToggle.checked = phys;
+physToggle.addEventListener('change', () => {
+  phys = physToggle.checked;
+  if (!phys){ vel.clear(); save(); }
+  try { localStorage.setItem(SETTINGS, JSON.stringify({ physics: phys })); } catch (e) {}
+});
+
 // ── 연결 ──────────────────────────────────────────────
 table.addEventListener('pointerdown', onDown);
 window.addEventListener('pointermove', onMove);
@@ -1004,6 +1084,7 @@ if (load()){
 } else {
   newGame();
 }
+requestAnimationFrame(physStep);
 })();
 </script>
 </body>
