@@ -54,6 +54,7 @@
   .cw .hp{position:absolute;right:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
   .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
   .cw .tags{position:absolute;left:3px;right:3px;bottom:4px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
+  .cw .tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
   .cw .tag{font-size:calc(var(--cw) * .085);line-height:1.25;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:0 3px;white-space:nowrap;}
   .devnote{position:fixed;left:10px;bottom:10px;z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
   .k-material{--tone:#b58c5a;}
@@ -68,6 +69,8 @@
   .cw.is-target{border-color:var(--brand-yellow);box-shadow:0 0 0 2px var(--brand-yellow),var(--sh-lg);}
   .cw.is-target.no{border-color:var(--hairline);box-shadow:0 0 0 2px rgba(142,140,130,.55),var(--sh-md);}
   .cw.spawn{animation:spawn .32s ease-out;}
+  .cw.pop{animation:pop .5s cubic-bezier(.2,1.3,.4,1);}
+  @keyframes pop{from{transform:translate(var(--fx),var(--fy)) scale(.2);opacity:0;}60%{opacity:1;}to{transform:none;opacity:1;}}
   .cw.bump{animation:bump .3s ease-out;}
   .cw.gone{animation:gone .3s ease-in forwards;}
   @keyframes spawn{from{transform:scale(.4);opacity:0;}to{transform:scale(1);opacity:1;}}
@@ -156,7 +159,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.2.0';
+const VERSION = 'v0.3.0';
 const STORE = 'card-world-rpg.v1';
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -212,6 +215,9 @@ const RECIPES = [
   { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, burn:true, keep:'a' },
 ];
 const RECIPE_BY_ID = new Map(RECIPES.map(r => [r.id, r]));
+// "조합 가능" 태그: 결과가 나오는 조합에 들어갈 수 있는 카드. 없으면 최후의 카드
+//   태우기는 결과물이 없으므로 제외
+let COMBOABLE = new Set();
 
 function tagLevel(def, name){
   let lv = 0;
@@ -266,7 +272,7 @@ const LINES = {
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
   bounce:         ['그건 안 돼. 나도 해봤어.', '신도 모르는 조합이네.', '…아니야, 그거.'],
   stuck:          ['막혔지? 아무거나 줘봐.', '할 게 없으면 나한테 와.'],
-  reissue:        ['어? 그걸로는 못 채우겠네. 다시 줄게.', '막혔구나. 조건 바꿔줄게.', '신은 관대하지. 이번만.'],
+  rescue:         ['어? 그걸로는 3개 못 채우겠네. 옜다, 보태줄게.', '모자라지? 신은 관대하지. 이번만.'],
   free:           '빈손이야? …이번만이다.',
   fullHp:         ['배부르대. 말은 안 해도.'],
 };
@@ -287,6 +293,9 @@ const bumpIds = new Set();    // 이번 렌더에서 튕김 연출할 id
 const settling = new Set();   // 정산 대기 중인 request id
 let newSeen = [];
 let drag = null, tear = null, busy = false;
+let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'request' | 'package' }
+let speechWaiters = [];       // 멘트가 다 끝나면 부를 함수
+const popFrom = new Map();    // id → 튀어나온 출발점 {x, y}
 let speech = null, speechQ = [], speechTimer = null, lastMaybe = 0;
 let godTimer = null;
 let CW = 92, CH = 125;
@@ -393,9 +402,15 @@ function newGame(){
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind;
+  const combo = COMBOABLE.has(c.type);
   const tags = d.tags || [];
-  if (tags.length && d.kind !== 'request') cls += ' has-tags';
-  if (spawned.has(c.id)) cls += ' spawn';
+  if ((tags.length || combo) && d.kind !== 'request') cls += ' has-tags';
+  const pf = popFrom.get(c.id);
+  if (pf){
+    cls += ' pop';
+    el.style.setProperty('--fx', (pf.x - c.x) + 'px');
+    el.style.setProperty('--fy', (pf.y - c.y) + 'px');
+  } else if (spawned.has(c.id)) cls += ' spawn';
   if (bumpIds.has(c.id)) cls += ' bump';
   el.className = cls;
   el.style.left = c.x + 'px';
@@ -414,7 +429,10 @@ function paint(el, c){
     html += `<div class="emoji">${d.emoji}</div><div class="name">${esc(d.name)}</div>`;
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg></div>';
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
-    if (tags.length) html += '<div class="tags">' + tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') + '</div>';
+    if (tags.length || combo){
+      html += '<div class="tags">' + (combo ? '<span class="tag combo">조합 가능</span>' : '')
+        + tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') + '</div>';
+    }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
   }
   el.innerHTML = html;
@@ -439,6 +457,7 @@ function renderAll(){
     if (!alive.has(id)){ el.remove(); els.delete(id); }
   }
   spawned.clear();
+  popFrom.clear();
   bumpIds.clear();
   if (newSeen.length){
     if (newSeen.length === 1) toast(`📖 새 카드: ${DEFS[newSeen[0]].emoji} ${DEFS[newSeen[0]].name}`);
@@ -475,9 +494,20 @@ function sayMaybe(arr){
   lastMaybe = now;
   say(pick(arr));
 }
+function afterSpeech(fn){
+  if (!speechTimer && !speechQ.length){ fn(); return; }
+  speechWaiters.push(fn);
+}
 function nextSpeech(){
   speechTimer = null;
-  if (!speechQ.length){ speech = null; renderGod(); return; }
+  if (!speechQ.length){
+    speech = null;
+    renderGod();
+    const ws = speechWaiters;
+    speechWaiters = [];
+    for (const fn of ws) fn();
+    return;
+  }
   speech = speechQ.shift();
   if (!S.cards.some(c => c.type === 'god')) toast('😇 ' + speech);
   renderGod();
@@ -620,72 +650,67 @@ function settle(id){
 }
 
 // ── 갓의 request 공급 ─────────────────────────────────
-function anyRecipe(){
+// 이미 발견한 조합 중에 지금 테이블에서 할 수 있는 게 있나 (태우기 제외)
+function anyKnownRecipe(){
   const cs = S.cards;
   for (let i = 0; i < cs.length; i++){
     for (let j = i + 1; j < cs.length; j++){
-      if (usableRecipes(cs[i].type, cs[j].type).some(m => !m.r.burn)) return true;   // 태우기는 진행이 아님
+      if (usableRecipes(cs[i].type, cs[j].type).some(m => !m.r.burn && S.found.includes(m.r.id))) return true;
     }
   }
   return false;
+}
+function submittableCount(){
+  return S.cards.filter(c => submittable(DEFS[c.type])).length;
 }
 function scheduleGod(){
   clearTimeout(godTimer);
   godTimer = setTimeout(godCheck, 1400);
 }
-// 고착: package도 없고, 할 수 있는 조합도 없고, 남은 request는 전부 채울 수 없음
-function submittableCount(){
-  return S.cards.filter(c => submittable(DEFS[c.type])).length;
-}
-function impossible(rq){
-  return rq.stack.length + submittableCount() < rq.need;
-}
-function godCheck(){
-  if (drag || tear || busy || settling.size){ scheduleGod(); return; }
+// 갓이 지금 무엇을 줘야 하나: null | 'request' | 'package'
+function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
-  if (!has('god')) return;
-  if (has('package')) return;
+  if (!has('god') || has('package')) return null;
+  const avail = submittableCount();
   const requests = S.cards.filter(c => c.type === 'request');
   if (requests.length){
-    if (!anyRecipe() && requests.every(impossible)) reissueRequest(requests);
-    return;
+    // request 3개를 달성할 수 없으면 package로 보태줌. request는 그대로 둠
+    return requests.some(rq => rq.stack.length + avail >= rq.need) ? null : 'package';
   }
-  if (S.flags.discovered && anyRecipe()) return;   // 첫 발견 뒤엔 막혔을 때만
-  giveRequest();
+  // 첫 발견 뒤엔 플레이어가 아는 조합으로 할 게 없을 때만
+  if (S.flags.discovered && anyKnownRecipe()) return null;
+  return avail >= 3 ? 'request' : 'package';
 }
-function reissueRequest(requests){
-  // 채울 수 없는 request는 치우고, 쌓여 있던 카드는 테이블로 돌려준다
-  for (const rq of requests){
-    for (const type of rq.stack){
-      const p = findSpot(rq.x, rq.y + CH * 0.3);
-      addCard(type, p.x, p.y, null, true);
-    }
-    removeCard(rq.id);
-  }
-  say(pick(LINES.reissue));
-  giveRequest(true);
+function godCheck(){
+  if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
+  if (drag || tear || busy || settling.size){ scheduleGod(); return; }
+  const kind = decideGift();
+  if (!kind) return;
+  gift = { kind };
+  const hasRequest = S.cards.some(c => c.type === 'request');
+  if (kind === 'package') say(hasRequest ? pick(LINES.rescue) : LINES.free);
+  else if (S.flags.discovered) say(pick(LINES.stuck));
+  else if (S.flags.requestsGiven) say(pick(LINES.again));
+  else say(LINES.firstRequest);
+  afterSpeech(deliverGift);                                   // 멘트를 다 끝낸 다음 줌
 }
-function giveRequest(silent){
+function deliverGift(){
+  if (!gift) return;
+  if (drag || tear || busy || settling.size){ setTimeout(deliverGift, 200); return; }
+  const kind = gift.kind;
+  gift = null;
+  if (decideGift() !== kind){ scheduleGod(); return; }       // 멘트 동안 상황이 바뀜 → 취소 후 다시 판단
   const god = S.cards.find(c => c.type === 'god');
-  const { w, h } = tableSize();
-  const gx = god ? god.x : w / 2, gy = god ? god.y : h / 2;
-  const avail = submittableCount();
-  const p = findSpot(gx + CW * 1.1, gy);
-  if (avail === 0){
-    addCard('package', p.x, p.y, { contents: 'tutorial' });
-    if (!silent) say(LINES.free);
-  } else {
-    const need = Math.min(3, avail);
-    addCard('request', p.x, p.y, { need, stack: [], title: `아무거나 ${need}개만 줘봐` });
-    if (!silent){
-      if (S.flags.discovered) say(pick(LINES.stuck));
-      else if (S.flags.requestsGiven) say(pick(LINES.again));
-      else say(LINES.firstRequest);
-    }
-    S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
-  }
+  const p = findSpot(god.x + CW * 1.1, god.y);
+  const c = kind === 'package'
+    ? addCard('package', p.x, p.y, { contents: 'tutorial' })
+    : addCard('request', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐' });
+  if (kind === 'request') S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
+  popFrom.set(c.id, { x: god.x, y: god.y });                  // 갓에게서 튀어나옴
+  bumpIds.add(god.id);
   save();
   renderAll();
+  scheduleGod();
 }
 
 // ── package 오픈 ──────────────────────────────────────
@@ -940,6 +965,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   clearTimeout(godTimer);
   clearTimeout(speechTimer);
   speechTimer = null; speechQ = []; speech = null;
+  gift = null; speechWaiters = [];
   settling.clear();
   drag = null; tear = null; busy = false;
   for (const el of els.values()) el.remove();
@@ -956,6 +982,12 @@ window.addEventListener('resize', () => {
 });
 
 validateRecipes();
+(() => {
+  const types = Object.keys(DEFS);
+  for (const x of types) for (const y of types){
+    if (usableRecipes(x, y).some(m => !m.r.burn)){ COMBOABLE.add(x); COMBOABLE.add(y); }
+  }
+})();
 
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!drag && !tear && !busy) godCheck(); }, 5000);
