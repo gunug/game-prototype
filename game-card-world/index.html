@@ -67,7 +67,14 @@
   .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
   .cw .atk{color:#9fd0ff;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
-  .cw .atkv{position:absolute;left:calc(var(--cw) * .075);top:calc(var(--cw) * .07);font-size:calc(var(--cw) * .11);font-weight:700;color:#9fd0ff;pointer-events:none;}
+  /* v0.53.0: 캐릭터·크리처 공격·방어·체력 — 카드 위쪽 한 줄, 그림 아이콘 */
+  .cw .stats{position:absolute;left:calc(var(--cw) * .06);right:calc(var(--cw) * .06);top:calc(var(--cw) * .06);display:flex;justify-content:space-between;align-items:center;
+    font-size:calc(var(--cw) * .1);font-weight:700;line-height:1;pointer-events:none;}
+  .cw .stats span{display:inline-flex;align-items:center;white-space:nowrap;}
+  .cw .stats .icon.inline{margin:0 1px 0 0;vertical-align:0;}
+  .cw .stats .s-atk{color:#9fd0ff;}
+  .cw .stats .s-def{color:#b8e0a0;}
+  .cw .stats .s-hp{color:#ff8f8f;}
   .cw .equip{display:flex;gap:3px;pointer-events:none;}
   .cw .equip span{min-width:calc(var(--cw) * .24);height:calc(var(--cw) * .24);display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw) * .15);border:1px solid rgba(255,255,255,.15);border-radius:4px;background:rgba(0,0,0,.3);}
   .cw .equip span[data-slot]{pointer-events:auto;cursor:grab;touch-action:none;}
@@ -76,8 +83,7 @@
   .cw .cap{position:absolute;left:calc(var(--cw) * .075);top:calc(var(--cw) * .07);font-size:calc(var(--cw) * .1);font-weight:700;color:var(--body);pointer-events:none;}
   .cw .pie{position:absolute;right:calc(var(--cw) * .075);top:calc(var(--cw) * .075);width:calc(var(--cw) * .2);height:calc(var(--cw) * .2);border-radius:50%;
     background:conic-gradient(#7fdc9a calc(var(--p, 0) * 360deg), rgba(255,255,255,.14) 0);box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;transition:background .3s;}
-  .cw .hp{position:absolute;right:calc(var(--cw) * .075);top:calc(var(--cw) * .07);font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
-  /* 왼쪽 위 공격·방어 두 줄과 안 겹치게 조금 내림 (장비 칸 있는 캐릭터) */
+  /* 위쪽 공격·방어·체력 줄과 안 겹치게 조금 내림 (캐릭터·크리처) */
   .cw.has-corner{padding-top:calc(var(--ch) * .12);}
   .devnote{position:fixed;left:10px;bottom:calc(var(--insp-h) + 10px);z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
   .k-material{--tone:#b58c5a;}
@@ -317,7 +323,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.52.0';
+const VERSION = 'v0.53.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -378,7 +384,11 @@ const frameOf = d => d.kind === 'character' ? 'gold' : tagLevel(d, '장소') ? '
 const fighter = d => d.kind === 'character' || d.kind === 'creature';
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
-const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : '');
+// v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
+const STAT_NAME = { atk:'공격', def:'방어', hp:'체력' };
+const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
+const si = k => `⟦s_${k}⟧`;                       // 글자 줄 안의 자리표 (rich → 그림, plain → 지움)
+const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
 const plain = s => String(s).replace(ICON_TOKEN, '').replace(/ {2,}/g, ' ').trim();
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
@@ -451,7 +461,7 @@ function usableRecipes(x, y){
   });
 }
 function sideText(sd){
-  if (sd.atk) return `⚔ 공격력 ${sd.atk} 이상`;
+  if (sd.atk) return `${si('atk')} 공격력 ${sd.atk} 이상`;
   return sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 }
 function outText(r){
@@ -668,7 +678,7 @@ function placeFoot(d){
   if (!tagLevel(d, '장소')) return '';
   let out = '';
   const lv = tagLevel(d, '체력 회복');
-  if (lv) out += `<span class="rest">❤ +1 / ${REST_MS / lv / 1000}초</span>`;
+  if (lv) out += `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>`;
   if (d.yields){
     const total = d.yields.reduce((sum, [, w]) => sum + w, 0);
     out += d.yields.map(([t, w]) => {
@@ -713,10 +723,12 @@ function paint(el, c){
   } else {
     html += `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`;
     const heal = healOf(d);
-    if (heal > 0) html += `<div class="heal">❤ +${heal}</div>`;       // 음식 회복량을 이름 아래에
-    if (d.atk) html += `<div class="atk">⚔ +${d.atk}</div>`;           // 장비 공격력
-    if (d.defense) html += `<div class="defl">🛡 +${d.defense}</div>`;  // 장비 방어
-    if (fighter(d)) html += `<div class="atkv">⚔ ${atkOf(c)}<br>🛡 ${defOf(c)}</div>`;   // 왼쪽 위 공격·방어 (장비 포함)
+    if (heal > 0) html += `<div class="heal">${statImg('hp')} +${heal}</div>`;       // 음식 회복량을 이름 아래에
+    if (d.atk) html += `<div class="atk">${statImg('atk')} +${d.atk}</div>`;         // 장비 공격력
+    if (d.defense) html += `<div class="defl">${statImg('def')} +${d.defense}</div>`; // 장비 방어
+    // 위쪽 한 줄: 공격 · 방어 (장비 포함) · 체력
+    if (fighter(d)) html += `<div class="stats"><span class="s-atk">${statImg('atk')}${atkOf(c)}</span>`
+      + `<span class="s-def">${statImg('def')}${defOf(c)}</span><span class="s-hp">${statImg('hp')}${c.hp}/${d.hp}</span></div>`;
     if (d.slots){
       // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름
       const eq = c.equip || {};
@@ -734,7 +746,6 @@ function paint(el, c){
     if (c.type === 'package' && c.contents === 'first' && speech && !S.cards.some(o => o.type === 'god')){
       html += `<div class="speech">${esc(speech)}</div>`;             // 갇힌 갓이 package 안에서 말함
     }
-    if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (d.capacity) html += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
     const foot = placeFoot(d);
@@ -1214,7 +1225,7 @@ function apply(ev, d, t){
       if (heal > 0 && g.hp < max && !statusOf(g).includes('빈사')){
         const before = g.hp;
         g.hp = Math.min(max, g.hp + heal);
-        floatText(g, `❤ +${g.hp - before}`);
+        floatText(g, `${si('hp')} +${g.hp - before}`);
         bumpIds.add(g.id);
         if (g.hp >= max && statusOf(g).includes('허기짐')){
           setStatus(g, ['허기짐'], []);
@@ -1226,7 +1237,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'strike'){
     if (ev.low){
-      toast(`${ic(d.type)} 무기의 공격력 낮음 (⚔ ${dd.atk || 0} < ❤ ${t.hp})`);
+      toast(`${ic(d.type)} 무기의 공격력 낮음 (${si('atk')} ${dd.atk || 0} < ${si('hp')} ${t.hp})`);
       floatText(t, '무기의 공격력 낮음', 'work');
       return false;
     }
@@ -1260,7 +1271,7 @@ function apply(ev, d, t){
     removeCard(d.id);
     t.equip[slot] = d.type;
     bumpIds.add(t.id);
-    toast(`⚔ ${DEFS[t.type].name}: ${DEFS[d.type].name} 장비 (${slot})`);
+    toast(`${ic(d.type)} ${DEFS[t.type].name}: ${DEFS[d.type].name} 장비 (${slot})`);
     if (prev && DEFS[prev]){
       // 같은 칸에 다른 장비가 올라오면 이전 장비는 방출
       const p = findSpot(t.x + CW * 1.1, t.y + CH * 0.3);
@@ -1289,7 +1300,7 @@ function apply(ev, d, t){
     if (t.hp >= max){ toast('체력이 가득함'); return false; }
     const before = t.hp;
     t.hp = Math.min(max, t.hp + heal);
-    floatText(t, `❤ +${t.hp - before}`);          // 먹어서 오른 체력
+    floatText(t, `${si('hp')} +${t.hp - before}`);   // 먹어서 오른 체력
     removeCard(d.id);
     bumpIds.add(t.id);
     // 허기짐은 체력을 최대치까지 채우면 해결
@@ -1435,13 +1446,13 @@ function rewardFor(rq, x, y){
   if (rq.quest === 'takeshield'){
     S.flags.shieldDone = true;
     if (S.flags.swordDone || (S.flags.knightStage || 0) >= 5) knightReady();
-    toast('🛡 방패를 들었다');
+    toast(`${si('def')} 방패를 들었다`);
     return;
   }
   if (rq.quest === 'takesword'){
     S.flags.swordDone = true;
     if (S.flags.shieldDone) knightReady();
-    toast('⚔ 무기를 들었다');
+    toast(`${si('atk')} 무기를 들었다`);
     return;
   }
   if (rq.quest === 'sleepmedicine'){
@@ -2183,7 +2194,7 @@ function onUp(e){
 function floatText(c, text, cls){
   const f = document.createElement('div');
   f.className = 'float' + (cls ? ' ' + cls : '');
-  f.textContent = text;
+  f.innerHTML = rich(text);                      // 공격·방어·체력 자리표(si) → 그림
   f.style.left = (c.x + CW / 2) + 'px';
   f.style.top = (c.y - CH * 0.05) + 'px';
   table.appendChild(f);
@@ -2286,7 +2297,7 @@ function startDuel(ch, cr){
   cr.y = ch.y;
   bumpIds.add(ch.id);
   bumpIds.add(cr.id);
-  toast(`⚔ ${DEFS[ch.type].name} vs ${DEFS[cr.type].name} — 대결`);
+  toast(`${si('atk')} ${DEFS[ch.type].name} vs ${DEFS[cr.type].name} — 대결`);
 }
 function endDuel(ch, cr){
   if (ch){ delete ch.duel; setStatus(ch, ['대결'], []); }
@@ -2358,7 +2369,7 @@ function restTick(){
     pl.restMs -= period;
     for (const v of healable){
       v.hp = Math.min(DEFS[v.type].hp, v.hp + 1);
-      floatText(v, '❤ +1');                               // 쉬어서 오른 체력
+      floatText(v, `${si('hp')} +1`);                       // 쉬어서 오른 체력
       bumpIds.add(v.id);
       if (v.hp >= DEFS[v.type].hp && statusOf(v).includes('허기짐')){
         setStatus(v, ['허기짐'], []);
@@ -2970,12 +2981,11 @@ function inspectorHtml(c){
     c1 = iSub('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
   } else {
     let st = '';
-    if (d.hp) st += iRow('❤ 체력', `${c.hp}/${d.hp}`);
-    if (fighter(d)) st += iRow('⚔ 공격', atkOf(c)) + iRow('🛡 방어', defOf(c));
+    if (fighter(d)) st += iRow(`${statImg('atk')}공격`, atkOf(c)) + iRow(`${statImg('def')}방어`, defOf(c)) + iRow(`${statImg('hp')}체력`, `${c.hp}/${d.hp}`);
     const heal = healOf(d);
-    if (heal > 0) st += iRow('❤ 회복', '+' + heal);
-    if (d.atk) st += iRow('⚔ 공격', '+' + d.atk);
-    if (d.defense) st += iRow('🛡 방어', '+' + d.defense);
+    if (heal > 0) st += iRow(`${statImg('hp')}회복`, '+' + heal);
+    if (d.atk) st += iRow(`${statImg('atk')}공격`, '+' + d.atk);
+    if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow('👤 인원', `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
     const lv = tagLevel(d, '체력 회복');
@@ -3002,7 +3012,7 @@ function inspectorHtml(c){
     const eq = c.equip || {};
     c2 += iSub('장비', iTbl(d.slots.map(sl => {
       const it = eq[sl] && DEFS[eq[sl]];
-      return iRow(esc(sl), it ? cardRef(eq[sl]) + (it.atk ? ` ⚔+${it.atk}` : '') + (it.defense ? ` 🛡+${it.defense}` : '') : '<span class="i-muted">비어 있음</span>');
+      return iRow(esc(sl), it ? cardRef(eq[sl]) + (it.atk ? ` ${statImg('atk')}+${it.atk}` : '') + (it.defense ? ` ${statImg('def')}+${it.defense}` : '') : '<span class="i-muted">비어 있음</span>');
     }).join('')));
   }
   if (d.capacity){
