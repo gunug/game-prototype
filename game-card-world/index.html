@@ -337,7 +337,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.59.0';
+const VERSION = 'v0.60.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -843,6 +843,7 @@ const TALK_SCALE = 1;                          // 대사 머무는 시간 배율
 const SPEAKERS = ['god', 'knight'];            // 대사 우선순위 — 앞일수록 먼저
 const talkQ = { god: [], knight: [] };          // 사람마다 할 말 줄 [{ text, done }]
 let talking = null, talkTimer = null;           // 지금 말하는 사람
+let talkItem = null;                            // 지금 말하는 대사 { text, pri }
 function enqueueTalk(who, items){
   talkQ[who].push(...items);
   if (!talking) showNextTalk(null);
@@ -884,6 +885,7 @@ function showNextTalk(prev){
   if (!who){ talking = null; return; }
   const item = talkQ[who].shift();
   talking = who;
+  talkItem = item;
   setLine(who, item.text);
   const hasMouth = S.cards.some(c => c.type === who || (who === 'god' && c.type === 'package' && c.contents === 'first'));
   if (!hasMouth) toast(ic(who) + ' ' + item.text);
@@ -902,14 +904,30 @@ function showNextTalk(prev){
     if (!talking) showNextTalk(who);
   }, Math.max(1800, item.text.length * 110) * TALK_SCALE);
 }
-function say(x){
-  enqueueTalk('god', (Array.isArray(x) ? x : [x]).map(text => ({ text })));
+// v0.60.0: 갓 대사 우선순위 — 퀘스트·이벤트 > 횟수 대사(횟수 많을수록) > 확률 대사(확률 낮을수록)
+//   겹치면(말하는 중 + 줄 선 대사) 높은 대사만 재생하고 낮은 대사는 스킵. 퀘스트·이벤트끼리는 차례로 다 나옴
+const PRI_EVENT = Infinity;
+const priChance = p => 1 - p;                   // 확률 대사: 0 ~ 1
+const priCount = n => 1 + n;                    // 횟수 대사: 1 ~ (확률 대사보다 위) — 지금 쓰는 대사 없음
+function say(x, pri = PRI_EVENT){
+  const cur = talking === 'god' ? talkItem : null;
+  const lower = it => it.pri < pri;
+  if (pri !== PRI_EVENT && [cur].concat(talkQ.god).some(it => it && !lower(it))) return false;   // 같거나 높은 대사가 있음 → 스킵
+  talkQ.god = talkQ.god.filter(it => !lower(it));                 // 줄 선 낮은 대사 스킵
+  if (cur && lower(cur)){                                         // 말하는 중인 낮은 대사는 끊음
+    clearTimeout(talkTimer);
+    talkTimer = null;
+    setLine('god', null);
+    talking = null;
+  }
+  enqueueTalk('god', (Array.isArray(x) ? x : [x]).map(text => ({ text, pri })));
+  return true;
 }
 function sayMaybe(arr){
   const now = Date.now();
   if (now - lastMaybe < 6000 || Math.random() > 0.4) return;
   lastMaybe = now;
-  say(pick(arr));
+  say(pick(arr), priChance(0.4 / arr.length));
 }
 // 갓의 할 말이 다 끝나면 부름
 function afterSpeech(fn){
@@ -1514,7 +1532,7 @@ function rewardFor(rq, x, y){
   } else {
     addCard('package', x, y, { contents: 'tutorial' });
   }
-  say(pick(LINES.settle));
+  say(pick(LINES.settle), priChance(1 / LINES.settle.length));
 }
 
 // ── 갓의 quest 공급 ─────────────────────────────────
@@ -1656,8 +1674,11 @@ function godCheck(){
   if (!kind) return;
   gift = { kind };
   const hasRequest = S.cards.some(c => c.type === 'quest' && isGodRequest(c));
-  if (kind === 'package') say(hasRequest ? pick(LINES.rescue) : LINES.free);
-  else if (S.flags.requestsGiven) say(pick(LINES.refill));     // 리필: "언제든지 필요하면 말해"
+  if (kind === 'package'){
+    if (hasRequest) say(pick(LINES.rescue), priChance(1 / LINES.rescue.length));
+    else say(LINES.free);
+  }
+  else if (S.flags.requestsGiven) say(pick(LINES.refill), priChance(1 / LINES.refill.length));   // 리필: "언제든지 필요하면 말해"
   else say(LINES.firstRequest);
   afterSpeech(deliverGift);                                   // 멘트를 다 끝낸 다음 줌
 }
@@ -2456,7 +2477,8 @@ function trappedHint(first){
   const now = Date.now();
   if (!first && now - lastNag < 9000) return;
   lastNag = now;
-  say(first ? LINES.trapped : pick(LINES.trappedNag));
+  if (first) say(LINES.trapped);
+  else say(pick(LINES.trappedNag), priChance(1 / LINES.trappedNag.length));
 }
 
 // ── 필드 상태 복사 (시스템 메뉴) ──────────────────────
