@@ -78,7 +78,8 @@
   .k-material{--tone:#b58c5a;}
   .k-creature{--tone:#e3a26f;}
   /* 홉핑: 뛰어오르며 세로로 길어졌다가 착지하며 눌림 */
-  .cw.hop{animation:hop .36s ease-out;transform-origin:50% 100%;}
+  /* 등장·튕김 클래스가 남아 있어도 홉이 이기도록 우선 (v0.28.2 버그 수정) */
+  .cw.hop{animation:hop .36s ease-out !important;transform-origin:50% 100%;}
   @keyframes hop{0%{transform:scale(1,1);}30%{transform:scale(.86,1.24);}72%{transform:scale(1.06,.93);}100%{transform:scale(1,1);}}
   .k-tool{--tone:#9fb6cc;}
   .k-food{--tone:#7fc77f;}
@@ -213,7 +214,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.28.1';
+const VERSION = 'v0.28.2';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1633,7 +1634,11 @@ function animalTick(){
     const p = clampPos(c.x + Math.cos(ang) * dist, c.y + Math.sin(ang) * dist);
     hops.set(c.id, { fx: c.x, fy: c.y, tx: p.x, ty: p.y, t0: performance.now() });
     const el = els.get(c.id);
-    if (el){ el.classList.remove('hop'); void el.offsetWidth; el.classList.add('hop'); }
+    if (el){
+      el.classList.remove('hop', 'spawn', 'pop', 'bump');   // 끝난 등장·튕김 클래스를 치우고
+      void el.offsetWidth;                                  // 애니메이션 다시 시작
+      el.classList.add('hop');
+    }
   }
 }
 function stepHops(){
