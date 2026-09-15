@@ -228,7 +228,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.28.5';
+const VERSION = 'v0.29.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -352,6 +352,8 @@ const LINES = {
   comboIntro:     ['뭔지 모르지만 일단 만들어볼까?', '돌로 뼈를 깨봐. 뭐가 나오는지 나한테 보여줘.'],
   comboDone:      '오, 뭔가 나왔네. 도로 가져가.',
   coincidence:    ['…이런 우연이 있나.', '이것이 신의 장난인가?'],
+  fireGrumble:    '익힌 것만 먹는 기사라, 입이 고급이구만.',
+  fireAsk:        '나를 모닥불 위에 올려놔.',
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -532,8 +534,12 @@ function paint(el, c){
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
-    if (!c.recipe) html += `<div class="emoji req-emoji">${d.emoji}</div>`;
+    if (!c.recipe && !c.recipes) html += `<div class="emoji req-emoji">${d.emoji}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;
+    if (c.recipes){
+      // 조합식 여러 개 전부 공개 (카드 폭 때문에 아이콘으로)
+      html += `<div class="req-recipe">${esc(c.recipes.map(([a, b, o]) => `${DEFS[a].emoji}+${DEFS[b].emoji}→${DEFS[o].emoji}`).join('\n'))}</div>`;
+    }
     if (c.recipe){
       // 조합 전부 공개: 재료 + 재료 → 결과
       const [ra, rb, ro] = c.recipe.map(t => `${DEFS[t].emoji} ${DEFS[t].name}`);
@@ -747,6 +753,11 @@ function reqDone(rq){
     const t = byId(rq.target);
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
   }
+  if (rq.goal === 'visitPlace'){
+    const t = byId(rq.target);
+    const pl = t && t.visit != null ? byId(t.visit) : null;
+    return !!pl && pl.type === rq.place;                        // 대상이 그 장소를 방문하면 완료
+  }
   if (rq.goal === 'sleep'){
     const t = byId(rq.target);
     if (!t) return false;
@@ -768,6 +779,14 @@ function reqProgress(rq){
   if (rq.goal === 'fullHp'){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
+  }
+  if (rq.goal === 'visitPlace'){
+    const t = byId(rq.target);
+    if (S.cards.some(c => c.type === rq.place)) rq.made = true;   // 한 번 만들면 체크 유지
+    const pl = t && t.visit != null ? byId(t.visit) : null;
+    const visited = !!pl && pl.type === rq.place;
+    const P = DEFS[rq.place], T = t ? DEFS[t.type] : null;
+    return `${rq.made ? '✔' : '☐'} ${P.emoji} ${P.name} 만들기\n${visited ? '✔' : '☐'} ${T ? T.emoji + ' ' + T.name : '대상'} 올려놓기`;
   }
   if (rq.goal === 'sleep'){
     const t = byId(rq.target);
@@ -828,6 +847,29 @@ function wantsNeed(rq, type){
   if (rq.wants) return rq.wants === type && rq.stack.length < rq.need;
   return false;
 }
+// 갓의 quest "불멍이 하고 싶어": 모닥불 조합식 전부 공개 → 모닥불 만들기 → 갓을 모닥불에 방문시키면 완료
+function giveFireQuest(){
+  if (paused || drag || tear || busy){ setTimeout(giveFireQuest, 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  if (!g || questExists('firemood')) return;
+  const rq = addCard('quest', g.x, g.y, {
+    quest: 'firemood', title: '불멍이 하고 싶어', goal: 'visitPlace', place: 'campfire', target: g.id, giver: g.id,
+    need: 0, stack: [], rewardText: '보상 없음',
+    recipes: [['stone', 'flint', 'ember'], ['grass', 'twig', 'tinder'], ['ember', 'tinder', 'campfire']],
+  });
+  slideOutFrom(rq, g);
+  save();
+  renderAll();
+}
+// 모닥불이 생기면 갓이 한 번: "나를 모닥불 위에 올려놔"
+function fireAskCheck(){
+  if (S.flags.fireAsked || !questExists('firemood') || isTalking('god')) return false;
+  if (!S.cards.some(c => c.type === 'campfire')) return false;
+  S.flags.fireAsked = true;
+  save();
+  say(LINES.fireAsk);
+  return true;
+}
 const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
@@ -841,6 +883,11 @@ function giveKnightQuest(kind){
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
   if (kind === 'bone') say(LINES.coincidence);              // 방금 만든 게 골수 → 갓: "이런 우연이"
+  if (kind === 'food' && !S.flags.fireGiven){
+    S.flags.fireGiven = true;
+    say(LINES.fireGrumble);                                 // "익힌 것만 먹는 기사라, 입이 고급이구만"
+    afterSpeech(giveFireQuest);
+  }
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
   save();
@@ -1123,6 +1170,10 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
+  if (rq.quest === 'firemood'){
+    toast('🔥 불멍이 하고 싶어 완료');
+    return;
+  }
   if (rq.quest === 'firstcombo'){
     addCard('marrow', x, y);                                // 제출한 골수를 보상으로 돌려줌 → 잃는 것 없음
     S.flags.comboDone = true;                               // 이제 기사가 첫 quest를 냄
@@ -1205,6 +1256,7 @@ function godCheck(){
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   if (comboQuestCheck()) return;
+  if (fireAskCheck()) return;
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
