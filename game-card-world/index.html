@@ -88,6 +88,11 @@
   .k-package{--tone:var(--brand-yellow);background:linear-gradient(160deg,#3b3521,#221f14);border-color:#5e5431;}
   .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
 
+  /* 대사 중: 말하는 카드만 원래대로, 나머지는 반투명 → 대사에 집중 */
+  .cw{transition:opacity .25s;}
+  .links{transition:opacity .25s;}
+  .table.talking .cw:not(.speaker):not(.dragging){opacity:.35;}
+  .table.talking .links{opacity:.35;}
   .table.paused{filter:saturate(.7) brightness(.82);transition:filter .2s;}
   .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);border-color:var(--tone);pointer-events:none;}
   .cw.is-target{border-color:var(--brand-yellow);box-shadow:0 0 0 2px var(--brand-yellow),var(--sh-lg);}
@@ -228,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.29.0';
+const VERSION = 'v0.30.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -531,6 +536,7 @@ function paint(el, c){
   el.style.top = c.y + 'px';
   const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
   el.style.zIndex = talkingHere ? 1999999999 : c.z;
+  el.classList.toggle('speaker', !!talkingHere);               // 말하는 카드
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
@@ -663,6 +669,7 @@ function enqueueTalk(who, items){
 const isTalking = who => talking === who || talkQ[who].length > 0;
 function setLine(who, text){
   if (who === 'god') speech = text; else knightSpeech = text;
+  table.classList.toggle('talking', !!(speech || knightSpeech));   // 누가 말하는 동안 나머지 카드 반투명
   repaint(who);
   if (who === 'god'){
     const pk = S.cards.find(c => c.type === 'package' && c.contents === 'first');
