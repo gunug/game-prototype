@@ -22,6 +22,12 @@ ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
 # 파일명 = <분류>_<id>. card 의 id 는 index.html DEFS 키 그대로
 CATEGORIES = ("card", "tag", "status", "ui", "fx")
 NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
+# 그림체 통일 — 모든 아이콘 앞에 붙임. 밝은 분위기, 어린이용 아님, 실사 아님
+STYLE_PREFIX = (
+    "Stylized fantasy RPG game icon, hand-painted semi-realistic illustration style, "
+    "bold readable shapes with clean dark outlines, painterly brush texture, soft cel-shaded volumes, "
+    "bright warm lighting, rich vivid colors, grounded mature art direction for teen and adult players. "
+)
 PROMPT_SUFFIX = (
     ", single object, centered composition, isolated object, clean readable silhouette, "
     "simple solid #000000 background, no text, no characters, no additional objects"
@@ -73,6 +79,7 @@ def main():
     ap.add_argument("--seed", type=int, default=None, help="고정 시드 (없으면 랜덤)")
     ap.add_argument("--size", type=int, default=64, help="최종 픽셀 크기 (기본 64)")
     ap.add_argument("--colors", type=int, default=32, help="팔레트 색 수 (기본 32)")
+    ap.add_argument("--no-style", action="store_true", help="그림체 머리말을 붙이지 않음")
     ap.add_argument("--no-suffix", action="store_true", help="배경 제거용 프롬프트 꼬리말을 붙이지 않음")
     ap.add_argument("--force", action="store_true", help="같은 이름 파일이 있으면 덮어씀")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
@@ -85,6 +92,8 @@ def main():
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
     text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + PROMPT_SUFFIX
+    if not a.no_style:
+        text = STYLE_PREFIX + text
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
     prompt = build_prompt(text, a.name, seed, a.size, a.colors)
 
