@@ -340,7 +340,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.62.0';
+const VERSION = 'v0.63.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -591,12 +591,14 @@ function clampPos(x, y){
 }
 function findSpot(x, y, spread){
   const step = CW * 0.95 * (spread || 1);
+  const groups = bodyHulls(S.cards).filter(h => h.n > 1);      // v0.63.0: 묶음 사이 틈에도 안 놓음
   for (let r = 0; r < 9; r++){
     const n = r === 0 ? 1 : r * 6;
     for (let i = 0; i < n; i++){
       const ang = (i / n) * Math.PI * 2 + r * 0.5;
       const p = clampPos(x + Math.cos(ang) * step * r, y + Math.sin(ang) * step * r * 0.9);
-      const free = S.cards.every(o => Math.abs(o.x - p.x) > CW * 0.7 || Math.abs(o.y - p.y) > CH * 0.6);
+      const free = S.cards.every(o => Math.abs(o.x - p.x) > CW * 0.7 || Math.abs(o.y - p.y) > CH * 0.6)
+        && groups.every(g => outsideHull(p.x, p.y, g));
       if (free) return p;
     }
   }
@@ -2675,7 +2677,7 @@ function physStep(){
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
     if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
-    if (phys && physMove()) moved = true;
+    if (phys ? physMove() : unwedge()) moved = true;   // 밀어내기 꺼짐이면 묶음 틈에 낀 카드만 빼냄
     if (solveVisit()) moved = true;
     if (solveAttach()) moved = true;
   }
@@ -2783,7 +2785,7 @@ const tetherLen = () => CW * 1.6;              // 카드 중심 사이 거리. �
 // 방문한 캐릭터는 장소 오른쪽에 위에서 아래로 섬 (먼저 방문한 캐릭터가 위). 장소와 선으로 이어짐
 // 장소를 끌면 줄이 딸려 움직임. 캐릭터를 잡아당겨 자리에서 멀어지면 떠남
 const detachDist = () => CW * 1.1;           // 자리에서 이만큼(카드 위치 거리) 벗어나면 떠남
-const visitGap = () => CW * 0.45;            // 장소와 방문자 열 사이 가로 간격
+const visitGap = () => CW * 0.225;           // 장소와 방문자 열 사이 가로 간격 (v0.63.0: 0.45 → 절반)
 const VISIT_VGAP = 6;                        // 방문자끼리 위아래 간격
 // 방문자 열의 맨 위 y — 장소의 세로 가운데에 맞춤
 function visitColumnTop(pl, n){
@@ -2947,17 +2949,19 @@ function physMove(){
   const hid = heldId();
   const dragBody = hid != null ? bodyOf(byId(hid)) : null;
   const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && bodyOf(c).duel == null);   // 대결 중인 묶음은 제자리
-  const gapX = CW * 1.06, gapY = CH * 1.04;
-  for (let i = 0; i < cs.length; i++){
-    const a = cs[i];
-    for (let j = i + 1; j < cs.length; j++){
-      const b = cs[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const ox = gapX - Math.abs(dx), oy = gapY - Math.abs(dy);
+  // v0.63.0: 카드끼리가 아니라 묶음 전체 사각형끼리 밀어냄 → 장소─캐릭터, 캐릭터─quest 틈에 다른 카드가 끼지 않음
+  //   (예전엔 틈에 들어간 카드를 양쪽 카드가 반대로 밀어 제자리에 갇혔음)
+  const gx = CW * 0.06, gy = CH * 0.04;                       // 카드 사이 최소 간격 (예전 gapX·gapY 와 같음)
+  const hs = bodyHulls(cs);
+  for (let i = 0; i < hs.length; i++){
+    const A = hs[i];
+    for (let j = i + 1; j < hs.length; j++){
+      const B = hs[j];
+      const ox = Math.min(A.x2, B.x2) - Math.max(A.x1, B.x1) + gx;
+      const oy = Math.min(A.y2, B.y2) - Math.max(A.y1, B.y1) + gy;
       if (ox <= 0 || oy <= 0) continue;
-      const A = bodyOf(a), B = bodyOf(b);
-      if (A === B) continue;
-      const va = velOf(A.id), vb = velOf(B.id);
+      const dx = (B.x1 + B.x2) - (A.x1 + A.x2), dy = (B.y1 + B.y2) - (A.y1 + A.y2);
+      const va = velOf(A.body.id), vb = velOf(B.body.id);
       if (ox < oy){
         const f = ox * PUSH * (dx < 0 ? -1 : 1);
         va.x -= f; vb.x += f;
@@ -2984,6 +2988,45 @@ function physMove(){
     moving = true;
   }
   return moving;
+}
+// 묶음(장소·방문자·붙은 quest 가 한 몸)마다 전체를 감싸는 사각형. n = 묶음 카드 수
+function bodyHulls(cards){
+  const m = new Map();
+  for (const c of cards){
+    const b = bodyOf(c);
+    let h = m.get(b.id);
+    if (!h){ h = { body: b, n: 0, x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity }; m.set(b.id, h); }
+    h.n++;
+    h.x1 = Math.min(h.x1, c.x); h.y1 = Math.min(h.y1, c.y);
+    h.x2 = Math.max(h.x2, c.x + CW); h.y2 = Math.max(h.y2, c.y + CH);
+  }
+  return [...m.values()];
+}
+const outsideHull = (x, y, g) => x + CW <= g.x1 || x >= g.x2 || y + CH <= g.y1 || y >= g.y2;
+// 밀어내기가 꺼져 있어도: 묶음 사각형 안(틈 포함)에 들어간 낱장 카드는 가장 가까운 바깥 자리로 뺌 (v0.63.0)
+function unwedge(){
+  const hid = heldId();
+  const dragBody = hid != null ? bodyOf(byId(hid)) : null;
+  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && !(returning && c.id === returning.id));
+  const hs = bodyHulls(cs);
+  const groups = hs.filter(h => h.n > 1);
+  let moved = false;
+  for (const h of hs){
+    const c = h.body;
+    if (h.n > 1 || c.duel != null) continue;
+    for (const g of groups){
+      if (outsideHull(c.x, c.y, g)) continue;
+      const opts = [
+        { x: g.x1 - CW - 4, y: c.y }, { x: g.x2 + 4, y: c.y },
+        { x: c.x, y: g.y1 - CH - 4 }, { x: c.x, y: g.y2 + 4 },
+      ].map(p => clampPos(p.x, p.y)).filter(p => outsideHull(p.x, p.y, g));
+      if (!opts.length) continue;
+      const p = opts.reduce((a, b) => Math.hypot(b.x - c.x, b.y - c.y) < Math.hypot(a.x - c.x, a.y - c.y) ? b : a);
+      c.x = p.x; c.y = p.y; moveEl(c); moved = true;
+      break;
+    }
+  }
+  return moved;
 }
 const physToggle = document.getElementById('physToggle');
 physToggle.checked = phys;
