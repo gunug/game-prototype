@@ -338,11 +338,12 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.57.0';
+const VERSION = 'v0.58.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
+  // v0.58.0: 합칠 수 있음 = 카드 유형(package·quest·container)·캐릭터·크리처·장소·장비 전용(재료로 안 쓰는 무기·방패) 빼고 전부
   // package = 유형(kind). 카드: 신의 선물(무작위) · 신의 구원(정해진 구호물품)
   package:   { name:'신의 선물',   kind:'package' },          // v0.51.0: 이름 package → 신의 선물 (id 그대로)
   salvation: { name:'신의 구원',   kind:'package', fixed:['marrow', 'roastmeat', 'roastberry'] },   // 빈사 기사 구호물품
@@ -354,24 +355,24 @@ const DEFS = {
   grass:     { name:'마른 풀',     kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   flint:     { name:'부싯돌',      kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
-  carcass:   { name:'토끼 사체',   kind:'material', tags:[] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
+  carcass:   { name:'토끼 사체',   kind:'material', tags:['합칠 수 있음'] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
   // 크리처 (v0.47.0): hp 체력, baseAtk 공격력, baseDef 방어, loot 쓰러뜨리면 나오는 전리품
   // v0.52.0: strike → baseAtk (캐릭터와 같은 공방체)
   animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, baseAtk:1, baseDef:0, loot:['carcass'] },   // v0.54.0: 전리품은 사체만 (뼈는 해체에서)   // v0.42.0: 동물 → 토끼 (id 그대로)
   bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, baseAtk:3, baseDef:0, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
-  bearcarcass:{ name:'곰 사체',    kind:'material', tags:[] },
+  bearcarcass:{ name:'곰 사체',    kind:'material', tags:['합칠 수 있음'] },
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
   marrow:    { name:'골수',        kind:'food', tags:['먹을 수 있음', '빈사 치유', '합칠 수 있음'] },   // v0.55.0: 합칠 수 있음 추가
-  clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
+  clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastclam' },
   // v0.49.0: 크기 (소)·(중) 없앰 — 같은 아이템을 타입으로 늘리지 않고 수량으로 (곰 해체 = 고기 2 · 가죽 2)
-  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
-  hide:      { name:'가죽',        kind:'material', tags:[] },
-  stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는'] },
-  tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는'] },
+  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastmeat' },
+  hide:      { name:'가죽',        kind:'material', tags:['합칠 수 있음'] },
+  stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는', '합칠 수 있음'] },
+  tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
-  ember:     { name:'불씨',        kind:'fire', tags:[] },
+  ember:     { name:'불씨',        kind:'fire', tags:['합칠 수 있음'] },
   campfire:  { name:'모닥불',      kind:'fire', tags:['불', '장소', '체력 회복 lv1'], capacity:3 },
   ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
@@ -381,8 +382,8 @@ const DEFS = {
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
   mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },   // v0.51.0: 나무 + 돌 함께
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
-  roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
 
