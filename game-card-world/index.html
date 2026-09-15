@@ -366,7 +366,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.72.0';
+const VERSION = 'v0.73.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -587,7 +587,7 @@ const LINES = {
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
   godMouth:       '그리고 신의 입. 난 대식가야',
-  river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',   // v0.71.0: 산 전리품 10번
+  river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
@@ -1085,6 +1085,7 @@ function reqDone(rq){
   }
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
+  if (rq.goal === 'gather') return (rq.gathered || 0) >= rq.need;   // v0.73.0: 장소 게이지가 need번 참 (산 채집)
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     const pl = t && t.visit != null ? byId(t.visit) : null;
@@ -1118,6 +1119,7 @@ function reqProgress(rq){
   }
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
+  if (rq.goal === 'gather') return `${ic(rq.place)} ${DEFS[rq.place].name} 채집 ${rq.gathered || 0} / ${rq.need}`;
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     if (S.cards.some(c => c.type === rq.place)) rq.made = true;   // 한 번 만들면 체크 유지
@@ -1674,6 +1676,7 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
+  if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
     if (pi < PEACE_STEPS.length - 1) givePeaceQuest(pi + 1);  // 다음 마음의 평화 quest
@@ -1781,24 +1784,33 @@ function giveGodMouth(){
   }
   save();
   renderAll();
+  giveMountainQuest();                                      // v0.73.0: 산이 나온 뒤 갓의 quest "산 채집"
 }
-// 강가 (v0.71.0): 산에서 전리품을 10번 얻으면 갓 대사 → 갓에게서 강가가 튀어나옴
-const RIVER_AFTER = 10;
-function giveRiver(){
-  if (S.flags.riverGiven) return;
-  if (paused || drag || tear || busy){ setTimeout(giveRiver, 200); return; }
-  S.flags.riverGiven = true;
+// 강가 (v0.73.0): 산이 나온 뒤 갓의 quest "산 채집" — 산 게이지가 5번 차면 완료 → 보상으로 강가
+//   (v0.71.0 "산 전리품 10번 → 갓이 줌"을 quest로 바꿈)
+const MOUNTAIN_WORK = 5;
+function giveMountainQuest(){
+  if (S.flags.riverGiven || S.flags.mountainWorkDone || questExists('mountainwork')) return;
+  if (paused || drag || tear || busy){ setTimeout(giveMountainQuest, 200); return; }
   const g = S.cards.find(c => c.type === 'god');
-  const { w, h } = tableSize();
-  const p = g ? findSpot(g.x - CW * 1.1, g.y + CH + 12) : findSpot(w / 2, h / 2);
-  const r = addCard('river', p.x, p.y);
-  if (g){
-    spawned.delete(r.id);
-    popFrom.set(r.id, { x: g.x, y: g.y });                   // 갓에게서 튀어나옴
-    bumpIds.add(g.id);
-  }
+  if (!g) return;
+  const rq = addCard('quest', g.x, g.y, { quest: 'mountainwork', title: '산 채집', goal: 'gather', place: 'mountain',
+    target: g.id, giver: g.id, need: MOUNTAIN_WORK, gathered: 0, stack: [], rewards: ['river'] });
+  slideOutFrom(rq, g);
   save();
   renderAll();
+}
+// quest 보상: quest 자리에서 강가가 튀어나옴 (장소는 월드에 하나만 → 이미 있으면 안 줌)
+function giveRiverReward(x, y){
+  S.flags.mountainWorkDone = true;
+  if (S.flags.riverGiven || S.cards.some(c => c.type === 'river')) return;
+  S.flags.riverGiven = true;
+  const p = findSpot(x, y);
+  const r = addCard('river', p.x, p.y);
+  spawned.delete(r.id);
+  popFrom.set(r.id, { x, y });
+  toast(`${ic('river')} 산 채집 완료 — 강가`);
+  say(LINES.river);                                         // "산만 두드리니 지겹지? 갓 파워! 강가도 줄게"
 }
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
@@ -1882,7 +1894,7 @@ function godCheck(){
   if (comboQuestCheck()) return;
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
   if (S.flags.mountainGiven && !S.flags.mouthGiven && !isTalking('god')){ giveGodMouth(); return; }   // 신의 입을 받기 전에 새로고침한 경우 (예전 저장 포함)
-  if ((S.flags.mountainLoots || 0) >= RIVER_AFTER && !S.flags.riverGiven && !isTalking('god')){ giveRiver(); return; }   // 강가를 받기 전에 새로고침한 경우
+  if (S.flags.mouthGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -2788,7 +2800,7 @@ const pickWeighted = table => {
 const gaugeAdd = (d, vs) => d.gauge === 'people' ? vs.length : vs.reduce((sum, v) => sum + atkOf(v), 0);
 function yieldTick(){
   if (!S || paused || busy) return;
-  let made = false;
+  let made = false, progressed = false;
   for (const pl of S.cards){
     const d = DEFS[pl.type];
     if (!d.yields) continue;
@@ -2810,17 +2822,17 @@ function yieldTick(){
         made = true;
       }
       if (miss.length) floatText(pl, `누락: ${miss.join(', ')}`, 'work');
-      // 산에서 전리품 10번 (게이지가 찰 때마다 1번, 월드 상한으로 전부 누락돼도 셈) → 강가
-      if (pl.type === 'mountain' && !S.flags.riverGiven){
-        S.flags.mountainLoots = (S.flags.mountainLoots || 0) + 1;
-        if (S.flags.mountainLoots === RIVER_AFTER){ say(LINES.river); afterSpeech(giveRiver); }
+      // 산 채집 quest: 산 게이지가 찰 때마다 1번 (나무+돌이 같이 나와도 1번, 월드 상한으로 누락돼도 1번)
+      if (pl.type === 'mountain'){
+        const rq = S.cards.find(c => c.type === 'quest' && c.goal === 'gather' && c.place === 'mountain');
+        if (rq && (rq.gathered || 0) < rq.need){ rq.gathered = (rq.gathered || 0) + 1; progressed = true; }
       }
     }
     const el = els.get(pl.id);
     const pie = el && el.querySelector('.pie');
     if (pie) pie.style.setProperty('--p', pieValue(pl));
   }
-  if (made) afterChange();
+  if (made || progressed) afterChange();
   else save();
 }
 
@@ -3456,7 +3468,6 @@ function inspectorHtml(c){
       st += iRow('게이지', `${c.yieldPts || 0}/${d.yieldNeed}`);
       if (d.gauge) st += iRow('기반', `${statImg(d.gauge)}${d.gauge === 'people' ? '방문 인원' : '방문자 공격력'}`);
       st += iRow('1초마다', vs.length ? `+${gaugeAdd(d, vs)}` : '<span class="i-muted">방문자 없음</span>');
-      if (c.type === 'mountain' && !S.flags.riverGiven) st += iRow('전리품', `${S.flags.mountainLoots || 0}/${RIVER_AFTER}`);
     }
     c1 = iTbl(st);
   }
