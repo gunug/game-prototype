@@ -262,14 +262,22 @@
   /* 인스펙터 (카드 아님) — 탭한 카드의 모든 정보. 가로가 긴 화면은 오른쪽, 세로가 긴 화면은 하단 */
   /* v0.46.0: 촘촘하게 — 머리 한 줄(그림·이름·태그) + 세 칸 [수치 | 상태 | 조합·출현]. 칸 자리는 모든 카드가 같음 */
   .insp{position:fixed;z-index:2147483050;top:0;right:0;bottom:0;width:var(--insp-w);
-    background:var(--surface);border-left:1px solid var(--hairline);overflow:auto;overscroll-behavior:contain;
+    background:var(--surface);border-left:1px solid var(--hairline);display:flex;flex-direction:column;overflow:hidden;   /* v0.56.0: 스크롤은 .i-body */
     padding:calc(env(safe-area-inset-top,0px) + 10px) calc(env(safe-area-inset-right,0px) + 10px) calc(env(safe-area-inset-bottom,0px) + 10px) 10px;
     color:var(--ink);font-size:11.5px;line-height:1.3;-webkit-user-select:none;user-select:none;}
   @media (orientation: portrait){
     .insp{top:auto;left:0;width:auto;height:var(--insp-h);border-left:none;border-top:1px solid var(--hairline);
       padding:6px 10px calc(env(safe-area-inset-bottom,0px) + 6px);}
   }
-  .i-empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-weight:600;}
+  .i-empty{flex:1;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-weight:600;}
+  /* 전신 포트레이트 (v0.56.0) — 인스펙터 오른쪽 아래. 정보는 .i-body 안에서 스크롤, 그림은 겹치지 않게 따로 자리 */
+  .i-body{flex:1;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;}
+  .i-portrait{flex:none;align-self:flex-end;width:128px;height:256px;margin-top:6px;image-rendering:pixelated;pointer-events:none;-webkit-user-drag:none;}
+  .i-portrait.dying{filter:grayscale(1);}
+  @media (orientation: portrait){
+    .insp{flex-direction:row;}
+    .i-portrait{width:auto;height:100%;max-height:256px;margin:0 0 0 8px;}   /* 하단 막대 높이에 맞춰 줄임 */
+  }
   .i-head{display:flex;align-items:center;flex-wrap:wrap;gap:3px 6px;padding-bottom:5px;border-bottom:1px solid var(--hairline);}
   .i-icon{font-size:24px;line-height:1;flex:none;}
   .i-kind{font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);}
@@ -323,7 +331,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.55.0';
+const VERSION = 'v0.56.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -382,6 +390,8 @@ function iconHtml(t, inline){
 const frameOf = d => d.kind === 'character' ? 'gold' : tagLevel(d, '장소') ? 'stone' : 'wood';
 // v0.52.0: 캐릭터·크리처는 모두 공격·방어·체력을 가짐 (0이어도 카드에 표시)
 const fighter = d => d.kind === 'character' || d.kind === 'creature';
+// 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
+const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear']);
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 // v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
@@ -3100,7 +3110,10 @@ function renderInspector(){
   if (!S) return;
   const c = selId != null ? byId(selId) : null;
   if (selId != null && !c) selId = null;                     // 선택한 카드가 사라짐 → 비움
-  const html = c ? inspectorHtml(c) : '<div class="i-empty">카드를 선택하여 상세정보 보기</div>';
+  const dying = c && DEFS[c.type].kind === 'character' && statusOf(c).includes('빈사');
+  const portrait = c && PORTRAITS.has(c.type)
+    ? `<img class="i-portrait${dying ? ' dying' : ''}" src="images/portrait/portrait_${c.type}.png" alt="" draggable="false">` : '';
+  const html = c ? `<div class="i-body">${inspectorHtml(c)}</div>${portrait}` : '<div class="i-empty">카드를 선택하여 상세정보 보기</div>';
   if (html === inspKey) return;                               // 바뀐 게 있을 때만 다시 그림
   inspKey = html;
   insp.innerHTML = html;

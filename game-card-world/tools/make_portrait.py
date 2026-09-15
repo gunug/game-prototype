@@ -28,7 +28,8 @@ KINDS = {
     "character": {"subject": "single character", "bg": "white", "shade": True},
     "creature": {"subject": "single creature", "bg": "black", "shade": False},
 }
-SHADE = ", strong shading with deep defined shadows, high contrast between light and shadow, dramatic directional key light from the upper left"
+# 카드 아이콘(64px) 캐릭터와 같은 음영 문구 — 그림이 카드와 어긋나지 않게
+SHADE = ", strong shading with deep defined shadows, high contrast between light and shadow, dramatic directional key light from the upper left, shadowed side of the face clearly darker"
 BG_COLORS = {"black": "#000000", "white": "#ffffff white"}
 SUFFIX = (
     ", {subject}, centered composition, isolated, full body visible{feet}, clean readable silhouette, "
@@ -47,6 +48,7 @@ def main():
     ap.add_argument("--width", type=int, default=128)
     ap.add_argument("--height", type=int, default=256)
     ap.add_argument("--colors", type=int, default=64, help="팔레트 색 수 (기본 64)")
+    ap.add_argument("--flip", action="store_true", help="결과를 좌우 반전 (왼쪽을 향하게 맞출 때)")
     ap.add_argument("--no-style", action="store_true", help="그림체 머리말을 붙이지 않음")
     ap.add_argument("--force", action="store_true", help="같은 이름 파일이 있으면 덮어씀")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
@@ -78,8 +80,13 @@ def main():
     outputs = run_workflow(a.url, wf)
     PORTRAIT_DIR.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(fetch_image(a.url, outputs["save_portrait"]["images"][0]))
+    if a.flip:
+        from PIL import Image, ImageOps
+        ImageOps.mirror(Image.open(dest)).save(dest)
 
     opts = ["--kind", a.kind]
+    if a.flip:
+        opts.append("--flip")
     if a.bg and a.bg != kind["bg"]:
         opts += ["--bg", a.bg]
     if a.width != 128 or a.height != 256:
