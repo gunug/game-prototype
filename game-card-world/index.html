@@ -395,7 +395,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.83.0';
+const VERSION = 'v0.84.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -617,7 +617,8 @@ const LINES = {
   fireAsk:        '나를 모닥불 위에 올려놔.',
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
-  godMouth:       '그리고 신의 입. 난 대식가야',
+  godMouth:       '필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘',   // v0.84.0: 카드 30장이 넘으면
+  mouthWarn:      '기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해',
   river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
@@ -1147,6 +1148,8 @@ function reqDone(rq){
   }
   if (rq.goal === 'hunt') return !!S.flags.hunted;             // v0.83.0: 크리처를 한 번이라도 쓰러뜨림
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
+  if (rq.goal === 'devour') return !!S.flags.devoured;         // v0.84.0: 신의 입에 한 장이라도 넣은 적 있음
+  if (rq.goal === 'undevour') return !!S.flags.mouthTook;      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
   if (rq.goal === 'gather') return (rq.gathered || 0) >= rq.need;   // v0.73.0: 장소 게이지가 need번 참 (산 채집)
   if (rq.goal === 'visitPlace'){
@@ -1182,6 +1185,8 @@ function reqProgress(rq){
   }
   if (rq.goal === 'hunt') return `${S.flags.hunted ? '✔' : '☐'} ${ic('animal')} 토끼 사냥`;
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
+  if (rq.goal === 'devour') return `${S.flags.devoured ? '✔' : '☐'} ${ic('godmouth')} 신의 입에 아무거나 1장 넣기`;
+  if (rq.goal === 'undevour') return `${S.flags.mouthTook ? '✔' : '☐'} ${ic('godmouth')} 신의 입에서 한 장 꺼내기`;
   if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
   if (rq.goal === 'gather') return `${ic(rq.place)} ${DEFS[rq.place].name} 채집 ${rq.gathered || 0} / ${rq.need}`;
   if (rq.goal === 'visitPlace'){
@@ -1554,6 +1559,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'devour'){
+    S.flags.devoured = true;                                // v0.84.0: 신의 입 quest 1단계
     removeCard(d.id);
     const from = swallowFrom(t);
     swallow(t, recordEaten(t, d, 0), from);                 // 기록이 가득 차 있으면 맨 오른쪽이 밀려나 삼켜짐
@@ -1773,6 +1779,16 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
+  const mi = MOUTH_STEPS.findIndex(f => f.quest === rq.quest);
+  if (mi >= 0){
+    if (mi < MOUTH_STEPS.length - 1) giveMouthQuest(mi + 1);  // 넣기 → 꺼내기
+    else {
+      S.flags.mouthTaught = true;
+      toast(`${ic('godmouth')} 신의 입 — 기록은 ${DEFS.godmouth.devour}장까지`);
+      say(LINES.mouthWarn);                                 // "기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해"
+    }
+    return;
+  }
   if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
@@ -1875,10 +1891,11 @@ function giveMountain(){
   }
   save();
   renderAll();
-  say(LINES.godMouth);                                      // "그리고 신의 입. 난 대식가야"
-  afterSpeech(giveGodMouth);
+  giveMountainQuest();                                      // v0.73.0: 산이 나온 뒤 갓의 quest "산 채집"
 }
-// 신의 입: 산 다음에 갓이 줌
+// 신의 입 (v0.84.0): 월드 카드가 MOUTH_AT장을 넘으면 갓이 줌 — 어수선함을 치우는 쓰레기통
+//   주면서 quest 두 단계로 넣기·꺼내기를 가르치고, 끝나면 기록 3장 경고
+const MOUTH_AT = 30;
 function giveGodMouth(){
   if (S.flags.mouthGiven) return;
   if (paused || drag || tear || busy){ setTimeout(giveGodMouth, 200); return; }
@@ -1894,7 +1911,24 @@ function giveGodMouth(){
   }
   save();
   renderAll();
-  giveMountainQuest();                                      // v0.73.0: 산이 나온 뒤 갓의 quest "산 채집"
+  say(LINES.godMouth);                                      // "필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘"
+  giveMouthQuest(0);
+}
+// 신의 입 사용법 quest (v0.84.0): 넣기 → 꺼내기. 끝나면 갓이 기록 3장 경고
+const MOUTH_STEPS = [
+  { quest: 'mouth1', title: '먹을걸 줘', goal: 'devour' },
+  { quest: 'mouth2', title: '도로 뱉어', goal: 'undevour' },
+];
+function giveMouthQuest(i){
+  const step = MOUTH_STEPS[i];
+  if (!step || S.flags.mouthTaught || questExists(step.quest)) return;
+  if (paused || drag || tear || busy){ setTimeout(() => giveMouthQuest(i), 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  if (!g) return;
+  const rq = addCard('quest', g.x, g.y, Object.assign({ target: g.id, giver: g.id, need: 0, stack: [], rewardText: '보상 없음' }, step));
+  slideOutFrom(rq, g);
+  save();
+  renderAll();
 }
 // 강가 (v0.73.0): 산이 나온 뒤 갓의 quest "산 채집" — 산 게이지가 5번 차면 완료 → 보상으로 강가
 //   (v0.71.0 "산 전리품 10번 → 갓이 줌"을 quest로 바꿈)
@@ -2003,8 +2037,8 @@ function godCheck(){
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   if (comboQuestCheck()) return;
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
-  if (S.flags.mountainGiven && !S.flags.mouthGiven && !isTalking('god')){ giveGodMouth(); return; }   // 신의 입을 받기 전에 새로고침한 경우 (예전 저장 포함)
-  if (S.flags.mouthGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
+  if (!S.flags.mouthGiven && S.cards.length >= MOUTH_AT && !isTalking('god')){ giveGodMouth(); return; }   // v0.84.0: 월드가 어수선해지면 신의 입
+  if (S.flags.mountainGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -2445,6 +2479,7 @@ function onDown(e){
     const idx = +eatEl.dataset.eat;
     const rec = c.eaten.splice(idx, 1)[0];
     if (!rec || !DEFS[rec.type]) return;
+    S.flags.mouthTook = true;                               // v0.84.0: 신의 입 quest 2단계
     const nc = addCard(rec.type, px - CW / 2, py - CH / 2, rec, true);
     spawned.delete(nc.id);
     renderAll();
