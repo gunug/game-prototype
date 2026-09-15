@@ -302,7 +302,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.43.0';
+const VERSION = 'v0.44.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -559,6 +559,13 @@ function markSeen(type, quiet){
   S.seen.push(type);
   if (!quiet) newSeen.push(type);
 }
+// 전체 규칙: 월드(테이블)에 같은 카드가 5장 있으면 그 카드는 더 생성되지 않음
+//   container·quest 위·장비 칸에 들어간 카드는 세지 않음 — 테이블에 원래 모습으로 나와 있는 카드만
+//   꺼내기·장비 방출처럼 이미 있던 카드가 나오는 건 생성이 아니라 막지 않음. quest 카드는 진행 로직이 내므로 제외
+const SPAWN_CAP = 5;
+const looseCount = type => S.cards.filter(c => c.type === type).length;
+const canSpawn = type => type === 'quest' || looseCount(type) < SPAWN_CAP;
+const capToast = type => toast(`${ic(type)} ${DEFS[type].name} — 월드에 ${SPAWN_CAP}장 있어서 더 생성되지 않음`);
 function addCard(type, x, y, extra, quiet){
   const c = Object.assign({ id: S.nextId++, type, x, y, z: ++S.z }, extra || {});
   const d = DEFS[type];
@@ -1140,7 +1147,9 @@ function evaluate(d, t){
   const m = ms[0];
   // 장소는 월드에 하나만 → 이미 있는 장소가 나오는 조합은 안 됨
   const dup = (m.r.out || []).find(o => tagLevel(DEFS[o], '장소') && S.cards.some(c => c.type === o));
-  return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d, full: !!dup, dup };
+  const outs = m.r.cook ? [DEFS[(m.aIsX ? t : d).type].cooked] : (m.r.out || []);   // 익히기는 익힌 카드가 새로 생김
+  const capped = dup ? null : outs.find(o => o && !canSpawn(o));                  // 월드에 5장이면 조합 안 됨
+  return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d, full: !!(dup || capped), dup, capped };
 }
 function apply(ev, d, t){
   const dd = DEFS[d.type];
@@ -1234,6 +1243,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'recipe'){
     if (ev.dup){ toast(`${ic(ev.dup)} ${DEFS[ev.dup].name} — 장소는 하나만 있을 수 있음`); return false; }
+    if (ev.capped){ capToast(ev.capped); return false; }
     const { r, A, B } = ev;
     const bx = t.x, by = t.y;
     if (r.cook){
@@ -1372,9 +1382,9 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'sleepmedicine'){
-    addCard('hilt', x, y);                                  // 보상이 먼저 보이고
+    if (canSpawn('hilt')) addCard('hilt', x, y); else capToast('hilt');   // 보상이 먼저 보이고
     const p2 = findSpot(x + CW * 1.1, y);
-    addCard('plank', p2.x, p2.y);
+    if (canSpawn('plank')) addCard('plank', p2.x, p2.y); else capToast('plank');
     S.flags.knightStage = 4;
     toast('💤 잠이 보약 완료');
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
@@ -1403,7 +1413,8 @@ function rewardFor(rq, x, y){
   }
   S.flags.godSettles = (S.flags.godSettles || 0) + 1;       // 갓의 "아무거나 3개" 정산 횟수
   const gg = rq.giver != null ? byId(rq.giver) : null;
-  if (gg){
+  if (!canSpawn('package')) capToast('package');
+  else if (gg){
     // 정산 보상 package도 갓 아래 방향으로 튀어나옴
     const p = findSpot(gg.x, gg.y + CH + 12);
     const pk = addCard('package', p.x, p.y, { contents: 'tutorial' });
@@ -1747,7 +1758,15 @@ function openPackage(id, t){
     removeCard(id);
     const list = [];
     if (contents === 'first') list.push('knight', 'god');
-    list.push(...drawPool(PACK_DRAW));
+    let skipped = 0;
+    const pending = {};
+    for (const ty of drawPool(PACK_DRAW)){
+      pending[ty] = pending[ty] || 0;
+      if (looseCount(ty) + pending[ty] >= SPAWN_CAP){ skipped++; continue; }   // 월드에 5장이면 생성 안 됨
+      pending[ty]++;
+      list.push(ty);
+    }
+    if (skipped) toast(`월드에 ${SPAWN_CAP}장 있는 카드는 생성되지 않음 (${skipped}장)`);
     const n = list.length, base = Math.random() * Math.PI * 2;
     list.forEach((type, i) => {
       if (phys){
@@ -2189,8 +2208,10 @@ function yieldTick(){
     floatText(pl, `+${add}`, 'work');                         // 게이지에 들어간 만큼
     while (pl.yieldPts >= d.yieldNeed){
       pl.yieldPts -= d.yieldNeed;
+      const ty = pickWeighted(d.yields);                     // 나무 · 토끼 · 곰
+      if (!canSpawn(ty)){ floatText(pl, `${DEFS[ty].name} ${SPAWN_CAP}장 — 생성 안 됨`, 'work'); continue; }
       const p = findSpot(pl.x, pl.y + CH + 12);
-      const nc = addCard(pickWeighted(d.yields), p.x, p.y);   // 나무 · 토끼 · 곰
+      const nc = addCard(ty, p.x, p.y);
       spawned.delete(nc.id);
       popFrom.set(nc.id, { x: pl.x, y: pl.y });                // 산에서 튀어나옴
       bumpIds.add(pl.id);
