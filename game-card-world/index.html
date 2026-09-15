@@ -234,14 +234,15 @@
 
   /* 콜렉터북 */
   /* 콜렉터북 = 하단에서 올라오는 시트 */
-  .book{position:fixed;left:0;right:var(--insp-w);bottom:0;z-index:2147483200;display:flex;justify-content:center;pointer-events:none;
+  /* v0.61.0: 인스펙터보다 아래 레이어, 인스펙터·상단 막대와 겹치지 않는 테이블 영역 안에서 상단 막대 아래까지 올라옴 */
+  .book{position:fixed;left:0;right:var(--insp-w);top:var(--top-h);bottom:var(--insp-h);z-index:2147483040;display:flex;justify-content:center;align-items:flex-end;pointer-events:none;
     transform:translateY(105%);transition:transform .38s cubic-bezier(.2,.85,.25,1);}
   .book.open{transform:translateY(0);}
   .book-grip{width:44px;height:4px;border-radius:4px;background:var(--hairline);margin:0 auto 12px;}
   .slot.reg{animation:reg .55s cubic-bezier(.2,1.4,.4,1);border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.5),0 0 18px rgba(255,212,0,.35);}
   @keyframes reg{0%{transform:scale(.4) rotate(-12deg);opacity:.2;}60%{transform:scale(1.15) rotate(3deg);opacity:1;}100%{transform:scale(1) rotate(0);opacity:1;}}
   .book-panel{pointer-events:auto;background:var(--surface);border:1px solid var(--hairline);border-bottom:none;border-radius:var(--r-lg) var(--r-lg) 0 0;
-    width:100%;max-width:720px;max-height:62vh;overflow:auto;padding:10px 20px calc(env(safe-area-inset-bottom,0px) + 20px);box-shadow:0 -12px 40px rgba(0,0,0,.55);}
+    width:100%;max-width:720px;max-height:100%;overflow:auto;padding:10px 20px calc(env(safe-area-inset-bottom,0px) + 20px);box-shadow:0 -12px 40px rgba(0,0,0,.55);}
   .book-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
   .book-head h2{margin:0 0 12px;font-size:22px;}
   .book-head small,.book-sub small{color:var(--muted);font-weight:600;font-size:14px;margin-left:6px;}
@@ -251,6 +252,8 @@
   .slot .e{font-size:26px;line-height:1;}
   .slot .n{margin-top:6px;font-size:11px;font-weight:600;color:var(--ink);}
   .slot.unseen .n{color:var(--muted);}
+  .slot:not(.unseen){cursor:pointer;}
+  .slot.selected{border-color:#9fd0ff;box-shadow:0 0 0 2px rgba(159,208,255,.55);}   /* 인스펙터에 보이는 칸 */
   .book-sub{margin:20px 0 8px;font-size:16px;}
   .recipes{list-style:none;margin:0;padding:0;display:grid;gap:4px;}
   .recipes li{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;color:var(--ink);}
@@ -337,7 +340,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.60.0';
+const VERSION = 'v0.61.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2555,7 +2558,7 @@ function renderBook(){
   for (const id of PAGE.ids){
     const d = DEFS[id];
     html += shown(id)
-      ? `<div class="slot" data-slot="${id}"><div class="e">${iconHtml(id)}</div><div class="n">${esc(d.name)}</div></div>`
+      ? `<div class="slot${id === selType ? ' selected' : ''}" data-slot="${id}"><div class="e">${iconHtml(id)}</div><div class="n">${esc(d.name)}</div></div>`
       : `<div class="slot unseen" data-slot="${id}"><div class="e">❔</div><div class="n">???</div></div>`;
   }
   html += `</div><h3 class="book-sub">발견한 조합<small>${S.found.length} / ${RECIPES.length}</small></h3><ul class="recipes">`;
@@ -2973,16 +2976,30 @@ physToggle.addEventListener('change', () => {
 // ── 인스펙터 (카드 아님) ──────────────────────────────
 //   탭한 카드의 모든 정보. 빈 테이블을 탭하면 비움. 게임은 멈추지 않고 계속 갱신
 let selId = null, inspKey = '';
+let selType = null;            // v0.61.0: 콜렉터북에서 고른 카드 종류 (테이블 카드 선택과 둘 중 하나만)
 const insp = document.getElementById('insp');
 function setSelected(id){
-  if (selId === id) return;
+  if (selId === id && selType == null) return;
   const prev = selId != null ? els.get(selId) : null;
   if (prev) prev.classList.remove('selected');
   selId = id;
+  if (selType != null){ selType = null; markBookSelected(); }
   const el = id != null ? els.get(id) : null;
   if (el) el.classList.add('selected');
   renderInspector();
 }
+// 콜렉터북 칸을 고르면 그 카드 종류를 인스펙터에 (테이블 카드 선택은 풀림)
+function setBookSelected(t){
+  setSelected(null);
+  selType = t;
+  markBookSelected();
+  renderInspector();
+}
+function markBookSelected(){
+  for (const s of book.querySelectorAll('.slot')) s.classList.toggle('selected', s.dataset.slot === selType);
+}
+// 콜렉터북에서 고른 카드 — 테이블에 없는 가상 카드 (체력 가득, 장비·상태·방문 없음)
+const bookCard = t => ({ id: -1, type: t, hp: DEFS[t].hp, equip: {}, status: [], stack: [], title: DEFS[t].name });
 // 인스펙터 칸 배정 (모든 카드 공통): 머리 한 줄(그림·이름·태그) + 세 칸 [수치 | 상태 | 조합·출현]
 //   칸 자리는 카드가 달라도 같음. 넣을 게 없는 칸은 —
 //   quest: 수치 = 진행 / 상태 = 발주·올려놓은 카드 / 조합·출현 = 조합식·보상
@@ -3014,8 +3031,9 @@ function inspectorHtml(c){
 
   // ① 수치
   let c1 = '';
+  const fromBook = c.id === -1;                                 // 콜렉터북에서 고른 가상 카드
   if (isQuest){
-    c1 = iSub('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
+    c1 = fromBook ? iNone('quest 카드마다 다름') : iSub('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
   } else {
     let st = '';
     if (fighter(d)) st += iRow(`${statImg('atk')}공격`, atkOf(c)) + iRow(`${statImg('def')}방어`, defOf(c)) + iRow(`${statImg('hp')}체력`, `${c.hp}/${d.hp}`);
@@ -3091,7 +3109,7 @@ function inspectorHtml(c){
     const rs = c.recipes || (c.recipe ? [c.recipe] : []);
     if (c.recipeId && RECIPE_BY_ID.has(c.recipeId)) c3 += iSub('조합식', iLine(rich(recipeText(RECIPE_BY_ID.get(c.recipeId)))));   // 태그 조합도 그대로
     else if (rs.length) c3 += iSub('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
-    c3 += iSub('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
+    if (!fromBook) c3 += iSub('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
   }
 
   const cell = (title, body) => `<div class="i-cell"><h4>${title}</h4>${body || iNone('—')}</div>`;
@@ -3134,7 +3152,7 @@ function comboLists(t){
 }
 function renderInspector(){
   if (!S) return;
-  const c = selId != null ? byId(selId) : null;
+  const c = selId != null ? byId(selId) : selType != null ? bookCard(selType) : null;
   if (selId != null && !c) selId = null;                     // 선택한 카드가 사라짐 → 비움
   const dying = c && DEFS[c.type].kind === 'character' && statusOf(c).includes('빈사');
   const portrait = c && PORTRAITS.has(c.type)
@@ -3153,7 +3171,9 @@ window.addEventListener('pointercancel', onUp);
 document.getElementById('bookBtn').addEventListener('click', toggleBook);
 document.getElementById('copyBtn').addEventListener('click', copyField);
 book.addEventListener('click', e => {
-  if (e.target.closest('[data-close]')) closeBook();
+  if (e.target.closest('[data-close]')){ closeBook(); return; }
+  const slot = e.target.closest('.slot');
+  if (slot && !slot.classList.contains('unseen')) setBookSelected(slot.dataset.slot);   // ??? 칸은 못 고름
 });
 // 진행 중인 것 전부 끊고 테이블 비움 (처음부터 · 챕터 점프 공통)
 function clearRuntime(){
