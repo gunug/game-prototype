@@ -323,7 +323,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.53.0';
+const VERSION = 'v0.54.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -342,8 +342,8 @@ const DEFS = {
   carcass:   { name:'토끼 사체',   kind:'material', tags:[] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
   // 크리처 (v0.47.0): hp 체력, baseAtk 공격력, baseDef 방어, loot 쓰러뜨리면 나오는 전리품
   // v0.52.0: strike → baseAtk (캐릭터와 같은 공방체)
-  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, baseAtk:1, baseDef:0, loot:['carcass', 'bone'] },   // v0.42.0: 동물 → 토끼 (id 그대로)
-  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, baseAtk:3, baseDef:0, loot:['bearcarcass', 'bone'] },   // 토끼보다 2배 멀리, 우다다다
+  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, baseAtk:1, baseDef:0, loot:['carcass'] },   // v0.54.0: 전리품은 사체만 (뼈는 해체에서)   // v0.42.0: 동물 → 토끼 (id 그대로)
+  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, baseAtk:3, baseDef:0, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
   bearcarcass:{ name:'곰 사체',    kind:'material', tags:[] },
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
@@ -409,8 +409,9 @@ const RECIPES = [
   { id:'ember',    a:{ card:'stone' },      b:{ card:'flint' },    out:['ember'], keep:'a' },
   { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
   { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
-  { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
-  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat', 'meat', 'hide', 'hide'], keep:'a' },   // 곰 = 토끼의 두 배
+  // v0.54.0: 뼈는 크리처 전리품이 아니라 사체 해체에서 나옴
+  { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide', 'bone'], keep:'a' },
+  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat', 'meat', 'hide', 'hide', 'bone'], keep:'a' },   // 곰 고기·가죽 = 토끼의 두 배, 뼈 1
   // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
