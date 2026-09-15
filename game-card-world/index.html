@@ -123,6 +123,11 @@
   .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
   .cw .eaten .mini{width:calc(var(--cw) * .27);height:calc(var(--cw) * .32);margin:0;border-radius:4px;font-size:calc(var(--cw) * .17);}
   .cw .eaten .mini.empty{background:rgba(0,0,0,.3);border:1px dashed rgba(255,255,255,.2);box-shadow:none;cursor:default;pointer-events:none;}
+  /* v0.65.0: 새 기록이 들어오면 기록 칸이 한 칸씩 밀림 / 밀려난 카드는 입 그림 쪽으로 돌며 작아짐 (삼킴) */
+  .cw .eaten.shift .mini[data-eat]{animation:eatShift .28s ease-out;}
+  @keyframes eatShift{from{transform:translateX(calc(-100% - 2px));}to{transform:none;}}
+  .swallow{position:absolute;margin:0;border-radius:4px;pointer-events:none;z-index:2100000000;animation:swallow .6s ease-in forwards;}
+  @keyframes swallow{from{transform:translate(0,0) rotate(0deg) scale(1);opacity:1;}to{transform:translate(var(--dx),var(--dy)) rotate(540deg) scale(.1);opacity:.2;}}
   /* container 택: 쓸어담을 게 없으면 깜빡이지 않음 */
   .tab.idle::before{animation:none;opacity:.18;}
   .tab.idle path{animation:none;stroke-opacity:.4;}
@@ -345,7 +350,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.64.0';
+const VERSION = 'v0.65.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -718,7 +723,7 @@ function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
   if (fighter(d)) cls += ' has-corner';
-  else if (d.capacity || d.yields) cls += ' has-top';
+  else if (d.capacity || d.yields || d.devour) cls += ' has-top';
   if (placeFoot(d)) cls += ' has-foot';
   if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
@@ -778,13 +783,14 @@ function paint(el, c){
     let top = '';
     if (d.capacity) top += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
+    if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
     if (d.devour){
       // 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄
       const eaten = c.eaten || [];
-      html += '<div class="eaten">' + Array.from({ length: d.devour }, (_, i) => eaten[i] && DEFS[eaten[i].type]
+      html += `<div class="eaten${eatShift.delete(c.id) ? ' shift' : ''}">` + Array.from({ length: d.devour }, (_, i) => eaten[i] && DEFS[eaten[i].type]
         ? `<div class="mini framed f-${frameOf(DEFS[eaten[i].type])}" data-eat="${i}" title="드래그해서 꺼내기">${iconHtml(eaten[i].type)}</div>`
         : '<div class="mini empty"></div>').join('') + '</div>';
     }
@@ -1295,6 +1301,41 @@ function recordEaten(mouth, c, idx){
   const list = mouth.eaten || [];
   list.splice(Math.min(idx, list.length), 0, rec);
   mouth.eaten = list.slice(0, DEFS[mouth.type].devour);
+  return list.slice(DEFS[mouth.type].devour);                   // 밀려난 기록 → 삼킴
+}
+// v0.65.0: 신의 입이 삼킴 — 기록에서 밀려난 카드가 입 그림 쪽으로 돌며 작아지고, 삼킬 때마다 흡족 +1 (흡족 기능은 아직 없음)
+const SWALLOW_MS = 600;
+const eatShift = new Set();                                     // 다음 그리기에서 기록 칸이 한 칸씩 밀리는 신의 입
+// 밀려날 기록 칸(맨 오른쪽) 자리 — 기록을 바꾸기 전에 잼
+function swallowFrom(mouth){
+  const el = els.get(mouth.id);
+  const slot = el && el.querySelector(`.eaten .mini:nth-child(${DEFS[mouth.type].devour})`);
+  return slot ? slot.getBoundingClientRect() : null;
+}
+function swallow(mouth, recs, from){
+  if (!recs.length) return;
+  mouth.satisfied = (mouth.satisfied || 0) + recs.length;
+  const el = els.get(mouth.id);
+  const icon = el && el.querySelector('.emoji');
+  const anim = !!(from && icon);
+  if (anim){
+    const tr = table.getBoundingClientRect(), ir = icon.getBoundingClientRect();
+    for (const r of recs){
+      const f = document.createElement('div');
+      f.className = `mini framed f-${frameOf(DEFS[r.type])} swallow`;
+      f.innerHTML = iconHtml(r.type);
+      f.style.left = (from.left - tr.left) + 'px';
+      f.style.top = (from.top - tr.top) + 'px';
+      f.style.width = from.width + 'px';
+      f.style.height = from.height + 'px';
+      f.style.fontSize = 'calc(var(--cw) * .17)';
+      f.style.setProperty('--dx', (ir.left + ir.width / 2 - from.left - from.width / 2) + 'px');
+      f.style.setProperty('--dy', (ir.top + ir.height / 2 - from.top - from.height / 2) + 'px');
+      table.appendChild(f);
+      setTimeout(() => f.remove(), SWALLOW_MS);
+    }
+  }
+  setTimeout(() => { if (byId(mouth.id)) floatText(mouth, `흡족 +${recs.length}`, 'work'); }, anim ? SWALLOW_MS : 0);
 }
 function apply(ev, d, t){
   const dd = DEFS[d.type];
@@ -1347,7 +1388,9 @@ function apply(ev, d, t){
   }
   if (ev.act === 'devour'){
     removeCard(d.id);
-    recordEaten(t, d, 0);
+    const from = swallowFrom(t);
+    swallow(t, recordEaten(t, d, 0), from);                 // 기록이 가득 차 있으면 맨 오른쪽이 밀려나 삼켜짐
+    eatShift.add(t.id);
     bumpIds.add(t.id);
     toast(`${ic(d.type)} ${dd.name} → ${DEFS[t.type].name}`);
     return true;
@@ -2296,7 +2339,8 @@ function bounce(c, d0){
     if (mouth){
       tweenTo(c, mouth.x, mouth.y, () => {
         removeCard(c.id);
-        recordEaten(mouth, c, d0.fromMouth.idx);
+        const from = swallowFrom(mouth);
+        swallow(mouth, recordEaten(mouth, c, d0.fromMouth.idx), from);   // 그사이 기록이 가득 찼으면 맨 오른쪽이 삼켜짐
         afterChange();
       });
       return;
@@ -2613,6 +2657,7 @@ function fieldSnapshot(){
       if (c.visit != null) o.visit = nameOf(c.visit);
       if (c.contents) o.contents = c.contents;
       if (c.eaten) o.eaten = c.eaten.map(r => DEFS[r.type] ? DEFS[r.type].name : r.type);
+      if (DEFS[c.type].devour) o.satisfied = c.satisfied || 0;
       if (DEFS[c.type].kind === 'container') o.held = c.fill ? `${DEFS[c.fill].name} ${c.count}/${DEFS[c.type].hold}` : '비어 있음';
       if (c.type === 'quest'){
         o.title = c.title;
@@ -3191,7 +3236,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow('👤 인원', `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
-    if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`);
+    if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
       const period = REST_MS / lv;
