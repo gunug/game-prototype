@@ -366,7 +366,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.76.0';
+const VERSION = 'v0.77.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2091,7 +2091,8 @@ const mouthEats = o => {
 // v0.74.0: 도구·무기·방패 태그 카드는 월드 정리로 빨려가지 않음 (직접 끌어다 넣으면 먹음)
 const KEEP_TAGS = ['도구', '무기', '방패'];
 const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id)
-  && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t)));
+  && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t))
+  && DEFS[o.type].kind !== 'package');                                // v0.77.0: package 유형(신의 선물·신의 구원 …)도 안 빨려감
 const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
 let purgeAsking = false;                                    // 신의 입: 갓 대사가 끝나길 기다리는 중
 function pullRedTab(id){
