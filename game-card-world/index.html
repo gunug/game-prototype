@@ -93,6 +93,8 @@
   .k-package{--tone:var(--brand-yellow);background:linear-gradient(160deg,#3b3521,#221f14);border-color:#5e5431;}
   .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
   .k-container{--tone:#c9a36b;}
+  .k-place{--tone:#9aa3ad;}
+  .float.work{color:#ffd27a;}
   /* container 담긴 카드: 그림 + 수량. 잡아끌면 한 장씩 꺼냄 */
   .cw .held{display:flex;align-items:center;gap:2px;font-size:calc(var(--cw) * .13);font-weight:800;color:var(--ink);line-height:1;
     background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 6px;pointer-events:none;}
@@ -291,7 +293,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.40.0';
+const VERSION = 'v0.41.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -324,6 +326,8 @@ const DEFS = {
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
   sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
+  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:'tree', yieldNeed:30 },   // 방문자 공격력으로 게이지 → 나무
+  tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -402,7 +406,14 @@ function recipesFor(x, y){
   return out;
 }
 function usableRecipes(x, y){
-  return recipesFor(x, y).filter(m => !m.r.cook || DEFS[m.aIsX ? y : x].cooked);
+  return recipesFor(x, y).filter(m => {
+    const a = m.aIsX ? x : y, b = m.aIsX ? y : x;
+    if (m.r.cook && !DEFS[b].cooked) return false;
+    // 장소는 파괴되지 않음 → 장소가 없어지는 조합은 안 됨 (예: 모닥불 + 풀 깔개 태우기)
+    if (m.r.keep !== 'a' && tagLevel(DEFS[a], '장소')) return false;
+    if (m.r.keep !== 'b' && tagLevel(DEFS[b], '장소')) return false;
+    return true;
+  });
 }
 function sideText(sd){
   if (sd.atk) return `⚔ 공격력 ${sd.atk} 이상`;
@@ -421,7 +432,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree'],
 };
 
 // 갓의 대사
@@ -437,6 +448,7 @@ const LINES = {
   fireGrumble:    '익힌 것만 먹는 기사라, 입이 고급이구만.',
   fireAsk:        '나를 모닥불 위에 올려놔.',
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
+  godPower:       '갓 파워!',
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -488,7 +500,8 @@ const TOP_PAD = 52;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 const byId = id => S.cards.find(c => c.id === id);
-const submittable = def => !['character', 'package', 'quest', 'container'].includes(def.kind);
+// 장소는 quest 비용으로 지불되지 않음
+const submittable = def => !['character', 'package', 'quest', 'container'].includes(def.kind) && !tagLevel(def, '장소');
 
 function measure(){
   const { w, h } = tableSize();                                  // v0.37.0: 인스펙터를 뺀 테이블 기준
@@ -654,7 +667,7 @@ function paint(el, c){
     }
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (d.capacity) html += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
-    if (tagLevel(d, '체력 회복') && visitorsOf(c).length) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
+    if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
@@ -1096,7 +1109,9 @@ function evaluate(d, t){
   if (!ms.length) return null;
   if (ms.length > 1) console.warn('[제작자 알림] 조합 겹침', d.type, t.type, ms.map(m => m.r.id));
   const m = ms[0];
-  return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d };
+  // 장소는 월드에 하나만 → 이미 있는 장소가 나오는 조합은 안 됨
+  const dup = (m.r.out || []).find(o => tagLevel(DEFS[o], '장소') && S.cards.some(c => c.type === o));
+  return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d, full: !!dup, dup };
 }
 function apply(ev, d, t){
   const dd = DEFS[d.type];
@@ -1189,6 +1204,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'recipe'){
+    if (ev.dup){ toast(`${ic(ev.dup)} ${DEFS[ev.dup].name} — 장소는 하나만 있을 수 있음`); return false; }
     const { r, A, B } = ev;
     const bx = t.x, by = t.y;
     if (r.cook){
@@ -1338,7 +1354,7 @@ function rewardFor(rq, x, y){
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
     if (pi < PEACE_STEPS.length - 1) givePeaceQuest(pi + 1);  // 다음 마음의 평화 quest
-    else toast(`${ic('sack')} 마음의 평화 완료`);
+    else finishPeace();
     return;
   }
   if (rq.quest === 'godsbed'){
@@ -1389,9 +1405,44 @@ function scheduleGod(){
   godTimer = setTimeout(godCheck, 1400);
 }
 // 갓이 지금 무엇을 줘야 하나: null | 'quest' | 'package'
+// 마음의 평화 완료: 갓의 "아무거나 3개"는 끝 (떠 있던 것도 사라지고, 올려둔 카드는 테이블로) → "갓 파워!" → 산
+function finishPeace(){
+  toast(`${ic('sack')} 마음의 평화 완료`);
+  S.flags.peaceDone = true;
+  gift = null;
+  for (const rq of S.cards.filter(c => c.type === 'quest' && isGodRequest(c))){
+    for (const t of rq.stack){
+      const p = findSpot(rq.x, rq.y + CH * 0.5);
+      const nc = addCard(t, p.x, p.y, null, true);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: rq.x, y: rq.y });
+    }
+    settling.delete(rq.id);
+    removeCard(rq.id);
+  }
+  say(LINES.godPower);
+  afterSpeech(giveMountain);
+}
+function giveMountain(){
+  if (S.flags.mountainGiven) return;
+  if (paused || drag || tear || busy){ setTimeout(giveMountain, 200); return; }
+  S.flags.mountainGiven = true;
+  const g = S.cards.find(c => c.type === 'god');
+  const { w, h } = tableSize();
+  const p = g ? findSpot(g.x, g.y + CH + 12) : findSpot(w / 2, h / 2);
+  const m = addCard('mountain', p.x, p.y);
+  if (g){
+    spawned.delete(m.id);
+    popFrom.set(m.id, { x: g.x, y: g.y });                   // 갓에게서 튀어나옴
+    bumpIds.add(g.id);
+  }
+  save();
+  renderAll();
+}
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god')) return null;
+  if (S.flags.peaceDone) return null;                         // 마음의 평화 뒤로는 아무거나 3개 없음
   const avail = submittableCount();
   const requests = S.cards.filter(c => c.type === 'quest' && isGodRequest(c));
   if (requests.length){
@@ -1432,6 +1483,7 @@ function godCheck(){
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   if (comboQuestCheck()) return;
+  if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
@@ -1977,9 +2029,9 @@ function onUp(e){
 }
 
 // 카드 위에 +N 같은 수치를 띄움 (떠오르며 사라짐)
-function floatText(c, text){
+function floatText(c, text, cls){
   const f = document.createElement('div');
-  f.className = 'float';
+  f.className = 'float' + (cls ? ' ' + cls : '');
   f.textContent = text;
   f.style.left = (c.x + CW / 2) + 'px';
   f.style.top = (c.y - CH * 0.05) + 'px';
@@ -2041,6 +2093,7 @@ function stepHops(){
 //   장소마다 게이지 하나. 다 차면 방문자 전원 한꺼번에 +1. 빈사는 회복 안 됨 (빈사 치유가 필요)
 const REST_MS = 15000;                         // lv1 = 15초에 +1
 function pieValue(pl){
+  if (DEFS[pl.type].yields) return Math.min(1, (pl.yieldPts || 0) / DEFS[pl.type].yieldNeed);   // 산: 나무 게이지
   const lv = tagLevel(DEFS[pl.type], '체력 회복');
   if (!lv || !visitorsOf(pl).length) return 0;
   return Math.min(1, (pl.restMs || 0) / (REST_MS / lv));
@@ -2078,6 +2131,41 @@ function restTick(){
     const pie = el && el.querySelector('.pie');
     if (pie) pie.style.setProperty('--p', pieValue(pl));
   }
+}
+
+// ── 산: 방문한 캐릭터의 공격력만큼 게이지가 참 → 다 차면 나무 ──
+//   1초마다 방문자 공격력 합계만큼 +. 공격력 0이면 +0 (아무리 기다려도 안 나옴)
+//   방문자가 떠나도 게이지는 남음
+function atkOf(c){
+  const d = DEFS[c.type];
+  return (d.baseAtk || 0) + Object.values(c.equip || {}).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+}
+function yieldTick(){
+  if (!S || paused || busy) return;
+  let made = false;
+  for (const pl of S.cards){
+    const d = DEFS[pl.type];
+    if (!d.yields) continue;
+    const vs = visitorsOf(pl);
+    if (!vs.length) continue;
+    const add = vs.reduce((sum, v) => sum + atkOf(v), 0);
+    pl.yieldPts = (pl.yieldPts || 0) + add;
+    floatText(pl, `+${add}`, 'work');                         // 게이지에 들어간 만큼
+    while (pl.yieldPts >= d.yieldNeed){
+      pl.yieldPts -= d.yieldNeed;
+      const p = findSpot(pl.x, pl.y + CH + 12);
+      const nc = addCard(d.yields, p.x, p.y);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: pl.x, y: pl.y });                // 산에서 튀어나옴
+      bumpIds.add(pl.id);
+      made = true;
+    }
+    const el = els.get(pl.id);
+    const pie = el && el.querySelector('.pie');
+    if (pie) pie.style.setProperty('--p', pieValue(pl));
+  }
+  if (made) afterChange();
+  else save();
 }
 
 // ── 첫 package: 안에 갇힌 갓이 모서리를 당기라고 함 ───
@@ -2630,6 +2718,11 @@ function inspectorHtml(c){
       : !healable.length ? '<span class="i-muted">회복할 캐릭터 없음</span>'
       : `${Math.max(0, Math.ceil((period - (c.restMs || 0)) / 1000))}초`);
   }
+  if (d.yields){
+    const add = visitorsOf(c).reduce((sum, v) => sum + atkOf(v), 0);
+    st += iRow(`${iconHtml(d.yields, true)} 게이지`, `${c.yieldPts || 0} / ${d.yieldNeed}`);
+    st += iRow('1초마다', visitorsOf(c).length ? `+${add} (방문자 공격력)` : '<span class="i-muted">방문자 없음</span>');
+  }
   if (st) h += iSec('수치', st);
 
   // 태그 (조합 가능 · 태그 · 상태)
@@ -2782,6 +2875,7 @@ const CH_REQ   = { requestsGiven: 1, godSettles: 1 };
 const CH_COMBO = Object.assign({}, CH_REQ, { comboGiven: true, comboDone: true, discovered: true });
 const CH_SEEN_FOOD = ['quest', 'marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'roastclam', 'carcass', 'meat', 'hide', 'roastmeat', 'roastberry'];
 const CH_FOUND_FOOD = ['marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'butcher', 'cook'];
+const CH_PEACE = Object.assign({}, CH_COMBO, { knightStage: 5, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true });
 const CHAPTERS = [
   { title: '처음 — 첫 package', start: true },
   { title: '갓: 아무거나 3개만 줘봐',
@@ -2805,10 +2899,16 @@ const CHAPTERS = [
     seen: CH_SEEN_FOOD.concat(['bedding']), found: CH_FOUND_FOOD.concat(['bedding']),
     cards: ['hilt', 'plank', 'campfire', 'bedding', 'stone'] },
   { title: '갓: 마음의 평화',
-    flags: Object.assign({}, CH_COMBO, { knightStage: 5, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true }),
+    flags: CH_PEACE,
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank']), found: CH_FOUND_FOOD.concat(['bedding']),
     cards: ['handaxe', 'hide', 'hide', 'stone', 'stone', 'stone', 'berry', 'campfire'] },
+  { title: '갓: 마음의 평화 마지막 → 갓 파워! 산',
+    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true }),
+    knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
+    cards: [['sack', { fill: 'stone', count: 1 }], 'stone', 'stone', 'stone', 'berry', 'campfire'],
+    after: () => givePeaceQuest(3) },                   // 쓸어담기 quest부터
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
@@ -2820,13 +2920,15 @@ function startChapter(ch){
   const { w, h } = tableSize();
   addCard('god', w * 0.06, h * 0.2, null, true);
   addCard('knight', w * 0.06, h * 0.58, JSON.parse(JSON.stringify(ch.knight || {})), true);   // 정의를 건드리지 않게 복사
-  for (const t of ch.cards){
+  for (const e of ch.cards){
+    const [t, extra] = Array.isArray(e) ? e : [e];   // 'stone' 또는 ['sack', { fill, count }]
     const p = findSpot(w * 0.55, h * 0.5);
-    addCard(t, p.x, p.y, null, true);                  // 조용히 (콜렉터북 등록 연출 없이)
+    addCard(t, p.x, p.y, extra ? JSON.parse(JSON.stringify(extra)) : null, true);                  // 조용히 (콜렉터북 등록 연출 없이)
   }
   save();
   renderAll();
   scheduleGod();
+  if (ch.after) ch.after();
   toast('⏭ ' + ch.title);
 }
 const chaptersEl = document.getElementById('chapters');
@@ -2863,6 +2965,7 @@ validateRecipes();
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!paused && !drag && !tear && !busy){ checkSettle(); godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
+setInterval(yieldTick, 1000);                  // 산: 나무 게이지
 setInterval(animalTick, 1000);                 // 동물 홉핑
 setInterval(renderInspector, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
 
