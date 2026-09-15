@@ -233,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.30.0';
+const VERSION = 'v0.31.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -760,6 +760,10 @@ function reqDone(rq){
     const t = byId(rq.target);
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
   }
+  if (rq.goal === 'make'){
+    if (S.cards.some(c => c.type === rq.make)) rq.made = true;   // 테이블에 생기면 완료 (한 번 생기면 유지)
+    return !!rq.made;
+  }
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     const pl = t && t.visit != null ? byId(t.visit) : null;
@@ -786,6 +790,10 @@ function reqProgress(rq){
   if (rq.goal === 'fullHp'){
     const t = byId(rq.target);
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
+  }
+  if (rq.goal === 'make'){
+    const done = rq.made || S.cards.some(c => c.type === rq.make);
+    return `${done ? '✔' : '☐'} ${DEFS[rq.make].emoji} ${DEFS[rq.make].name} 만들기`;
   }
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
@@ -854,28 +862,30 @@ function wantsNeed(rq, type){
   if (rq.wants) return rq.wants === type && rq.stack.length < rq.need;
   return false;
 }
-// 갓의 quest "불멍이 하고 싶어": 모닥불 조합식 전부 공개 → 모닥불 만들기 → 갓을 모닥불에 방문시키면 완료
-function giveFireQuest(){
-  if (paused || drag || tear || busy){ setTimeout(giveFireQuest, 200); return; }
+// 갓의 불 quest 줄: 불씨 만들기 → 불쏘시개 만들기 → 모닥불 만들기 → 불멍이 하고 싶어(갓을 모닥불에 올려놓기)
+//   만들기 quest는 조합식 공개 + 그 카드가 테이블에 생기면 완료 (제출하지 않음 → 다음 단계 재료로 씀)
+const FIRE_STEPS = [
+  { quest: 'fire1', title: '불씨 만들기', goal: 'make', make: 'ember', recipe: ['stone', 'flint', 'ember'] },
+  { quest: 'fire2', title: '불쏘시개 만들기', goal: 'make', make: 'tinder', recipe: ['grass', 'twig', 'tinder'] },
+  { quest: 'fire3', title: '모닥불 만들기', goal: 'make', make: 'campfire', recipe: ['ember', 'tinder', 'campfire'] },
+  { quest: 'firemood', title: '불멍이 하고 싶어', goal: 'visitPlace', place: 'campfire' },
+];
+function giveFireQuest(i){
+  if (paused || drag || tear || busy){ setTimeout(() => giveFireQuest(i), 200); return; }
   const g = S.cards.find(c => c.type === 'god');
-  if (!g || questExists('firemood')) return;
-  const rq = addCard('quest', g.x, g.y, {
-    quest: 'firemood', title: '불멍이 하고 싶어', goal: 'visitPlace', place: 'campfire', target: g.id, giver: g.id,
-    need: 0, stack: [], rewardText: '보상 없음',
-    recipes: [['stone', 'flint', 'ember'], ['grass', 'twig', 'tinder'], ['ember', 'tinder', 'campfire']],
-  });
-  slideOutFrom(rq, g);
-  save();
-  renderAll();
-}
-// 모닥불이 생기면 갓이 한 번: "나를 모닥불 위에 올려놔"
-function fireAskCheck(){
-  if (S.flags.fireAsked || !questExists('firemood') || isTalking('god')) return false;
-  if (!S.cards.some(c => c.type === 'campfire')) return false;
-  S.flags.fireAsked = true;
-  save();
-  say(LINES.fireAsk);
-  return true;
+  const step = FIRE_STEPS[i];
+  if (!g || !step || questExists(step.quest)) return;
+  const deliver = () => {
+    if (paused || drag || tear || busy){ setTimeout(deliver, 200); return; }
+    const gg = S.cards.find(c => c.type === 'god');
+    if (!gg || questExists(step.quest)) return;
+    const rq = addCard('quest', gg.x, gg.y, Object.assign({ target: gg.id, giver: gg.id, need: 0, stack: [], rewardText: '보상 없음' }, step));
+    slideOutFrom(rq, gg);
+    save();
+    renderAll();
+  };
+  if (step.quest === 'firemood'){ say(LINES.fireAsk); afterSpeech(deliver); }   // "나를 모닥불 위에 올려놔"
+  else deliver();
 }
 const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
@@ -893,7 +903,7 @@ function giveKnightQuest(kind){
   if (kind === 'food' && !S.flags.fireGiven){
     S.flags.fireGiven = true;
     say(LINES.fireGrumble);                                 // "익힌 것만 먹는 기사라, 입이 고급이구만"
-    afterSpeech(giveFireQuest);
+    afterSpeech(() => giveFireQuest(0));
   }
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
@@ -1177,8 +1187,10 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
-  if (rq.quest === 'firemood'){
-    toast('🔥 불멍이 하고 싶어 완료');
+  const fi = FIRE_STEPS.findIndex(f => f.quest === rq.quest);
+  if (fi >= 0){
+    if (fi < FIRE_STEPS.length - 1) giveFireQuest(fi + 1);   // 다음 불 quest
+    else toast('🔥 불멍이 하고 싶어 완료');
     return;
   }
   if (rq.quest === 'firstcombo'){
@@ -1263,7 +1275,6 @@ function godCheck(){
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   if (comboQuestCheck()) return;
-  if (fireAskCheck()) return;
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
