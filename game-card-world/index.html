@@ -213,7 +213,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.27.0';
+const VERSION = 'v0.28.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -245,7 +245,7 @@ const DEFS = {
   hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['무기'], atk:3 },
   plank:     { name:'나무판',      emoji:'🪧', kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
-  roastclam: { name:'구운 조개',   emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastclam: { name:'구운 조갯살', emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
 
@@ -334,8 +334,9 @@ const LINES = {
   intro:          ['푸하! …살았다.', '뭘 봐. 갓이다. 신… 비슷한 거.', '구해줬으니 거래 하나 하자고.'],
   firstRequest:   '거기, 아무거나 3개만 줘봐. 좋은 거 줄게.',
   refill:         ['언제든지 필요하면 말해.', '필요하면 또 3개. 언제든.', '신은 늘 여기 있어. 필요하면 말해.'],
-  comboIntro:     ['잠깐, 저 친구 골수가 필요하대.', '돌로 뼈를 깨봐. 골수 하나 만들어서 나한테 줘.'],
-  comboDone:      '봤지? 그대로 돌려줄게. 저 친구 살려.',
+  comboIntro:     ['뭔지 모르지만 일단 만들어볼까?', '돌로 뼈를 깨봐. 뭐가 나오는지 나한테 보여줘.'],
+  comboDone:      '오, 뭔가 나왔네. 도로 가져가.',
+  coincidence:    ['…이런 우연이 있나.', '이것이 신의 장난인가?'],
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -476,6 +477,7 @@ function load(){
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
       if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상: 허기짐 해결'; }
       if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
+      if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
     if (!st.cards.length) return false;
@@ -768,6 +770,7 @@ function reqProgress(rq){
     const it = t && t.equip && t.equip[rq.slot];
     return `${rq.slot} 칸: ${it && DEFS[it] ? DEFS[it].emoji : '비어 있음'}`;
   }
+  if (rq.wantsList) return rq.wantsList.map(t => `${rq.stack.includes(t) ? '✔' : '☐'} ${DEFS[t].emoji} ${DEFS[t].name}`).join('\n');
   if (rq.wants) return `${DEFS[rq.wants].emoji} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
   return `${rq.stack.length} / ${rq.need}`;
 }
@@ -782,7 +785,7 @@ function reqReward(rq){
 }
 
 // ── 기사의 퀘스트 ─────────────────────────────────────
-//   stage 0: 시작 (빈사) → "..." → 뼛가루의 치유력
+//   stage 0: 시작 (빈사) → 갓의 "골수를 만들어 와" 완료 뒤 "..." → 뼛가루의 치유력 → 갓 "이런 우연이"
 //   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
 //   stage 3: 밥이 보약 완료 (빈사 해결) → "졸려" → 잠이 보약
 //   stage 4: 잠이 보약 완료 → 부러진 칼자루·나무판 → "고맙다" → 무기를 들어라
@@ -803,6 +806,12 @@ function knightLine(k){
   if (st.includes('허기짐')) return '배고파';
   return null;
 }
+// 이 quest가 이 카드를 아직 원하나 (wants: 한 종류 N개 / wantsList: 여러 종류 1개씩)
+function wantsNeed(rq, type){
+  if (rq.wantsList) return rq.wantsList.includes(type) && !rq.stack.includes(type);
+  if (rq.wants) return rq.wants === type && rq.stack.length < rq.need;
+  return false;
+}
 const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
@@ -810,11 +819,12 @@ function giveKnightQuest(kind){
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
     bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
-    food:  { quest: 'foodmedicine', title: '밥이 보약', goal: 'hpMin', min: 5, target: k.id, need: 0, stack: [], rewardText: '보상: 허기짐 해결' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', wantsList: ['roastclam', 'roastmeat', 'roastberry'], need: 3, stack: [], rewardText: '보상: 허기짐 해결' },
     sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'sleep', place: 'bedding', target: k.id, need: 0, stack: [], rewards: ['hilt', 'plank'] },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
+  if (kind === 'bone') say(LINES.coincidence);              // 방금 만든 게 골수 → 갓: "이런 우연이"
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
   save();
@@ -826,7 +836,7 @@ function knightCheck(){
   if (!k) return;
   const stage = S.flags.knightStage || 0;
   if (stage === 0){
-    if (!statusOf(k).includes('빈사')) return;
+    if (!statusOf(k).includes('빈사') || !S.flags.comboDone) return;   // 갓의 첫 조합 quest를 끝낸 뒤
     S.flags.knightStage = 1;
     save();
     knightSay('...', knightCheck);                           // 대사 끝나고 quest
@@ -859,6 +869,7 @@ function evaluate(d, t){
       return tg && edible ? { act: 'eat', feed: tg } : null;
     }
     if (t.goal || t.stack.length >= t.need) return null;      // 이미 다 참
+    if (t.wantsList) return wantsNeed(t, d.type) ? { act: 'submit' } : null;
     if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
     return submittable(dd) ? { act: 'submit' } : null;
   }
@@ -869,7 +880,7 @@ function evaluate(d, t){
   }
   if (td.kind === 'character' && edible){
     // 이 캐릭터가 준 제출형 request가 이 카드를 원하면, 직접 먹여도 그 request에 들어감
-    const into = S.cards.find(r => r.type === 'quest' && r.giver === t.id && r.wants === d.type && r.stack.length < r.need);
+    const into = S.cards.find(r => r.type === 'quest' && r.giver === t.id && wantsNeed(r, d.type));
     if (into) return { act: 'submit', into };
     return { act: 'eat' };
   }
@@ -1081,6 +1092,7 @@ function rewardFor(rq, x, y){
   }
   if (rq.quest === 'firstcombo'){
     addCard('marrow', x, y);                                // 제출한 골수를 보상으로 돌려줌 → 잃는 것 없음
+    S.flags.comboDone = true;                               // 이제 기사가 첫 quest를 냄
     say(LINES.comboDone);
     return;
   }
@@ -1122,13 +1134,12 @@ function decideGift(){
   return 'quest';
 }
 // 갓이 quest로 첫 조합(돌 + 뼈 → 골수)을 소개
-//   조건: 기사의 첫 quest가 나온 뒤 + 갓의 "아무거나 3개"를 처음 한 번 정산한 뒤. 한 번만
+//   조건: 갓의 "아무거나 3개"를 처음 한 번 정산한 뒤. 한 번만. 기사의 첫 quest는 이게 끝난 뒤에 나옴
 function comboQuestCheck(){
   if (S.flags.comboGiven) return false;
   const god = S.cards.find(c => c.type === 'god');
   if (!god || isTalking('god')) return false;
-  const knightStarted = (S.flags.knightStage || 0) >= 2 || questExists('bonepowder');
-  if (!knightStarted || (S.flags.godSettles || 0) < 1) return false;
+  if ((S.flags.godSettles || 0) < 1) return false;
   S.flags.comboGiven = true;
   save();
   say(LINES.comboIntro);
