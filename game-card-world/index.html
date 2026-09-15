@@ -11,10 +11,14 @@
 <style>
   html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
   [hidden]{display:none!important;}
+  /* 인스펙터 자리: 가로가 긴 화면은 오른쪽 폭, 세로가 긴 화면은 하단 높이 */
+  :root{--insp-w:0px;--insp-h:0px;}
+  @media (orientation: landscape){ :root{--insp-w:clamp(240px, 28vw, 340px);} }
+  @media (orientation: portrait){ :root{--insp-h:clamp(170px, 34vh, 320px);} }
 
-  /* 뷰포트 전체가 테이블 */
+  /* 인스펙터를 뺀 나머지가 테이블 */
   .table{
-    position:fixed;inset:0;overflow:hidden;
+    position:fixed;top:0;left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);
     touch-action:none;-webkit-user-select:none;user-select:none;
     -webkit-tap-highlight-color:transparent;
@@ -32,7 +36,7 @@
   .hud{
     position:fixed;z-index:2147483000;
     top:calc(env(safe-area-inset-top,0px) + 10px);
-    right:calc(env(safe-area-inset-right,0px) + 10px);
+    right:calc(var(--insp-w) + 10px);
     display:flex;gap:8px;align-items:center;
   }
   .hud .btn{background:rgba(28,28,23,.85);border-color:var(--hairline);color:var(--ink);backdrop-filter:blur(6px);}
@@ -73,12 +77,9 @@
   .cw .pie{position:absolute;right:calc(var(--cw) * .075);top:calc(var(--cw) * .075);width:calc(var(--cw) * .2);height:calc(var(--cw) * .2);border-radius:50%;
     background:conic-gradient(#7fdc9a calc(var(--p, 0) * 360deg), rgba(255,255,255,.14) 0);box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;transition:background .3s;}
   .cw .hp{position:absolute;right:calc(var(--cw) * .075);top:calc(var(--cw) * .07);font-size:calc(var(--cw) * .11);font-weight:700;color:#ff8f8f;pointer-events:none;}
-  .cw.has-tags{justify-content:flex-start;padding-top:calc(var(--ch) * .14);}
-  .cw .tags{position:absolute;left:calc(var(--cw) * .07);right:calc(var(--cw) * .07);bottom:calc(var(--cw) * .07);display:flex;flex-wrap:wrap;justify-content:center;gap:2px;pointer-events:none;}
-  .cw .tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
-  .cw .tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
-  .cw .tag{font-size:calc(var(--cw) * .085);line-height:1.25;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:0 3px;white-space:nowrap;}
-  .devnote{position:fixed;left:10px;bottom:10px;z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
+  /* 왼쪽 위 공격·방어 두 줄과 안 겹치게 조금 내림 (장비 칸 있는 캐릭터) */
+  .cw.has-corner{padding-top:calc(var(--ch) * .12);}
+  .devnote{position:fixed;left:10px;bottom:calc(var(--insp-h) + 10px);z-index:2147483300;max-width:min(440px,calc(100vw - 20px));background:#3a1414;border:1px solid #a33;color:#ffd6d6;font-size:12px;line-height:1.45;padding:8px 10px;border-radius:8px;}
   .k-material{--tone:#b58c5a;}
   .k-creature{--tone:#e3a26f;}
   /* 홉핑: 뛰어오르며 세로로 길어졌다가 착지하며 눌림 */
@@ -161,8 +162,6 @@
   /* quest */
   .quest-label{position:absolute;left:calc(var(--cw) * .08);top:calc(var(--cw) * .07);font-size:calc(var(--cw) * .1);font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);pointer-events:none;}
   .req-emoji{font-size:calc(var(--cw) * .24)!important;}
-  .req-recipe{color:var(--ink);font-size:calc(var(--cw) * .1);font-weight:700;text-align:center;white-space:pre-line;line-height:1.25;
-    background:rgba(0,0,0,.28);border-radius:6px;padding:2px 6px;margin:0 6px;pointer-events:none;}
   .req-title{color:var(--ink);font-size:calc(var(--cw) * .12);font-weight:700;text-align:center;padding:0 6px;line-height:1.2;pointer-events:none;}
   .req-need{color:var(--brand-yellow);font-size:calc(var(--cw) * .12);font-weight:800;pointer-events:none;white-space:pre-line;text-align:center;line-height:1.25;}
   .cw .defl{color:#b8e0a0;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
@@ -190,7 +189,7 @@
 
   /* 알림 */
   .toasts{
-    position:fixed;z-index:2147483100;left:50%;transform:translateX(-50%);
+    position:fixed;z-index:2147483100;left:calc((100vw - var(--insp-w)) / 2);transform:translateX(-50%);
     top:calc(env(safe-area-inset-top,0px) + 56px);
     display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;
   }
@@ -203,7 +202,7 @@
 
   /* 콜렉터북 */
   /* 콜렉터북 = 하단에서 올라오는 시트 */
-  .book{position:fixed;left:0;right:0;bottom:0;z-index:2147483200;display:flex;justify-content:center;pointer-events:none;
+  .book{position:fixed;left:0;right:var(--insp-w);bottom:0;z-index:2147483200;display:flex;justify-content:center;pointer-events:none;
     transform:translateY(105%);transition:transform .38s cubic-bezier(.2,.85,.25,1);}
   .book.open{transform:translateY(0);}
   .book-grip{width:44px;height:4px;border-radius:4px;background:var(--hairline);margin:0 auto 12px;}
@@ -224,10 +223,40 @@
   .recipes{list-style:none;margin:0;padding:0;display:grid;gap:4px;}
   .recipes li{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;color:var(--ink);}
   .recipes li.unknown{color:var(--muted);}
+
+  /* 인스펙터 (카드 아님) — 탭한 카드의 모든 정보. 가로가 긴 화면은 오른쪽, 세로가 긴 화면은 하단 */
+  .insp{position:fixed;z-index:2147483050;top:0;right:0;bottom:0;width:var(--insp-w);
+    background:var(--surface);border-left:1px solid var(--hairline);overflow:auto;overscroll-behavior:contain;
+    padding:calc(env(safe-area-inset-top,0px) + 14px) calc(env(safe-area-inset-right,0px) + 14px) calc(env(safe-area-inset-bottom,0px) + 14px) 14px;
+    color:var(--ink);font-size:13px;line-height:1.35;-webkit-user-select:none;user-select:none;}
+  @media (orientation: portrait){
+    .insp{top:auto;left:0;width:auto;height:var(--insp-h);border-left:none;border-top:1px solid var(--hairline);
+      padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 12px);}
+  }
+  .i-empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-weight:600;}
+  .i-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .i-icon{font-size:44px;line-height:1;flex:none;}
+  .i-sub{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);}
+  .i-name{font-size:18px;font-weight:800;}
+  .i-sec{border-top:1px solid var(--hairline);padding:8px 0;}
+  .i-sec h4{margin:0 0 6px;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;}
+  .i-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 0;}
+  .i-k{color:var(--body);}
+  .i-v{font-weight:700;text-align:right;white-space:nowrap;}
+  .i-line{padding:2px 0;}
+  .i-pre{white-space:pre-line;line-height:1.55;}
+  .i-muted{color:var(--muted);}
+  .i-note{color:var(--muted);font-size:12px;margin:2px 0 4px;}
+  .i-tags{display:flex;flex-wrap:wrap;gap:4px;}
+  .i-tag{font-size:12px;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 6px;}
+  .i-tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
+  .i-tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
+  .cw.selected{outline:2px solid #9fd0ff;outline-offset:3px;}
 </style>
 </head>
 <body>
   <div class="table" id="table"></div>
+  <aside class="insp" id="insp"></aside>
   <div class="title"><a href="../index.html">← 목록</a> · 카드 월드 RPG <span id="ver"></span></div>
   <div class="hud">
     <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 밀어내기</label>
@@ -243,7 +272,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.36.0';
+const VERSION = 'v0.37.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -294,6 +323,7 @@ const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, tru
 const plain = s => String(s).replace(ICON_TOKEN, '').replace(/ {2,}/g, ' ').trim();
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
+const PACK_DRAW = 5;                // package 한 번에 무작위로 나오는 장수
 const POOL = [
   ['stone', 18], ['berry', 18], ['twig', 16], ['grass', 14],
   ['bone', 12], ['shell', 12], ['carcass', 6], ['flint', 4],
@@ -438,7 +468,8 @@ const byId = id => S.cards.find(c => c.id === id);
 const submittable = def => !['character', 'package', 'quest'].includes(def.kind);
 
 function measure(){
-  const m = Math.min(innerWidth, innerHeight);
+  const { w, h } = tableSize();                                  // v0.37.0: 인스펙터를 뺀 테이블 기준
+  const m = Math.min(w, h);
   CW = Math.round(Math.max(102, Math.min(156, m / 4.13)));     // v0.19.0: 1.5배
   CH = Math.round(CW * 1.36);
   table.style.setProperty('--cw', CW + 'px');
@@ -546,9 +577,8 @@ function newGame(){
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
-  const combo = COMBOABLE.has(c.type);
-  const tags = tagsOf(c);
-  if ((tags.length || combo) && d.kind !== 'quest') cls += ' has-tags';
+  if (d.slots) cls += ' has-corner';
+  if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   const pf = popFrom.get(c.id);
   if (pf){
     cls += ' pop';
@@ -566,17 +596,8 @@ function paint(el, c){
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
-    if (!c.recipe && !c.recipes) html += `<div class="emoji req-emoji">${iconHtml(c.type)}</div>`;
-    html += `<div class="req-title">${esc(c.title)}</div>`;
-    if (c.recipes){
-      // 조합식 여러 개 전부 공개 (카드 폭 때문에 아이콘으로)
-      html += `<div class="req-recipe">${rich(c.recipes.map(([a, b, o]) => `${ic(a)}+${ic(b)}→${ic(o)}`).join('\n'))}</div>`;
-    }
-    if (c.recipe){
-      // 조합 전부 공개: 재료 + 재료 → 결과
-      const [ra, rb, ro] = c.recipe.map(t => `${ic(t)} ${DEFS[t].name}`);
-      html += `<div class="req-recipe">${rich(ra + ' + ' + rb + '\n→ ' + ro)}</div>`;
-    }
+    html += `<div class="emoji req-emoji">${iconHtml(c.type)}</div>`;
+    html += `<div class="req-title">${esc(c.title)}</div>`;   // 조합식은 인스펙터에서만 (v0.37.0)
     html += `<div class="req-need">${rich(reqProgress(c))}</div>`;
     html += `<div class="req-reward">${rich(reqReward(c))}</div>`;
     if (c.stack.length){
@@ -606,10 +627,6 @@ function paint(el, c){
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (d.capacity) html += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
     if (tagLevel(d, '체력 회복') && visitorsOf(c).length) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
-    if (tags.length || combo){
-      html += '<div class="tags">' + (combo ? '<span class="tag combo">조합 가능</span>' : '')
-        + tags.map(t => `<span class="tag${statusOf(c).includes(t) ? ' st' : ''}">${esc(t)}</span>`).join('') + '</div>';
-    }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
@@ -666,6 +683,7 @@ function renderAll(){
   }
   const n = PAGE.ids.filter(id => S.seen.includes(id)).length;
   bookCount.textContent = `${n}/${PAGE.ids.length}`;
+  renderInspector();
 }
 function renderGod(){
   if (drag) return;
@@ -1433,6 +1451,7 @@ function endTear(){
   t.el.classList.remove('peeling', 'ready');
   if (t.piece && t.dist >= tearLen()){ openPackage(t.id, t); return; }
   // 기준 길이 미만 → 택이 제자리로 붙음
+  if (!t.piece) setSelected(t.id);                 // 택을 당기지 않고 뗌 = 탭 → 인스펙터
   busy = true;
   t.el.style.transition = 'transform .2s';
   t.el.style.transform = '';
@@ -1502,7 +1521,7 @@ function openPackage(id, t){
     removeCard(id);
     const list = [];
     if (contents === 'first') list.push('knight', 'god');
-    list.push(...drawPool(5));
+    list.push(...drawPool(PACK_DRAW));
     const n = list.length, base = Math.random() * Math.PI * 2;
     list.forEach((type, i) => {
       if (phys){
@@ -1533,6 +1552,7 @@ function localPoint(e){
   return { px: e.clientX - r.left, py: e.clientY - r.top };
 }
 function onDown(e){
+  if (!e.target.closest('.cw')){ if (!drag && !tear) setSelected(null); return; }   // 빈 테이블 탭 → 인스펙터 비움
   if (paused || drag || tear || busy || returning) return;
   const cardEl = e.target.closest('.cw');
   if (!cardEl || cardEl.classList.contains('half')) return;
@@ -1769,7 +1789,7 @@ function onUp(e){
   drag.el.classList.remove('dragging');
   const d0 = drag;
   drag = null;
-  if (!c || !d0.moved){ renderAll(); return; }   // 탭: 아직 정의 안 됨
+  if (!c || !d0.moved){ if (c) setSelected(c.id); renderAll(); return; }   // 탭 → 인스펙터
   if (t && byId(t.id)){
     const ev = evaluate(c, t);
     if (ev && apply(ev, c, t)){ afterChange(); return; }
@@ -2383,6 +2403,115 @@ physToggle.addEventListener('change', () => {
   try { localStorage.setItem(SETTINGS, JSON.stringify({ physics: phys })); } catch (e) {}
 });
 
+// ── 인스펙터 (카드 아님) ──────────────────────────────
+//   탭한 카드의 모든 정보. 빈 테이블을 탭하면 비움. 게임은 멈추지 않고 계속 갱신
+let selId = null, inspKey = '';
+const insp = document.getElementById('insp');
+function setSelected(id){
+  if (selId === id) return;
+  const prev = selId != null ? els.get(selId) : null;
+  if (prev) prev.classList.remove('selected');
+  selId = id;
+  const el = id != null ? els.get(id) : null;
+  if (el) el.classList.add('selected');
+  renderInspector();
+}
+const iRow = (k, v) => `<div class="i-row"><span class="i-k">${k}</span><span class="i-v">${v}</span></div>`;
+const iSec = (title, body) => `<section class="i-sec"><h4>${title}</h4>${body}</section>`;
+const iLine = html => `<div class="i-line">${html}</div>`;
+const cardRef = t => `${iconHtml(t, true)} ${esc(DEFS[t].name)}`;
+function inspectorHtml(c){
+  const d = DEFS[c.type];
+  const isQuest = d.kind === 'quest';
+  let h = `<div class="i-head"><div class="i-icon">${iconHtml(c.type)}</div><div>`
+    + (isQuest ? '<div class="i-sub">Quest</div>' : '')
+    + `<div class="i-name">${esc(isQuest ? c.title : d.name)}</div></div></div>`;
+
+  // 수치
+  let st = '';
+  if (d.hp) st += iRow('❤ 체력', `${c.hp} / ${d.hp}`);
+  if (d.slots){
+    const eq = Object.values(c.equip || {});
+    const atk = (d.baseAtk || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+    const def = (d.baseDef || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
+    st += iRow('⚔ 공격력', atk) + iRow('🛡 방어', def);
+  }
+  const heal = healOf(d);
+  if (heal > 0) st += iRow('❤ 회복', '+' + heal);
+  if (d.atk) st += iRow('⚔ 공격력', '+' + d.atk);
+  if (d.defense) st += iRow('🛡 방어', '+' + d.defense);
+  if (d.capacity) st += iRow('👤 방문 인원', `${visitorsOf(c).length} / ${d.capacity}`);
+  const lv = tagLevel(d, '체력 회복');
+  if (lv){
+    const period = REST_MS / lv;
+    const vs = visitorsOf(c);
+    const healable = vs.filter(v => v.hp != null && v.hp < DEFS[v.type].hp && !statusOf(v).includes('빈사'));
+    st += iRow('체력 회복', `${period / 1000}초마다 +1`);
+    st += iRow('다음 회복', !vs.length ? '<span class="i-muted">방문자 없음</span>'
+      : !healable.length ? '<span class="i-muted">회복할 캐릭터 없음</span>'
+      : `${Math.max(0, Math.ceil((period - (c.restMs || 0)) / 1000))}초`);
+  }
+  if (st) h += iSec('수치', st);
+
+  // 태그 (조합 가능 · 태그 · 상태)
+  const status = statusOf(c);
+  const chips = (COMBOABLE.has(c.type) ? '<span class="i-tag combo">조합 가능</span>' : '')
+    + (d.tags || []).map(t => `<span class="i-tag">${esc(t)}</span>`).join('')
+    + status.map(t => `<span class="i-tag st">${esc(t)}</span>`).join('');
+  if (chips) h += iSec('태그', `<div class="i-tags">${chips}</div>`);
+
+  // 장비 칸
+  if (d.slots){
+    const eq = c.equip || {};
+    h += iSec('장비', d.slots.map(sl => {
+      const it = eq[sl] && DEFS[eq[sl]];
+      if (!it) return iRow(esc(sl), '<span class="i-muted">비어 있음</span>');
+      return iRow(esc(sl), cardRef(eq[sl]) + (it.atk ? ` ⚔ +${it.atk}` : '') + (it.defense ? ` 🛡 +${it.defense}` : ''));
+    }).join(''));
+  }
+
+  // 방문
+  if (d.capacity){
+    const vs = visitorsOf(c);
+    h += iSec('방문자', vs.length ? vs.map(v => iLine(cardRef(v.type))).join('') : '<div class="i-muted">없음</div>');
+  }
+  if (c.visit != null){
+    const pl = byId(c.visit);
+    if (pl) h += iSec('방문 중', iLine(cardRef(pl.type)));
+  }
+
+  // package: 나올 수 있는 카드와 확률
+  if (d.kind === 'package'){
+    let b = '';
+    if (c.contents === 'first') b += iLine(`${cardRef('knight')} · ${cardRef('god')} <span class="i-muted">확정</span>`);
+    const total = POOL.reduce((sum, [, w]) => sum + w, 0);
+    b += `<div class="i-note">무작위 ${PACK_DRAW}장 — 한 장마다</div>`;
+    b += POOL.slice().sort((x, y) => y[1] - x[1]).map(([t, w]) => iRow(cardRef(t), `${(w / total * 100).toFixed(1)}%`)).join('');
+    h += iSec('나올 수 있는 카드', b);
+  }
+
+  // quest
+  if (isQuest){
+    const g = c.giver != null ? byId(c.giver) : null;
+    if (g) h += iSec('발주', iLine(cardRef(g.type)));
+    const rs = c.recipes || (c.recipe ? [c.recipe] : []);
+    if (rs.length) h += iSec('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
+    h += iSec('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
+    h += iSec('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
+    if (c.stack.length) h += iSec('올려놓은 카드', c.stack.map(t => iLine(cardRef(t))).join(''));
+  }
+  return h;
+}
+function renderInspector(){
+  if (!S) return;
+  const c = selId != null ? byId(selId) : null;
+  if (selId != null && !c) selId = null;                     // 선택한 카드가 사라짐 → 비움
+  const html = c ? inspectorHtml(c) : '<div class="i-empty">카드를 선택하여 상세정보 보기</div>';
+  if (html === inspKey) return;                               // 바뀐 게 있을 때만 다시 그림
+  inspKey = html;
+  insp.innerHTML = html;
+}
+
 // ── 연결 ──────────────────────────────────────────────
 table.addEventListener('pointerdown', onDown);
 window.addEventListener('pointermove', onMove);
@@ -2404,6 +2533,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
   closeBook();
   settling.clear();
   drag = null; tear = null; busy = false;
+  selId = null;
   for (const el of els.values()) el.remove();
   els.clear();
   newGame();
@@ -2429,6 +2559,7 @@ validateRecipes();
 setInterval(() => { if (!paused && !drag && !tear && !busy){ checkSettle(); godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
 setInterval(animalTick, 1000);                 // 동물 홉핑
+setInterval(renderInspector, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
 
 measure();
 if (load()){
