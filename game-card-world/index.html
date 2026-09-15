@@ -118,6 +118,11 @@
     background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 6px;pointer-events:none;}
   .cw .held[data-held]{pointer-events:auto;cursor:grab;touch-action:none;}
   .cw .held.empty{color:var(--muted);border-style:dashed;font-size:calc(var(--cf) * .11);}
+  /* 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄 */
+  .cw.has-eaten{padding-bottom:calc(var(--ch) * .25);}
+  .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
+  .cw .eaten .mini{width:calc(var(--cw) * .27);height:calc(var(--cw) * .32);margin:0;border-radius:4px;font-size:calc(var(--cw) * .17);}
+  .cw .eaten .mini.empty{background:rgba(0,0,0,.3);border:1px dashed rgba(255,255,255,.2);box-shadow:none;cursor:default;pointer-events:none;}
   /* container 택: 쓸어담을 게 없으면 깜빡이지 않음 */
   .tab.idle::before{animation:none;opacity:.18;}
   .tab.idle path{animation:none;stroke-opacity:.4;}
@@ -340,7 +345,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.63.0';
+const VERSION = 'v0.64.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -383,6 +388,8 @@ const DEFS = {
   sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
   mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },   // v0.51.0: 나무 + 돌 함께
+  // 신의 입 (v0.64.0): 장소지만 방문 못 함. 캐릭터·장소·quest 빼고 전부 먹음, 최근 devour장 기록 → 기록에서 아무거나 꺼냄
+  godmouth:  { name:'신의 입',     kind:'place', tags:['장소'], devour:3 },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -500,7 +507,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'tree', 'bear', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -517,6 +524,7 @@ const LINES = {
   fireAsk:        '나를 모닥불 위에 올려놔.',
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
+  godMouth:       '그리고 신의 입. 난 대식가야',
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -680,6 +688,8 @@ function load(){
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
+      if (Array.isArray(c.eaten)) c.eaten = c.eaten.filter(r => r && DEFS[r.type]);   // 신의 입 기록 중 없어진 카드
+
       if (DEFS[c.type] && DEFS[c.type].kind === 'creature' && DEFS[c.type].hp && c.hp == null) c.hp = DEFS[c.type].hp;   // v0.47.0: 크리처 체력
     }
     if (!st.cards.length) return false;
@@ -710,6 +720,7 @@ function paint(el, c){
   if (fighter(d)) cls += ' has-corner';
   else if (d.capacity || d.yields) cls += ' has-top';
   if (placeFoot(d)) cls += ' has-foot';
+  if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
@@ -770,6 +781,13 @@ function paint(el, c){
     if (top) html += `<div class="top">${top}</div>`;
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
+    if (d.devour){
+      // 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄
+      const eaten = c.eaten || [];
+      html += '<div class="eaten">' + Array.from({ length: d.devour }, (_, i) => eaten[i] && DEFS[eaten[i].type]
+        ? `<div class="mini framed f-${frameOf(DEFS[eaten[i].type])}" data-eat="${i}" title="드래그해서 꺼내기">${iconHtml(eaten[i].type)}</div>`
+        : '<div class="mini empty"></div>').join('') + '</div>';
+    }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
@@ -1216,6 +1234,11 @@ function evaluate(d, t){
     }
     return null;
   }
+  if (td.devour){
+    // 신의 입: 캐릭터·장소·quest 빼고 전부 먹음. 캐릭터는 방문도 못 함
+    if (dd.kind === 'character' || dd.kind === 'quest' || tagLevel(dd, '장소')) return null;
+    return { act: 'devour' };
+  }
   if (dd.kind === 'character' && tagLevel(td, '장소')){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
     const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
@@ -1265,6 +1288,14 @@ function evaluate(d, t){
   const capped = dup || !outs.length || outs.some(o => o && canSpawn(o)) ? null : outs[0];   // 하나도 못 나올 때만 조합 안 됨
   return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d, full: !!(dup || capped), dup, capped };
 }
+// 신의 입 기록: 카드 상태 그대로 (자루 내용물·체력·상태 등) idx 자리에 넣음. 최근 것이 앞, 넘치면 가장 오래된 기록이 밀려 사라짐
+function recordEaten(mouth, c, idx){
+  const rec = JSON.parse(JSON.stringify(c));
+  for (const k of ['id', 'x', 'y', 'z', 'visit', 'visitSeq']) delete rec[k];
+  const list = mouth.eaten || [];
+  list.splice(Math.min(idx, list.length), 0, rec);
+  mouth.eaten = list.slice(0, DEFS[mouth.type].devour);
+}
 function apply(ev, d, t){
   const dd = DEFS[d.type];
   if (ev.act === 'submit'){
@@ -1312,6 +1343,13 @@ function apply(ev, d, t){
     if (ev.full){ toast(`가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].hold}장`); return false; }
     removeCard(d.id);
     storeInto(t, d.type);
+    return true;
+  }
+  if (ev.act === 'devour'){
+    removeCard(d.id);
+    recordEaten(t, d, 0);
+    bumpIds.add(t.id);
+    toast(`${ic(d.type)} ${dd.name} → ${DEFS[t.type].name}`);
     return true;
   }
   if (ev.act === 'visit'){
@@ -1612,6 +1650,25 @@ function giveMountain(){
   }
   save();
   renderAll();
+  say(LINES.godMouth);                                      // "그리고 신의 입. 난 대식가야"
+  afterSpeech(giveGodMouth);
+}
+// 신의 입: 산 다음에 갓이 줌
+function giveGodMouth(){
+  if (S.flags.mouthGiven) return;
+  if (paused || drag || tear || busy){ setTimeout(giveGodMouth, 200); return; }
+  S.flags.mouthGiven = true;
+  const g = S.cards.find(c => c.type === 'god');
+  const { w, h } = tableSize();
+  const p = g ? findSpot(g.x + CW * 1.1, g.y + CH + 12) : findSpot(w / 2, h / 2);
+  const m = addCard('godmouth', p.x, p.y);
+  if (g){
+    spawned.delete(m.id);
+    popFrom.set(m.id, { x: g.x, y: g.y });                   // 갓에게서 튀어나옴
+    bumpIds.add(g.id);
+  }
+  save();
+  renderAll();
 }
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
@@ -1694,6 +1751,7 @@ function godCheck(){
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
   if (comboQuestCheck()) return;
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
+  if (S.flags.mountainGiven && !S.flags.mouthGiven && !isTalking('god')){ giveGodMouth(); return; }   // 신의 입을 받기 전에 새로고침한 경우 (예전 저장 포함)
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -2022,6 +2080,19 @@ function onDown(e){
     return;
   }
 
+  // 신의 입 기록에서 한 장 꺼내기 (기록 중 아무거나)
+  const eatEl = e.target.closest('[data-eat]');
+  if (eatEl && c.eaten){
+    const idx = +eatEl.dataset.eat;
+    const rec = c.eaten.splice(idx, 1)[0];
+    if (!rec || !DEFS[rec.type]) return;
+    const nc = addCard(rec.type, px - CW / 2, py - CH / 2, rec, true);
+    spawned.delete(nc.id);
+    renderAll();
+    startDrag(nc, px, py, e.pointerId, { ox: c.x, oy: c.y, fromMouth: { id: c.id, idx } });
+    return;
+  }
+
   // container 택 당기기 = 쓸어담기 (찢어지지 않음)
   if (DEFS[c.type].kind === 'container' && e.target.closest('.tab')){
     tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.tab'), pid: e.pointerId, dist: 0, sweep: true };
@@ -2069,11 +2140,12 @@ function startDrag(c, px, py, pid, o){
     id: c.id, pid, el,
     offX: px - c.x, offY: py - c.y,
     sx: px, sy: py,
-    moved: !!(o.fromRequest || o.fromEquip || o.fromContainer),
+    moved: !!(o.fromRequest || o.fromEquip || o.fromContainer || o.fromMouth),
     ox: o.ox, oy: o.oy,
     fromRequest: o.fromRequest || null,
     fromEquip: o.fromEquip || null,
     fromContainer: o.fromContainer || null,
+    fromMouth: o.fromMouth || null,
     target: null,
   };
   el.style.zIndex = 2000000000;
@@ -2213,6 +2285,18 @@ function bounce(c, d0){
       tweenTo(c, box.x, box.y, () => {
         removeCard(c.id);
         storeInto(box, c.type);
+        afterChange();
+      });
+      return;
+    }
+  }
+  if (d0.fromMouth){
+    // 신의 입에서 꺼낸 카드를 못 놓으면 기록 제자리로 돌아감
+    const mouth = byId(d0.fromMouth.id);
+    if (mouth){
+      tweenTo(c, mouth.x, mouth.y, () => {
+        removeCard(c.id);
+        recordEaten(mouth, c, d0.fromMouth.idx);
         afterChange();
       });
       return;
@@ -2528,6 +2612,7 @@ function fieldSnapshot(){
       }
       if (c.visit != null) o.visit = nameOf(c.visit);
       if (c.contents) o.contents = c.contents;
+      if (c.eaten) o.eaten = c.eaten.map(r => DEFS[r.type] ? DEFS[r.type].name : r.type);
       if (DEFS[c.type].kind === 'container') o.held = c.fill ? `${DEFS[c.fill].name} ${c.count}/${DEFS[c.type].hold}` : '비어 있음';
       if (c.type === 'quest'){
         o.title = c.title;
@@ -3106,6 +3191,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow('👤 인원', `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
+    if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
       const period = REST_MS / lv;
@@ -3144,6 +3230,10 @@ function inspectorHtml(c){
   if (c.duel != null){
     const op = byId(c.duel);
     if (op) c2 += iSub('대결 중', iLine(cardRef(op.type)));
+  }
+  if (d.devour){
+    const eaten = (c.eaten || []).filter(r => DEFS[r.type]);
+    c2 += iSub('버린 카드 — 최근 순, 아무거나 꺼낼 수 있음', eaten.length ? iChips(eaten.map(r => cardRef(r.type))) : iNone('없음'));
   }
   if (d.kind === 'container'){
     c2 += iSub('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iLine(`${cardRef(c.fill)} ×${c.count}`) : iNone('비어 있음'));
@@ -3304,11 +3394,11 @@ const CHAPTERS = [
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
     cards: [['sack', { fill: 'stone', count: 1 }], 'stone', 'stone', 'stone', 'berry', 'campfire'],
     after: () => givePeaceQuest(3) },                   // 쓸어담기 quest부터
-  { title: '산: 나무 · 토끼 · 곰 / 크리처 대결',
-    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true }),
+  { title: '산: 나무 · 토끼 · 곰 / 크리처 대결 / 신의 입',
+    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true }),
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
-    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
-    cards: ['mountain', 'campfire', 'berry', 'animal', 'bear', 'handaxe', 'marrow'] },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
+    cards: ['mountain', 'godmouth', 'campfire', 'berry', 'animal', 'bear', 'handaxe', 'marrow'] },
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
