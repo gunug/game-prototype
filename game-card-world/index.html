@@ -317,7 +317,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.47.0';
+const VERSION = 'v0.48.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -341,8 +341,11 @@ const DEFS = {
   handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
   marrow:    { name:'골수',        kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
   clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
-  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
-  hide:      { name:'가죽',        kind:'material', tags:[] },
+  // v0.48.0: 크기 (소)·(중). 토끼 → (소), 곰 → (중)
+  meat:      { name:'고기(소)',    kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
+  hide:      { name:'가죽(소)',    kind:'material', tags:[] },
+  meat2:     { name:'고기(중)',    kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat2', heal:2 },
+  hide2:     { name:'가죽(중)',    kind:'material', tags:[] },
   stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는'] },
   tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는'] },
   bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
@@ -351,12 +354,15 @@ const DEFS = {
   ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
-  tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
-  sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
+  tannedhide:{ name:'손질된 가죽(소)', kind:'material', tags:['합칠 수 있음'] },
+  sack:      { name:'부실한 자루(소)', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
+  tannedhide2:{ name:'손질된 가죽(중)', kind:'material', tags:['합칠 수 있음'] },
+  bag2:      { name:'부실한 가방(중)', kind:'container', tags:[], hold:10 },   // container: 한 종류만, 10장까지
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
   mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[['tree', 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastmeat: { name:'구운 고기(소)', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastmeat2:{ name:'구운 고기(중)', kind:'food', tags:['먹을 수 있음', '익힘'], heal:3 },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
@@ -394,6 +400,7 @@ const RECIPES = [
   { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
   { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
+  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat2', 'hide2'], keep:'a' },
   // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
@@ -402,6 +409,8 @@ const RECIPES = [
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
   { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
+  { id:'tan2',     a:{ tag:'손질', lv:2 },  b:{ card:'hide2' },    out:['tannedhide2'], keep:'a' },
+  { id:'bag2',     a:{ card:'tannedhide2' }, b:{ card:'tannedhide2' }, out:['bag2'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
   { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
 ];
@@ -460,7 +469,8 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass',
+        'meat2', 'hide2', 'roastmeat2', 'tannedhide2', 'bag2'],
 };
 
 // 갓의 대사
@@ -886,6 +896,7 @@ function setStatus(c, remove, add){
 }
 // 음식 회복량: 익힘 +2, 날것 +1, 그 밖엔 카드 정의값(열매 등)
 function healOf(def){
+  if (def.heal) return def.heal;                               // v0.48.0: 카드별 회복량 우선
   if (tagLevel(def, '익힘')) return 2;
   if (tagLevel(def, '날것')) return 1;
   return def.heal || 0;
