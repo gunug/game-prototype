@@ -34,6 +34,16 @@ FRAME_SUFFIX = (
 )
 
 
+def edge_margin(path):
+    """가장자리 한 줄이 밝은 단색(생성 배경)인 쪽 목록 — 테두리가 이미지 끝까지 안 찬 경우"""
+    from PIL import Image, ImageStat
+    im = Image.open(path).convert("L")
+    w, h = im.size
+    bands = {"top": (0, 0, w, 1), "bottom": (0, h - 1, w, h), "left": (0, 0, 1, h), "right": (w - 1, 0, w, h)}
+    return [side for side, box in bands.items()
+            if (st := ImageStat.Stat(im.crop(box))).stddev[0] < 12 and st.mean[0] > 170]
+
+
 def main():
     ap = argparse.ArgumentParser(description="ComfyUI 카드 프레임 생성")
     ap.add_argument("--name", required=True, help="파일명 frame_<id> (확장자 없이)")
@@ -83,6 +93,8 @@ def main():
 
     full = outputs["save_full"]["images"][0]
     print(f"frame {dest}")
+    if sides := edge_margin(dest):
+        print(f"WARN 가장자리에 배경 띠: {', '.join(sides)} — 다른 seed 로 다시 뽑기")
     print(f"full  ComfyUI output/{full['subfolder']}/{full['filename']}")
 
 
