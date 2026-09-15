@@ -177,8 +177,10 @@
   @keyframes pop{from{transform:translate(var(--fx),var(--fy)) scale(.2);opacity:0;}60%{opacity:1;}to{transform:none;opacity:1;}}
   .cw.bump{animation:bump .3s ease-out;}
   /* v0.79.0: 조합으로 막 나온 카드 — 3초 동안 노란 테두리 깜빡임. 등장·튕김 연출과 겹쳐도 되게 덧그리는 링 */
-  .cw.fresh::after{content:'';position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--brand-yellow);
+  /* v0.80.0: 쌓기 실패로 되돌아가는 카드 — 1.5초 동안 빨간 테두리 깜빡임 */
+  .cw.fresh::after,.cw.fail::after{content:'';position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--brand-yellow);
     box-shadow:0 0 6px rgba(255,212,0,.5);pointer-events:none;animation:freshBlink .5s steps(1,end) infinite;}
+  .cw.fail::after{border-color:#ff6b6b;box-shadow:0 0 6px rgba(255,90,90,.55);}
   @keyframes freshBlink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
   /* 첫 package: 안에 갇힌 갓이 두드리듯 달그락 — 톡톡 두 번, 쉬고, 다시 */
   .cw.rattle{animation:rattle 2.2s ease-in-out infinite;transform-origin:50% 90%;}
@@ -393,7 +395,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.79.0';
+const VERSION = 'v0.80.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -643,18 +645,27 @@ let S = null;                 // 저장되는 상태
 const els = new Map();        // id → element
 const spawned = new Set();    // 이번 렌더에서 등장 연출할 id
 const bumpIds = new Set();    // 이번 렌더에서 튕김 연출할 id
-// v0.79.0: 조합으로 나온 카드는 3초 동안 노란 테두리가 깜빡임
-const FRESH_MS = 3000;
-const freshUntil = new Map();  // id → 깜빡임이 끝나는 시각
-const isFresh = id => (freshUntil.get(id) || 0) > performance.now();
-function markFresh(id){
-  freshUntil.set(id, performance.now() + FRESH_MS);
-  setTimeout(() => {                                          // 3초 뒤 그 카드만 다시 그려 테두리를 지움
-    freshUntil.delete(id);
+// 카드 테두리 깜빡임 — 조합으로 나온 카드는 노란색 3초 (v0.79.0), 쌓기 실패로 되돌아가는 카드는 빨간색 1.5초 (v0.80.0)
+const RING_MS = { fresh: 3000, fail: 1500 };
+const ringUntil = new Map();   // id → { cls, at 깜빡임이 끝나는 시각 }
+function ringOf(id){
+  const r = ringUntil.get(id);
+  if (!r) return '';
+  if (r.at <= performance.now()){ ringUntil.delete(id); return ''; }
+  return r.cls;
+}
+function markRing(id, cls){
+  const ms = RING_MS[cls];
+  ringUntil.set(id, { cls, at: performance.now() + ms });
+  setTimeout(() => {                                          // 시간이 지나면 그 카드만 다시 그려 테두리를 지움
+    const r = ringUntil.get(id);
+    if (!r || r.cls !== cls) return;
+    ringUntil.delete(id);
     const el = els.get(id), c = byId(id);
     if (el && c && !drag) paint(el, c);
-  }, FRESH_MS);
+  }, ms);
 }
+const markFresh = id => markRing(id, 'fresh');
 const settling = new Set();   // 정산 대기 중인 quest id
 let newSeen = [];
 let drag = null, tear = null, busy = false;
@@ -846,7 +857,8 @@ function paint(el, c){
     el.style.setProperty('--fx', (pf.x - c.x) + 'px');
     el.style.setProperty('--fy', (pf.y - c.y) + 'px');
   } else if (spawned.has(c.id)) cls += ' spawn';
-  if (isFresh(c.id)) cls += ' fresh';                          // 조합으로 막 나온 카드
+  const ring = ringOf(c.id);
+  if (ring) cls += ' ' + ring;                                 // 조합으로 막 나온 카드(노랑) · 되돌아가는 카드(빨강)
   if (bumpIds.has(c.id)) cls += ' bump';
   if (c.type === 'package' && c.contents === 'first') cls += ' rattle';   // 안에서 두드리는 첫 package
   el.className = cls;
@@ -2569,6 +2581,7 @@ function freeSpotFor(c, x, y){
 }
 function bounce(c, d0){
   sayMaybe(LINES.bounce);
+  markRing(c.id, 'fail');                                     // 되돌아가는 동안 빨간 테두리
   if (d0.fromEquip){
     const owner = byId(d0.fromEquip.id);
     const slot = d0.fromEquip.slot;
