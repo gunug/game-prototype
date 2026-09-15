@@ -214,7 +214,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.28.2';
+const VERSION = 'v0.28.3';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -900,17 +900,20 @@ function apply(ev, d, t){
     rq.z = ++S.z;
     bumpIds.add(rq.id);
     if (ev.into) bumpIds.add(t.id);
-    // 캐릭터에게 직접 준 체력 카드: quest와 별개로 체력은 그대로 오름 (체력 아이템 학습)
-    if (ev.eatToo && t.hp != null){
-      const max = DEFS[t.type].hp;
+    // 캐릭터가 원한 체력 카드: quest에 올리든 캐릭터에게 주든 똑같이 그 캐릭터 체력이 오름 (체력 아이템 학습)
+    //   "아무거나 3개"처럼 특정 카드를 원하지 않는 quest는 먹이지 않음
+    const g = rq.giver != null ? byId(rq.giver) : null;
+    if (g && g.hp != null && (rq.wants || rq.wantsList)){
+      const max = DEFS[g.type].hp;
       const heal = healOf(dd);
-      if (heal > 0 && t.hp < max && !statusOf(t).includes('빈사')){
-        const before = t.hp;
-        t.hp = Math.min(max, t.hp + heal);
-        floatText(t, `❤ +${t.hp - before}`);
-        if (t.hp >= max && statusOf(t).includes('허기짐')){
-          setStatus(t, ['허기짐'], []);
-          toast(`🍽️ ${DEFS[t.type].name}: 허기짐 해결`);
+      if (heal > 0 && g.hp < max && !statusOf(g).includes('빈사')){
+        const before = g.hp;
+        g.hp = Math.min(max, g.hp + heal);
+        floatText(g, `❤ +${g.hp - before}`);
+        bumpIds.add(g.id);
+        if (g.hp >= max && statusOf(g).includes('허기짐')){
+          setStatus(g, ['허기짐'], []);
+          toast(`🍽️ ${DEFS[g.type].name}: 허기짐 해결`);
         }
       }
     }
