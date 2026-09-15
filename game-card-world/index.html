@@ -186,6 +186,19 @@
   @keyframes tabDash{0%,100%{stroke-opacity:.45;}50%{stroke-opacity:1;}}
   .tab svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
   .tab path{fill:none;stroke:var(--brand-yellow);stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;animation:tabDash 1.1s ease-in-out infinite;}
+  /* v0.67.0: 붉은 택 — 우상단. 신의 입 = 월드 정리, container = 배출. 할 게 없으면 깜빡이지 않음 */
+  .rtab{position:absolute;right:0;top:0;width:30%;height:22%;border-top-right-radius:var(--r-md);cursor:crosshair;touch-action:none;z-index:2;}
+  .rtab::before{content:'';position:absolute;inset:0;border-top-right-radius:inherit;background:linear-gradient(225deg,rgba(230,60,50,.75) 0 50%,transparent 50%);animation:tabBlink 1.1s ease-in-out infinite;}
+  .rtab svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;}
+  .rtab path{fill:none;stroke:#ff6b5e;stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;animation:tabDash 1.1s ease-in-out infinite;}
+  .rtab.idle::before{animation:none;opacity:.25;}
+  .rtab.idle path{animation:none;stroke-opacity:.4;}
+  /* 확인 모달 (확인 · 취소) */
+  .cmodal{position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);padding:0 16px;}
+  .cmodal .cm-box{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);padding:18px 18px 14px;max-width:320px;width:100%;color:var(--ink);}
+  .cmodal p{margin:0 0 14px;font-size:15px;font-weight:600;line-height:1.45;white-space:pre-line;}
+  .cmodal .cm-btns{display:flex;justify-content:flex-end;gap:8px;}
+  .cmodal .cm-ok{background:#c0392b;border-color:#c0392b;color:#fff;}
   .cw.peeling{cursor:grabbing;}
   .tab-piece{position:absolute;z-index:2000000002;pointer-events:none;transform-origin:35% 35%;
     background:linear-gradient(135deg,rgba(255,212,0,.38),#3b3521 75%);}
@@ -351,7 +364,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.66.0';
+const VERSION = 'v0.67.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -571,6 +584,7 @@ const LINES = {
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
   godMouth:       '그리고 신의 입. 난 대식가야',
+  mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -817,6 +831,8 @@ function paint(el, c){
     }
     if (d.kind === 'package' || d.kind === 'container') html += '<div class="tab' + (d.kind === 'container' && !sweepable(c) ? ' idle' : '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
       + '<svg class="tab-arrow" viewBox="0 0 24 24"><path d="M19 19 L6 6 M6 6 H15 M6 6 V15"/></svg></div>';
+    // 붉은 택 (우상단): 신의 입 = 월드 정리, container = 배출
+    if (d.kind === 'container' || d.devour) html += `<div class="rtab${redTabReady(c) ? '' : ' idle'}"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 0 L100 100"/></svg></div>`;
     if (c.type === 'package' && c.contents === 'first' && speech && !S.cards.some(o => o.type === 'god')){
       html += `<div class="speech">${esc(speech)}</div>`;             // 갇힌 갓이 package 안에서 말함
     }
@@ -1283,7 +1299,8 @@ function evaluate(d, t){
   }
   if (td.devour){
     // 신의 입: 캐릭터·장소·quest 빼고 전부 먹음. 캐릭터는 방문도 못 함
-    if (dd.kind === 'character' || dd.kind === 'quest' || tagLevel(dd, '장소')) return null;
+    // v0.67.0: 물건이 들어 있는 container도 못 먹음
+    if (!mouthEats(d)) return null;
     return { act: 'devour' };
   }
   if (dd.kind === 'character' && tagLevel(td, '장소')){
@@ -1952,7 +1969,7 @@ function endTear(){
       t.el.style.transition = '';
       if (t.tab) t.tab.style.transition = '';
       busy = false;
-      if (t.dist >= tearLen()) sweepInto(t.id);     // 끝까지 당겼으면 쓸어담기
+      if (t.dist >= tearLen()) (t.red ? pullRedTab : sweepInto)(t.id);   // 끝까지 당겼으면 붉은 택 = 정리·배출 / 택 = 쓸어담기
     }, 220);
     return;
   }
@@ -2012,6 +2029,101 @@ function sweepInto(id){
     toast(`${ic(c.fill)} ${DEFS[c.fill].name} ${picks.length}장 쓸어담음 (${c.count}/${hold})`);
     afterChange();
   }, 340);
+}
+// ── 붉은 택 (v0.67.0) ────────────────────────────────
+//   우상단 붉은 택을 끝까지 당겼다 놓으면
+//   신의 입: 갓 "신중히 선택해…" → 확인 모달 → 월드 위 신의 입이 먹을 수 있는 카드 전부 빨아들임 (기록·삼킴·흡족 규칙 그대로)
+//   container: 확인 모달 → 담긴 카드 전부 밖으로 배출. 새로 생기는 게 아니라서 월드 5장 상한과 상관없이 전부 나옴
+const mouthEats = o => {
+  const od = DEFS[o.type];
+  return od.kind !== 'character' && od.kind !== 'quest' && !tagLevel(od, '장소') && !(od.kind === 'container' && o.count > 0);
+};
+const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id));
+const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
+function pullRedTab(id){
+  const c = byId(id);
+  if (!c) return;
+  if (DEFS[c.type].devour){
+    if (!purgeTargets().length){ toast(`${ic(c.type)} 빨아들일 것 없음`); return; }
+    say(LINES.mouthPurge);                                  // "신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만"
+    confirmModal('월드를 정리합니다. 되돌릴수 없습니다.', () => purgeWorld(id));
+    return;
+  }
+  if (!c.fill || !c.count){ toast(`${ic(c.type)} 배출할 물건 없음`); return; }
+  confirmModal('자루의 물건을 배출합니다.', () => ejectAll(id));
+}
+function purgeWorld(id){
+  const m = byId(id);
+  if (!m || busy) return;
+  // 먼 것부터 먹음 → 가까운 카드가 최근 기록으로 남음
+  const picks = purgeTargets().sort((a, b) => Math.hypot(b.x - m.x, b.y - m.y) - Math.hypot(a.x - m.x, a.y - m.y));
+  if (!picks.length){ toast(`${ic(m.type)} 빨아들일 것 없음`); return; }
+  busy = true;
+  for (const o of picks){
+    hops.delete(o.id);
+    const el = els.get(o.id);
+    if (!el) continue;
+    el.style.zIndex = 1999998000;
+    el.style.transition = 'left .32s ease-in, top .32s ease-in, transform .32s ease-in, opacity .32s ease-in';
+    requestAnimationFrame(() => {
+      el.style.left = m.x + 'px';
+      el.style.top = m.y + 'px';
+      el.style.transform = 'scale(.35)';
+      el.style.opacity = '0';
+    });
+  }
+  setTimeout(() => {
+    busy = false;
+    const mouth = byId(id);
+    if (!mouth){ afterChange(); return; }
+    const from = swallowFrom(mouth);
+    let gone = [];
+    for (const o of picks){
+      if (!byId(o.id)) continue;
+      removeCard(o.id);
+      gone = gone.concat(recordEaten(mouth, o, 0));         // 기록 3칸에서 밀려난 카드는 삼킴
+    }
+    swallow(mouth, gone, from);
+    eatShift.add(mouth.id);
+    bumpIds.add(mouth.id);
+    toast(`${ic(mouth.type)} 월드 정리 — ${picks.length}장 빨아들임`);
+    afterChange();
+  }, 340);
+}
+function ejectAll(id){
+  const c = byId(id);
+  if (!c || !c.fill || !c.count || !DEFS[c.fill]) return;
+  const type = c.fill, n = c.count;
+  c.count = 0;
+  delete c.fill;
+  for (let i = 0; i < n; i++){
+    const p = findSpot(c.x, c.y);
+    const nc = addCard(type, p.x, p.y, null, true);          // 월드 5장 상한 검사 없음 (배출은 새로 생기는 게 아님)
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x: c.x, y: c.y });
+  }
+  bumpIds.add(c.id);
+  toast(`${ic(type)} ${DEFS[type].name} ${n}장 배출`);
+  afterChange();
+}
+// 확인 · 취소 모달. 바깥을 누르거나 Esc = 취소
+function confirmModal(text, onOk){
+  const wrap = document.createElement('div');
+  wrap.className = 'cmodal';
+  wrap.innerHTML = `<div class="cm-box" role="dialog" aria-modal="true"><p>${esc(text)}</p>`
+    + '<div class="cm-btns"><button type="button" class="btn cm-no">취소</button><button type="button" class="btn cm-ok">확인</button></div></div>';
+  const key = e => { if (e.key === 'Escape') close(false); };
+  function close(ok){
+    wrap.remove();
+    document.removeEventListener('keydown', key);
+    if (ok) onOk();
+  }
+  wrap.addEventListener('pointerdown', e => { e.stopPropagation(); if (e.target === wrap) close(false); });
+  wrap.querySelector('.cm-no').addEventListener('click', () => close(false));
+  wrap.querySelector('.cm-ok').addEventListener('click', () => close(true));
+  document.addEventListener('keydown', key);
+  document.body.appendChild(wrap);
+  wrap.querySelector('.cm-no').focus();
 }
 // 담기: container에 한 장 넣음
 function storeInto(box, type){
@@ -2174,6 +2286,12 @@ function onDown(e){
     spawned.delete(nc.id);
     renderAll();
     startDrag(nc, px, py, e.pointerId, { ox: c.x, oy: c.y, fromMouth: { id: c.id, idx } });
+    return;
+  }
+
+  // 붉은 택 당기기 (v0.67.0): 신의 입 = 월드 정리, container = 배출 (찢어지지 않음)
+  if ((DEFS[c.type].kind === 'container' || DEFS[c.type].devour) && e.target.closest('.rtab')){
+    tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.rtab'), pid: e.pointerId, dist: 0, sweep: true, red: true };
     return;
   }
 
