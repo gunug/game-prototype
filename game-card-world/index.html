@@ -131,6 +131,8 @@
   /* quest */
   .quest-label{position:absolute;left:7px;top:5px;font-size:calc(var(--cw) * .1);font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);pointer-events:none;}
   .req-emoji{font-size:calc(var(--cw) * .24)!important;}
+  .req-recipe{color:var(--ink);font-size:calc(var(--cw) * .1);font-weight:700;text-align:center;white-space:pre-line;line-height:1.25;
+    background:rgba(0,0,0,.28);border-radius:6px;padding:2px 6px;margin:0 6px;pointer-events:none;}
   .req-title{color:var(--ink);font-size:calc(var(--cw) * .12);font-weight:700;text-align:center;padding:0 6px;line-height:1.2;pointer-events:none;}
   .req-need{color:var(--brand-yellow);font-size:calc(var(--cw) * .12);font-weight:800;pointer-events:none;white-space:pre-line;text-align:center;line-height:1.25;}
   .cw .defl{color:#b8e0a0;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
@@ -211,7 +213,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.26.1';
+const VERSION = 'v0.27.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -332,6 +334,8 @@ const LINES = {
   intro:          ['푸하! …살았다.', '뭘 봐. 갓이다. 신… 비슷한 거.', '구해줬으니 거래 하나 하자고.'],
   firstRequest:   '거기, 아무거나 3개만 줘봐. 좋은 거 줄게.',
   refill:         ['언제든지 필요하면 말해.', '필요하면 또 3개. 언제든.', '신은 늘 여기 있어. 필요하면 말해.'],
+  comboIntro:     ['잠깐, 저 친구 골수가 필요하대.', '돌로 뼈를 깨봐. 골수 하나 만들어서 나한테 줘.'],
+  comboDone:      '봤지? 그대로 돌려줄게. 저 친구 살려.',
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -510,8 +514,13 @@ function paint(el, c){
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
-    html += `<div class="emoji req-emoji">${d.emoji}</div>`;
+    if (!c.recipe) html += `<div class="emoji req-emoji">${d.emoji}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;
+    if (c.recipe){
+      // 조합 전부 공개: 재료 + 재료 → 결과
+      const [ra, rb, ro] = c.recipe.map(t => `${DEFS[t].emoji} ${DEFS[t].name}`);
+      html += `<div class="req-recipe">${esc(ra + ' + ' + rb + '\n→ ' + ro)}</div>`;
+    }
     html += `<div class="req-need">${esc(reqProgress(c))}</div>`;
     html += `<div class="req-reward">${esc(reqReward(c))}</div>`;
     if (c.stack.length){
@@ -1070,6 +1079,12 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
+  if (rq.quest === 'firstcombo'){
+    addCard('marrow', x, y);                                // 제출한 골수를 보상으로 돌려줌 → 잃는 것 없음
+    say(LINES.comboDone);
+    return;
+  }
+  S.flags.godSettles = (S.flags.godSettles || 0) + 1;       // 갓의 "아무거나 3개" 정산 횟수
   addCard('package', x, y, { contents: 'tutorial' });
   say(pick(LINES.settle));
 }
@@ -1106,10 +1121,37 @@ function decideGift(){
   // 갓의 "아무거나 3개" quest는 클리어하면 다시 리필 — 늘 하나 떠 있음
   return 'quest';
 }
+// 갓이 quest로 첫 조합(돌 + 뼈 → 골수)을 소개
+//   조건: 기사의 첫 quest가 나온 뒤 + 갓의 "아무거나 3개"를 처음 한 번 정산한 뒤. 한 번만
+function comboQuestCheck(){
+  if (S.flags.comboGiven) return false;
+  const god = S.cards.find(c => c.type === 'god');
+  if (!god || isTalking('god')) return false;
+  const knightStarted = (S.flags.knightStage || 0) >= 2 || questExists('bonepowder');
+  if (!knightStarted || (S.flags.godSettles || 0) < 1) return false;
+  S.flags.comboGiven = true;
+  save();
+  say(LINES.comboIntro);
+  const deliver = () => {
+    if (paused || drag || tear || busy){ setTimeout(deliver, 200); return; }
+    const g = S.cards.find(c => c.type === 'god');
+    if (!g || questExists('firstcombo')) return;
+    const rq = addCard('quest', g.x, g.y, {
+      quest: 'firstcombo', title: '골수를 만들어 와', wants: 'marrow', need: 1, stack: [],
+      recipe: ['stone', 'bone', 'marrow'], reward: 'marrow', giver: g.id,
+    });
+    slideOutFrom(rq, g);
+    save();
+    renderAll();
+  };
+  afterSpeech(deliver);                                     // 대사가 끝난 뒤 갓 옆으로 미끄러져 나옴
+  return true;
+}
 function godCheck(){
   knightCheck();
   if (gift) return;                                          // 이미 줄 게 정해져 멘트 중
   if (paused || drag || tear || busy || settling.size){ scheduleGod(); return; }
+  if (comboQuestCheck()) return;
   const kind = decideGift();
   if (!kind) return;
   gift = { kind };
