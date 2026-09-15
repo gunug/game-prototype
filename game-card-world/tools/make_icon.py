@@ -23,7 +23,7 @@ ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
 LOG_MD = Path(__file__).resolve().parent.parent / "docs" / "아이콘_목록.md"
 LOG_HEAD = (
     "# 아이콘 목록\n\n"
-    "> 이미지 파일명과 생성에 쓴 프롬프트 기록. `tools/make_icon.py` 가 생성에 성공할 때마다 자동으로 갱신한다.\n"
+    "> 이미지 파일명과 생성에 쓴 프롬프트 기록 (아이콘·카드 프레임). `tools/make_icon.py`·`tools/make_frame.py` 가 생성에 성공할 때마다 자동으로 갱신한다.\n"
     "> 같은 파일명은 덮어쓴다 (이전 기록은 git). `- 메모:` 줄은 다시 뽑아도 남는다.\n"
     "> 다시 뽑기: `python tools/make_icon.py --name <파일명> --seed <seed> <옵션> --prompt \"<프롬프트>\"`\n"
     "> 규칙·요령은 `아이콘_프롬프트.md`.\n"
@@ -79,7 +79,9 @@ def build_prompt(text, name, seed, size, colors):
     }
 
 
-def record(name, label, prompt, seed, opts):
+def record(name, label, prompt, seed, opts, file=None):
+    """이미지 목록 md 에 파일명별 기록 갱신. file 기본은 images/icon/<name>.png (make_frame.py 도 씀)"""
+    file = file or f"images/icon/{name}.png"
     text = LOG_MD.read_text(encoding="utf-8") if LOG_MD.exists() else LOG_HEAD
     m = re.search(rf"<!-- icon:{re.escape(name)} -->\n(.*?)<!-- /icon -->\n?", text, re.S)
     old = m.group(1) if m else ""
@@ -89,7 +91,7 @@ def record(name, label, prompt, seed, opts):
     memos = [line for line in old.splitlines() if line.startswith("- 메모:")]
     body = "\n".join([
         f"### {name}" + (f" — {label}" if label else ""),
-        f"- 파일: `images/icon/{name}.png`",
+        f"- 파일: `{file}`",
         f"- 생성: {time.strftime('%Y-%m-%d')} · seed `{seed}` · 옵션 " + (f"`{' '.join(opts)}`" if opts else "기본"),
         *memos,
         "```", prompt, "```", "",
@@ -104,6 +106,39 @@ def api(url, path, data=None):
     req = urllib.request.Request(url + path, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
+
+
+def run_workflow(url, prompt, timeout=900):
+    """API 형식 워크플로우를 큐에 넣고 끝날 때까지 기다림 → outputs. 실패하면 종료"""
+    try:
+        pid = json.loads(api(url, "/prompt", {"prompt": prompt}))["prompt_id"]
+    except urllib.error.HTTPError as e:
+        sys.exit("queue error: " + e.read().decode()[:3000])
+    except urllib.error.URLError as e:
+        sys.exit(f"ComfyUI 연결 실패 ({url}): {e.reason}")
+    print(f"queued {pid}")
+    t0 = time.time()
+    while True:
+        hist = json.loads(api(url, f"/history/{pid}"))
+        if pid in hist:
+            break
+        if time.time() - t0 > timeout:
+            sys.exit(f"timeout ({timeout}s)")
+        time.sleep(2)
+    entry = hist[pid]
+    if entry["status"]["status_str"] != "success":
+        for kind, msg in entry["status"].get("messages", []):
+            if kind == "execution_error":
+                print(json.dumps(msg, ensure_ascii=False)[:2000])
+        sys.exit("generation failed")
+    print(f"done {time.time() - t0:.1f}s")
+    return entry["outputs"]
+
+
+def fetch_image(url, img):
+    """SaveImage 출력 한 장의 바이트"""
+    q = urllib.parse.urlencode({"filename": img["filename"], "subfolder": img["subfolder"], "type": img["type"]})
+    return api(url, f"/view?{q}")
 
 
 def main():
@@ -133,36 +168,11 @@ def main():
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
     prompt = build_prompt(text, a.name, seed, a.size, a.colors)
 
-    try:
-        pid = json.loads(api(a.url, "/prompt", {"prompt": prompt}))["prompt_id"]
-    except urllib.error.HTTPError as e:
-        sys.exit("queue error: " + e.read().decode()[:3000])
-    except urllib.error.URLError as e:
-        sys.exit(f"ComfyUI 연결 실패 ({a.url}): {e.reason}")
-    print(f"queued {pid} seed={seed}")
-
-    t0 = time.time()
-    while True:
-        hist = json.loads(api(a.url, f"/history/{pid}"))
-        if pid in hist:
-            break
-        if time.time() - t0 > 900:
-            sys.exit("timeout (900s)")
-        time.sleep(2)
-
-    entry = hist[pid]
-    if entry["status"]["status_str"] != "success":
-        for kind, msg in entry["status"].get("messages", []):
-            if kind == "execution_error":
-                print(json.dumps(msg, ensure_ascii=False)[:2000])
-        sys.exit("generation failed")
-
-    outputs = entry["outputs"]
+    print(f"seed={seed}")
+    outputs = run_workflow(a.url, prompt)
     full = outputs["save_full"]["images"][0]
-    icon = outputs["save_icon"]["images"][0]
-    q = urllib.parse.urlencode({"filename": icon["filename"], "subfolder": icon["subfolder"], "type": icon["type"]})
     ICON_DIR.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(api(a.url, f"/view?{q}"))
+    dest.write_bytes(fetch_image(a.url, outputs["save_icon"]["images"][0]))
 
     opts = []
     if a.bg != "black":
@@ -177,7 +187,6 @@ def main():
         opts += ["--colors", str(a.colors)]
     record(a.name, a.label, a.prompt, seed, opts)
 
-    print(f"done {time.time() - t0:.1f}s")
     print(f"icon  {dest}")
     print(f"full  ComfyUI output/{full['subfolder']}/{full['filename']}")
 

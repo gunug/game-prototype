@@ -1,0 +1,68 @@
+{
+  "unet": {
+    "class_type": "UNETLoader",
+    "_meta": {"title": "FLUX.2 Klein 9B"},
+    "inputs": {"unet_name": "flux-2-klein-9b-int8-ConvRot.safetensors", "weight_dtype": "default"}
+  },
+  "lora": {
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {"title": "Pixel Surgeon LoRA"},
+    "inputs": {"model": ["unet", 0], "lora_name": "pixel-surgeon-klein-9b.safetensors", "strength_model": 1}
+  },
+  "clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {"clip_name": "qwen_3_8b_fp8mixed.safetensors", "type": "flux2", "device": "default"}
+  },
+  "vae": {
+    "class_type": "VAELoader",
+    "inputs": {"vae_name": "flux2-vae.safetensors"}
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "프롬프트 (make_frame.py 가 채움)"},
+    "inputs": {"clip": ["clip", 0], "text": "a flat front-facing blank trading card frame filling the entire image edge to edge, warm gold and bronze metal border, dark brown center panel, no text"}
+  },
+  "neg": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {"conditioning": ["pos", 0]}
+  },
+  "latent": {
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {"title": "752x1024 (카드 비율 1:1.36)"},
+    "inputs": {"width": 752, "height": 1024, "batch_size": 1}
+  },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": ["lora", 0], "positive": ["pos", 0], "negative": ["neg", 0], "latent_image": ["latent", 0],
+      "seed": 0, "steps": 4, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {"samples": ["sampler", 0], "vae": ["vae", 0]}
+  },
+  "resize": {
+    "class_type": "ImageResize+",
+    "_meta": {"title": "카드 크기 156x212"},
+    "inputs": {
+      "image": ["decode", 0], "width": 156, "height": 212,
+      "interpolation": "area", "method": "stretch", "condition": "always", "multiple_of": 0
+    }
+  },
+  "quant": {
+    "class_type": "ImageQuantize",
+    "_meta": {"title": "팔레트 축소"},
+    "inputs": {"image": ["resize", 0], "colors": 48, "dither": "none"}
+  },
+  "save_full": {
+    "class_type": "SaveImage",
+    "_meta": {"title": "원본 752x1024"},
+    "inputs": {"images": ["decode", 0], "filename_prefix": "game-card-world/frame_full"}
+  },
+  "save_frame": {
+    "class_type": "SaveImage",
+    "_meta": {"title": "카드 프레임 156x212"},
+    "inputs": {"images": ["quant", 0], "filename_prefix": "game-card-world/frame"}
+  }
+}
