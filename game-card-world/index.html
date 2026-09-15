@@ -12,33 +12,30 @@
   html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
   [hidden]{display:none!important;}
   /* 인스펙터 자리: 가로가 긴 화면은 오른쪽 폭, 세로가 긴 화면은 하단 높이 */
-  :root{--insp-w:0px;--insp-h:0px;}
+  :root{--insp-w:0px;--insp-h:0px;--top-h:46px;}   /* --top-h: 상단 UI 막대 높이 — JS 가 실제 높이로 맞춤 (v0.59.0) */
   @media (orientation: landscape){ :root{--insp-w:clamp(200px, 22vw, 280px);} }   /* v0.46.0: 28vw → 22vw */
   @media (orientation: portrait){ :root{--insp-h:clamp(130px, 24vh, 220px);} }    /* v0.46.0: 34vh → 24vh */
 
-  /* 인스펙터를 뺀 나머지가 테이블 */
+  /* 인스펙터와 상단 UI 막대를 뺀 나머지가 테이블 — 카드는 상단 UI 밑으로 들어가지 않음 */
   .table{
-    position:fixed;top:0;left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;
+    position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);
     touch-action:none;-webkit-user-select:none;user-select:none;
     -webkit-tap-highlight-color:transparent;
   }
 
   /* 화면 위 최소 UI (시스템 메뉴 · 콜렉터북 — 카드 아님) */
-  .title{
-    position:fixed;z-index:2147483000;
-    top:calc(env(safe-area-inset-top,0px) + 16px);
-    left:calc(env(safe-area-inset-left,0px) + 14px);
-    color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.06em;
+  /* v0.59.0: 떠 있던 제목·버튼을 자리를 차지하는 막대로. 폭이 좁아 버튼이 줄바꿈되면 막대도 높아지고 테이블이 그만큼 내려감 */
+  .topbar{
+    position:fixed;z-index:2147483000;top:0;left:0;right:var(--insp-w);
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;
+    padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px calc(env(safe-area-inset-left,0px) + 14px);
+    background:var(--surface);border-bottom:1px solid var(--hairline);
   }
+  .title{color:var(--muted);font-size:12px;font-weight:600;letter-spacing:.06em;white-space:nowrap;}
   .title a{color:var(--muted);text-decoration:none;}
   .title a:hover{color:var(--ink);}
-  .hud{
-    position:fixed;z-index:2147483000;
-    top:calc(env(safe-area-inset-top,0px) + 10px);
-    right:calc(var(--insp-w) + 10px);
-    display:flex;gap:8px;align-items:center;
-  }
+  .hud{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-left:auto;}
   .hud .btn{background:rgba(28,28,23,.85);border-color:var(--hairline);color:var(--ink);backdrop-filter:blur(6px);}
   .hud .btn:hover{background:var(--surface-soft);}
   .hud .count{color:var(--brand-yellow);font-weight:700;}
@@ -225,7 +222,7 @@
   /* 알림 */
   .toasts{
     position:fixed;z-index:2147483100;left:calc((100vw - var(--insp-w)) / 2);transform:translateX(-50%);
-    top:calc(env(safe-area-inset-top,0px) + 56px);
+    top:calc(var(--top-h) + 8px);
     display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;
   }
   .toast{
@@ -259,7 +256,7 @@
   .recipes li{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;color:var(--ink);}
   .recipes li.unknown{color:var(--muted);}
   /* 챕터 점프 메뉴 (테스트용 · 카드 아님) */
-  .chapters{position:fixed;z-index:2147483150;top:calc(env(safe-area-inset-top,0px) + 50px);right:calc(var(--insp-w) + 10px);
+  .chapters{position:fixed;z-index:2147483150;top:calc(var(--top-h) + 4px);right:calc(var(--insp-w) + 10px);
     display:flex;flex-direction:column;gap:2px;min-width:230px;padding:6px;background:rgba(28,28,23,.97);
     border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);}
   .chapters .ch-head{font-size:11px;font-weight:700;color:var(--muted);padding:4px 8px 6px;}
@@ -321,6 +318,7 @@
 <body>
   <div class="table" id="table"></div>
   <aside class="insp" id="insp"></aside>
+  <header class="topbar" id="topbar">
   <div class="title"><a href="../index.html">← 목록</a> · 카드 월드 RPG <span id="ver"></span></div>
   <div class="hud">
     <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 밀어내기</label>
@@ -329,6 +327,7 @@
     <button class="btn btn-sm" id="chapterBtn" title="플레이 테스트용: 챕터로 점프">⏭ 챕터</button>
     <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
   </div>
+  </header>
   <div class="toasts" id="toasts"></div>
   <div class="chapters" id="chapters" hidden></div>
   <div class="book" id="book"></div>
@@ -338,7 +337,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.58.0';
+const VERSION = 'v0.59.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -561,7 +560,7 @@ try {
 let speech = null, speechQ = [], speechTimer = null, lastMaybe = 0;
 let godTimer = null;
 let CW = 92, CH = 125;
-const TOP_PAD = 52;
+const TOP_PAD = 8;                     // v0.59.0: 52 → 8 — 상단 UI 가 테이블 밖 막대가 돼서 피할 필요 없음
 
 // ── 유틸 ──────────────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -3241,14 +3240,23 @@ chaptersEl.addEventListener('click', e => {
 document.addEventListener('pointerdown', e => {
   if (!chaptersEl.hidden && !e.target.closest('#chapters, #chapterBtn')) chaptersEl.hidden = true;   // 바깥 누르면 닫힘
 });
-window.addEventListener('resize', () => {
+function onResize(){
   measure();
   for (const c of S.cards){
     const p = clampPos(c.x, c.y);
     c.x = p.x; c.y = p.y;
   }
   renderAll();
-});
+}
+window.addEventListener('resize', onResize);
+// 상단 UI 막대 높이 → 테이블은 그 아래부터 (v0.59.0). 버튼이 줄바꿈돼 막대 높이가 바뀌면 카드도 테이블 안으로 다시 맞춤
+const topbar = document.getElementById('topbar');
+function syncTopH(){ document.documentElement.style.setProperty('--top-h', topbar.offsetHeight + 'px'); }
+new ResizeObserver(() => {
+  const before = table.clientHeight;
+  syncTopH();
+  if (S && table.clientHeight !== before) onResize();
+}).observe(topbar);
 
 validateRecipes();
 (() => {
@@ -3266,6 +3274,7 @@ setInterval(duelTick, DUEL_MS);                // 크리처 대결
 setInterval(animalTick, 1000);                 // 동물 홉핑
 setInterval(renderInspector, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
 
+syncTopH();
 measure();
 if (load()){
   for (const c of S.cards){
