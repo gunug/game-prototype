@@ -57,6 +57,8 @@
   }
   .cw::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--tone);opacity:.10;pointer-events:none;}
   .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
+  /* 그림 아이콘 — 이모지 자리에 글자 크기(1em)에 맞춰 들어감. 픽셀아트라 확대해도 뭉개지지 않게 */
+  .icon{display:block;width:1.15em;height:1.15em;margin:auto;image-rendering:pixelated;pointer-events:none;-webkit-user-drag:none;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
   .cw .atk{color:#9fd0ff;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .cw .atkv{position:absolute;left:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#9fd0ff;pointer-events:none;}
@@ -233,22 +235,22 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.33.0';
+const VERSION = 'v0.34.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
   package:   { name:'package',     emoji:'📦', kind:'package' },
   quest:   { name:'quest',     emoji:'📜', kind:'quest' },
-  knight:    { name:'기사',        emoji:'🛡️', kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
-  god:       { name:'갓',          emoji:'😇', kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
-  stone:     { name:'돌',          emoji:'🪨', kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
+  knight:    { name:'기사',        emoji:'🛡️', icon:true, kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
+  god:       { name:'갓',          emoji:'😇', icon:true, kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
+  stone:     { name:'돌',          emoji:'🪨', icon:true, kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
   twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   grass:     { name:'마른 풀',     emoji:'🌾', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          emoji:'🦴', kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
-  animal:    { name:'동물',        emoji:'🐇', kind:'creature', tags:['동물'], hops:true },
+  animal:    { name:'동물',        emoji:'🐇', icon:true, kind:'creature', tags:['동물'], hops:true },
   shell:     { name:'조개',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
@@ -268,6 +270,13 @@ const DEFS = {
   roastclam: { name:'구운 조갯살', emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
+
+// 카드 그림: icon:true 면 images/icon/card_<id>.png, 아니면 이모지 (v0.34.0)
+// 글자 줄(조합식·진행·알림)은 esc 로 찍으므로 이모지 그대로
+function iconHtml(t){
+  const d = DEFS[t];
+  return d.icon ? `<img class="icon" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">` : d.emoji;
+}
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
 const POOL = [
@@ -556,10 +565,10 @@ function paint(el, c){
     html += `<div class="req-need">${esc(reqProgress(c))}</div>`;
     html += `<div class="req-reward">${esc(reqReward(c))}</div>`;
     if (c.stack.length){
-      html += '<div class="req-stack">' + c.stack.map((t, i) => `<div class="mini" data-idx="${i}">${DEFS[t].emoji}</div>`).join('') + '</div>';
+      html += '<div class="req-stack">' + c.stack.map((t, i) => `<div class="mini" data-idx="${i}">${iconHtml(t)}</div>`).join('') + '</div>';
     }
   } else {
-    html += `<div class="emoji">${d.emoji}</div><div class="name">${esc(d.name)}</div>`;
+    html += `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`;
     const heal = healOf(d);
     if (heal > 0) html += `<div class="heal">❤ +${heal}</div>`;       // 음식 회복량을 이름 아래에
     if (d.atk) html += `<div class="atk">⚔ +${d.atk}</div>`;           // 장비 공격력
@@ -571,7 +580,7 @@ function paint(el, c){
       const def = (d.baseDef || 0) + Object.values(eq).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
       html += `<div class="atkv">⚔ ${atk}<br>🛡 ${def}</div>`;
       html += '<div class="equip">' + d.slots.map(sl => eq[sl] && DEFS[eq[sl]]
-        ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${DEFS[eq[sl]].emoji}</span>`
+        ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${iconHtml(eq[sl])}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
     if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
@@ -1924,7 +1933,7 @@ function renderBook(){
   for (const id of PAGE.ids){
     const d = DEFS[id];
     html += shown(id)
-      ? `<div class="slot" data-slot="${id}"><div class="e">${d.emoji}</div><div class="n">${esc(d.name)}</div></div>`
+      ? `<div class="slot" data-slot="${id}"><div class="e">${iconHtml(id)}</div><div class="n">${esc(d.name)}</div></div>`
       : `<div class="slot unseen" data-slot="${id}"><div class="e">❔</div><div class="n">???</div></div>`;
   }
   html += `</div><h3 class="book-sub">발견한 조합<small>${S.found.length} / ${RECIPES.length}</small></h3><ul class="recipes">`;
@@ -1994,7 +2003,7 @@ function registerSlot(t){
   if (!slot) return;
   const d = DEFS[t];
   slot.classList.remove('unseen');
-  slot.innerHTML = `<div class="e">${d.emoji}</div><div class="n">${esc(d.name)}</div>`;
+  slot.innerHTML = `<div class="e">${iconHtml(t)}</div><div class="n">${esc(d.name)}</div>`;
   slot.classList.remove('reg');
   void slot.offsetWidth;                          // 애니메이션 다시 시작
   slot.classList.add('reg');
