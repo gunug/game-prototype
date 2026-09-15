@@ -280,6 +280,8 @@
   .i-tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
   .i-tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
   .cw.selected{outline:2px solid #9fd0ff;outline-offset:3px;}
+  /* 빈사 캐릭터: 그림만 무채색 (프레임·글자는 그대로) */
+  .cw.dying .emoji .icon, .i-icon.dying .icon{filter:grayscale(1);}
 </style>
 </head>
 <body>
@@ -302,7 +304,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.44.0';
+const VERSION = 'v0.45.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -649,6 +651,7 @@ function paint(el, c){
   if (d.slots) cls += ' has-corner';
   if (placeFoot(d)) cls += ' has-foot';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
+  if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
   const pf = popFrom.get(c.id);
   if (pf){
     cls += ' pop';
@@ -2746,7 +2749,8 @@ const cardRef = t => `${iconHtml(t, true)} ${esc(DEFS[t].name)}`;
 function inspectorHtml(c){
   const d = DEFS[c.type];
   const isQuest = d.kind === 'quest';
-  let h = `<div class="i-head"><div class="i-icon">${iconHtml(c.type)}</div><div>`
+  const dying = d.kind === 'character' && statusOf(c).includes('빈사');
+  let h = `<div class="i-head"><div class="i-icon${dying ? ' dying' : ''}">${iconHtml(c.type)}</div><div>`
     + (isQuest ? '<div class="i-sub">Quest</div>' : '')
     + `<div class="i-name">${esc(isQuest ? c.title : d.name)}</div></div></div>`;
 
