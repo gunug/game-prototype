@@ -233,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.31.0';
+const VERSION = 'v0.31.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -355,7 +355,7 @@ const LINES = {
   firstRequest:   '거기, 아무거나 3개만 줘봐. 좋은 거 줄게.',
   refill:         ['언제든지 필요하면 말해.', '필요하면 또 3개. 언제든.', '신은 늘 여기 있어. 필요하면 말해.'],
   comboIntro:     ['뭔지 모르지만 일단 만들어볼까?', '돌로 뼈를 깨봐. 뭐가 나오는지 나한테 보여줘.'],
-  comboDone:      '오, 뭔가 나왔네. 도로 가져가.',
+  comboDone:      '오, 뭔가 나왔네.',
   coincidence:    ['…이런 우연이 있나.', '이것이 신의 장난인가?'],
   fireGrumble:    '익힌 것만 먹는 기사라, 입이 고급이구만.',
   fireAsk:        '나를 모닥불 위에 올려놔.',
@@ -499,6 +499,7 @@ function load(){
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
       if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상: 허기짐 해결'; }
       if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
+      if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
     }
@@ -1194,7 +1195,6 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'firstcombo'){
-    addCard('marrow', x, y);                                // 제출한 골수를 보상으로 돌려줌 → 잃는 것 없음
     S.flags.comboDone = true;                               // 이제 기사가 첫 quest를 냄
     say(LINES.comboDone);
     return;
@@ -1260,8 +1260,8 @@ function comboQuestCheck(){
     const g = S.cards.find(c => c.type === 'god');
     if (!g || questExists('firstcombo')) return;
     const rq = addCard('quest', g.x, g.y, {
-      quest: 'firstcombo', title: '골수를 만들어 와', wants: 'marrow', need: 1, stack: [],
-      recipe: ['stone', 'bone', 'marrow'], reward: 'marrow', giver: g.id,
+      quest: 'firstcombo', title: '골수 만들기', goal: 'make', make: 'marrow', need: 0, stack: [],
+      recipe: ['stone', 'bone', 'marrow'], rewardText: '보상 없음', target: g.id, giver: g.id,   // 제출 없이 골수가 생기면 완료
     });
     slideOutFrom(rq, g);
     save();
