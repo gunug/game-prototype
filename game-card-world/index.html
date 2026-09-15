@@ -395,7 +395,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.85.0';
+const VERSION = 'v0.86.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -876,7 +876,8 @@ function paint(el, c){
     html += `<div class="emoji req-emoji">${iconHtml(c.type)}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;   // 조합식은 인스펙터에서만 (v0.37.0)
     html += `<div class="req-need">${rich(reqProgress(c))}</div>`;
-    html += `<div class="req-reward">${rich(reqReward(c))}</div>`;
+    const rw = reqReward(c);
+    if (rw) html += `<div class="req-reward">${rich(rw)}</div>`;
     if (c.stack.length){
       html += '<div class="req-stack">' + c.stack.map((t, i) => `<div class="mini framed f-${frameOf(DEFS[t])}" data-idx="${i}">${iconHtml(t)}</div>`).join('') + '</div>';
     }
@@ -1218,12 +1219,13 @@ function reqProgress(rq){
   if (rq.wants) return `${ic(rq.wants)} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
   return `${rq.stack.length} / ${rq.need}`;
 }
+// v0.86.0: 보상이 없으면 아무 문구도 안 보여줌 (카드·인스펙터 모두)
 function reqReward(rq){
   if (rq.rewards) return '보상 ' + rq.rewards.map(r => DEFS[r] ? ic(r) : '').join(' ');
-  if (rq.rewardText) return rq.rewardText;
+  if (rq.rewardText) return rq.rewardText === '보상 없음' ? '' : rq.rewardText;
   if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
   if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
-  if (rq.goal === 'equip') return '보상 없음';
+  if (rq.goal === 'equip') return '';
   if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
   return `보상 ${ic('package')}`;
 }
@@ -3697,7 +3699,7 @@ function inspectorHtml(c){
     const rs = c.recipes || (c.recipe ? [c.recipe] : []);
     if (c.recipeId && RECIPE_BY_ID.has(c.recipeId)) c3 += iSub('조합식', iLine(rich(recipeText(RECIPE_BY_ID.get(c.recipeId)))));   // 태그 조합도 그대로
     else if (rs.length) c3 += iSub('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
-    if (!fromBook) c3 += iSub('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
+    if (!fromBook && reqReward(c)) c3 += iSub('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
   }
 
   const cell = (title, body) => `<div class="i-cell"><h4>${title}</h4>${body || iNone('—')}</div>`;
