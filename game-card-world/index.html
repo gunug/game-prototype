@@ -13,8 +13,8 @@
   [hidden]{display:none!important;}
   /* 인스펙터 자리: 가로가 긴 화면은 오른쪽 폭, 세로가 긴 화면은 하단 높이 */
   :root{--insp-w:0px;--insp-h:0px;}
-  @media (orientation: landscape){ :root{--insp-w:clamp(240px, 28vw, 340px);} }
-  @media (orientation: portrait){ :root{--insp-h:clamp(170px, 34vh, 320px);} }
+  @media (orientation: landscape){ :root{--insp-w:clamp(200px, 22vw, 280px);} }   /* v0.46.0: 28vw → 22vw */
+  @media (orientation: portrait){ :root{--insp-h:clamp(130px, 24vh, 220px);} }    /* v0.46.0: 34vh → 24vh */
 
   /* 인스펙터를 뺀 나머지가 테이블 */
   .table{
@@ -254,32 +254,42 @@
   .chapters button:hover{background:var(--surface-soft);}
 
   /* 인스펙터 (카드 아님) — 탭한 카드의 모든 정보. 가로가 긴 화면은 오른쪽, 세로가 긴 화면은 하단 */
+  /* v0.46.0: 촘촘하게 — 머리 한 줄(그림·이름·태그) + 세 칸 [수치 | 상태 | 조합·출현]. 칸 자리는 모든 카드가 같음 */
   .insp{position:fixed;z-index:2147483050;top:0;right:0;bottom:0;width:var(--insp-w);
     background:var(--surface);border-left:1px solid var(--hairline);overflow:auto;overscroll-behavior:contain;
-    padding:calc(env(safe-area-inset-top,0px) + 14px) calc(env(safe-area-inset-right,0px) + 14px) calc(env(safe-area-inset-bottom,0px) + 14px) 14px;
-    color:var(--ink);font-size:13px;line-height:1.35;-webkit-user-select:none;user-select:none;}
+    padding:calc(env(safe-area-inset-top,0px) + 10px) calc(env(safe-area-inset-right,0px) + 10px) calc(env(safe-area-inset-bottom,0px) + 10px) 10px;
+    color:var(--ink);font-size:11.5px;line-height:1.3;-webkit-user-select:none;user-select:none;}
   @media (orientation: portrait){
     .insp{top:auto;left:0;width:auto;height:var(--insp-h);border-left:none;border-top:1px solid var(--hairline);
-      padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 12px);}
+      padding:6px 10px calc(env(safe-area-inset-bottom,0px) + 6px);}
   }
   .i-empty{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-weight:600;}
-  .i-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
-  .i-icon{font-size:44px;line-height:1;flex:none;}
-  .i-sub{font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);}
-  .i-name{font-size:18px;font-weight:800;}
-  .i-sec{border-top:1px solid var(--hairline);padding:8px 0;}
-  .i-sec h4{margin:0 0 6px;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;}
-  .i-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:2px 0;}
-  .i-k{color:var(--body);}
-  .i-v{font-weight:700;text-align:right;white-space:nowrap;}
-  .i-line{padding:2px 0;}
-  .i-pre{white-space:pre-line;line-height:1.55;}
-  .i-muted{color:var(--muted);}
-  .i-note{color:var(--muted);font-size:12px;margin:2px 0 4px;}
-  .i-tags{display:flex;flex-wrap:wrap;gap:4px;}
-  .i-tag{font-size:12px;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 6px;}
+  .i-head{display:flex;align-items:center;flex-wrap:wrap;gap:3px 6px;padding-bottom:5px;border-bottom:1px solid var(--hairline);}
+  .i-icon{font-size:24px;line-height:1;flex:none;}
+  .i-kind{font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);}
+  .i-name{font-size:14px;font-weight:800;margin-right:4px;}
+  .i-tags{display:flex;flex-wrap:wrap;gap:3px;}
+  .i-tag{font-size:10.5px;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:0 4px;}
   .i-tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
   .i-tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
+  .i-grid{display:grid;grid-template-columns:minmax(0,1fr);}
+  .i-cell{padding:5px 0;border-bottom:1px solid var(--hairline);min-width:0;}
+  .i-cell:last-child{border-bottom:none;}
+  @media (orientation: portrait){
+    .i-grid{grid-template-columns:minmax(0,.8fr) minmax(0,1fr) minmax(0,1.4fr);}
+    .i-cell{border-bottom:none;border-left:1px solid var(--hairline);padding:4px 8px;}
+    .i-cell:first-child{border-left:none;padding-left:0;}
+    .i-cell:last-child{padding-right:0;}
+  }
+  .i-cell h4{margin:0 0 2px;font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.04em;}
+  .i-sub{margin:3px 0 1px;font-size:10px;font-weight:600;color:var(--muted);}
+  .i-tbl{width:100%;border-collapse:collapse;}
+  .i-tbl th{font-weight:500;color:var(--body);text-align:left;padding:0 6px 0 0;white-space:nowrap;}
+  .i-tbl td{font-weight:700;text-align:right;padding:0;}
+  .i-pre{white-space:pre-line;}
+  .i-muted{color:var(--muted);}
+  .i-chips{display:flex;flex-wrap:wrap;gap:1px 8px;}
+  .i-chips span{display:inline-flex;align-items:center;white-space:nowrap;}
   .cw.selected{outline:2px solid #9fd0ff;outline-offset:3px;}
   /* 빈사 캐릭터: 그림만 무채색 (프레임·글자는 그대로) */
   .cw.dying .emoji .icon, .i-icon.dying .icon{filter:grayscale(1);}
@@ -305,7 +315,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.45.1';
+const VERSION = 'v0.46.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2743,119 +2753,119 @@ function setSelected(id){
   if (el) el.classList.add('selected');
   renderInspector();
 }
-const iRow = (k, v) => `<div class="i-row"><span class="i-k">${k}</span><span class="i-v">${v}</span></div>`;
-const iSec = (title, body) => `<section class="i-sec"><h4>${title}</h4>${body}</section>`;
+// 인스펙터 칸 배정 (모든 카드 공통): 머리 한 줄(그림·이름·태그) + 세 칸 [수치 | 상태 | 조합·출현]
+//   칸 자리는 카드가 달라도 같음. 넣을 게 없는 칸은 —
+//   quest: 수치 = 진행 / 상태 = 발주·올려놓은 카드 / 조합·출현 = 조합식·보상
+const iRow = (k, v) => `<tr><th>${k}</th><td>${v}</td></tr>`;
+const iTbl = rows => rows ? `<table class="i-tbl">${rows}</table>` : '';
+const iSub = (title, body) => body ? `<div class="i-sub">${title}</div>${body}` : '';
 const iLine = html => `<div class="i-line">${html}</div>`;
+const iChips = list => `<div class="i-chips">${list.map(x => `<span>${x}</span>`).join('')}</div>`;
+const iNone = text => `<div class="i-muted">${text}</div>`;
 const cardRef = t => `${iconHtml(t, true)} ${esc(DEFS[t].name)}`;
+const pctText = p => (Number.isInteger(p) ? p : p.toFixed(1)) + '%';
+// 가중치 표 → 그림·이름·확률 칩 (한 줄에 여러 개)
+function oddsChips(table){
+  const total = table.reduce((sum, [, w]) => sum + w, 0);
+  return iChips(table.map(([t, w]) => `${cardRef(t)} ${pctText(w / total * 100)}`));
+}
 function inspectorHtml(c){
   const d = DEFS[c.type];
   const isQuest = d.kind === 'quest';
   const dying = d.kind === 'character' && statusOf(c).includes('빈사');
-  let h = `<div class="i-head"><div class="i-icon${dying ? ' dying' : ''}">${iconHtml(c.type)}</div><div>`
-    + (isQuest ? '<div class="i-sub">Quest</div>' : '')
-    + `<div class="i-name">${esc(isQuest ? c.title : d.name)}</div></div></div>`;
-
-  // 수치
-  let st = '';
-  if (d.hp) st += iRow('❤ 체력', `${c.hp} / ${d.hp}`);
-  if (d.slots){
-    const eq = Object.values(c.equip || {});
-    const atk = (d.baseAtk || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
-    const def = (d.baseDef || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
-    st += iRow('⚔ 공격력', atk) + iRow('🛡 방어', def);
-  }
-  const heal = healOf(d);
-  if (heal > 0) st += iRow('❤ 회복', '+' + heal);
-  if (d.atk) st += iRow('⚔ 공격력', '+' + d.atk);
-  if (d.defense) st += iRow('🛡 방어', '+' + d.defense);
-  if (d.capacity) st += iRow('👤 방문 인원', `${visitorsOf(c).length} / ${d.capacity}`);
-  if (d.hold) st += iRow('용량', `${c.count || 0} / ${d.hold}`);
-  const lv = tagLevel(d, '체력 회복');
-  if (lv){
-    const period = REST_MS / lv;
-    const vs = visitorsOf(c);
-    const healable = vs.filter(v => v.hp != null && v.hp < DEFS[v.type].hp && !statusOf(v).includes('빈사'));
-    st += iRow('체력 회복', `${period / 1000}초마다 +1`);
-    st += iRow('다음 회복', !vs.length ? '<span class="i-muted">방문자 없음</span>'
-      : !healable.length ? '<span class="i-muted">회복할 캐릭터 없음</span>'
-      : `${Math.max(0, Math.ceil((period - (c.restMs || 0)) / 1000))}초`);
-  }
-  if (d.yields){
-    const add = visitorsOf(c).reduce((sum, v) => sum + atkOf(v), 0);
-    st += iRow('게이지', `${c.yieldPts || 0} / ${d.yieldNeed}`);
-    st += iRow('1초마다', visitorsOf(c).length ? `+${add} (방문자 공격력)` : '<span class="i-muted">방문자 없음</span>');
-  }
-  if (st) h += iSec('수치', st);
-
-  // 태그 (조합 가능 · 태그 · 상태)
   const status = statusOf(c);
   const chips = (COMBOABLE.has(c.type) ? '<span class="i-tag combo">조합 가능</span>' : '')
     + (d.tags || []).map(t => `<span class="i-tag">${esc(t)}</span>`).join('')
     + status.map(t => `<span class="i-tag st">${esc(t)}</span>`).join('');
-  if (chips) h += iSec('태그', `<div class="i-tags">${chips}</div>`);
+  const head = `<div class="i-head"><div class="i-icon${dying ? ' dying' : ''}">${iconHtml(c.type)}</div>`
+    + (isQuest ? '<span class="i-kind">Quest</span>' : '')
+    + `<div class="i-name">${esc(isQuest ? c.title : d.name)}</div>`
+    + (chips ? `<div class="i-tags">${chips}</div>` : '') + '</div>';
 
-  // 조합 (캐릭터·package·quest 제외)
-  if (!['character', 'package', 'quest'].includes(d.kind)){
-    const { reach, use } = comboLists(c.type);
-    const none = '<div class="i-muted">없음</div>';
-    h += iSec('이 카드에 도달하는 조합', reach.join('') || none);
-    h += iSec('이 카드로 할 수 있는 조합', use.join('') || none);
+  // ① 수치
+  let c1 = '';
+  if (isQuest){
+    c1 = iSub('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
+  } else {
+    let st = '';
+    if (d.hp) st += iRow('❤ 체력', `${c.hp}/${d.hp}`);
+    if (d.slots){
+      const eq = Object.values(c.equip || {});
+      const atk = (d.baseAtk || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+      const def = (d.baseDef || 0) + eq.reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
+      st += iRow('⚔ 공격', atk) + iRow('🛡 방어', def);
+    }
+    const heal = healOf(d);
+    if (heal > 0) st += iRow('❤ 회복', '+' + heal);
+    if (d.atk) st += iRow('⚔ 공격', '+' + d.atk);
+    if (d.defense) st += iRow('🛡 방어', '+' + d.defense);
+    if (d.capacity) st += iRow('👤 인원', `${visitorsOf(c).length}/${d.capacity}`);
+    if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
+    const lv = tagLevel(d, '체력 회복');
+    if (lv){
+      const period = REST_MS / lv;
+      const vs = visitorsOf(c);
+      const healable = vs.filter(v => v.hp != null && v.hp < DEFS[v.type].hp && !statusOf(v).includes('빈사'));
+      st += iRow('회복', `+1/${period / 1000}초`);
+      st += iRow('다음', !vs.length ? '<span class="i-muted">방문자 없음</span>'
+        : !healable.length ? '<span class="i-muted">회복할 캐릭터 없음</span>'
+        : `${Math.max(0, Math.ceil((period - (c.restMs || 0)) / 1000))}초`);
+    }
+    if (d.yields){
+      const vs = visitorsOf(c);
+      st += iRow('게이지', `${c.yieldPts || 0}/${d.yieldNeed}`);
+      st += iRow('1초마다', vs.length ? `+${vs.reduce((sum, v) => sum + atkOf(v), 0)}` : '<span class="i-muted">방문자 없음</span>');
+    }
+    c1 = iTbl(st);
   }
 
-  // 장비 칸
+  // ② 상태
+  let c2 = '';
   if (d.slots){
     const eq = c.equip || {};
-    h += iSec('장비', d.slots.map(sl => {
+    c2 += iSub('장비', iTbl(d.slots.map(sl => {
       const it = eq[sl] && DEFS[eq[sl]];
-      if (!it) return iRow(esc(sl), '<span class="i-muted">비어 있음</span>');
-      return iRow(esc(sl), cardRef(eq[sl]) + (it.atk ? ` ⚔ +${it.atk}` : '') + (it.defense ? ` 🛡 +${it.defense}` : ''));
-    }).join(''));
+      return iRow(esc(sl), it ? cardRef(eq[sl]) + (it.atk ? ` ⚔+${it.atk}` : '') + (it.defense ? ` 🛡+${it.defense}` : '') : '<span class="i-muted">비어 있음</span>');
+    }).join('')));
   }
-
-  // 방문
   if (d.capacity){
     const vs = visitorsOf(c);
-    h += iSec('방문자', vs.length ? vs.map(v => iLine(cardRef(v.type))).join('') : '<div class="i-muted">없음</div>');
+    c2 += iSub('방문자', vs.length ? iChips(vs.map(v => cardRef(v.type))) : iNone('없음'));
   }
   if (c.visit != null){
     const pl = byId(c.visit);
-    if (pl) h += iSec('방문 중', iLine(cardRef(pl.type)));
+    if (pl) c2 += iSub('방문 중', iLine(cardRef(pl.type)));
   }
-
-  // container: 담긴 카드
   if (d.kind === 'container'){
-    h += iSec('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iRow(cardRef(c.fill), `×${c.count}`) : '<div class="i-muted">비어 있음</div>');
+    c2 += iSub('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iLine(`${cardRef(c.fill)} ×${c.count}`) : iNone('비어 있음'));
   }
-
-  // 산: 게이지가 찰 때마다 나올 수 있는 카드와 확률
-  if (d.yields){
-    const total = d.yields.reduce((sum, [, w]) => sum + w, 0);
-    h += iSec('나올 수 있는 카드', '<div class="i-note">게이지가 찰 때마다 하나</div>'
-      + d.yields.map(([t, w]) => iRow(cardRef(t), `${(w / total * 100).toFixed(1)}%`)).join(''));
-  }
-
-  // package: 나올 수 있는 카드와 확률
-  if (d.kind === 'package'){
-    let b = '';
-    if (c.contents === 'first') b += iLine(`${cardRef('knight')} · ${cardRef('god')} <span class="i-muted">확정</span>`);
-    const total = POOL.reduce((sum, [, w]) => sum + w, 0);
-    b += `<div class="i-note">무작위 ${PACK_DRAW}장 — 한 장마다</div>`;
-    b += POOL.slice().sort((x, y) => y[1] - x[1]).map(([t, w]) => iRow(cardRef(t), `${(w / total * 100).toFixed(1)}%`)).join('');
-    h += iSec('나올 수 있는 카드', b);
-  }
-
-  // quest
   if (isQuest){
     const g = c.giver != null ? byId(c.giver) : null;
-    if (g) h += iSec('발주', iLine(cardRef(g.type)));
-    const rs = c.recipes || (c.recipe ? [c.recipe] : []);
-    if (c.recipeId && RECIPE_BY_ID.has(c.recipeId)) h += iSec('조합식', iLine(rich(recipeText(RECIPE_BY_ID.get(c.recipeId)))));   // 태그 조합도 그대로
-    else if (rs.length) h += iSec('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
-    h += iSec('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
-    h += iSec('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
-    if (c.stack.length) h += iSec('올려놓은 카드', c.stack.map(t => iLine(cardRef(t))).join(''));
+    if (g) c2 += iSub('발주', iLine(cardRef(g.type)));
+    if (c.stack.length) c2 += iSub('올려놓은 카드', iChips(c.stack.map(cardRef)));
   }
-  return h;
+
+  // ③ 조합·출현
+  let c3 = '';
+  if (!['character', 'package', 'quest'].includes(d.kind)){
+    const { reach, use } = comboLists(c.type);
+    c3 += iSub('도달하는 조합', reach.join('') || iNone('없음'));
+    c3 += iSub('할 수 있는 조합', use.join('') || iNone('없음'));
+  }
+  if (d.yields) c3 += iSub('나오는 카드 — 게이지마다 하나', oddsChips(d.yields));
+  if (d.kind === 'package'){
+    if (c.contents === 'first') c3 += iSub('확정', iChips([cardRef('knight'), cardRef('god')]));
+    c3 += iSub(`무작위 ${PACK_DRAW}장 — 한 장마다`, oddsChips(POOL.slice().sort((x, y) => y[1] - x[1])));
+  }
+  if (isQuest){
+    const rs = c.recipes || (c.recipe ? [c.recipe] : []);
+    if (c.recipeId && RECIPE_BY_ID.has(c.recipeId)) c3 += iSub('조합식', iLine(rich(recipeText(RECIPE_BY_ID.get(c.recipeId)))));   // 태그 조합도 그대로
+    else if (rs.length) c3 += iSub('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
+    c3 += iSub('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
+  }
+
+  const cell = (title, body) => `<div class="i-cell"><h4>${title}</h4>${body || iNone('—')}</div>`;
+  return head + `<div class="i-grid">${cell('수치', c1)}${cell('상태', c2)}${cell('조합·출현', c3)}</div>`;
 }
 // 인스펙터 조합 두 가지: 이 카드에 도달하는 조합 / 이 카드로 할 수 있는 조합
 //   발견한 조합(S.found)은 전부 보여주고, 모르는 칸은 ???
