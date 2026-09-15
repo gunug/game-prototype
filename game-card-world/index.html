@@ -340,7 +340,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.61.0';
+const VERSION = 'v0.62.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -898,34 +898,54 @@ function showNextTalk(prev){
     if (item.held){ item.held = false; talkTimer = setTimeout(endLine, 1200 * TALK_SCALE); return; }
     setLine(who, null);
     talking = null;
+    talkItem = null;
     if (item.done) item.done();
-    if (who === 'god' && !talkQ.god.length){
-      const ws = speechWaiters;
-      speechWaiters = [];
-      for (const fn of ws) fn();
-    }
+    if (!isTalking('god')) flushSpeechWaiters();
     if (!talking) showNextTalk(who);
   }, Math.max(1800, item.text.length * 110) * TALK_SCALE);
 }
-// v0.60.0: 갓 대사 우선순위 — 퀘스트·이벤트 > 횟수 대사(횟수 많을수록) > 확률 대사(확률 낮을수록)
-//   겹치면(말하는 중 + 줄 선 대사) 높은 대사만 재생하고 낮은 대사는 스킵. 퀘스트·이벤트끼리는 차례로 다 나옴
+// v0.62.0: 대사 출력 룰 — 갓·기사 모두 speak() 하나로 (확정 35 / 기능.md 68절)
+//   등급: 퀘스트·이벤트 > 횟수 대사(횟수 많을수록) > 확률 대사(확률 낮을수록)
+//   겹침 = 지금 나오는 대사 + 기다리는 대사 (누가 말하든)
+//   새 대사보다 같거나 높은 대사가 있으면 새 대사 스킵. 낮은 대사는 빼고, 나오는 중이면 끊음
+//   퀘스트·이벤트끼리는 스킵 없이 차례로. 같은 사람의 같은 문장이 나오는 중이거나 기다리면 또 넣지 않음
+//   스킵·끊긴 대사에 딸린 진행(done)은 그대로 실행 — 대사만 안 나옴
 const PRI_EVENT = Infinity;
 const priChance = p => 1 - p;                   // 확률 대사: 0 ~ 1
 const priCount = n => 1 + n;                    // 횟수 대사: 1 ~ (확률 대사보다 위) — 지금 쓰는 대사 없음
-function say(x, pri = PRI_EVENT){
-  const cur = talking === 'god' ? talkItem : null;
+function speak(who, x, pri = PRI_EVENT, done){
+  const texts = Array.isArray(x) ? x : [x];
+  const all = [talking ? talkItem : null].concat(...SPEAKERS.map(w => talkQ[w])).filter(Boolean);
   const lower = it => it.pri < pri;
-  if (pri !== PRI_EVENT && [cur].concat(talkQ.god).some(it => it && !lower(it))) return false;   // 같거나 높은 대사가 있음 → 스킵
-  talkQ.god = talkQ.god.filter(it => !lower(it));                 // 줄 선 낮은 대사 스킵
-  if (cur && lower(cur)){                                         // 말하는 중인 낮은 대사는 끊음
+  const dup = texts.some(t => all.some(it => it.who === who && it.text === t));
+  if (dup || (pri !== PRI_EVENT && all.some(it => !lower(it)))){  // 중복이거나 같거나 높은 대사가 있음 → 스킵
+    if (done) done();
+    return false;
+  }
+  const dones = [];
+  for (const w of SPEAKERS){                                      // 기다리는 낮은 대사 스킵
+    for (const it of talkQ[w]) if (lower(it) && it.done) dones.push(it.done);
+    talkQ[w] = talkQ[w].filter(it => !lower(it));
+  }
+  if (talking && talkItem && lower(talkItem)){                    // 나오는 중인 낮은 대사는 끊음
+    if (talkItem.done) dones.push(talkItem.done);
     clearTimeout(talkTimer);
     talkTimer = null;
-    setLine('god', null);
+    setLine(talking, null);
     talking = null;
+    talkItem = null;
   }
-  enqueueTalk('god', (Array.isArray(x) ? x : [x]).map(text => ({ text, pri })));
+  enqueueTalk(who, texts.map((text, i) => ({ who, text, pri, done: i === texts.length - 1 ? done : undefined })));
+  if (!isTalking('god')) flushSpeechWaiters();                    // 갓 대사가 끊겨 끝났으면 기다리던 일 진행
+  for (const fn of dones) fn();
   return true;
 }
+function flushSpeechWaiters(){
+  const ws = speechWaiters;
+  speechWaiters = [];
+  for (const fn of ws) fn();
+}
+const say = (x, pri) => speak('god', x, pri);
 function sayMaybe(arr){
   const now = Date.now();
   if (now - lastMaybe < 6000 || Math.random() > 0.4) return;
@@ -1056,8 +1076,8 @@ function repaint(type){
   const el = c && els.get(c.id);
   if (el) paint(el, c);
 }
-function knightSay(text, done){
-  enqueueTalk('knight', [{ text, done }]);
+function knightSay(text, done, pri){
+  speak('knight', text, pri, done);
 }
 function knightLine(k){
   const st = statusOf(k);
@@ -1321,7 +1341,7 @@ function apply(ev, d, t){
   if (ev.act === 'eat'){
     if (ev.feed){ bumpIds.add(t.id); t = ev.feed; }              // request에 내려놓음 → 대상에게 먹임
     const max = DEFS[t.type].hp;
-    const talk = () => { if (t.type === 'knight' && !isTalking('knight') && knightLine(t)) knightSay(knightLine(t)); };
+    const talk = () => { if (t.type === 'knight' && knightLine(t)) knightSay(knightLine(t)); };   // 반응 대사 (중복은 speak가 거름)
     if (statusOf(t).includes('빈사')){
       // 빈사는 빈사 치유 아이템으로만 해결 → 허기짐
       if (!tagLevel(dd, '빈사 치유')){ toast('빈사 상태 — 빈사 치유가 필요함'); talk(); return false; }
@@ -3180,7 +3200,7 @@ function clearRuntime(){
   try { localStorage.removeItem(STORE); } catch (e) {}
   clearTimeout(godTimer);
   clearTimeout(talkTimer);
-  talkTimer = null; talking = null; talkQ.god = []; talkQ.knight = [];
+  talkTimer = null; talking = null; talkItem = null; talkQ.god = []; talkQ.knight = [];
   speech = null; knightSpeech = null;
   table.classList.remove('talking');
   gift = null; speechWaiters = [];
