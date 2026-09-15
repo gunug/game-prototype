@@ -364,7 +364,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.69.0';
+const VERSION = 'v0.70.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2043,13 +2043,20 @@ const mouthEats = o => {
 };
 const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id));
 const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
+let purgeAsking = false;                                    // 신의 입: 갓 대사가 끝나길 기다리는 중
 function pullRedTab(id){
   const c = byId(id);
   if (!c) return;
   if (DEFS[c.type].devour){
     if (!purgeTargets().length){ toast(`${ic(c.type)} 빨아들일 것 없음`); return; }
-    say(LINES.mouthPurge);                                  // "신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만"
-    confirmModal('월드를 정리합니다. 되돌릴수 없습니다.', () => purgeWorld(id));
+    if (purgeAsking) return;                                // 대사 기다리는 중에 또 당김 → 모달 한 번만
+    purgeAsking = true;
+    // v0.70.0: 갓 대사 "신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만"이 끝난 뒤에 모달
+    speak('god', LINES.mouthPurge, PRI_EVENT, () => {
+      purgeAsking = false;
+      if (!byId(id) || !purgeTargets().length) return;      // 그사이 신의 입이 없어졌거나 먹을 게 없어짐
+      confirmModal('월드를 정리합니다. 되돌릴수 없습니다.', () => purgeWorld(id));
+    });
     return;
   }
   if (!c.fill || !c.count){ toast(`${ic(c.type)} 배출할 물건 없음`); return; }
