@@ -395,7 +395,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.84.0';
+const VERSION = 'v0.85.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2064,7 +2064,11 @@ function deliverGift(){
   const c = kind === 'package'
     ? addCard('package', p.x, p.y, { contents: 'tutorial' })
     : addCard('quest', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐', giver: god.id });
-  if (kind === 'quest') S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
+  if (kind === 'quest'){
+    if (S.flags.godReqOrd == null) S.flags.godReqOrd = c.id;   // 처음 나온 자리를 기억
+    c.ord = S.flags.godReqOrd;                                 // v0.85.0: 다시 나와도 본래 자리 선점
+    S.flags.requestsGiven = (S.flags.requestsGiven || 0) + 1;
+  }
   if (kind === 'quest') slideOutFrom(c, god);                // 갓 뒤에서 오른쪽으로 미끄러져 나옴
   else popFrom.set(c.id, { x: god.x, y: god.y });              // package는 갓에게서 튀어나옴
   bumpIds.add(god.id);
@@ -3217,8 +3221,10 @@ function moveEl(c){
   if (el){ el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
 }
 // 발주자에 붙은 quest 목록 (붙는 순서 = id 순)
+// v0.85.0: 반복 생성되는 quest(갓의 "아무거나 3개")는 ord로 본래 자리를 지킴 — 다시 나와도 안쪽 제자리
+const attachOrd = r => r.ord != null ? r.ord : r.id;
 function attachedList(g){
-  return S.cards.filter(r => r.type === 'quest' && r.giver === g.id).sort((a, b) => a.id - b.id);
+  return S.cards.filter(r => r.type === 'quest' && r.giver === g.id).sort((a, b) => attachOrd(a) - attachOrd(b));
 }
 // 붙음 묶음이 화면 밖으로 나가지 않도록 카드별 x 범위
 //   request는 항상 발주자 오른쪽 → 경계에 닿으면 순서를 바꾸지 않고 더 안 움직임
@@ -3250,7 +3256,7 @@ function solveAttach(){
     groups.get(g.id).list.push(c);
   }
   for (const { g, list } of groups.values()){
-    list.sort((a, b) => a.id - b.id);
+    list.sort((a, b) => attachOrd(a) - attachOrd(b));
     const hid = heldId();
     const di = hid != null ? list.findIndex(r => r.id === hid) : -1;
     if (di >= 0){
