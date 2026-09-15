@@ -317,7 +317,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.48.0';
+const VERSION = 'v0.49.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -333,19 +333,17 @@ const DEFS = {
   bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'토끼 사체',   kind:'material', tags:[] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
   // 크리처 (v0.47.0): hp 체력, strike 대결 공격력, loot 쓰러뜨리면 나오는 전리품
-  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, strike:1, loot:['carcass'] },   // v0.42.0: 동물 → 토끼 (id 그대로)
-  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, strike:3, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
+  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, strike:1, loot:['carcass', 'bone'] },   // v0.42.0: 동물 → 토끼 (id 그대로)
+  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, strike:3, loot:['bearcarcass', 'bone'] },   // 토끼보다 2배 멀리, 우다다다
   bearcarcass:{ name:'곰 사체',    kind:'material', tags:[] },
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
   marrow:    { name:'골수',        kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
   clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
-  // v0.48.0: 크기 (소)·(중). 토끼 → (소), 곰 → (중)
-  meat:      { name:'고기(소)',    kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
-  hide:      { name:'가죽(소)',    kind:'material', tags:[] },
-  meat2:     { name:'고기(중)',    kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat2', heal:2 },
-  hide2:     { name:'가죽(중)',    kind:'material', tags:[] },
+  // v0.49.0: 크기 (소)·(중) 없앰 — 같은 아이템을 타입으로 늘리지 않고 수량으로 (곰 해체 = 고기 2 · 가죽 2)
+  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
+  hide:      { name:'가죽',        kind:'material', tags:[] },
   stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는'] },
   tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는'] },
   bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
@@ -354,15 +352,12 @@ const DEFS = {
   ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
-  tannedhide:{ name:'손질된 가죽(소)', kind:'material', tags:['합칠 수 있음'] },
-  sack:      { name:'부실한 자루(소)', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
-  tannedhide2:{ name:'손질된 가죽(중)', kind:'material', tags:['합칠 수 있음'] },
-  bag2:      { name:'부실한 가방(중)', kind:'container', tags:[], hold:10 },   // container: 한 종류만, 10장까지
+  tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
+  sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
   mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[['tree', 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  roastmeat: { name:'구운 고기(소)', kind:'food', tags:['먹을 수 있음', '익힘'] },
-  roastmeat2:{ name:'구운 고기(중)', kind:'food', tags:['먹을 수 있음', '익힘'], heal:3 },
+  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
@@ -400,7 +395,7 @@ const RECIPES = [
   { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
   { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
-  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat2', 'hide2'], keep:'a' },
+  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat', 'meat', 'hide', 'hide'], keep:'a' },   // 곰 = 토끼의 두 배
   // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
@@ -409,8 +404,6 @@ const RECIPES = [
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
   { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
-  { id:'tan2',     a:{ tag:'손질', lv:2 },  b:{ card:'hide2' },    out:['tannedhide2'], keep:'a' },
-  { id:'bag2',     a:{ card:'tannedhide2' }, b:{ card:'tannedhide2' }, out:['bag2'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
   { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
 ];
@@ -459,7 +452,9 @@ function sideText(sd){
 function outText(r){
   if (r.burn) return `${ic('ash')} 재 (태우기)`;
   if (r.cook) return '익힘 (날것이 익은 것으로)';
-  return r.out.map(o => ic(o) + ' ' + DEFS[o].name).join(', ');
+  const counts = new Map();
+  for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
+  return [...counts].map(([o, n]) => ic(o) + ' ' + DEFS[o].name + (n > 1 ? ` ×${n}` : '')).join(', ');   // 같은 카드 여러 장 = ×N
 }
 const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
 
@@ -469,8 +464,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass',
-        'meat2', 'hide2', 'roastmeat2', 'tannedhide2', 'bag2'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass'],
 };
 
 // 갓의 대사
@@ -1138,8 +1132,7 @@ function evaluate(d, t){
     if (dd.kind === 'character') return { act: 'duel', full: statusOf(d).includes('빈사') };   // 대결 (빈사면 못 함)
     if (tagLevel(dd, '무기')){
       const low = (dd.atk || 0) < t.hp;                         // 한 방에 못 쓰러뜨림
-      const capped = low ? null : (td.loot || []).find(o => !canSpawn(o));
-      return { act: 'strike', full: low || !!capped, low, capped };
+      return { act: 'strike', full: low, low };                // 전리품이 상한이면 그 카드만 안 나옴
     }
     return null;
   }
@@ -1189,7 +1182,7 @@ function evaluate(d, t){
   // 장소는 월드에 하나만 → 이미 있는 장소가 나오는 조합은 안 됨
   const dup = (m.r.out || []).find(o => tagLevel(DEFS[o], '장소') && S.cards.some(c => c.type === o));
   const outs = m.r.cook ? [DEFS[(m.aIsX ? t : d).type].cooked] : (m.r.out || []);   // 익히기는 익힌 카드가 새로 생김
-  const capped = dup ? null : outs.find(o => o && !canSpawn(o));                  // 월드에 5장이면 조합 안 됨
+  const capped = dup ? null : outs.find(o => o && o !== 'quest' && looseCount(o) + outs.filter(x => x === o).length > SPAWN_CAP);   // 다 나오지 못하면 조합 안 됨
   return { act: 'recipe', r: m.r, A: m.aIsX ? d : t, B: m.aIsX ? t : d, full: !!(dup || capped), dup, capped };
 }
 function apply(ev, d, t){
@@ -1226,7 +1219,6 @@ function apply(ev, d, t){
       floatText(t, '무기의 공격력 낮음', 'work');
       return false;
     }
-    if (ev.capped){ capToast(ev.capped); return false; }
     killCreature(t);
     relocate(d);                                            // 무기는 남음
     return true;
