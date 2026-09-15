@@ -228,7 +228,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.28.4';
+const VERSION = 'v0.28.5';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1130,7 +1130,16 @@ function rewardFor(rq, x, y){
     return;
   }
   S.flags.godSettles = (S.flags.godSettles || 0) + 1;       // 갓의 "아무거나 3개" 정산 횟수
-  addCard('package', x, y, { contents: 'tutorial' });
+  const gg = rq.giver != null ? byId(rq.giver) : null;
+  if (gg){
+    // 정산 보상 package도 갓 아래 방향으로 튀어나옴
+    const p = findSpot(gg.x, gg.y + CH + 12);
+    const pk = addCard('package', p.x, p.y, { contents: 'tutorial' });
+    spawned.delete(pk.id);
+    popFrom.set(pk.id, { x: gg.x, y: gg.y });
+  } else {
+    addCard('package', x, y, { contents: 'tutorial' });
+  }
   say(pick(LINES.settle));
 }
 
@@ -1212,7 +1221,8 @@ function deliverGift(){
   gift = null;
   if (decideGift() !== kind){ scheduleGod(); return; }       // 멘트 동안 상황이 바뀜 → 취소 후 다시 판단
   const god = S.cards.find(c => c.type === 'god');
-  const p = findSpot(god.x + CW * 1.1, god.y);
+  // package는 갓 아래로, quest는 갓 오른쪽으로
+  const p = kind === 'package' ? findSpot(god.x, god.y + CH + 12) : findSpot(god.x + CW * 1.1, god.y);
   const c = kind === 'package'
     ? addCard('package', p.x, p.y, { contents: 'tutorial' })
     : addCard('quest', p.x, p.y, { need: 3, stack: [], title: '아무거나 3개만 줘봐', giver: god.id });
