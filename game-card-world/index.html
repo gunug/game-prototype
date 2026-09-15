@@ -235,7 +235,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.34.0';
+const VERSION = 'v0.34.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1426,10 +1426,23 @@ function endTear(){
     busy = false;
   }, 220);
 }
+// 첫 package를 찢는 순간: 갇힌 갓의 "꺼내줘" 말풍선은 남은 시간과 상관없이 바로 끔
+function cutTrappedTalk(){
+  const lines = LINES.trapped.concat(LINES.trappedNag);
+  talkQ.god = talkQ.god.filter(it => !lines.includes(it.text));
+  if (talking === 'god' && lines.includes(speech)){
+    clearTimeout(talkTimer);
+    talkTimer = null;
+    setLine('god', null);
+    talking = null;
+    showNextTalk(null);
+  }
+}
 function openPackage(id, t){
   const c = byId(id);
   const el = els.get(id);
   if (!c || !el) return;
+  if (c.contents === 'first') cutTrappedTalk();
   busy = true;
   // 뜯긴 택 조각은 당긴 방향으로 날아가며 사라짐
   if (t && t.piece){
