@@ -237,7 +237,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.35.0';
+const VERSION = 'v0.35.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1197,6 +1197,13 @@ function settle(id){
   }, 300);
 }
 
+// 무기를 들어라·방패를 들어라 둘 다 끝나면 기사: "준비됐어" (한 번)
+function knightReady(){
+  S.flags.knightStage = 5;
+  if (S.flags.readySaid) return;
+  S.flags.readySaid = true;
+  knightSay('준비됐어');
+}
 function rewardFor(rq, x, y){
   if (rq.quest === 'bonepowder'){
     const k = byId(rq.giver);
@@ -1215,13 +1222,13 @@ function rewardFor(rq, x, y){
   }
   if (rq.quest === 'takeshield'){
     S.flags.shieldDone = true;
-    if (S.flags.swordDone || (S.flags.knightStage || 0) >= 5) S.flags.knightStage = 5;
+    if (S.flags.swordDone || (S.flags.knightStage || 0) >= 5) knightReady();
     toast('🛡 방패를 들었다');
     return;
   }
   if (rq.quest === 'takesword'){
     S.flags.swordDone = true;
-    if (S.flags.shieldDone) S.flags.knightStage = 5;
+    if (S.flags.shieldDone) knightReady();
     toast('⚔ 무기를 들었다');
     return;
   }
