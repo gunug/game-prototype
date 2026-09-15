@@ -233,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.32.0';
+const VERSION = 'v0.32.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -763,7 +763,8 @@ function reqDone(rq){
     return !!t && t.hp >= DEFS[t.type].hp && !statusOf(t).includes('빈사');
   }
   if (rq.goal === 'make'){
-    if (S.cards.some(c => c.type === rq.make)) rq.made = true;   // 테이블에 생기면 완료 (한 번 생기면 유지)
+    // 한 번이라도 만들어진 적 있으면 완료 — 만들자마자 다음 조합에 써버려도 인정 (v0.32.1 버그 수정)
+    if (S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make)) rq.made = true;
     return !!rq.made;
   }
   if (rq.goal === 'visitPlace'){
@@ -794,7 +795,7 @@ function reqProgress(rq){
     return t ? `체력 ${t.hp} / ${DEFS[t.type].hp}` : '대상 없음';
   }
   if (rq.goal === 'make'){
-    const done = rq.made || S.cards.some(c => c.type === rq.make);
+    const done = rq.made || S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make);
     return `${done ? '✔' : '☐'} ${DEFS[rq.make].emoji} ${DEFS[rq.make].name} 만들기`;
   }
   if (rq.goal === 'visitPlace'){
@@ -2037,6 +2038,7 @@ function slideOutFrom(rq, g){
   spawned.delete(rq.id);
   slideIn.set(rq.id, performance.now());
   g.z = ++S.z;                   // 발주자가 위 → request가 뒤에서 나오는 것처럼
+  setTimeout(checkSettle, 0);     // 나오자마자 이미 조건을 채웠는지 확인 (다음 조작을 기다리지 않음)
 }
 // 붙어 있는 request의 몸통 = 발주자. 나머지 카드는 자기 자신
 function bodyOf(c){
@@ -2370,7 +2372,7 @@ validateRecipes();
 })();
 
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
-setInterval(() => { if (!paused && !drag && !tear && !busy){ godCheck(); trappedHint(false); } }, 5000);
+setInterval(() => { if (!paused && !drag && !tear && !busy){ checkSettle(); godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
 setInterval(animalTick, 1000);                 // 동물 홉핑
 
