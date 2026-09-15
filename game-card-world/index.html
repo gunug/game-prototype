@@ -300,6 +300,7 @@
   .i-kind{font-size:10px;font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);}
   .i-name{font-size:14px;font-weight:800;margin-right:4px;}
   .i-tags{display:flex;flex-wrap:wrap;gap:3px;}
+  .i-desc{font-size:11.5px;font-style:italic;line-height:1.4;color:var(--muted);padding:4px 0 5px;border-bottom:1px solid var(--hairline);}
   .i-tag{font-size:10.5px;font-weight:600;color:var(--body);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:0 4px;}
   .i-tag.st{color:#ff9d9d;border-color:rgba(255,120,120,.4);}
   .i-tag.combo{color:var(--brand-yellow);border-color:rgba(255,212,0,.35);}
@@ -350,7 +351,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.65.0';
+const VERSION = 'v0.66.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -399,6 +400,46 @@ const DEFS = {
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+};
+// 카드 설명 — 인스펙터 이름 아래 (v0.66.0). 익살스럽고 재치 있게. 새 카드를 만들면 여기에도
+const DESC = {
+  package:    '뭐가 들었는지는 신도 모름. 포장만 신이 했다.',
+  salvation:  '불쌍해서 주는 거다. 고맙다는 말은 기대 안 함.',
+  quest:      '누군가의 부탁. 거절 버튼은 없다.',
+  knight:     '말수가 적다. 적은 게 아니라 거의 없다.',
+  god:        '신… 비슷한 것. 체력은 1, 말발은 무한.',
+  stone:      '던지고, 깨고, 쥐고 휘두른다. 인류 최초의 만능 도구.',
+  twig:       '불 앞에선 연료, 기사 손에선 희망사항.',
+  grass:      '바삭바삭. 불씨가 제일 좋아하는 간식.',
+  flint:      '돌이랑 부딪히면 성질을 낸다. 그 성질이 곧 불이다.',
+  bone:       '누군가의 과거. 깨 보면 누군가의 저녁.',
+  carcass:    '더 이상 뛰지 않는다. 손질하면 저녁이 된다.',
+  animal:     '귀엽다. 잡히기 싫어서 쉬지 않고 뛴다.',
+  bear:       '크고, 빠르고, 배고프다. 셋 다 기사에게 나쁜 소식.',
+  bearcarcass:'누가 이겼는지 증명하는 카드. 증거치곤 무겁다.',
+  shell:      '입을 꾹 다물었다. 돌로 설득하면 연다.',
+  berry:      '그냥 먹어도 된다. 구우면 더 맛있다는 건 비밀도 아니다.',
+  handaxe:    '돌 두 개가 싸운 결과. 이긴 쪽이 날카로워졌다.',
+  marrow:     '뼛속까지 영양가. 다 죽어가던 기사도 벌떡.',
+  clam:       '조개가 끝까지 지키던 것. 결국 뺏겼다.',
+  meat:       '날것이다. 용감하면 그냥, 현명하면 구워서.',
+  hide:       '아직 냄새난다. 손질하면 조금 덜 난다.',
+  stick:      '끝만 뾰족해졌을 뿐인데 자신감이 생겼다.',
+  tinder:     '불붙기만 기다리는 성격 급한 뭉치.',
+  bedding:    '침대라고 부르기엔 양심에 찔린다. 그래도 눕긴 좋다.',
+  ember:      '몸집은 작아도 꿈은 모닥불.',
+  campfire:   '따뜻하고, 멍때리기 좋다. 갓의 최애 장소.',
+  ash:        '한때 뭔가였다. 지금은 아무 쓸모 없음… 아직은.',
+  hilt:       '칼날은 어디 갔는지 모른다. 그래도 뗀석기보다 세다.',
+  plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
+  tannedhide: '냄새가 빠졌다. 거의.',
+  sack:       '구멍이 하나 있다. 다섯 장까지만 믿어라.',
+  mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
+  godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
+  tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
+  roastmeat:  '문명의 냄새가 난다.',
+  roastclam:  '조개의 마지막 저항도 불 앞에선 무너졌다.',
+  roastberry: '달아졌다. 구운 사람의 자부심도 같이.',
 };
 
 // 카드 그림: images/icon/card_<id>.png (v0.35.0: 모든 카드, 이모지 없음)
@@ -3220,7 +3261,8 @@ function inspectorHtml(c){
   const head = `<div class="i-head"><div class="i-icon${dying ? ' dying' : ''}">${iconHtml(c.type)}</div>`
     + (isQuest ? '<span class="i-kind">Quest</span>' : '')
     + `<div class="i-name">${esc(isQuest ? c.title : d.name)}</div>`
-    + (chips ? `<div class="i-tags">${chips}</div>` : '') + '</div>';
+    + (chips ? `<div class="i-tags">${chips}</div>` : '') + '</div>'
+    + (DESC[c.type] ? `<div class="i-desc">${esc(DESC[c.type])}</div>` : '');   // 카드 설명
 
   // ① 수치
   let c1 = '';
