@@ -82,7 +82,9 @@
   /* 장소 위쪽 가운데 한 줄: 방문 인원 + 파이 게이지 (v0.57.0: 양쪽 모서리 → 가운데) */
   .cw .top{position:absolute;left:0;right:0;top:calc(var(--cw) * .05);display:flex;justify-content:center;align-items:center;gap:calc(var(--cw) * .06);pointer-events:none;}
   .cw .cap{font-size:calc(var(--cf) * .1);font-weight:700;color:var(--body);line-height:1;}
-  .cw .pie{width:calc(var(--cw) * .17);height:calc(var(--cw) * .17);border-radius:50%;
+  /* v0.72.0: 파이 한가운데에 게이지가 쓰는 자원 아이콘 (산 공격 · 강가 인원 · 체력 회복 장소 체력) */
+  .cw .pie .icon{width:62%;height:62%;margin:0;filter:drop-shadow(0 0 1px rgba(0,0,0,.9));}
+  .cw .pie{width:calc(var(--cw) * .2);height:calc(var(--cw) * .2);border-radius:50%;display:flex;align-items:center;justify-content:center;
     background:conic-gradient(#7fdc9a calc(var(--p, 0) * 360deg), rgba(255,255,255,.14) 0);box-shadow:0 0 0 1px rgba(0,0,0,.45);transition:background .3s;}
   /* 위쪽 수치 줄과 안 겹치게 내림 — 캐릭터·크리처는 두 줄, 장소는 한 줄 */
   .cw.has-corner{padding-top:calc(var(--ch) * .21);}
@@ -364,7 +366,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.71.0';
+const VERSION = 'v0.72.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -846,8 +848,9 @@ function paint(el, c){
     // 장소 위쪽 가운데 한 줄: 방문 인원 + 게이지
     let top = '';
     if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
-    if (d.gauge) top += `<div class="cap gauge-by" title="게이지: ${STAT_NAME[d.gauge]} 기반">${statImg(d.gauge)}</div>`;   // v0.71.0: 게이지가 무엇에 기반하는지
-    if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
+    // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
+    const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
+    if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
     const foot = placeFoot(d);
