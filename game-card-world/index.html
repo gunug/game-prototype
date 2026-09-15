@@ -366,7 +366,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.73.0';
+const VERSION = 'v0.74.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -405,7 +405,7 @@ const DEFS = {
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
-  sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
+  sack:      { name:'부실한 자루', kind:'container', tags:['도구'], hold:5 },     // container: 한 종류만, 5장까지. v0.74.0: 도구
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
   mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:30, gauge:'atk' },   // v0.51.0: 나무 + 돌 함께
   // 신의 입 (v0.64.0): 장소지만 방문 못 함. 캐릭터·장소·quest 빼고 전부 먹음, 최근 devour장 기록 → 기록에서 아무거나 꺼냄
@@ -2080,7 +2080,10 @@ const mouthEats = o => {
   const od = DEFS[o.type];
   return od.kind !== 'character' && od.kind !== 'quest' && !tagLevel(od, '장소') && !(od.kind === 'container' && o.count > 0);
 };
-const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id));
+// v0.74.0: 도구·무기·방패 태그 카드는 월드 정리로 빨려가지 않음 (직접 끌어다 넣으면 먹음)
+const KEEP_TAGS = ['도구', '무기', '방패'];
+const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id)
+  && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t)));
 const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
 let purgeAsking = false;                                    // 신의 입: 갓 대사가 끝나길 기다리는 중
 function pullRedTab(id){
