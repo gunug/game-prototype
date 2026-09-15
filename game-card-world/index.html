@@ -364,7 +364,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.70.0';
+const VERSION = 'v0.71.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -405,9 +405,11 @@ const DEFS = {
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
   sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
-  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },   // v0.51.0: 나무 + 돌 함께
+  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:30, gauge:'atk' },   // v0.51.0: 나무 + 돌 함께
   // 신의 입 (v0.64.0): 장소지만 방문 못 함. 캐릭터·장소·quest 빼고 전부 먹음, 최근 devour장 기록 → 기록에서 아무거나 꺼냄
   godmouth:  { name:'신의 입',     kind:'place', tags:['장소'], devour:3 },
+  // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
+  river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -447,6 +449,7 @@ const DESC = {
   sack:       '구멍이 하나 있다. 다섯 장까지만 믿어라.',
   mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
   godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
+  river:      '물은 흐르고 조개는 기다린다. 여기선 갓도 한몫한다.',
   tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
   roastmeat:  '문명의 냄새가 난다.',
   roastclam:  '조개의 마지막 저항도 불 앞에선 무너졌다.',
@@ -469,7 +472,7 @@ const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear']);
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 // v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
-const STAT_NAME = { atk:'공격', def:'방어', hp:'체력' };
+const STAT_NAME = { atk:'공격', def:'방어', hp:'체력', people:'인원' };   // v0.71.0: 인원 (이모지 👤 대신)
 const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
 const si = k => `⟦s_${k}⟧`;                       // 글자 줄 안의 자리표 (rich → 그림, plain → 지움)
 const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
@@ -564,7 +567,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'tree', 'bear', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'tree', 'bear', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -582,6 +585,7 @@ const LINES = {
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
   godMouth:       '그리고 신의 입. 난 대식가야',
+  river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',   // v0.71.0: 산 전리품 10번
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
@@ -841,7 +845,8 @@ function paint(el, c){
     }
     // 장소 위쪽 가운데 한 줄: 방문 인원 + 게이지
     let top = '';
-    if (d.capacity) top += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
+    if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
+    if (d.gauge) top += `<div class="cap gauge-by" title="게이지: ${STAT_NAME[d.gauge]} 기반">${statImg(d.gauge)}</div>`;   // v0.71.0: 게이지가 무엇에 기반하는지
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
@@ -1774,6 +1779,24 @@ function giveGodMouth(){
   save();
   renderAll();
 }
+// 강가 (v0.71.0): 산에서 전리품을 10번 얻으면 갓 대사 → 갓에게서 강가가 튀어나옴
+const RIVER_AFTER = 10;
+function giveRiver(){
+  if (S.flags.riverGiven) return;
+  if (paused || drag || tear || busy){ setTimeout(giveRiver, 200); return; }
+  S.flags.riverGiven = true;
+  const g = S.cards.find(c => c.type === 'god');
+  const { w, h } = tableSize();
+  const p = g ? findSpot(g.x - CW * 1.1, g.y + CH + 12) : findSpot(w / 2, h / 2);
+  const r = addCard('river', p.x, p.y);
+  if (g){
+    spawned.delete(r.id);
+    popFrom.set(r.id, { x: g.x, y: g.y });                   // 갓에게서 튀어나옴
+    bumpIds.add(g.id);
+  }
+  save();
+  renderAll();
+}
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god')) return null;
@@ -1856,6 +1879,7 @@ function godCheck(){
   if (comboQuestCheck()) return;
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
   if (S.flags.mountainGiven && !S.flags.mouthGiven && !isTalking('god')){ giveGodMouth(); return; }   // 신의 입을 받기 전에 새로고침한 경우 (예전 저장 포함)
+  if ((S.flags.mountainLoots || 0) >= RIVER_AFTER && !S.flags.riverGiven && !isTalking('god')){ giveRiver(); return; }   // 강가를 받기 전에 새로고침한 경우
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -2757,6 +2781,8 @@ const pickWeighted = table => {
   for (const [t, w] of table){ r -= w; if (r < 0) return t; }
   return table[table.length - 1][0];
 };
+// v0.71.0: 게이지 기반 — 산 gauge:'atk' 방문자 공격력 합계, 강가 gauge:'people' 방문 인원
+const gaugeAdd = (d, vs) => d.gauge === 'people' ? vs.length : vs.reduce((sum, v) => sum + atkOf(v), 0);
 function yieldTick(){
   if (!S || paused || busy) return;
   let made = false;
@@ -2765,7 +2791,7 @@ function yieldTick(){
     if (!d.yields) continue;
     const vs = visitorsOf(pl);
     if (!vs.length) continue;
-    const add = vs.reduce((sum, v) => sum + atkOf(v), 0);
+    const add = gaugeAdd(d, vs);
     pl.yieldPts = (pl.yieldPts || 0) + add;
     floatText(pl, `+${add}`, 'work');                         // 게이지에 들어간 만큼
     while (pl.yieldPts >= d.yieldNeed){
@@ -2781,6 +2807,11 @@ function yieldTick(){
         made = true;
       }
       if (miss.length) floatText(pl, `누락: ${miss.join(', ')}`, 'work');
+      // 산에서 전리품 10번 (게이지가 찰 때마다 1번, 월드 상한으로 전부 누락돼도 셈) → 강가
+      if (pl.type === 'mountain' && !S.flags.riverGiven){
+        S.flags.mountainLoots = (S.flags.mountainLoots || 0) + 1;
+        if (S.flags.mountainLoots === RIVER_AFTER){ say(LINES.river); afterSpeech(giveRiver); }
+      }
     }
     const el = els.get(pl.id);
     const pie = el && el.querySelector('.pie');
@@ -3404,7 +3435,7 @@ function inspectorHtml(c){
     if (heal > 0) st += iRow(`${statImg('hp')}회복`, '+' + heal);
     if (d.atk) st += iRow(`${statImg('atk')}공격`, '+' + d.atk);
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
-    if (d.capacity) st += iRow('👤 인원', `${visitorsOf(c).length}/${d.capacity}`);
+    if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
     if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
@@ -3420,7 +3451,9 @@ function inspectorHtml(c){
     if (d.yields){
       const vs = visitorsOf(c);
       st += iRow('게이지', `${c.yieldPts || 0}/${d.yieldNeed}`);
-      st += iRow('1초마다', vs.length ? `+${vs.reduce((sum, v) => sum + atkOf(v), 0)}` : '<span class="i-muted">방문자 없음</span>');
+      if (d.gauge) st += iRow('기반', `${statImg(d.gauge)}${d.gauge === 'people' ? '방문 인원' : '방문자 공격력'}`);
+      st += iRow('1초마다', vs.length ? `+${gaugeAdd(d, vs)}` : '<span class="i-muted">방문자 없음</span>');
+      if (c.type === 'mountain' && !S.flags.riverGiven) st += iRow('전리품', `${S.flags.mountainLoots || 0}/${RIVER_AFTER}`);
     }
     c1 = iTbl(st);
   }
