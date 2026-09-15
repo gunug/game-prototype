@@ -19,6 +19,15 @@ import urllib.request
 from pathlib import Path
 
 ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
+# 파일명·프롬프트 기록 — 생성에 성공할 때마다 갱신 (같은 파일명은 덮어씀, 이전 기록은 git)
+LOG_MD = Path(__file__).resolve().parent.parent / "docs" / "아이콘_목록.md"
+LOG_HEAD = (
+    "# 아이콘 목록\n\n"
+    "> 이미지 파일명과 생성에 쓴 프롬프트 기록. `tools/make_icon.py` 가 생성에 성공할 때마다 자동으로 갱신한다.\n"
+    "> 같은 파일명은 덮어쓴다 (이전 기록은 git). `- 메모:` 줄은 다시 뽑아도 남는다.\n"
+    "> 다시 뽑기: `python tools/make_icon.py --name <파일명> --seed <seed> <옵션> --prompt \"<프롬프트>\"`\n"
+    "> 규칙·요령은 `아이콘_프롬프트.md`.\n"
+)
 # 파일명 = <분류>_<id>. card 의 id 는 index.html DEFS 키 그대로
 CATEGORIES = ("card", "tag", "status", "ui", "fx")
 NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
@@ -70,6 +79,26 @@ def build_prompt(text, name, seed, size, colors):
     }
 
 
+def record(name, label, prompt, seed, opts):
+    text = LOG_MD.read_text(encoding="utf-8") if LOG_MD.exists() else LOG_HEAD
+    m = re.search(rf"<!-- icon:{re.escape(name)} -->\n(.*?)<!-- /icon -->\n?", text, re.S)
+    old = m.group(1) if m else ""
+    if not label:
+        h = re.match(rf"### {re.escape(name)} — (.+)", old)
+        label = h.group(1) if h else ""
+    memos = [line for line in old.splitlines() if line.startswith("- 메모:")]
+    body = "\n".join([
+        f"### {name}" + (f" — {label}" if label else ""),
+        f"- 파일: `images/icon/{name}.png`",
+        f"- 생성: {time.strftime('%Y-%m-%d')} · seed `{seed}` · 옵션 " + (f"`{' '.join(opts)}`" if opts else "기본"),
+        *memos,
+        "```", prompt, "```", "",
+    ])
+    section = f"<!-- icon:{name} -->\n{body}<!-- /icon -->\n"
+    text = text[:m.start()] + section + text[m.end():] if m else text.rstrip("\n") + "\n\n" + section
+    LOG_MD.write_text(text, encoding="utf-8", newline="\n")
+
+
 def api(url, path, data=None):
     body = json.dumps(data).encode() if data is not None else None
     req = urllib.request.Request(url + path, data=body, headers={"Content-Type": "application/json"})
@@ -81,6 +110,7 @@ def main():
     ap = argparse.ArgumentParser(description="ComfyUI 게임 아이콘 생성")
     ap.add_argument("--name", required=True, help="파일명 (확장자 없이, 영문 소문자·숫자·_·-)")
     ap.add_argument("--prompt", required=True, help="영문 프롬프트")
+    ap.add_argument("--label", default="", help="기록용 한글 이름 (예: 동물 사체). 없으면 기존 기록의 이름 유지")
     ap.add_argument("--seed", type=int, default=None, help="고정 시드 (없으면 랜덤)")
     ap.add_argument("--size", type=int, default=64, help="최종 픽셀 크기 (기본 64)")
     ap.add_argument("--colors", type=int, default=32, help="팔레트 색 수 (기본 32)")
@@ -133,6 +163,19 @@ def main():
     q = urllib.parse.urlencode({"filename": icon["filename"], "subfolder": icon["subfolder"], "type": icon["type"]})
     ICON_DIR.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(api(a.url, f"/view?{q}"))
+
+    opts = []
+    if a.bg != "black":
+        opts += ["--bg", a.bg]
+    if a.no_style:
+        opts.append("--no-style")
+    if a.no_suffix:
+        opts.append("--no-suffix")
+    if a.size != 64:
+        opts += ["--size", str(a.size)]
+    if a.colors != 32:
+        opts += ["--colors", str(a.colors)]
+    record(a.name, a.label, a.prompt, seed, opts)
 
     print(f"done {time.time() - t0:.1f}s")
     print(f"icon  {dest}")
