@@ -19,6 +19,9 @@ import urllib.request
 from pathlib import Path
 
 ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
+# 파일명 = <분류>_<id>. card 의 id 는 index.html DEFS 키 그대로
+CATEGORIES = ("card", "tag", "status", "ui", "fx")
+NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
 PROMPT_SUFFIX = (
     ", single object, centered composition, isolated object, clean readable silhouette, "
     "simple solid #000000 background, no text, no characters, no additional objects"
@@ -75,8 +78,8 @@ def main():
     ap.add_argument("--url", default="http://127.0.0.1:8188")
     a = ap.parse_args()
 
-    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", a.name):
-        sys.exit(f"bad name: {a.name!r} (영문 소문자·숫자·_·- 만)")
+    if not NAME_RE.fullmatch(a.name):
+        sys.exit(f"bad name: {a.name!r} (규칙: <분류>_<id>, 분류 = {'|'.join(CATEGORIES)}, id = 영문 소문자·숫자·- / docs/아이콘_생성.md)")
     dest = ICON_DIR / f"{a.name}.png"
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
