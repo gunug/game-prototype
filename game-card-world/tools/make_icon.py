@@ -23,12 +23,13 @@ ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
 CATEGORIES = ("card", "tag", "status", "ui", "fx")
 NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
 # 그림체 통일 — 모든 아이콘 앞에 붙임. 밝은 분위기, 어린이용 아님, 실사 아님
-# 64px 이하로 작게 보여도 읽히도록: 큰 덩어리, 굵은 외곽선, 적은 디테일
+# 작게 보여도 읽히도록 슈퍼 데포르메 비율 (단순화 버전은 단조로워서 폐기)
 STYLE_PREFIX = (
-    "Simple bold fantasy RPG game icon readable at very small size, stylized illustration, "
-    "strong clear silhouette, few large simple shapes, minimal details, no fine texture, "
-    "thick dark outline, flat cel shading with only two or three tones per color, "
-    "high contrast, bright vivid limited color palette, grounded mature art direction for teen and adult players. "
+    "Stylized fantasy RPG game icon, super deformed (SD) style with chunky exaggerated proportions, "
+    "characters have an oversized head and a small compact body, "
+    "hand-painted semi-realistic illustration style, bold readable shapes with clean dark outlines, "
+    "painterly brush texture, soft cel-shaded volumes, "
+    "bright warm lighting, rich vivid colors, grounded mature art direction for teen and adult players. "
 )
 PROMPT_SUFFIX = (
     ", single object, centered composition, isolated object, clean readable silhouette, "
