@@ -213,7 +213,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.28.0';
+const VERSION = 'v0.28.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -881,7 +881,7 @@ function evaluate(d, t){
   if (td.kind === 'character' && edible){
     // 이 캐릭터가 준 제출형 request가 이 카드를 원하면, 직접 먹여도 그 request에 들어감
     const into = S.cards.find(r => r.type === 'quest' && r.giver === t.id && wantsNeed(r, d.type));
-    if (into) return { act: 'submit', into };
+    if (into) return { act: 'submit', into, eatToo: true };   // quest 수량도 오르고, 체력 카드면 먹어서 체력도 오름
     return { act: 'eat' };
   }
   const ms = usableRecipes(d.type, t.type);
@@ -899,6 +899,20 @@ function apply(ev, d, t){
     rq.z = ++S.z;
     bumpIds.add(rq.id);
     if (ev.into) bumpIds.add(t.id);
+    // 캐릭터에게 직접 준 체력 카드: quest와 별개로 체력은 그대로 오름 (체력 아이템 학습)
+    if (ev.eatToo && t.hp != null){
+      const max = DEFS[t.type].hp;
+      const heal = healOf(dd);
+      if (heal > 0 && t.hp < max && !statusOf(t).includes('빈사')){
+        const before = t.hp;
+        t.hp = Math.min(max, t.hp + heal);
+        floatText(t, `❤ +${t.hp - before}`);
+        if (t.hp >= max && statusOf(t).includes('허기짐')){
+          setStatus(t, ['허기짐'], []);
+          toast(`🍽️ ${DEFS[t.type].name}: 허기짐 해결`);
+        }
+      }
+    }
     return true;
   }
   if (ev.act === 'visit'){
