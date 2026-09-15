@@ -395,7 +395,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.82.0';
+const VERSION = 'v0.83.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -611,6 +611,8 @@ const LINES = {
   comboIntro:     ['뭔지 모르지만 일단 만들어볼까?', '돌로 뼈를 깨봐. 뭐가 나오는지 나한테 보여줘.'],
   comboDone:      '오, 뭔가 나왔네.',
   coincidence:    ['…이런 우연이 있나.', '이것이 신의 장난인가?'],
+  huntIntro:      ['고기? 저 토끼가 알아서 구워져 오진 않아.', '돌 두 개를 부딪혀 봐. 쓸 만한 게 나올 거야.'],
+  huntAsk:        '그걸 토끼한테 올려놔. 미안해하진 말고.',
   fireGrumble:    '익힌 것만 먹는 기사라, 입이 고급이구만.',
   fireAsk:        '나를 모닥불 위에 올려놔.',
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
@@ -1143,6 +1145,7 @@ function reqDone(rq){
     if (S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make)) rq.made = true;
     return !!rq.made;
   }
+  if (rq.goal === 'hunt') return !!S.flags.hunted;             // v0.83.0: 크리처를 한 번이라도 쓰러뜨림
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
   if (rq.goal === 'gather') return (rq.gathered || 0) >= rq.need;   // v0.73.0: 장소 게이지가 need번 참 (산 채집)
@@ -1177,6 +1180,7 @@ function reqProgress(rq){
     const done = rq.made || S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make);
     return `${done ? '✔' : '☐'} ${ic(rq.make)} ${DEFS[rq.make].name} 만들기`;
   }
+  if (rq.goal === 'hunt') return `${S.flags.hunted ? '✔' : '☐'} ${ic('animal')} 토끼 사냥`;
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
   if (rq.goal === 'gather') return `${ic(rq.place)} ${DEFS[rq.place].name} 채집 ${rq.gathered || 0} / ${rq.need}`;
@@ -1272,6 +1276,29 @@ function giveFireQuest(i){
   if (step.quest === 'firemood'){ say(LINES.fireAsk); afterSpeech(deliver); }   // "나를 모닥불 위에 올려놔"
   else deliver();
 }
+// v0.83.0: 갓의 quest 줄 "사냥" — 뗀석기 만들기 → 토끼를 사냥하기 (밥이 보약이 나오면 시작, 끝나면 불 quest 줄)
+//   고기는 토끼를 잡아야 나오고(신의 선물에 토끼 사체 없음), 사체를 가르려면 손질 lv2 = 뗀석기가 필요
+const HUNT_STEPS = [
+  { quest: 'hunt1', title: '뗀석기 만들기', goal: 'make', make: 'handaxe', recipe: ['stone', 'stone', 'handaxe'] },
+  { quest: 'hunt2', title: '토끼를 사냥하기', goal: 'hunt' },
+];
+function giveHuntQuest(i){
+  if (paused || drag || tear || busy){ setTimeout(() => giveHuntQuest(i), 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  const step = HUNT_STEPS[i];
+  if (!g || !step || questExists(step.quest)) return;
+  const deliver = () => {
+    if (paused || drag || tear || busy){ setTimeout(deliver, 200); return; }
+    const gg = S.cards.find(c => c.type === 'god');
+    if (!gg || questExists(step.quest)) return;
+    const rq = addCard('quest', gg.x, gg.y, Object.assign({ target: gg.id, giver: gg.id, need: 0, stack: [], rewardText: '보상 없음' }, step));
+    slideOutFrom(rq, gg);
+    save();
+    renderAll();
+  };
+  if (step.quest === 'hunt2'){ say(LINES.huntAsk); afterSpeech(deliver); }        // "뗀석기를 토끼한테 올려놔"
+  else deliver();
+}
 // 갓의 quest "신의 품에서": 풀 깔개 조합식 공개, 풀 깔개가 생기면 완료 (제출 없음)
 function giveBedQuest(){
   if (paused || drag || tear || busy){ setTimeout(giveBedQuest, 200); return; }
@@ -1317,10 +1344,10 @@ function giveKnightQuest(kind){
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
   if (kind === 'bone') say(LINES.coincidence);              // 방금 만든 게 골수 → 갓: "이런 우연이"
-  if (kind === 'food' && !S.flags.fireGiven){
-    S.flags.fireGiven = true;
-    say(LINES.fireGrumble);                                 // "익힌 것만 먹는 기사라, 입이 고급이구만"
-    afterSpeech(() => giveFireQuest(0));
+  if (kind === 'food' && !S.flags.huntGiven){
+    S.flags.huntGiven = true;
+    say(LINES.huntIntro);                                   // "고기? 저 토끼가 알아서 구워져 오진 않아"
+    afterSpeech(() => giveHuntQuest(0));                    // 사냥 줄 → 끝나면 불 quest 줄
   }
   if (kind === 'sleep' && !S.flags.bedGiven){
     S.flags.bedGiven = true;
@@ -1755,6 +1782,19 @@ function rewardFor(rq, x, y){
   }
   if (rq.quest === 'godsbed'){
     toast(`${ic('bedding')} 신의 품에서 완료`);
+    return;
+  }
+  const hi = HUNT_STEPS.findIndex(f => f.quest === rq.quest);
+  if (hi >= 0){
+    if (hi < HUNT_STEPS.length - 1) giveHuntQuest(hi + 1);   // 다음 사냥 quest
+    else {
+      toast(`${ic('carcass')} 토끼를 사냥하기 완료`);
+      if (!S.flags.fireGiven){                               // 사냥 줄이 끝나면 불 quest 줄
+        S.flags.fireGiven = true;
+        say(LINES.fireGrumble);                              // "익힌 것만 먹는 기사라, 입이 고급이구만"
+        afterSpeech(() => giveFireQuest(0));
+      }
+    }
     return;
   }
   const fi = FIRE_STEPS.findIndex(f => f.quest === rq.quest);
@@ -2740,6 +2780,7 @@ function killCreature(cr){
   const x = cr.x, y = cr.y;
   hops.delete(cr.id);
   removeCard(cr.id);
+  S.flags.hunted = true;                                      // v0.83.0: 사냥 quest
   toast(`${ic(cr.type)} ${DEFS[cr.type].name} 쓰러뜨림`);
   const omitted = [];
   for (const t of (DEFS[cr.type].loot || [])){
@@ -3713,7 +3754,7 @@ const CH_REQ   = { requestsGiven: 1, godSettles: 1 };
 const CH_COMBO = Object.assign({}, CH_REQ, { comboGiven: true, comboDone: true, discovered: true });
 const CH_SEEN_FOOD = ['quest', 'marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'roastclam', 'carcass', 'meat', 'hide', 'roastmeat', 'roastberry'];
 const CH_FOUND_FOOD = ['marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'butcher', 'cook'];
-const CH_PEACE = Object.assign({}, CH_COMBO, { knightStage: 5, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true });
+const CH_PEACE = Object.assign({}, CH_COMBO, { knightStage: 5, huntGiven: true, hunted: true, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true });
 const CHAPTERS = [
   { title: '처음 — 첫 package', start: true },
   { title: '갓: 아무거나 3개만 줘봐',
@@ -3724,16 +3765,16 @@ const CHAPTERS = [
   { title: '기사: 뼛가루의 치유력',
     flags: CH_COMBO, seen: ['quest', 'marrow'], found: ['marrow'],
     cards: ['stone', 'bone', 'bone', 'bone', 'berry'] },
-  { title: '기사: 밥이 보약 + 갓: 불 quest',
+  { title: '기사: 밥이 보약 + 갓: 사냥 quest',
     flags: Object.assign({}, CH_COMBO, { knightStage: 2 }), knight: { hp: 0, status: ['허기짐'] },
     seen: ['quest', 'marrow'], found: ['marrow'],
-    cards: ['stone', 'stone', 'stone', 'flint', 'grass', 'twig', 'shell', 'berry', 'carcass'] },
+    cards: ['stone', 'stone', 'stone', 'animal', 'flint', 'grass', 'twig', 'shell', 'berry'] },
   { title: '기사: 잠이 보약 + 갓: 신의 품에서',
-    flags: Object.assign({}, CH_COMBO, { knightStage: 3, fireGiven: true }), knight: { hp: 6, status: [] },
+    flags: Object.assign({}, CH_COMBO, { knightStage: 3, huntGiven: true, hunted: true, fireGiven: true }), knight: { hp: 6, status: [] },
     seen: CH_SEEN_FOOD, found: CH_FOUND_FOOD,
     cards: ['campfire', 'grass', 'grass', 'twig', 'berry'] },
   { title: '기사: 무기·방패를 들어라',
-    flags: Object.assign({}, CH_COMBO, { knightStage: 4, fireGiven: true, bedGiven: true }), knight: { hp: 10, status: [] },
+    flags: Object.assign({}, CH_COMBO, { knightStage: 4, huntGiven: true, hunted: true, fireGiven: true, bedGiven: true }), knight: { hp: 10, status: [] },
     seen: CH_SEEN_FOOD.concat(['bedding']), found: CH_FOUND_FOOD.concat(['bedding']),
     cards: ['hilt', 'plank', 'campfire', 'bedding', 'stone'] },
   { title: '갓: 마음의 평화',
