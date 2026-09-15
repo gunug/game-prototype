@@ -86,6 +86,9 @@
   /* 등장·튕김 클래스가 남아 있어도 홉이 이기도록 우선 (v0.28.2 버그 수정) */
   .cw.hop{animation:hop .36s ease-out !important;transform-origin:50% 100%;}
   @keyframes hop{0%{transform:scale(1,1);}30%{transform:scale(.86,1.24);}72%{transform:scale(1.06,.93);}100%{transform:scale(1,1);}}
+  /* 곰: 달리는 동안 위아래로 짧게 여러 번 출렁 (우다다다) */
+  .cw.run{animation:run .56s linear !important;transform-origin:50% 100%;}
+  @keyframes run{0%,20%,40%,60%,80%,100%{transform:translateY(0) scale(1.05,.95);}10%,30%,50%,70%,90%{transform:translateY(-9px) scale(.97,1.04);}}
   .k-tool{--tone:#9fb6cc;}
   .k-food{--tone:#7fc77f;}
   .k-fire{--tone:#ff9a3c;}
@@ -293,7 +296,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.41.0';
+const VERSION = 'v0.42.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -307,8 +310,9 @@ const DEFS = {
   grass:     { name:'마른 풀',     kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   flint:     { name:'부싯돌',      kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
-  carcass:   { name:'동물 사체',   kind:'material', tags:[] },
-  animal:    { name:'동물',        kind:'creature', tags:['동물'], hops:true },
+  carcass:   { name:'토끼 사체',   kind:'material', tags:[] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
+  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true },   // v0.42.0: 동물 → 토끼 (id 그대로)
+  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run' },   // 토끼보다 2배 멀리, 우다다다
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
@@ -326,7 +330,8 @@ const DEFS = {
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
   sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
-  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:'tree', yieldNeed:30 },   // 방문자 공격력으로 게이지 → 나무
+  // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
+  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[['tree', 7], ['animal', 2], ['bear', 1]], yieldNeed:30 },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
@@ -432,7 +437,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear'],
 };
 
 // 갓의 대사
@@ -2051,18 +2056,20 @@ function animalTick(){
     if (!DEFS[c.type].hops || hops.has(c.id)) continue;
     if (hid != null && bodyOf(byId(hid)) === bodyOf(c)) continue;   // 잡혀 있으면 안 뜀
     if (tear && tear.id === c.id) continue;
-    const dist = CW * 0.55;
+    const dd = DEFS[c.type];
+    const dist = CW * 0.55 * (dd.hopScale || 1);             // 곰은 2배
     let ang = Math.random() * Math.PI * 2;
     // 가장자리 근처면 절반 확률로 안쪽을 향해 뜀
     const nearEdge = c.x < CW || c.y < TOP_PAD + CH * 0.5 || c.x > w - CW * 2 || c.y > h - CH * 1.5;
     if (nearEdge && Math.random() < 0.5) ang = Math.atan2(h / 2 - (c.y + CH / 2), w / 2 - (c.x + CW / 2)) + (Math.random() - 0.5);
     const p = clampPos(c.x + Math.cos(ang) * dist, c.y + Math.sin(ang) * dist);
-    hops.set(c.id, { fx: c.x, fy: c.y, tx: p.x, ty: p.y, t0: performance.now() });
+    const anim = dd.hopAnim || 'hop';
+    hops.set(c.id, { fx: c.x, fy: c.y, tx: p.x, ty: p.y, t0: performance.now(), ms: dd.hopMs || HOP_MS, anim });
     const el = els.get(c.id);
     if (el){
-      el.classList.remove('hop', 'spawn', 'pop', 'bump');   // 끝난 등장·튕김 클래스를 치우고
+      el.classList.remove('hop', 'run', 'spawn', 'pop', 'bump');   // 끝난 등장·튕김 클래스를 치우고
       void el.offsetWidth;                                  // 애니메이션 다시 시작
-      el.classList.add('hop');
+      el.classList.add(anim);
     }
   }
 }
@@ -2073,7 +2080,7 @@ function stepHops(){
   for (const [id, hp] of hops){
     const c = byId(id);
     if (!c || (hid != null && bodyOf(byId(hid)) === bodyOf(c))){ hops.delete(id); continue; }
-    const t = Math.min(1, (performance.now() - hp.t0) / HOP_MS);
+    const t = Math.min(1, (performance.now() - hp.t0) / hp.ms);
     const e = 1 - Math.pow(1 - t, 2);
     c.x = hp.fx + (hp.tx - hp.fx) * e;
     c.y = hp.fy + (hp.ty - hp.fy) * e;
@@ -2082,7 +2089,7 @@ function stepHops(){
     if (t >= 1){
       hops.delete(id);
       const el = els.get(id);
-      if (el) setTimeout(() => el.classList.remove('hop'), 80);
+      if (el) setTimeout(() => el.classList.remove(hp.anim), 80);
     }
   }
   return moved;
@@ -2140,6 +2147,11 @@ function atkOf(c){
   const d = DEFS[c.type];
   return (d.baseAtk || 0) + Object.values(c.equip || {}).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
 }
+const pickWeighted = table => {
+  let r = Math.random() * table.reduce((sum, [, w]) => sum + w, 0);
+  for (const [t, w] of table){ r -= w; if (r < 0) return t; }
+  return table[table.length - 1][0];
+};
 function yieldTick(){
   if (!S || paused || busy) return;
   let made = false;
@@ -2154,7 +2166,7 @@ function yieldTick(){
     while (pl.yieldPts >= d.yieldNeed){
       pl.yieldPts -= d.yieldNeed;
       const p = findSpot(pl.x, pl.y + CH + 12);
-      const nc = addCard(d.yields, p.x, p.y);
+      const nc = addCard(pickWeighted(d.yields), p.x, p.y);   // 나무 · 토끼 · 곰
       spawned.delete(nc.id);
       popFrom.set(nc.id, { x: pl.x, y: pl.y });                // 산에서 튀어나옴
       bumpIds.add(pl.id);
@@ -2720,7 +2732,7 @@ function inspectorHtml(c){
   }
   if (d.yields){
     const add = visitorsOf(c).reduce((sum, v) => sum + atkOf(v), 0);
-    st += iRow(`${iconHtml(d.yields, true)} 게이지`, `${c.yieldPts || 0} / ${d.yieldNeed}`);
+    st += iRow('게이지', `${c.yieldPts || 0} / ${d.yieldNeed}`);
     st += iRow('1초마다', visitorsOf(c).length ? `+${add} (방문자 공격력)` : '<span class="i-muted">방문자 없음</span>');
   }
   if (st) h += iSec('수치', st);
@@ -2763,6 +2775,13 @@ function inspectorHtml(c){
   // container: 담긴 카드
   if (d.kind === 'container'){
     h += iSec('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iRow(cardRef(c.fill), `×${c.count}`) : '<div class="i-muted">비어 있음</div>');
+  }
+
+  // 산: 게이지가 찰 때마다 나올 수 있는 카드와 확률
+  if (d.yields){
+    const total = d.yields.reduce((sum, [, w]) => sum + w, 0);
+    h += iSec('나올 수 있는 카드', '<div class="i-note">게이지가 찰 때마다 하나</div>'
+      + d.yields.map(([t, w]) => iRow(cardRef(t), `${(w / total * 100).toFixed(1)}%`)).join(''));
   }
 
   // package: 나올 수 있는 카드와 확률
@@ -2909,6 +2928,11 @@ const CHAPTERS = [
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
     cards: [['sack', { fill: 'stone', count: 1 }], 'stone', 'stone', 'stone', 'berry', 'campfire'],
     after: () => givePeaceQuest(3) },                   // 쓸어담기 quest부터
+  { title: '산: 나무 · 토끼 · 곰',
+    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true }),
+    knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
+    cards: ['mountain', 'campfire', 'berry'] },
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
