@@ -233,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.32.1';
+const VERSION = 'v0.33.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -913,6 +913,7 @@ function giveKnightQuest(kind){
     food:  { quest: 'foodmedicine', title: '밥이 보약', wantsList: ['roastclam', 'roastmeat', 'roastberry'], need: 3, stack: [], rewardText: '보상: 허기짐 해결' },
     sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'sleep', place: 'bedding', target: k.id, need: 0, stack: [], rewards: ['hilt', 'plank'] },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
+    shield: { quest: 'takeshield', title: '방패를 들어라', goal: 'equip', slot: '방패', target: k.id, need: 0, stack: [] },
   }[kind];
   const rq = addCard('quest', p.x, p.y, Object.assign({ giver: k.id }, spec));
   if (kind === 'bone') say(LINES.coincidence);              // 방금 만든 게 골수 → 갓: "이런 우연이"
@@ -946,7 +947,9 @@ function knightCheck(){
   if (stage === 1 && !questExists('bonepowder')) giveKnightQuest('bone');
   if (stage === 2 && !questExists('foodmedicine')) giveKnightQuest('food');
   if (stage === 3 && !questExists('sleepmedicine')) giveKnightQuest('sleep');
-  if (stage === 4 && !questExists('takesword')) giveKnightQuest('sword');
+  // 무기를 들어라와 방패를 들어라가 함께 나옴. 둘 다 끝나야 stage 5
+  if (stage === 4 && !S.flags.swordDone && !questExists('takesword')) giveKnightQuest('sword');
+  if ((stage === 4 || stage === 5) && !S.flags.shieldDone && !questExists('takeshield')) giveKnightQuest('shield');
 }
 
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
@@ -1194,8 +1197,15 @@ function rewardFor(rq, x, y){
     knightSay('졸려', knightCheck);                          // "졸려" 뒤에 잠이 보약
     return;
   }
+  if (rq.quest === 'takeshield'){
+    S.flags.shieldDone = true;
+    if (S.flags.swordDone || (S.flags.knightStage || 0) >= 5) S.flags.knightStage = 5;
+    toast('🛡 방패를 들었다');
+    return;
+  }
   if (rq.quest === 'takesword'){
-    S.flags.knightStage = 5;
+    S.flags.swordDone = true;
+    if (S.flags.shieldDone) S.flags.knightStage = 5;
     toast('⚔ 무기를 들었다');
     return;
   }
