@@ -272,7 +272,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.37.0';
+const VERSION = 'v0.38.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2460,6 +2460,14 @@ function inspectorHtml(c){
     + status.map(t => `<span class="i-tag st">${esc(t)}</span>`).join('');
   if (chips) h += iSec('태그', `<div class="i-tags">${chips}</div>`);
 
+  // 조합 (캐릭터·package·quest 제외)
+  if (!['character', 'package', 'quest'].includes(d.kind)){
+    const { reach, use } = comboLists(c.type);
+    const none = '<div class="i-muted">없음</div>';
+    h += iSec('이 카드에 도달하는 조합', reach.join('') || none);
+    h += iSec('이 카드로 할 수 있는 조합', use.join('') || none);
+  }
+
   // 장비 칸
   if (d.slots){
     const eq = c.equip || {};
@@ -2501,6 +2509,41 @@ function inspectorHtml(c){
     if (c.stack.length) h += iSec('올려놓은 카드', c.stack.map(t => iLine(cardRef(t))).join(''));
   }
   return h;
+}
+// 인스펙터 조합 두 가지: 이 카드에 도달하는 조합 / 이 카드로 할 수 있는 조합
+//   발견한 조합(S.found)은 전부 보여주고, 모르는 칸은 ???
+//   익히기는 날것마다 한 줄 — 조합을 알고 그 익힌 카드도 본 적 있어야 공개
+const UNK = '<span class="i-muted">???</span>';
+const sideHtml = sd => rich(sideText(sd));
+const comboLine = (a, b, out) => iLine(`${a} + ${b} → ${out}`);
+function comboLists(t){
+  const reach = [], use = [];
+  const found = r => S.found.includes(r.id);
+  for (const r of RECIPES){
+    if (r.cook){
+      for (const raw of Object.keys(DEFS)){
+        const ck = DEFS[raw].cooked;
+        if (!ck || !sideMatch(r.b, raw)) continue;
+        const known = found(r) && S.seen.includes(ck);
+        if (ck === t) reach.push(known ? comboLine(sideHtml(r.a), cardRef(raw), cardRef(t)) : comboLine(UNK, UNK, cardRef(t)));
+        if (raw === t) use.push(known ? comboLine(cardRef(t), sideHtml(r.a), cardRef(ck)) : comboLine(cardRef(t), UNK, UNK));
+      }
+      if (sideMatch(r.a, t)) use.push(found(r) ? comboLine(cardRef(t), sideHtml(r.b), esc(outText(r))) : comboLine(cardRef(t), UNK, UNK));
+      continue;
+    }
+    const outs = r.out || [];
+    if (outs.includes(t)){
+      reach.push(found(r)
+        ? comboLine(sideHtml(r.a), sideHtml(r.b), rich(outText(r)))
+        : comboLine(UNK, UNK, cardRef(t) + (outs.length > 1 ? ', ' + UNK : '')));
+    }
+    const aM = sideMatch(r.a, t), bM = sideMatch(r.b, t);
+    if (aM || bM){
+      const other = aM ? r.b : r.a;
+      use.push(found(r) ? comboLine(cardRef(t), sideHtml(other), rich(outText(r))) : comboLine(cardRef(t), UNK, UNK));
+    }
+  }
+  return { reach, use };
 }
 function renderInspector(){
   if (!S) return;
