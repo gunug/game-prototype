@@ -92,6 +92,16 @@
   .k-character{--tone:var(--brand-yellow);border-color:#4a4428;}
   .k-package{--tone:var(--brand-yellow);background:linear-gradient(160deg,#3b3521,#221f14);border-color:#5e5431;}
   .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
+  .k-container{--tone:#c9a36b;}
+  /* container 담긴 카드: 그림 + 수량. 잡아끌면 한 장씩 꺼냄 */
+  .cw .held{display:flex;align-items:center;gap:2px;font-size:calc(var(--cw) * .13);font-weight:800;color:var(--ink);line-height:1;
+    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 6px;pointer-events:none;}
+  .cw .held[data-held]{pointer-events:auto;cursor:grab;touch-action:none;}
+  .cw .held.empty{color:var(--muted);border-style:dashed;font-size:calc(var(--cw) * .11);}
+  /* container 택: 쓸어담을 게 없으면 깜빡이지 않음 */
+  .tab.idle::before{animation:none;opacity:.18;}
+  .tab.idle path{animation:none;stroke-opacity:.4;}
+  .tab.idle svg.tab-arrow{display:none;}
   /* 카드 프레임 (v0.36.0): 캐릭터 금색, 장소 회색 돌무늬, 나머지 수수한 나무 — 카드 전체 배경 */
   .cw.framed,.mini.framed{background:var(--frame) center/100% 100% no-repeat border-box;border-color:transparent;}
   .cw.framed::before{opacity:0;}
@@ -272,7 +282,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.38.0';
+const VERSION = 'v0.39.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -303,6 +313,8 @@ const DEFS = {
   ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
+  tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
+  sack:      { name:'부실한 자루', kind:'container', tags:[], hold:5 },     // container: 한 종류만, 5장까지
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
   roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -347,6 +359,8 @@ const RECIPES = [
   { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
+  { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
+  { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
   { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
 ];
@@ -398,7 +412,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack'],
 };
 
 // 갓의 대사
@@ -465,7 +479,7 @@ const TOP_PAD = 52;
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 const byId = id => S.cards.find(c => c.id === id);
-const submittable = def => !['character', 'package', 'quest'].includes(def.kind);
+const submittable = def => !['character', 'package', 'quest', 'container'].includes(def.kind);
 
 function measure(){
   const { w, h } = tableSize();                                  // v0.37.0: 인스펙터를 뺀 테이블 기준
@@ -619,7 +633,12 @@ function paint(el, c){
         ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${iconHtml(eq[sl])}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
-    if (d.kind === 'package') html += '<div class="tab"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
+    if (d.kind === 'container'){
+      html += c.count && c.fill && DEFS[c.fill]
+        ? `<div class="held" data-held title="드래그해서 꺼내기">${iconHtml(c.fill, true)} ${c.count}/${d.hold}</div>`
+        : `<div class="held empty">0/${d.hold}</div>`;
+    }
+    if (d.kind === 'package' || d.kind === 'container') html += '<div class="tab' + (d.kind === 'container' && !sweepable(c) ? ' idle' : '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
       + '<svg class="tab-arrow" viewBox="0 0 24 24"><path d="M19 19 L6 6 M6 6 H15 M6 6 V15"/></svg></div>';
     if (c.type === 'package' && c.contents === 'first' && speech && !S.cards.some(o => o.type === 'god')){
       html += `<div class="speech">${esc(speech)}</div>`;             // 갇힌 갓이 package 안에서 말함
@@ -809,6 +828,8 @@ function reqDone(rq){
     if (S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make)) rq.made = true;
     return !!rq.made;
   }
+  if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
+  if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     const pl = t && t.visit != null ? byId(t.visit) : null;
@@ -840,6 +861,8 @@ function reqProgress(rq){
     const done = rq.made || S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make);
     return `${done ? '✔' : '☐'} ${ic(rq.make)} ${DEFS[rq.make].name} 만들기`;
   }
+  if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
+  if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     if (S.cards.some(c => c.type === rq.place)) rq.made = true;   // 한 번 만들면 체크 유지
@@ -945,6 +968,24 @@ function giveBedQuest(){
   save();
   renderAll();
 }
+// 갓의 quest 줄 "마음의 평화": 손질된 가죽 → 부실한 자루 → 자루에 담기 → 쓸어담기 (한 단계 끝나면 다음 quest)
+//   만들기 두 단계는 조합식을 인스펙터에서 공개 (recipeId)
+const PEACE_STEPS = [
+  { quest: 'peace1', title: '손질된 가죽 만들기', goal: 'make', make: 'tannedhide', recipeId: 'tan' },
+  { quest: 'peace2', title: '부실한 자루 만들기', goal: 'make', make: 'sack', recipeId: 'sack' },
+  { quest: 'peace3', title: '자루에 담기', goal: 'store' },
+  { quest: 'peace4', title: '마음의 평화', goal: 'sweep' },
+];
+function givePeaceQuest(i){
+  if (paused || drag || tear || busy){ setTimeout(() => givePeaceQuest(i), 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  const step = PEACE_STEPS[i];
+  if (!g || !step || questExists(step.quest)) return;
+  const rq = addCard('quest', g.x, g.y, Object.assign({ target: g.id, giver: g.id, need: 0, stack: [], rewardText: '보상 없음' }, step));
+  slideOutFrom(rq, g);
+  save();
+  renderAll();
+}
 const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
@@ -992,6 +1033,12 @@ function knightCheck(){
   // 무기를 들어라와 방패를 들어라가 함께 나옴. 둘 다 끝나야 stage 5
   if (stage === 4 && !S.flags.swordDone && !questExists('takesword')) giveKnightQuest('sword');
   if ((stage === 4 || stage === 5) && !S.flags.shieldDone && !questExists('takeshield')) giveKnightQuest('shield');
+  // "준비됐어" 뒤 → 갓의 마음의 평화
+  if (stage === 5 && S.flags.readySaid && !S.flags.peaceGiven){
+    S.flags.peaceGiven = true;
+    save();
+    givePeaceQuest(0);
+  }
 }
 
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
@@ -1001,6 +1048,12 @@ function evaluate(d, t){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
     const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
     return { act: 'visit', full: others >= (td.capacity || Infinity) };
+  }
+  if (td.kind === 'container'){
+    // 담기: 합칠 수 있음 카드만, 한 종류만, 용량까지
+    if (!tagLevel(dd, '합칠 수 있음')) return null;
+    if (t.count && t.fill !== d.type) return null;
+    return { act: 'store', full: (t.count || 0) >= td.hold };
   }
   const edible = tagLevel(dd, '먹을 수 있음') || tagLevel(dd, '빈사 치유');
   if (td.kind === 'quest'){
@@ -1062,6 +1115,12 @@ function apply(ev, d, t){
         }
       }
     }
+    return true;
+  }
+  if (ev.act === 'store'){
+    if (ev.full){ toast(`가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].hold}장`); return false; }
+    removeCard(d.id);
+    storeInto(t, d.type);
     return true;
   }
   if (ev.act === 'visit'){
@@ -1228,7 +1287,7 @@ function knightReady(){
   S.flags.knightStage = 5;
   if (S.flags.readySaid) return;
   S.flags.readySaid = true;
-  knightSay('준비됐어');
+  knightSay('준비됐어', knightCheck);                        // 대사 끝나고 갓의 마음의 평화
 }
 function rewardFor(rq, x, y){
   if (rq.quest === 'bonepowder'){
@@ -1265,6 +1324,12 @@ function rewardFor(rq, x, y){
     S.flags.knightStage = 4;
     toast('💤 잠이 보약 완료');
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
+    return;
+  }
+  const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
+  if (pi >= 0){
+    if (pi < PEACE_STEPS.length - 1) givePeaceQuest(pi + 1);  // 다음 마음의 평화 quest
+    else toast(`${ic('sack')} 마음의 평화 완료`);
     return;
   }
   if (rq.quest === 'godsbed'){
@@ -1431,6 +1496,17 @@ function updateTear(px, py){
   const dx = px - tear.sx, dy = py - tear.sy;
   const dist = Math.hypot(dx, dy);
   tear.dist = dist;
+  if (tear.sweep){
+    // container 택: 당기는 쪽으로 늘어나기만 하고 찢어지지 않음
+    const k = Math.min(1, dist / tearLen());
+    const ux = dist ? dx / dist : 0, uy = dist ? dy / dist : 0;
+    const off = Math.min(dist, tearLen()) * 0.35;
+    if (tear.tab) tear.tab.style.transform = `translate(${ux * off}px, ${uy * off}px)`;
+    const tug = k * CW * 0.05;
+    tear.el.style.transform = `translate(${ux * tug}px, ${uy * tug}px)`;
+    tear.el.classList.toggle('ready', k >= 1);
+    return;
+  }
   if (!tear.piece && dist > 3) startPeel();
   if (!tear.piece) return;
   const k = Math.min(1, dist / tearLen());
@@ -1449,6 +1525,20 @@ function endTear(){
   const t = tear;
   tear = null;
   t.el.classList.remove('peeling', 'ready');
+  if (t.sweep){
+    if (t.dist <= 3) setSelected(t.id);             // 택을 당기지 않고 뗌 = 탭 → 인스펙터
+    busy = true;
+    t.el.style.transition = 'transform .2s';
+    t.el.style.transform = '';
+    if (t.tab){ t.tab.style.transition = 'transform .2s'; t.tab.style.transform = ''; }
+    setTimeout(() => {
+      t.el.style.transition = '';
+      if (t.tab) t.tab.style.transition = '';
+      busy = false;
+      if (t.dist >= tearLen()) sweepInto(t.id);     // 끝까지 당겼으면 쓸어담기
+    }, 220);
+    return;
+  }
   if (t.piece && t.dist >= tearLen()){ openPackage(t.id, t); return; }
   // 기준 길이 미만 → 택이 제자리로 붙음
   if (!t.piece) setSelected(t.id);                 // 택을 당기지 않고 뗌 = 탭 → 인스펙터
@@ -1466,6 +1556,52 @@ function endTear(){
     if (t.piece) t.piece.remove();
     busy = false;
   }, 220);
+}
+// ── container: 쓸어담기 ─────────────────────────────
+//   담긴 카드가 있고, 자리가 남았고, 테이블에 같은 종류가 있으면 택이 깜빡임
+const holdOf = c => DEFS[c.type].hold || 0;
+const sweepable = c => !!c.fill && (c.count || 0) < holdOf(c) && S.cards.some(o => o.type === c.fill);
+// 택을 끝까지 당겼다 놓으면: 테이블의 같은 종류 카드를 가까운 것부터 남은 자리만큼 빨아들임
+function sweepInto(id){
+  const c = byId(id);
+  if (!c) return;
+  const hold = holdOf(c);
+  if (!c.fill){ toast('먼저 한 장 담아야 쓸어담을 수 있음'); return; }
+  const room = hold - (c.count || 0);
+  if (room <= 0){ toast(`가득 참 — ${DEFS[c.type].name} 최대 ${hold}장`); return; }
+  const picks = S.cards.filter(o => o.type === c.fill)
+    .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))
+    .slice(0, room);
+  if (!picks.length){ toast(`쓸어담을 ${DEFS[c.fill].name} 없음`); return; }
+  busy = true;
+  for (const o of picks){
+    const el = els.get(o.id);
+    if (!el) continue;
+    el.style.zIndex = 1999998000;
+    el.style.transition = 'left .32s ease-in, top .32s ease-in, transform .32s ease-in, opacity .32s ease-in';
+    requestAnimationFrame(() => {
+      el.style.left = c.x + 'px';
+      el.style.top = c.y + 'px';
+      el.style.transform = 'scale(.35)';
+      el.style.opacity = '0';
+    });
+  }
+  setTimeout(() => {
+    for (const o of picks) removeCard(o.id);
+    c.count = (c.count || 0) + picks.length;
+    S.flags.swept = true;                                   // 마음의 평화 4단계
+    bumpIds.add(c.id);
+    busy = false;
+    toast(`${ic(c.fill)} ${DEFS[c.fill].name} ${picks.length}장 쓸어담음 (${c.count}/${hold})`);
+    afterChange();
+  }, 340);
+}
+// 담기: container에 한 장 넣음
+function storeInto(box, type){
+  box.fill = type;
+  box.count = (box.count || 0) + 1;
+  S.flags.stored = true;                                    // 마음의 평화 3단계
+  bumpIds.add(box.id);
 }
 // 첫 package를 찢는 순간: 갇힌 갓의 "꺼내줘" 말풍선은 남은 시간과 상관없이 바로 끔
 function cutTrappedTalk(){
@@ -1589,6 +1725,25 @@ function onDown(e){
     return;
   }
 
+  // container에서 한 장 꺼내기
+  const heldEl = e.target.closest('.held[data-held]');
+  if (heldEl && c.fill && c.count > 0){
+    const type = c.fill;
+    c.count--;
+    if (!c.count) delete c.fill;
+    const nc = addCard(type, px - CW / 2, py - CH / 2, null, true);
+    spawned.delete(nc.id);
+    renderAll();
+    startDrag(nc, px, py, e.pointerId, { ox: c.x, oy: c.y, fromContainer: c.id });
+    return;
+  }
+
+  // container 택 당기기 = 쓸어담기 (찢어지지 않음)
+  if (DEFS[c.type].kind === 'container' && e.target.closest('.tab')){
+    tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.tab'), pid: e.pointerId, dist: 0, sweep: true };
+    return;
+  }
+
   // package 택 당기기
   if (c.type === 'package' && e.target.closest('.tab')){
     tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.tab'), pid: e.pointerId, dist: 0 };
@@ -1630,10 +1785,11 @@ function startDrag(c, px, py, pid, o){
     id: c.id, pid, el,
     offX: px - c.x, offY: py - c.y,
     sx: px, sy: py,
-    moved: !!(o.fromRequest || o.fromEquip),
+    moved: !!(o.fromRequest || o.fromEquip || o.fromContainer),
     ox: o.ox, oy: o.oy,
     fromRequest: o.fromRequest || null,
     fromEquip: o.fromEquip || null,
+    fromContainer: o.fromContainer || null,
     target: null,
   };
   el.style.zIndex = 2000000000;
@@ -1761,6 +1917,18 @@ function bounce(c, d0){
         removeCard(c.id);
         owner.equip = owner.equip || {};
         owner.equip[slot] = c.type;
+        afterChange();
+      });
+      return;
+    }
+  }
+  if (d0.fromContainer){
+    // 꺼낸 카드를 못 놓으면 자루로 돌아감 (자리가 있고 같은 종류일 때)
+    const box = byId(d0.fromContainer);
+    if (box && (!box.count || box.fill === c.type) && (box.count || 0) < holdOf(box)){
+      tweenTo(c, box.x, box.y, () => {
+        removeCard(c.id);
+        storeInto(box, c.type);
         afterChange();
       });
       return;
@@ -1937,6 +2105,7 @@ function fieldSnapshot(){
       }
       if (c.visit != null) o.visit = nameOf(c.visit);
       if (c.contents) o.contents = c.contents;
+      if (DEFS[c.type].kind === 'container') o.held = c.fill ? `${DEFS[c.fill].name} ${c.count}/${DEFS[c.type].hold}` : '비어 있음';
       if (c.type === 'quest'){
         o.title = c.title;
         if (c.quest) o.quest = c.quest;
@@ -2441,6 +2610,7 @@ function inspectorHtml(c){
   if (d.atk) st += iRow('⚔ 공격력', '+' + d.atk);
   if (d.defense) st += iRow('🛡 방어', '+' + d.defense);
   if (d.capacity) st += iRow('👤 방문 인원', `${visitorsOf(c).length} / ${d.capacity}`);
+  if (d.hold) st += iRow('용량', `${c.count || 0} / ${d.hold}`);
   const lv = tagLevel(d, '체력 회복');
   if (lv){
     const period = REST_MS / lv;
@@ -2488,6 +2658,11 @@ function inspectorHtml(c){
     if (pl) h += iSec('방문 중', iLine(cardRef(pl.type)));
   }
 
+  // container: 담긴 카드
+  if (d.kind === 'container'){
+    h += iSec('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iRow(cardRef(c.fill), `×${c.count}`) : '<div class="i-muted">비어 있음</div>');
+  }
+
   // package: 나올 수 있는 카드와 확률
   if (d.kind === 'package'){
     let b = '';
@@ -2503,7 +2678,8 @@ function inspectorHtml(c){
     const g = c.giver != null ? byId(c.giver) : null;
     if (g) h += iSec('발주', iLine(cardRef(g.type)));
     const rs = c.recipes || (c.recipe ? [c.recipe] : []);
-    if (rs.length) h += iSec('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
+    if (c.recipeId && RECIPE_BY_ID.has(c.recipeId)) h += iSec('조합식', iLine(rich(recipeText(RECIPE_BY_ID.get(c.recipeId)))));   // 태그 조합도 그대로
+    else if (rs.length) h += iSec('조합식', rs.map(([a, b, o]) => iLine(`${cardRef(a)} + ${cardRef(b)} → ${cardRef(o)}`)).join(''));
     h += iSec('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
     h += iSec('보상', `<div class="i-pre">${rich(reqReward(c))}</div>`);
     if (c.stack.length) h += iSec('올려놓은 카드', c.stack.map(t => iLine(cardRef(t))).join(''));
