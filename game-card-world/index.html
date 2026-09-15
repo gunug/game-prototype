@@ -97,6 +97,12 @@
   .k-quest{--tone:#e8d9a8;background:linear-gradient(160deg,#3a3527,#24211a);border-color:#5a5340;}
   .k-container{--tone:#c9a36b;}
   .k-place{--tone:#9aa3ad;}
+  /* 장소 카드 아래: 하는 일 — 체력 회복 / 출현 자원과 확률 (장소를 따로 분류하지 않고 있는 것만 보여줌) */
+  .cw.has-foot{padding-bottom:calc(var(--ch) * .12);}
+  .cw .foot{position:absolute;left:calc(var(--cw) * .07);right:calc(var(--cw) * .07);bottom:calc(var(--cw) * .07);
+    display:flex;flex-wrap:wrap;justify-content:center;gap:1px 5px;font-size:calc(var(--cw) * .085);font-weight:700;line-height:1.2;color:var(--body);pointer-events:none;}
+  .cw .foot span{display:inline-flex;align-items:center;white-space:nowrap;}
+  .cw .foot .rest{color:#ff8f8f;}
   .float.work{color:#ffd27a;}
   /* container 담긴 카드: 그림 + 수량. 잡아끌면 한 장씩 꺼냄 */
   .cw .held{display:flex;align-items:center;gap:2px;font-size:calc(var(--cw) * .13);font-weight:800;color:var(--ink);line-height:1;
@@ -296,7 +302,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.42.0';
+const VERSION = 'v0.43.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -615,10 +621,26 @@ function newGame(){
 }
 
 // ── 렌더 ──────────────────────────────────────────────
+// 장소 카드 아래 줄: 체력 회복이 있으면 회복량·주기, 출현 자원이 있으면 그림 + 확률. 둘 다 없으면 빈 문자열
+function placeFoot(d){
+  if (!tagLevel(d, '장소')) return '';
+  let out = '';
+  const lv = tagLevel(d, '체력 회복');
+  if (lv) out += `<span class="rest">❤ +1 / ${REST_MS / lv / 1000}초</span>`;
+  if (d.yields){
+    const total = d.yields.reduce((sum, [, w]) => sum + w, 0);
+    out += d.yields.map(([t, w]) => {
+      const pct = w / total * 100;
+      return `<span>${iconHtml(t, true)}${Number.isInteger(pct) ? pct : pct.toFixed(1)}%</span>`;
+    }).join('');
+  }
+  return out;
+}
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
   if (d.slots) cls += ' has-corner';
+  if (placeFoot(d)) cls += ' has-foot';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   const pf = popFrom.get(c.id);
   if (pf){
@@ -673,6 +695,8 @@ function paint(el, c){
     if (d.hp) html += `<div class="hp">❤ ${c.hp}/${d.hp}</div>`;
     if (d.capacity) html += `<div class="cap">👤 ${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) html += `<div class="pie" style="--p:${pieValue(c)}"></div>`;
+    const foot = placeFoot(d);
+    if (foot) html += `<div class="foot">${foot}</div>`;
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
   }
