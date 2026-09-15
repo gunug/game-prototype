@@ -364,7 +364,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.68.0';
+const VERSION = 'v0.69.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -395,7 +395,6 @@ const DEFS = {
   // v0.49.0: 크기 (소)·(중) 없앰 — 같은 아이템을 타입으로 늘리지 않고 수량으로 (곰 해체 = 고기 2 · 가죽 2)
   meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastmeat' },
   hide:      { name:'가죽',        kind:'material', tags:['합칠 수 있음'] },
-  stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는', '합칠 수 있음'] },
   tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
   ember:     { name:'불씨',        kind:'fire', tags:['합칠 수 있음'] },
@@ -437,7 +436,6 @@ const DESC = {
   clam:       '조개가 끝까지 지키던 것. 결국 뺏겼다.',
   meat:       '날것이다. 용감하면 그냥, 현명하면 구워서.',
   hide:       '아직 냄새난다. 손질하면 조금 덜 난다.',
-  stick:      '끝만 뾰족해졌을 뿐인데 자신감이 생겼다.',
   tinder:     '불붙기만 기다리는 성격 급한 뭉치.',
   bedding:    '침대라고 부르기엔 양심에 찔린다. 그래도 눕긴 좋다.',
   ember:      '몸집은 작아도 꿈은 모닥불.',
@@ -499,7 +497,7 @@ const RECIPES = [
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide', 'bone'], keep:'a' },
   { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat', 'meat', 'hide', 'hide', 'bone'], keep:'a' },   // 곰 고기·가죽 = 토끼의 두 배, 뼈 1
   // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
-  { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
+  // v0.69.0: 뾰족한 막대(손질 lv2 + 나뭇가지) 조합 없앰 — 어떤 quest에도 안 쓰임
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
   { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
@@ -565,7 +563,7 @@ const PAGE = {
   title: '석기시대 초기',
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
-        'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
+        'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
         'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'tree', 'bear', 'bearcarcass', 'salvation'],
 };
 
@@ -739,6 +737,10 @@ function load(){
     st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
     st.flags = st.flags || {};
     for (const c of st.cards) if (c.type === 'quest' && !Array.isArray(c.stack)) c.stack = [];
+    for (const c of st.cards){                      // v0.69.0: 없어진 카드 (예: 뾰족한 막대) — quest 위·자루 안에서도 뺌
+      if (c.type === 'quest') c.stack = c.stack.filter(t => DEFS[t]);
+      if (c.fill && !DEFS[c.fill]){ delete c.fill; c.count = 0; }
+    }
     for (const c of st.cards){                      // v0.18.0: 칼 → 무기 이름 변경
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
