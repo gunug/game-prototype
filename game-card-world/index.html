@@ -233,6 +233,13 @@
   .recipes{list-style:none;margin:0;padding:0;display:grid;gap:4px;}
   .recipes li{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;color:var(--ink);}
   .recipes li.unknown{color:var(--muted);}
+  /* 챕터 점프 메뉴 (테스트용 · 카드 아님) */
+  .chapters{position:fixed;z-index:2147483150;top:calc(env(safe-area-inset-top,0px) + 50px);right:calc(var(--insp-w) + 10px);
+    display:flex;flex-direction:column;gap:2px;min-width:230px;padding:6px;background:rgba(28,28,23,.97);
+    border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);}
+  .chapters .ch-head{font-size:11px;font-weight:700;color:var(--muted);padding:4px 8px 6px;}
+  .chapters button{all:unset;cursor:pointer;padding:7px 10px;border-radius:6px;font-size:13px;color:var(--ink);}
+  .chapters button:hover{background:var(--surface-soft);}
 
   /* 인스펙터 (카드 아님) — 탭한 카드의 모든 정보. 가로가 긴 화면은 오른쪽, 세로가 긴 화면은 하단 */
   .insp{position:fixed;z-index:2147483050;top:0;right:0;bottom:0;width:var(--insp-w);
@@ -272,9 +279,11 @@
     <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 밀어내기</label>
     <button class="btn btn-sm" id="copyBtn" title="현재 필드 상태를 JSON으로 클립보드에 복사">📋 복사</button>
     <button class="btn btn-sm" id="bookBtn">📖 콜렉터북 <span class="count" id="bookCount"></span></button>
+    <button class="btn btn-sm" id="chapterBtn" title="플레이 테스트용: 챕터로 점프">⏭ 챕터</button>
     <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
   </div>
   <div class="toasts" id="toasts"></div>
+  <div class="chapters" id="chapters" hidden></div>
   <div class="book" id="book"></div>
   <div class="devnote" id="devnote" hidden></div>
 
@@ -282,7 +291,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.39.0';
+const VERSION = 'v0.40.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1267,7 +1276,7 @@ function settle(id){
   if (paused || drag || tear || busy){ setTimeout(() => settle(id), 200); return; }
   settling.delete(id);
   const rq = byId(id);
-  if (!rq || !reqDone(rq)) return;
+  if (!rq || rq.type !== 'quest' || !reqDone(rq)) return;
   busy = true;
   const el = els.get(id);
   if (el) el.classList.add('gone');
@@ -2741,21 +2750,98 @@ document.getElementById('copyBtn').addEventListener('click', copyField);
 book.addEventListener('click', e => {
   if (e.target.closest('[data-close]')) closeBook();
 });
-document.getElementById('resetBtn').addEventListener('click', () => {
-  if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
+// 진행 중인 것 전부 끊고 테이블 비움 (처음부터 · 챕터 점프 공통)
+function clearRuntime(){
   try { localStorage.removeItem(STORE); } catch (e) {}
   clearTimeout(godTimer);
   clearTimeout(talkTimer);
   talkTimer = null; talking = null; talkQ.god = []; talkQ.knight = [];
   speech = null; knightSpeech = null;
+  table.classList.remove('talking');
   gift = null; speechWaiters = [];
   closeBook();
   settling.clear();
   drag = null; tear = null; busy = false;
+  returning = null; vel.clear(); hops.clear(); slideIn.clear();
   selId = null;
   for (const el of els.values()) el.remove();
   els.clear();
+  for (const el of table.querySelectorAll('.half, .tab-piece, .float')) el.remove();
+}
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
+  clearRuntime();
   newGame();
+});
+
+// ── 챕터 점프 (플레이 테스트용 · 시스템 메뉴, 카드 아님) ──
+//   그 챕터의 quest가 나오기 직전 상태를 만들고, quest는 평소 로직(갓·기사 점검)이 냄
+//   flags: 진행 기록 / knight: 기사 상태 / seen: 이미 본 카드 / found: 이미 발견한 조합 / cards: 테이블에 깔 카드
+//   seen에 앞으로 만들 카드를 넣으면 만들기 quest가 바로 완료되므로 넣지 않음
+const CH_REQ   = { requestsGiven: 1, godSettles: 1 };
+const CH_COMBO = Object.assign({}, CH_REQ, { comboGiven: true, comboDone: true, discovered: true });
+const CH_SEEN_FOOD = ['quest', 'marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'roastclam', 'carcass', 'meat', 'hide', 'roastmeat', 'roastberry'];
+const CH_FOUND_FOOD = ['marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'butcher', 'cook'];
+const CHAPTERS = [
+  { title: '처음 — 첫 package', start: true },
+  { title: '갓: 아무거나 3개만 줘봐',
+    cards: ['stone', 'stone', 'bone', 'berry', 'twig'] },
+  { title: '갓: 골수 만들기',
+    flags: CH_REQ, seen: ['quest'],
+    cards: ['stone', 'bone', 'bone', 'berry', 'grass'] },
+  { title: '기사: 뼛가루의 치유력',
+    flags: CH_COMBO, seen: ['quest', 'marrow'], found: ['marrow'],
+    cards: ['stone', 'bone', 'bone', 'bone', 'berry'] },
+  { title: '기사: 밥이 보약 + 갓: 불 quest',
+    flags: Object.assign({}, CH_COMBO, { knightStage: 2 }), knight: { hp: 0, status: ['허기짐'] },
+    seen: ['quest', 'marrow'], found: ['marrow'],
+    cards: ['stone', 'stone', 'stone', 'flint', 'grass', 'twig', 'shell', 'berry', 'carcass'] },
+  { title: '기사: 잠이 보약 + 갓: 신의 품에서',
+    flags: Object.assign({}, CH_COMBO, { knightStage: 3, fireGiven: true }), knight: { hp: 6, status: [] },
+    seen: CH_SEEN_FOOD, found: CH_FOUND_FOOD,
+    cards: ['campfire', 'grass', 'grass', 'twig', 'berry'] },
+  { title: '기사: 무기·방패를 들어라',
+    flags: Object.assign({}, CH_COMBO, { knightStage: 4, fireGiven: true, bedGiven: true }), knight: { hp: 10, status: [] },
+    seen: CH_SEEN_FOOD.concat(['bedding']), found: CH_FOUND_FOOD.concat(['bedding']),
+    cards: ['hilt', 'plank', 'campfire', 'bedding', 'stone'] },
+  { title: '갓: 마음의 평화',
+    flags: Object.assign({}, CH_COMBO, { knightStage: 5, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true }),
+    knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank']), found: CH_FOUND_FOOD.concat(['bedding']),
+    cards: ['handaxe', 'hide', 'hide', 'stone', 'stone', 'stone', 'berry', 'campfire'] },
+];
+function startChapter(ch){
+  if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
+  S = {
+    cards: [], seen: ['package', 'knight', 'god'], found: (ch.found || []).slice(),
+    flags: Object.assign({ discovered: false, requestsGiven: 0 }, ch.flags), nextId: 1, z: 1,
+  };
+  for (const t of (ch.seen || [])) if (!S.seen.includes(t)) S.seen.push(t);
+  const { w, h } = tableSize();
+  addCard('god', w * 0.06, h * 0.2, null, true);
+  addCard('knight', w * 0.06, h * 0.58, JSON.parse(JSON.stringify(ch.knight || {})), true);   // 정의를 건드리지 않게 복사
+  for (const t of ch.cards){
+    const p = findSpot(w * 0.55, h * 0.5);
+    addCard(t, p.x, p.y, null, true);                  // 조용히 (콜렉터북 등록 연출 없이)
+  }
+  save();
+  renderAll();
+  scheduleGod();
+  toast('⏭ ' + ch.title);
+}
+const chaptersEl = document.getElementById('chapters');
+chaptersEl.innerHTML = '<div class="ch-head">테스트용 챕터 점프 — 지금 진행이 지워짐</div>'
+  + CHAPTERS.map((ch, i) => `<button data-ch="${i}">${i}. ${esc(ch.title)}</button>`).join('');
+document.getElementById('chapterBtn').addEventListener('click', () => { chaptersEl.hidden = !chaptersEl.hidden; });
+chaptersEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-ch]');
+  if (!b) return;
+  chaptersEl.hidden = true;
+  clearRuntime();
+  startChapter(CHAPTERS[+b.dataset.ch]);
+});
+document.addEventListener('pointerdown', e => {
+  if (!chaptersEl.hidden && !e.target.closest('#chapters, #chapterBtn')) chaptersEl.hidden = true;   // 바깥 누르면 닫힘
 });
 window.addEventListener('resize', () => {
   measure();
