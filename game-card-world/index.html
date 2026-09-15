@@ -233,7 +233,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.31.1';
+const VERSION = 'v0.32.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -359,6 +359,7 @@ const LINES = {
   coincidence:    ['…이런 우연이 있나.', '이것이 신의 장난인가?'],
   fireGrumble:    '익힌 것만 먹는 기사라, 입이 고급이구만.',
   fireAsk:        '나를 모닥불 위에 올려놔.',
+  bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
@@ -888,6 +889,19 @@ function giveFireQuest(i){
   if (step.quest === 'firemood'){ say(LINES.fireAsk); afterSpeech(deliver); }   // "나를 모닥불 위에 올려놔"
   else deliver();
 }
+// 갓의 quest "신의 품에서": 풀 깔개 조합식 공개, 풀 깔개가 생기면 완료 (제출 없음)
+function giveBedQuest(){
+  if (paused || drag || tear || busy){ setTimeout(giveBedQuest, 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  if (!g || questExists('godsbed')) return;
+  const rq = addCard('quest', g.x, g.y, {
+    quest: 'godsbed', title: '신의 품에서', goal: 'make', make: 'bedding', recipe: ['grass', 'grass', 'bedding'],
+    target: g.id, giver: g.id, need: 0, stack: [], rewardText: '보상 없음',
+  });
+  slideOutFrom(rq, g);
+  save();
+  renderAll();
+}
 const questExists = q => S.cards.some(c => c.type === 'quest' && c.quest === q);
 function giveKnightQuest(kind){
   const k = S.cards.find(c => c.type === 'knight');
@@ -905,6 +919,11 @@ function giveKnightQuest(kind){
     S.flags.fireGiven = true;
     say(LINES.fireGrumble);                                 // "익힌 것만 먹는 기사라, 입이 고급이구만"
     afterSpeech(() => giveFireQuest(0));
+  }
+  if (kind === 'sleep' && !S.flags.bedGiven){
+    S.flags.bedGiven = true;
+    say(LINES.bedGrumble);                                  // "어이구, 이젠 잠자리까지. 소풍 왔나."
+    afterSpeech(giveBedQuest);                              // → "신의 품에서" (풀 깔개 조합식 공개)
   }
   slideOutFrom(rq, k);                                      // 기사 뒤에서 오른쪽으로 미끄러져 나옴
   bumpIds.add(k.id);
@@ -1186,6 +1205,10 @@ function rewardFor(rq, x, y){
     S.flags.knightStage = 4;
     toast('💤 잠이 보약 완료');
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
+    return;
+  }
+  if (rq.quest === 'godsbed'){
+    toast('🛏️ 신의 품에서 완료');
     return;
   }
   const fi = FIRE_STEPS.findIndex(f => f.quest === rq.quest);
