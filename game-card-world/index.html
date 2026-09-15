@@ -293,6 +293,8 @@
   .cw.selected{outline:2px solid #9fd0ff;outline-offset:3px;}
   /* 빈사 캐릭터: 그림만 무채색 (프레임·글자는 그대로) */
   .cw.dying .emoji .icon, .i-icon.dying .icon{filter:grayscale(1);}
+  /* 대결 중인 캐릭터·크리처 */
+  .cw.dueling{box-shadow:0 0 0 2px #ff6b6b,var(--sh-md);}
 </style>
 </head>
 <body>
@@ -315,7 +317,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.46.0';
+const VERSION = 'v0.47.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -330,8 +332,10 @@ const DEFS = {
   flint:     { name:'부싯돌',      kind:'material', tags:['합칠 수 있음'] },
   bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
   carcass:   { name:'토끼 사체',   kind:'material', tags:[] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
-  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true },   // v0.42.0: 동물 → 토끼 (id 그대로)
-  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run' },   // 토끼보다 2배 멀리, 우다다다
+  // 크리처 (v0.47.0): hp 체력, strike 대결 공격력, loot 쓰러뜨리면 나오는 전리품
+  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:3, strike:1, loot:['carcass'] },   // v0.42.0: 동물 → 토끼 (id 그대로)
+  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, strike:3, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
+  bearcarcass:{ name:'곰 사체',    kind:'material', tags:[] },
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
   handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
@@ -390,7 +394,7 @@ const RECIPES = [
   { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
   { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
   { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide'], keep:'a' },
-  { id:'hunt',     a:{ atk:1 },             b:{ card:'animal' },   out:['carcass'], keep:'a' },
+  // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
   { id:'stick',    a:{ tag:'손질', lv:2 },  b:{ card:'twig' },     out:['stick'], keep:'a' },
   { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
   { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
@@ -456,7 +460,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'stick', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'tree', 'bear', 'bearcarcass'],
 };
 
 // 갓의 대사
@@ -625,6 +629,7 @@ function load(){
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
+      if (DEFS[c.type] && DEFS[c.type].kind === 'creature' && DEFS[c.type].hp && c.hp == null) c.hp = DEFS[c.type].hp;   // v0.47.0: 크리처 체력
     }
     if (!st.cards.length) return false;
     S = st;
@@ -661,6 +666,7 @@ function paint(el, c){
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
   if (d.slots) cls += ' has-corner';
   if (placeFoot(d)) cls += ' has-foot';
+  if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
   const pf = popFrom.get(c.id);
@@ -1116,6 +1122,16 @@ function knightCheck(){
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
 function evaluate(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
+  if (t.duel != null) return null;                            // 대결 중인 카드엔 아무것도 못 올림
+  if (td.kind === 'creature'){
+    if (dd.kind === 'character') return { act: 'duel', full: statusOf(d).includes('빈사') };   // 대결 (빈사면 못 함)
+    if (tagLevel(dd, '무기')){
+      const low = (dd.atk || 0) < t.hp;                         // 한 방에 못 쓰러뜨림
+      const capped = low ? null : (td.loot || []).find(o => !canSpawn(o));
+      return { act: 'strike', full: low || !!capped, low, capped };
+    }
+    return null;
+  }
   if (dd.kind === 'character' && tagLevel(td, '장소')){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
     const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
@@ -1191,6 +1207,22 @@ function apply(ev, d, t){
         }
       }
     }
+    return true;
+  }
+  if (ev.act === 'strike'){
+    if (ev.low){
+      toast(`${ic(d.type)} 무기의 공격력 낮음 (⚔ ${dd.atk || 0} < ❤ ${t.hp})`);
+      floatText(t, '무기의 공격력 낮음', 'work');
+      return false;
+    }
+    if (ev.capped){ capToast(ev.capped); return false; }
+    killCreature(t);
+    relocate(d);                                            // 무기는 남음
+    return true;
+  }
+  if (ev.act === 'duel'){
+    if (ev.full){ toast(`${DEFS[d.type].name} 빈사 상태 — 대결할 수 없음`); return false; }
+    startDuel(d, t);
     return true;
   }
   if (ev.act === 'store'){
@@ -1818,6 +1850,7 @@ function onDown(e){
   const c = byId(+cardEl.dataset.id);
   if (!c) return;
   e.preventDefault();
+  if (c.duel != null || bodyOf(c).duel != null){ setSelected(c.id); return; }   // 대결 중엔 못 움직임
   const { px, py } = localPoint(e);
 
   // quest 위에 쌓인 카드 꺼내기
@@ -2113,6 +2146,7 @@ function animalTick(){
     if (!DEFS[c.type].hops || hops.has(c.id)) continue;
     if (hid != null && bodyOf(byId(hid)) === bodyOf(c)) continue;   // 잡혀 있으면 안 뜀
     if (tear && tear.id === c.id) continue;
+    if (c.duel != null) continue;                             // 대결 중엔 안 뜀
     const dd = DEFS[c.type];
     const dist = CW * 0.55 * (dd.hopScale || 1);             // 곰은 2배
     let ang = Math.random() * Math.PI * 2;
@@ -2150,6 +2184,93 @@ function stepHops(){
     }
   }
   return moved;
+}
+
+// ── 크리처: 무기로 한 방 / 캐릭터와 대결 ─────────────────
+//   무기를 쌓음: 무기 공격력 ≥ 크리처 남은 체력이면 바로 쓰러뜨리고 전리품. 아니면 "무기의 공격력 낮음"
+//   캐릭터를 쌓음: 대결 — 캐릭터 선공, 크리처 후공을 한쪽이 쓰러질 때까지 반복 (DUEL_MS마다 한 번)
+//     피해 = 공격력 − 상대 방어 (최소 0). 크리처는 방어 없음
+//     승리: 전리품. 패배: 캐릭터 빈사, 크리처는 남은 체력 그대로
+//     둘 다 피해를 못 주면 바로 끝 (무승부)
+const DUEL_MS = 800;
+function defOf(c){
+  const d = DEFS[c.type];
+  return (d.baseDef || 0) + Object.values(c.equip || {}).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].defense) || 0), 0);
+}
+function killCreature(cr){
+  const x = cr.x, y = cr.y;
+  hops.delete(cr.id);
+  removeCard(cr.id);
+  toast(`${ic(cr.type)} ${DEFS[cr.type].name} 쓰러뜨림`);
+  for (const t of (DEFS[cr.type].loot || [])){
+    if (!canSpawn(t)){ capToast(t); continue; }                // 월드에 5장이면 전리품 생성 안 됨
+    const p = findSpot(x, y);
+    const nc = addCard(t, p.x, p.y);
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x, y });
+  }
+}
+function startDuel(ch, cr){
+  delete ch.visit;
+  delete ch.visitSeq;
+  hops.delete(cr.id);
+  ch.duel = cr.id;
+  cr.duel = ch.id;
+  cr.turn = 'char';                                           // 캐릭터 선공
+  setStatus(ch, [], ['대결']);
+  setStatus(cr, [], ['대결']);
+  // 크리처 왼쪽, 캐릭터 오른쪽으로 나란히 (캐릭터에 붙은 quest는 그 오른쪽)
+  const gap = 12;
+  const lim = attachLimits(ch);
+  ch.x = Math.max(8 + CW + gap, Math.min(cr.x + CW + gap, lim.maxX));
+  ch.y = clampPos(ch.x, cr.y).y;
+  cr.x = ch.x - CW - gap;
+  cr.y = ch.y;
+  bumpIds.add(ch.id);
+  bumpIds.add(cr.id);
+  toast(`⚔ ${DEFS[ch.type].name} vs ${DEFS[cr.type].name} — 대결`);
+}
+function endDuel(ch, cr){
+  if (ch){ delete ch.duel; setStatus(ch, ['대결'], []); }
+  if (cr){ delete cr.duel; delete cr.turn; setStatus(cr, ['대결'], []); }
+}
+function duelTick(){
+  if (!S || paused || busy) return;
+  let changed = false;
+  for (const cr of S.cards.slice()){
+    if (DEFS[cr.type].kind !== 'creature' || cr.duel == null) continue;
+    const ch = byId(cr.duel);
+    if (!ch || ch.duel !== cr.id){ endDuel(null, cr); changed = true; continue; }
+    const charDmg = Math.max(0, atkOf(ch));
+    const foeDmg = Math.max(0, (DEFS[cr.type].strike || 0) - defOf(ch));
+    if (charDmg <= 0 && foeDmg <= 0){
+      endDuel(ch, cr);
+      toast(`서로 피해를 못 줌 — 대결 끝`);
+      changed = true;
+      continue;
+    }
+    if ((cr.turn || 'char') === 'char'){
+      cr.hp = Math.max(0, cr.hp - charDmg);
+      floatText(cr, `-${charDmg}`);
+      bumpIds.add(cr.id);
+      if (cr.hp <= 0){
+        endDuel(ch, cr);
+        toast(`🏆 ${DEFS[ch.type].name} 승리`);
+        killCreature(cr);
+      } else cr.turn = 'foe';
+    } else {
+      ch.hp = Math.max(0, ch.hp - foeDmg);
+      floatText(ch, `-${foeDmg}`);
+      bumpIds.add(ch.id);
+      if (ch.hp <= 0){
+        endDuel(ch, cr);
+        setStatus(ch, ['허기짐'], ['빈사']);                    // 패배: 캐릭터 빈사, 크리처는 체력 회복 안 함
+        toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
+      } else cr.turn = 'char';
+    }
+    changed = true;
+  }
+  if (changed) afterChange();
 }
 
 // ── 체력 회복 장소 ─────────────────────────────────────
@@ -2693,7 +2814,7 @@ function physMove(){
   // 붙어 있는 request는 발주자와 한 몸으로 밀림. 끌고 있는 묶음은 밀지도 밀리지도 않음
   const hid = heldId();
   const dragBody = hid != null ? bodyOf(byId(hid)) : null;
-  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id));
+  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && bodyOf(c).duel == null);   // 대결 중인 묶음은 제자리
   const gapX = CW * 1.06, gapY = CH * 1.04;
   for (let i = 0; i < cs.length; i++){
     const a = cs[i];
@@ -2816,6 +2937,7 @@ function inspectorHtml(c){
       st += iRow('게이지', `${c.yieldPts || 0}/${d.yieldNeed}`);
       st += iRow('1초마다', vs.length ? `+${vs.reduce((sum, v) => sum + atkOf(v), 0)}` : '<span class="i-muted">방문자 없음</span>');
     }
+    if (d.strike) st += iRow('⚔ 공격', d.strike);
     c1 = iTbl(st);
   }
 
@@ -2836,6 +2958,10 @@ function inspectorHtml(c){
     const pl = byId(c.visit);
     if (pl) c2 += iSub('방문 중', iLine(cardRef(pl.type)));
   }
+  if (c.duel != null){
+    const op = byId(c.duel);
+    if (op) c2 += iSub('대결 중', iLine(cardRef(op.type)));
+  }
   if (d.kind === 'container'){
     c2 += iSub('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iLine(`${cardRef(c.fill)} ×${c.count}`) : iNone('비어 있음'));
   }
@@ -2847,7 +2973,8 @@ function inspectorHtml(c){
 
   // ③ 조합·출현
   let c3 = '';
-  if (!['character', 'package', 'quest'].includes(d.kind)){
+  if (d.loot) c3 += iSub('전리품', iChips(d.loot.map(cardRef)));
+  if (!['character', 'package', 'quest', 'creature'].includes(d.kind)){
     const { reach, use } = comboLists(c.type);
     c3 += iSub('도달하는 조합', reach.join('') || iNone('없음'));
     c3 += iSub('할 수 있는 조합', use.join('') || iNone('없음'));
@@ -2988,11 +3115,11 @@ const CHAPTERS = [
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
     cards: [['sack', { fill: 'stone', count: 1 }], 'stone', 'stone', 'stone', 'berry', 'campfire'],
     after: () => givePeaceQuest(3) },                   // 쓸어담기 quest부터
-  { title: '산: 나무 · 토끼 · 곰',
+  { title: '산: 나무 · 토끼 · 곰 / 크리처 대결',
     flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true }),
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
-    cards: ['mountain', 'campfire', 'berry'] },
+    cards: ['mountain', 'campfire', 'berry', 'animal', 'bear', 'handaxe', 'marrow'] },
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
@@ -3050,6 +3177,7 @@ validateRecipes();
 setInterval(() => { if (!paused && !drag && !tear && !busy){ checkSettle(); godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
 setInterval(yieldTick, 1000);                  // 산: 나무 게이지
+setInterval(duelTick, DUEL_MS);                // 크리처 대결
 setInterval(animalTick, 1000);                 // 동물 홉핑
 setInterval(renderInspector, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
 
