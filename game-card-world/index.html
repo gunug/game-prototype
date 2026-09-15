@@ -59,6 +59,8 @@
   .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
   /* 그림 아이콘 — 이모지 자리에 글자 크기(1em)에 맞춰 들어감. 픽셀아트라 확대해도 뭉개지지 않게 */
   .icon{display:block;width:1.15em;height:1.15em;margin:auto;image-rendering:pixelated;pointer-events:none;-webkit-user-drag:none;}
+  /* 글자 줄 안의 그림 — 글자 높이에 맞춰 줄 안에 */
+  .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
   .cw .name{color:var(--ink);font-size:calc(var(--cw) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
   .cw .atk{color:#9fd0ff;font-size:calc(var(--cw) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   .cw .atkv{position:absolute;left:6px;top:5px;font-size:calc(var(--cw) * .11);font-weight:700;color:#9fd0ff;pointer-events:none;}
@@ -235,48 +237,53 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.34.1';
+const VERSION = 'v0.35.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
 const DEFS = {
-  package:   { name:'package',     emoji:'📦', kind:'package' },
-  quest:   { name:'quest',     emoji:'📜', kind:'quest' },
-  knight:    { name:'기사',        emoji:'🛡️', icon:true, kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
-  god:       { name:'갓',          emoji:'😇', icon:true, kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
-  stone:     { name:'돌',          emoji:'🪨', icon:true, kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
-  twig:      { name:'나뭇가지',    emoji:'🪵', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  grass:     { name:'마른 풀',     emoji:'🌾', kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  flint:     { name:'부싯돌',      emoji:'💎', kind:'material', tags:['합칠 수 있음'] },
-  bone:      { name:'뼈',          emoji:'🦴', kind:'material', tags:['합칠 수 있음'] },
-  carcass:   { name:'동물 사체',   emoji:'🦌', kind:'material', tags:[] },
-  animal:    { name:'동물',        emoji:'🐇', icon:true, kind:'creature', tags:['동물'], hops:true },
-  shell:     { name:'조개',  emoji:'🐚', kind:'material', tags:['합칠 수 있음'] },
-  berry:     { name:'열매',        emoji:'🫐', kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
-  handaxe:   { name:'뗀석기',      emoji:'🔪', kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
-  marrow:    { name:'골수',        emoji:'🥣', kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
-  clam:      { name:'조갯살',      emoji:'🦪', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
-  meat:      { name:'고기',        emoji:'🥩', kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
-  hide:      { name:'가죽',        emoji:'🟫', kind:'material', tags:[] },
-  stick:     { name:'뾰족한 막대', emoji:'🥢', kind:'tool', tags:['불에 타는'] },
-  tinder:    { name:'불쏘시개',    emoji:'🪹', kind:'material', tags:['불에 타는'] },
-  bedding:   { name:'풀 깔개',     emoji:'🛏️', kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
-  ember:     { name:'불씨',        emoji:'✨', kind:'fire', tags:[] },
-  campfire:  { name:'모닥불',      emoji:'🔥', kind:'fire', tags:['불', '장소', '체력 회복 lv1'], capacity:3 },
-  ash:       { name:'재',          emoji:'🌫️', kind:'material', tags:['합칠 수 있음'] },
-  hilt:      { name:'부러진 칼자루', emoji:'🗡️', kind:'tool', tags:['무기'], atk:3 },
-  plank:     { name:'나무판',      emoji:'🪧', kind:'tool', tags:['방패', '불에 타는'], defense:1 },
-  roastmeat: { name:'구운 고기',   emoji:'🍖', kind:'food', tags:['먹을 수 있음', '익힘'] },
-  roastclam: { name:'구운 조갯살', emoji:'🍢', kind:'food', tags:['먹을 수 있음', '익힘'] },
-  roastberry:{ name:'구운 열매',   emoji:'🍇', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  package:   { name:'package',     kind:'package' },
+  quest:   { name:'quest',     kind:'quest' },
+  knight:    { name:'기사',        kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
+  god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1 },
+  stone:     { name:'돌',          kind:'material', tags:['손질 lv1', '무기', '합칠 수 있음'], atk:1 },
+  twig:      { name:'나뭇가지',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  grass:     { name:'마른 풀',     kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  flint:     { name:'부싯돌',      kind:'material', tags:['합칠 수 있음'] },
+  bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
+  carcass:   { name:'동물 사체',   kind:'material', tags:[] },
+  animal:    { name:'동물',        kind:'creature', tags:['동물'], hops:true },
+  shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
+  berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
+  handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
+  marrow:    { name:'골수',        kind:'food', tags:['먹을 수 있음', '빈사 치유'] },
+  clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastclam' },
+  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것'], cooked:'roastmeat' },
+  hide:      { name:'가죽',        kind:'material', tags:[] },
+  stick:     { name:'뾰족한 막대', kind:'tool', tags:['불에 타는'] },
+  tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는'] },
+  bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
+  ember:     { name:'불씨',        kind:'fire', tags:[] },
+  campfire:  { name:'모닥불',      kind:'fire', tags:['불', '장소', '체력 회복 lv1'], capacity:3 },
+  ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
+  hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
+  plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
+  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘'] },
+  roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
 };
 
-// 카드 그림: icon:true 면 images/icon/card_<id>.png, 아니면 이모지 (v0.34.0)
-// 글자 줄(조합식·진행·알림)은 esc 로 찍으므로 이모지 그대로
-function iconHtml(t){
+// 카드 그림: images/icon/card_<id>.png (v0.35.0: 모든 카드, 이모지 없음)
+function iconHtml(t, inline){
   const d = DEFS[t];
-  return d.icon ? `<img class="icon" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">` : d.emoji;
+  return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
 }
+// 글자 줄(조합식·진행·보상·알림) 안의 카드 그림 자리표
+//   ic(t) 로 넣고, 화면에 찍을 땐 rich() → 그림, 복사용 글자는 plain() → 지움
+const ICON_TOKEN = /⟦(\w+)⟧/g;
+const ic = t => `⟦${t}⟧`;
+const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : '');
+const plain = s => String(s).replace(ICON_TOKEN, '').replace(/ {2,}/g, ' ').trim();
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
 const POOL = [
@@ -338,12 +345,12 @@ function usableRecipes(x, y){
 }
 function sideText(sd){
   if (sd.atk) return `⚔ 공격력 ${sd.atk} 이상`;
-  return sd.card ? `${DEFS[sd.card].emoji} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+  return sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 }
 function outText(r){
-  if (r.burn) return '🌫️ 재 (태우기)';
+  if (r.burn) return `${ic('ash')} 재 (태우기)`;
   if (r.cook) return '익힘 (날것이 익은 것으로)';
-  return r.out.map(o => DEFS[o].emoji + ' ' + DEFS[o].name).join(', ');
+  return r.out.map(o => ic(o) + ' ' + DEFS[o].name).join(', ');
 }
 const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
 
@@ -551,19 +558,19 @@ function paint(el, c){
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
-    if (!c.recipe && !c.recipes) html += `<div class="emoji req-emoji">${d.emoji}</div>`;
+    if (!c.recipe && !c.recipes) html += `<div class="emoji req-emoji">${iconHtml(c.type)}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;
     if (c.recipes){
       // 조합식 여러 개 전부 공개 (카드 폭 때문에 아이콘으로)
-      html += `<div class="req-recipe">${esc(c.recipes.map(([a, b, o]) => `${DEFS[a].emoji}+${DEFS[b].emoji}→${DEFS[o].emoji}`).join('\n'))}</div>`;
+      html += `<div class="req-recipe">${rich(c.recipes.map(([a, b, o]) => `${ic(a)}+${ic(b)}→${ic(o)}`).join('\n'))}</div>`;
     }
     if (c.recipe){
       // 조합 전부 공개: 재료 + 재료 → 결과
-      const [ra, rb, ro] = c.recipe.map(t => `${DEFS[t].emoji} ${DEFS[t].name}`);
-      html += `<div class="req-recipe">${esc(ra + ' + ' + rb + '\n→ ' + ro)}</div>`;
+      const [ra, rb, ro] = c.recipe.map(t => `${ic(t)} ${DEFS[t].name}`);
+      html += `<div class="req-recipe">${rich(ra + ' + ' + rb + '\n→ ' + ro)}</div>`;
     }
-    html += `<div class="req-need">${esc(reqProgress(c))}</div>`;
-    html += `<div class="req-reward">${esc(reqReward(c))}</div>`;
+    html += `<div class="req-need">${rich(reqProgress(c))}</div>`;
+    html += `<div class="req-reward">${rich(reqReward(c))}</div>`;
     if (c.stack.length){
       html += '<div class="req-stack">' + c.stack.map((t, i) => `<div class="mini" data-idx="${i}">${iconHtml(t)}</div>`).join('') + '</div>';
     }
@@ -661,7 +668,7 @@ function renderGod(){
 function toast(msg){
   const t = document.createElement('div');
   t.className = 'toast';
-  t.textContent = msg;
+  t.innerHTML = rich(msg);                       // 카드 그림 자리표(ic) → 그림
   toasts.appendChild(t);
   setTimeout(() => t.remove(), 2700);
   while (toasts.children.length > 4) toasts.firstChild.remove();
@@ -715,7 +722,7 @@ function showNextTalk(prev){
   talking = who;
   setLine(who, item.text);
   const hasMouth = S.cards.some(c => c.type === who || (who === 'god' && c.type === 'package' && c.contents === 'first'));
-  if (!hasMouth) toast((who === 'god' ? '😇 ' : '🛡️ ') + item.text);
+  if (!hasMouth) toast(ic(who) + ' ' + item.text);
   talkTimer = setTimeout(function endLine(){
     // 멈춘 동안엔 말풍선을 붙잡아 두고, 풀리면 조금 더 보여준 뒤 넘어감
     if (paused){ item.held = true; talkTimer = setTimeout(endLine, 250); return; }
@@ -805,7 +812,7 @@ function reqProgress(rq){
   }
   if (rq.goal === 'make'){
     const done = rq.made || S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make);
-    return `${done ? '✔' : '☐'} ${DEFS[rq.make].emoji} ${DEFS[rq.make].name} 만들기`;
+    return `${done ? '✔' : '☐'} ${ic(rq.make)} ${DEFS[rq.make].name} 만들기`;
   }
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
@@ -813,7 +820,7 @@ function reqProgress(rq){
     const pl = t && t.visit != null ? byId(t.visit) : null;
     const visited = !!pl && pl.type === rq.place;
     const P = DEFS[rq.place], T = t ? DEFS[t.type] : null;
-    return `${rq.made ? '✔' : '☐'} ${P.emoji} ${P.name} 만들기\n${visited ? '✔' : '☐'} ${T ? T.emoji + ' ' + T.name : '대상'} 올려놓기`;
+    return `${rq.made ? '✔' : '☐'} ${ic(rq.place)} ${P.name} 만들기\n${visited ? '✔' : '☐'} ${T ? ic(t.type) + ' ' + T.name : '대상'} 올려놓기`;
   }
   if (rq.goal === 'sleep'){
     const t = byId(rq.target);
@@ -830,20 +837,20 @@ function reqProgress(rq){
   if (rq.goal === 'equip'){
     const t = byId(rq.target);
     const it = t && t.equip && t.equip[rq.slot];
-    return `${rq.slot} 칸: ${it && DEFS[it] ? DEFS[it].emoji : '비어 있음'}`;
+    return `${rq.slot} 칸: ${it && DEFS[it] ? ic(it) : '비어 있음'}`;
   }
-  if (rq.wantsList) return rq.wantsList.map(t => `${rq.stack.includes(t) ? '✔' : '☐'} ${DEFS[t].emoji} ${DEFS[t].name}`).join('\n');
-  if (rq.wants) return `${DEFS[rq.wants].emoji} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
+  if (rq.wantsList) return rq.wantsList.map(t => `${rq.stack.includes(t) ? '✔' : '☐'} ${ic(t)} ${DEFS[t].name}`).join('\n');
+  if (rq.wants) return `${ic(rq.wants)} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
   return `${rq.stack.length} / ${rq.need}`;
 }
 function reqReward(rq){
-  if (rq.rewards) return '보상 ' + rq.rewards.map(r => DEFS[r] ? DEFS[r].emoji : '').join(' ');
+  if (rq.rewards) return '보상 ' + rq.rewards.map(r => DEFS[r] ? ic(r) : '').join(' ');
   if (rq.rewardText) return rq.rewardText;
-  if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
+  if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
   if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
   if (rq.goal === 'equip') return '보상 없음';
-  if (rq.reward && DEFS[rq.reward]) return `보상 ${DEFS[rq.reward].emoji} ${DEFS[rq.reward].name}`;
-  return '보상 📦';
+  if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
+  return `보상 ${ic('package')}`;
 }
 
 // ── 기사의 퀘스트 ─────────────────────────────────────
@@ -1109,7 +1116,7 @@ function apply(ev, d, t){
       }
       if (targetKept) bumpIds.add(t.id);
       if (!consumed.includes(d)) relocate(d);
-      if (r.burn) toast(`🔥 ${DEFS[B.type].name} 태우기 → 🌫️ 재`);
+      if (r.burn) toast(`${ic(B.type)} ${DEFS[B.type].name} 태우기 → ${ic('ash')} 재`);
     }
     if (!S.found.includes(r.id)){
       S.found.push(r.id);
@@ -1228,13 +1235,13 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'godsbed'){
-    toast('🛏️ 신의 품에서 완료');
+    toast(`${ic('bedding')} 신의 품에서 완료`);
     return;
   }
   const fi = FIRE_STEPS.findIndex(f => f.quest === rq.quest);
   if (fi >= 0){
     if (fi < FIRE_STEPS.length - 1) giveFireQuest(fi + 1);   // 다음 불 quest
-    else toast('🔥 불멍이 하고 싶어 완료');
+    else toast(`${ic('campfire')} 불멍이 하고 싶어 완료`);
     return;
   }
   if (rq.quest === 'firstcombo'){
@@ -1899,8 +1906,8 @@ function fieldSnapshot(){
         o.title = c.title;
         if (c.quest) o.quest = c.quest;
         o.giver = c.giver != null ? nameOf(c.giver) : null;
-        o.progress = reqProgress(c);
-        o.reward = reqReward(c);
+        o.progress = plain(reqProgress(c));
+        o.reward = plain(reqReward(c));
         if (c.stack && c.stack.length) o.stack = c.stack.map(t => DEFS[t].name);
       }
       return o;
@@ -1951,7 +1958,7 @@ function renderBook(){
   }
   html += `</div><h3 class="book-sub">발견한 조합<small>${S.found.length} / ${RECIPES.length}</small></h3><ul class="recipes">`;
   for (const r of RECIPES){
-    html += S.found.includes(r.id) ? `<li>${esc(recipeText(r))}</li>` : '<li class="unknown">??? + ??? → ???</li>';
+    html += S.found.includes(r.id) ? `<li>${rich(recipeText(r))}</li>` : '<li class="unknown">??? + ??? → ???</li>';
   }
   html += '</ul></div>';
   book.innerHTML = html;

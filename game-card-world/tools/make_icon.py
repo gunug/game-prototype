@@ -33,8 +33,10 @@ STYLE_PREFIX = (
 )
 PROMPT_SUFFIX = (
     ", single object, centered composition, isolated object, clean readable silhouette, "
-    "simple solid #000000 background, no text, no characters, no additional objects"
+    "simple solid {bg} background, no text, no characters, no additional objects"
 )
+# 검은 오브젝트·불·고리 모양은 검은 배경이 남으므로 흰 배경으로
+BG_COLORS = {"black": "#000000", "white": "#ffffff white"}
 
 
 def build_prompt(text, name, seed, size, colors):
@@ -82,6 +84,7 @@ def main():
     ap.add_argument("--seed", type=int, default=None, help="고정 시드 (없으면 랜덤)")
     ap.add_argument("--size", type=int, default=64, help="최종 픽셀 크기 (기본 64)")
     ap.add_argument("--colors", type=int, default=32, help="팔레트 색 수 (기본 32)")
+    ap.add_argument("--bg", choices=sorted(BG_COLORS), default="black", help="생성 배경색 (배경 제거 전). 어두운 대상·불·고리 모양은 white")
     ap.add_argument("--no-style", action="store_true", help="그림체 머리말을 붙이지 않음")
     ap.add_argument("--no-suffix", action="store_true", help="배경 제거용 프롬프트 꼬리말을 붙이지 않음")
     ap.add_argument("--force", action="store_true", help="같은 이름 파일이 있으면 덮어씀")
@@ -94,7 +97,7 @@ def main():
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
-    text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + PROMPT_SUFFIX
+    text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + PROMPT_SUFFIX.format(bg=BG_COLORS[a.bg])
     if not a.no_style:
         text = STYLE_PREFIX + text
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
