@@ -146,6 +146,10 @@
     background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 6px;pointer-events:none;}
   .cw .held[data-held]{pointer-events:auto;cursor:grab;touch-action:none;}
   .cw .held.empty{color:var(--muted);border-style:dashed;font-size:calc(var(--cf) * .11);}
+  /* v0.112.0: "하나 꺼내기" quest 중엔 담긴 카드 칸이 깜빡임 */
+  .cw .held.blink{animation:heldBlink 1.1s ease-in-out infinite;}
+  @keyframes heldBlink{0%,100%{border-color:rgba(255,255,255,.18);box-shadow:none;}
+    50%{border-color:var(--brand-yellow);box-shadow:0 0 6px rgba(255,212,0,.6);}}
   /* 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄 */
   .cw.has-eaten{padding-bottom:calc(var(--ch) * .25);}
   .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
@@ -433,7 +437,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.111.0';
+const VERSION = 'v0.112.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -989,8 +993,9 @@ function paint(el, c){
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
     if (d.kind === 'container'){
+      const takeQ = c.count && S.cards.some(q => q.type === 'quest' && q.goal === 'take');   // v0.112.0: 꺼내기 quest 중엔 깜빡임
       html += c.count && c.fill && DEFS[c.fill]
-        ? `<div class="held" data-held title="드래그해서 꺼내기">${iconHtml(c.fill, true)} ${c.count}/${d.hold}</div>`
+        ? `<div class="held${takeQ ? ' blink' : ''}" data-held title="드래그해서 꺼내기">${iconHtml(c.fill, true)} ${c.count}/${d.hold}</div>`
         : `<div class="held empty">0/${d.hold}</div>`;
     }
     if (d.kind === 'package' || d.kind === 'container') html += '<div class="tab' + (d.kind === 'container' && !sweepable(c) ? ' idle' : '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
@@ -1252,6 +1257,8 @@ function reqDone(rq){
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'devour') return !!S.flags.devoured;         // v0.84.0: 신의 입에 한 장이라도 넣은 적 있음
   if (rq.goal === 'undevour') return !!S.flags.mouthTook;      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
+  if (rq.goal === 'take') return !!S.flags.tookOut;            // v0.112.0: 자루에서 한 장 꺼낸 적 있음
+  if (rq.goal === 'eject') return !!S.flags.ejected;           // v0.112.0: 붉은 택으로 전부 배출한 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
   if (rq.goal === 'gather') return (rq.gathered || 0) >= rq.need;   // v0.73.0: 장소 게이지가 need번 참 (산 채집)
   if (rq.wantsMulti) return rq.wantsMulti.every(([t, n]) => stackCount(rq, t) >= n);   // v0.105.0: 종류마다 필요한 장수
@@ -1290,6 +1297,8 @@ function reqProgress(rq){
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'devour') return `${S.flags.devoured ? '✔' : '☐'} ${ic('godmouth')} 신의 입에 아무거나 1장 넣기`;
   if (rq.goal === 'undevour') return `${S.flags.mouthTook ? '✔' : '☐'} ${ic('godmouth')} 신의 입에서 한 장 꺼내기`;
+  if (rq.goal === 'take') return `${S.flags.tookOut ? '✔' : '☐'} ${ic('sack')} 담긴 카드를 끌어 한 장 꺼내기`;
+  if (rq.goal === 'eject') return `${S.flags.ejected ? '✔' : '☐'} ${ic('sack')} 우상단 붉은 택을 당겨 전부 배출`;
   if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
   if (rq.goal === 'gather') return `${ic(rq.place)} ${DEFS[rq.place].name} 채집 ${rq.gathered || 0} / ${rq.need}`;
   if (rq.goal === 'visitPlace'){
@@ -1434,7 +1443,9 @@ const PEACE_STEPS = [
   { quest: 'peace1', title: '손질된 가죽 만들기', goal: 'make', make: 'tannedhide', recipeId: 'tan' },
   { quest: 'peace2', title: '부실한 자루 만들기', goal: 'make', make: 'sack', recipeId: 'sack' },
   { quest: 'peace3', title: '자루에 담기', goal: 'store' },
+  { quest: 'peace3b', title: '자루에서 하나 꺼내기', goal: 'take' },     // v0.112.0
   { quest: 'peace4', title: '마음의 평화', goal: 'sweep' },
+  { quest: 'peace5', title: '자루 비우기', goal: 'eject' },              // v0.112.0: 붉은 택으로 전부 배출
 ];
 function givePeaceQuest(i){
   if (paused || drag || tear || busy){ setTimeout(() => givePeaceQuest(i), 200); return; }
@@ -2004,7 +2015,7 @@ function scheduleGod(){
 // 갓이 지금 무엇을 줘야 하나: null | 'quest' | 'package'
 // 마음의 평화 완료: 갓의 "아무거나 3개"는 끝 (떠 있던 것도 사라지고, 올려둔 카드는 테이블로) → "갓 파워!" → 산
 function finishPeace(){
-  toast(`${ic('sack')} 마음의 평화 완료`);
+  toast(`${ic('sack')} 자루 비우기 완료 — 마음의 평화`);
   S.flags.peaceDone = true;
   gift = null;
   for (const rq of S.cards.filter(c => c.type === 'quest' && isGodRequest(c))){
@@ -2458,7 +2469,7 @@ function pullRedTab(id){
     return;
   }
   if (!c.fill || !c.count){ toast(`${ic(c.type)} 배출할 물건 없음`); return; }
-  confirmModal('자루의 물건을 배출합니다.', () => ejectAll(id));
+  ejectAll(id);                                             // v0.112.0: 모달 없이 바로 배출 (다시 담으면 되돌릴 수 있음)
 }
 function purgeWorld(id){
   const m = byId(id);
@@ -2532,6 +2543,7 @@ function ejectAll(id){
     spawned.delete(nc.id);
     popFrom.set(nc.id, { x: c.x, y: c.y });
   }
+  S.flags.ejected = true;                                   // v0.112.0: 마음의 평화 "자루 비우기"
   bumpIds.add(c.id);
   toast(`${ic(type)} ${DEFS[type].name} ${n}장 배출`);
   afterChange();
@@ -2684,6 +2696,7 @@ function onDown(e){
   const heldEl = e.target.closest('.held[data-held]');
   if (heldEl && c.fill && c.count > 0){
     const type = c.fill;
+    S.flags.tookOut = true;                                 // v0.112.0: 마음의 평화 "하나 꺼내기"
     c.count--;
     if (!c.count) delete c.fill;
     const nc = addCard(type, px - CW / 2, py - CH / 2, null, true);
@@ -4256,7 +4269,7 @@ const CHAPTERS = [
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
     cards: [['sack', { fill: 'stone', count: 1 }], 'stone', 'stone', 'stone', 'berry', 'campfire'],
-    after: () => givePeaceQuest(3) },                   // 쓸어담기 quest부터
+    after: () => givePeaceQuest(3) },                   // 하나 꺼내기 quest부터 (v0.112.0)
   { title: '산: 나무 · 토끼 · 곰 / 크리처 대결 / 신의 입',
     flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true }),
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
