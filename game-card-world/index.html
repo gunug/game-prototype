@@ -170,7 +170,8 @@
   /* 대사 중: 말하는 카드만 원래대로, 나머지는 반투명 → 대사에 집중 */
   .cw{transition:filter .2s;}
   /* v0.100.0: '흐려짐' = 어둡고 저채도 (반투명은 카드가 겹쳐 보여서, 블러는 안 씀) */
-  .cw.dim,.table.talking .cw:not(.speaker):not(.dragging){filter:brightness(.42) saturate(.3);}
+  .cw.dim,.cw.dim-sel,.table.talking .cw:not(.speaker):not(.dragging){filter:brightness(.42) saturate(.3);}
+  .cw.dim-sel{transition:filter .18s;}   /* v0.110.0: 캐릭터를 선택하면 갈 수 없는 곳·못 싸우는 상대는 흐리게 */
   .links{transition:opacity .25s;}
   .table.talking .links{opacity:.35;}
   .table.paused{filter:saturate(.7) brightness(.82);transition:filter .2s;}
@@ -432,7 +433,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.109.0';
+const VERSION = 'v0.110.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -910,6 +911,22 @@ function placeFoot(d){
   const lv = tagLevel(d, '체력 회복');
   return lv ? `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>` : '';
 }
+// v0.110.0: 캐릭터를 선택하면 갈 수 있는 장소·싸울 수 있는 상대만 또렷하게, 나머지는 흐리게
+//   selFocus = 또렷하게 둘 카드 id 모음 (null 이면 아무것도 안 흐림)
+let selFocus = null;
+function updateFocus(){
+  const sel = selId != null ? byId(selId) : null;
+  if (!sel || DEFS[sel.type].kind !== 'character' || sel.duel != null || sel.dun != null){ selFocus = null; return; }
+  const ids = new Set([sel.id]);
+  if (sel.visit != null) ids.add(sel.visit);                  // 지금 머무는 장소
+  for (const o of S.cards){
+    if (o.id === sel.id) continue;
+    if (o.type === 'quest' && o.giver === sel.id){ ids.add(o.id); continue; }   // 자기에게 붙은 quest
+    const ev = evaluate(sel, o);
+    if (ev && !ev.full && (ev.act === 'visit' || ev.act === 'duel')) ids.add(o.id);
+  }
+  selFocus = ids.size > 1 ? ids : null;                       // 갈 곳도 싸울 상대도 없으면 그냥 두기
+}
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
@@ -919,6 +936,7 @@ function paint(el, c){
   if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
+  if (selFocus && !selFocus.has(c.id)) cls += ' dim-sel';      // v0.110.0: 선택한 캐릭터가 못 가는 곳·못 싸우는 상대
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
   const pf = popFrom.get(c.id);
   if (pf){
@@ -1036,6 +1054,7 @@ function fitBubbles(){
 }
 function renderAll(){
   if (drag) return;
+  updateFocus();
   const alive = new Set();
   for (const c of S.cards){
     alive.add(c.id);
@@ -3971,6 +3990,7 @@ function setSelected(id){
   if (selType != null){ selType = null; markBookSelected(); }
   const el = id != null ? els.get(id) : null;
   if (el) el.classList.add('selected');
+  renderAll();                                                 // v0.110.0: 흐리게 처리 다시 계산
   renderInspector();
 }
 // 콜렉터북 칸을 고르면 그 카드 종류를 인스펙터에 (테이블 카드 선택은 풀림)
