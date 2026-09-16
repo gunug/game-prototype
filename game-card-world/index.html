@@ -164,9 +164,10 @@
   .f-wood{--frame:url(images/frame/frame_wood.png);}
 
   /* 대사 중: 말하는 카드만 원래대로, 나머지는 반투명 → 대사에 집중 */
-  .cw{transition:opacity .25s;}
+  .cw{transition:filter .2s;}
+  /* v0.100.0: '흐려짐' = 어둡고 저채도 (반투명은 카드가 겹쳐 보여서, 블러는 안 씀) */
+  .cw.dim,.table.talking .cw:not(.speaker):not(.dragging){filter:brightness(.42) saturate(.3);}
   .links{transition:opacity .25s;}
-  .table.talking .cw:not(.speaker):not(.dragging){opacity:.35;}
   .table.talking .links{opacity:.35;}
   .table.paused{filter:saturate(.7) brightness(.82);transition:filter .2s;}
   .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);border-color:var(--tone);pointer-events:none;}
@@ -421,7 +422,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.99.0';
+const VERSION = 'v0.100.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -836,6 +837,7 @@ function load(){
     st.cards = st.cards.filter(c => DEFS[c.type]);
     st.seen = (st.seen || []).filter(t => DEFS[t]);
     st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
+    st.nope = (st.nope || []).filter(k => typeof k === 'string' && k.split('|').every(t => DEFS[t]));   // v0.100.0: 해봤는데 안 되던 조합
     st.flags = st.flags || {};
     for (const c of st.cards) if (c.type === 'quest' && !Array.isArray(c.stack)) c.stack = [];
     for (const c of st.cards){                      // v0.69.0: 없어진 카드 (예: 뾰족한 막대) — quest 위·자루 안에서도 뺌
@@ -871,7 +873,7 @@ function load(){
   } catch (e) { return false; }
 }
 function newGame(){
-  S = { cards: [], seen: ['package'], found: [], flags: { discovered: false, requestsGiven: 0 }, nextId: 1, z: 1 };
+  S = { cards: [], seen: ['package'], found: [], nope: [], flags: { discovered: false, requestsGiven: 0 }, nextId: 1, z: 1 };
   const { w, h } = tableSize();
   addCard('package', w / 2 - CW / 2, h / 2 - CH / 2, { contents: 'first' }, true);
   save();
@@ -2651,6 +2653,27 @@ function linkedGroup(c){
   }
   return ids;
 }
+// v0.100.0: 한 번이라도 드래그 드롭으로 해봤는데 안 되던 조합 — 다음에 그 카드를 끌면 상대 재료가 흐려짐
+//   기록하는 건 "조합 자체가 없음"뿐. 자루가 가득 참·자리가 참처럼 상황 때문에 막힌 건 기록하지 않음
+const nopeKey = (a, b) => [a, b].sort().join('|');
+function markNope(a, b){
+  if (!S.nope) S.nope = [];                                   // 챕터 점프·예전 저장
+  const k = nopeKey(a, b);
+  if (S.nope.includes(k)) return;
+  S.nope.push(k);
+  save();
+}
+const isNope = (a, b) => (S.nope || []).includes(nopeKey(a, b));
+function dimNope(c){
+  for (const o of S.cards){
+    if (o.id === c.id || !isNope(c.type, o.type)) continue;
+    const el = els.get(o.id);
+    if (el) el.classList.add('dim');
+  }
+}
+function clearDim(){
+  for (const el of els.values()) el.classList.remove('dim');
+}
 function startDrag(c, px, py, pid, o){
   // 붙음·방문으로 이어진 카드는 끌고 있는 카드와 함께 맨 위로 (서로의 앞뒤 순서는 유지)
   const group = linkedGroup(c);
@@ -2676,6 +2699,7 @@ function startDrag(c, px, py, pid, o){
   };
   el.style.zIndex = 2000000000;
   el.classList.add('dragging');
+  dimNope(c);                                                 // 안 되는 조합의 상대 카드는 흐리게
 }
 // 대상 고르기: 끌고 있는 카드와 겹친 넓이로 판단 (포인터 아래만 보던 v0.7.0보다 넓음)
 //   카드 넓이의 15% 이상 겹친 카드 중에서, 되는 조합이면 2배 가산해 가장 점수 높은 카드
@@ -2840,10 +2864,12 @@ function onUp(e){
   drag.el.classList.remove('dragging');
   const d0 = drag;
   drag = null;
+  clearDim();
   if (!c || !d0.moved){ if (c) setSelected(c.id); renderAll(); return; }   // 탭 → 인스펙터
   if (t && byId(t.id)){
     const ev = evaluate(c, t);
     if (ev && applyEv(ev, c, t)){ afterChange(); return; }
+    if (!ev) markNope(c.type, t.type);             // 조합 자체가 없음 → 다음부터 흐리게
     bounce(c, d0);                                // 쌓기 실패 → 되돌아감
     return;
   }
