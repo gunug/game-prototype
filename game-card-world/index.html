@@ -477,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.130.1';
+const VERSION = 'v0.131.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -3179,6 +3179,8 @@ function onUp(e){
   if (t && byId(t.id)){
     const ev = evaluate(c, t);
     if (ev && applyEv(ev, c, t)){ afterChange(); return; }
+    // v0.131.0: 지도는 더 이상 조합되지 않음 — 실패로 되돌리지 않고 놓은 자리에 그대로 (자리 차지)
+    if (DEFS[c.type].kind === 'map' || DEFS[t.type].kind === 'map'){ afterChange(); return; }
     bounce(c, d0);                                // 쌓기 실패 → 되돌아감
     return;
   }
@@ -3873,10 +3875,33 @@ function attachedList(g){
 }
 // 붙음 묶음이 화면 밖으로 나가지 않도록 카드별 x 범위
 //   request는 항상 발주자 오른쪽 → 경계에 닿으면 순서를 바꾸지 않고 더 안 움직임
+// v0.131.0: 지도 묶음(지도 + 등록된 장소 + 그 방문자)이 화면 밖으로 안 나가게 지도 카드가 있을 수 있는 범위
+function mapBounds(m){
+  const { w, h } = tableSize();
+  const hull = bodyHulls(S.cards.filter(o => bodyOf(o) === m))[0];
+  if (!hull) return null;
+  return {
+    minX: 8 - (hull.x1 - m.x), maxX: w - 8 - (hull.x2 - m.x),
+    minY: TOP_PAD - (hull.y1 - m.y), maxY: h - 8 - (hull.y2 - m.y),
+  };
+}
+// 묶음 범위 안으로 (범위가 뒤집힐 만큼 묶음이 크면 그냥 제자리)
+function mapClampPos(m, x, y){
+  const b = mapBounds(m);
+  if (!b) return clampPos(x, y);
+  return {
+    x: b.maxX >= b.minX ? Math.max(b.minX, Math.min(x, b.maxX)) : m.x,
+    y: b.maxY >= b.minY ? Math.max(b.minY, Math.min(y, b.maxY)) : m.y,
+  };
+}
 function attachLimits(c){
   const { w } = tableSize();
   const step = CW + ATTACH_GAP;
   const maxBase = w - CW - 8;
+  if (DEFS[c.type].kind === 'map'){                            // v0.131.0: 지도는 줄 전체가 화면 안에
+    const b = mapBounds(c);
+    if (b && b.maxX >= b.minX) return b;
+  }
   if (c.type === 'quest' && c.giver != null){
     const g = byId(c.giver);
     if (g){
@@ -3963,7 +3988,7 @@ function mapPinned(){
   const ids = new Set();
   for (const m of S.cards){
     if (DEFS[m.type].kind !== 'map') continue;
-    ids.add(m.id);                                          // v0.130.0: 지도 카드 자체도 고정
+    // v0.131.0: 지도 카드는 고정하지 않음 — 묶음이 통째로 밀림 (줄에 들어간 카드만 고정)
     for (const pl of mappedOf(m)){
       ids.add(pl.id);
       for (const v of visitorsOf(pl)){
@@ -3990,7 +4015,7 @@ function solveMap(){
       const rowY = y + hs[i] / 2 - CH / 2;                     // 장소는 자기 칸의 가운데에
       y += hs[i] + VISIT_VGAP;
       if (pl.id === hid || (drag && drag.id === pl.id)) return;
-      const p = clampPos(m.x + CW + visitGap() + leftPad, rowY);
+      const p = { x: m.x + CW + visitGap() + leftPad, y: rowY };   // v0.131.0: 묶음이 변형되지 않게 낱장 클램프 안 함
       if (Math.abs(p.x - pl.x) > 0.05 || Math.abs(p.y - pl.y) > 0.05){ pl.x = p.x; pl.y = p.y; moveEl(pl); moved = true; }
     });
   }
@@ -4192,12 +4217,15 @@ function physMove(){
       if (ox <= 0 || oy <= 0) continue;
       const dx = (B.x1 + B.x2) - (A.x1 + A.x2), dy = (B.y1 + B.y2) - (A.y1 + A.y2);
       const va = velOf(A.body.id), vb = velOf(B.body.id);
+      // v0.131.0: 지도 묶음은 지도 묶음끼리만 서로 밀어냄. 낱장 카드는 지도를 못 밀고 지도가 밀어냄
+      const aMap = DEFS[A.body.type].kind === 'map', bMap = DEFS[B.body.type].kind === 'map';
+      const wa = aMap && !bMap ? 0 : 1, wb = bMap && !aMap ? 0 : 1;
       if (ox < oy){
         const f = ox * PUSH * (dx < 0 ? -1 : 1);
-        va.x -= f; vb.x += f;
+        va.x -= f * wa; vb.x += f * wb;
       } else {
         const f = oy * PUSH * (dy < 0 ? -1 : 1);
-        va.y -= f; vb.y += f;
+        va.y -= f * wa; vb.y += f * wb;
       }
     }
   }
@@ -4210,7 +4238,7 @@ function physMove(){
     if (!v) continue;
     if (Math.abs(v.x) < 0.02 && Math.abs(v.y) < 0.02){ vel.delete(c.id); continue; }
     const nx = c.x + v.x, ny = c.y + v.y;
-    const p = clampPos(nx, ny);
+    const p = DEFS[c.type].kind === 'map' ? mapClampPos(c, nx, ny) : clampPos(nx, ny);   // v0.131.0: 지도는 묶음째 경계 판정
     if (p.x !== nx) v.x = 0;                       // 벽에 닿으면 그 방향 속도 0
     if (p.y !== ny) v.y = 0;
     c.x = p.x; c.y = p.y;
