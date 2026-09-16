@@ -433,7 +433,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.110.0';
+const VERSION = 'v0.111.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -567,6 +567,8 @@ const STAT_NAME = { atk:'공격', def:'방어', hp:'체력', people:'인원' }; 
 const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
 const si = k => `⟦s_${k}⟧`;                       // 글자 줄 안의 자리표 (rich → 그림, plain → 지움)
 const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
+// v0.111.0: 이미 만든 HTML 안의 자리표만 그림으로 (이스케이프하지 않음)
+const richRaw = s => String(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
 const plain = s => String(s).replace(ICON_TOKEN, '').replace(/ {2,}/g, ' ').trim();
 
 // 튜토리얼 package 재료 풀 — 가중치 (확정 3)
@@ -2975,13 +2977,14 @@ function statDeltaFloat(c, before){
     if (!dv) continue;
     parts.push(`<span class="${dv > 0 ? 'up' : 'down'}">${si(k)}${dv > 0 ? '+' : ''}${dv}</span>`);
   }
-  if (parts.length) floatText(c, parts.join(''));
+  if (parts.length) floatText(c, parts.join(''), '', true);   // v0.111.0: HTML 그대로 (span 태그가 글자로 보이던 버그)
 }
 const statSnap = c => ({ atk: atkOf(c), def: defOf(c) });
-function floatText(c, text, cls){
+function floatText(c, text, cls, raw){
   const f = document.createElement('div');
   f.className = 'float' + (cls ? ' ' + cls : '');
-  f.innerHTML = rich(text);                      // 공격·방어·체력 자리표(si) → 그림
+  // v0.111.0: raw = 이미 만든 HTML (자리표만 그림으로 바꿈). 아니면 글자로 보고 이스케이프
+  f.innerHTML = raw ? richRaw(text) : rich(text);
   f.style.left = (c.x + CW / 2) + 'px';
   f.style.top = (c.y - CH * 0.05) + 'px';
   table.appendChild(f);
