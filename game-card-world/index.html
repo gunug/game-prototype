@@ -99,7 +99,6 @@
   .cw .stats .s-hp{color:#ff8f8f;}
   .cw .equip{display:flex;gap:3px;pointer-events:none;}
   .cw .equip span{min-width:calc(var(--cw) * .24);height:calc(var(--cw) * .24);display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw) * .15);border:1px solid rgba(255,255,255,.15);border-radius:4px;background:rgba(0,0,0,.3);}
-  .cw .equip span[data-slot]{pointer-events:auto;cursor:grab;touch-action:none;}
   .cw .equip span.empty{font-size:calc(var(--cf) * .085);color:var(--muted);border-style:dashed;padding:0 3px;}
   .cw .heal{color:#ff8f8f;font-size:calc(var(--cf) * .13);font-weight:700;line-height:1.1;pointer-events:none;}
   /* 장소 위쪽 가운데 한 줄: 방문 인원 + 파이 게이지 (v0.57.0: 양쪽 모서리 → 가운데) */
@@ -416,7 +415,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.90.0';
+const VERSION = 'v0.92.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -839,7 +838,7 @@ function load(){
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
-      if (c.type === 'quest' && c.quest === 'bonepowder' && c.need > 1) c.need = 1;   // v0.89.0: 골수 2개 → 1개
+      if (c.type === 'quest' && c.quest === 'bonepowder' && c.need > 1) c.need = 1;   // v0.92.0: 골수 2개 → 1개
       if (Array.isArray(c.eaten)) c.eaten = c.eaten.filter(r => r && DEFS[r.type]);   // 신의 입 기록 중 없어진 카드
 
       if (DEFS[c.type] && DEFS[c.type].kind === 'creature' && DEFS[c.type].hp && c.hp == null) c.hp = DEFS[c.type].hp;   // v0.47.0: 크리처 체력
@@ -929,7 +928,7 @@ function paint(el, c){
       // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름
       const eq = c.equip || {};
       html += '<div class="equip">' + d.slots.map(sl => eq[sl] && DEFS[eq[sl]]
-        ? `<span data-slot="${esc(sl)}" title="${esc(sl)} — 드래그해서 빼기">${iconHtml(eq[sl])}</span>`
+        ? `<span title="${esc(sl)} — 우상단 붉은 택으로 무장해제">${iconHtml(eq[sl])}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
     if (d.kind === 'container'){
@@ -940,7 +939,7 @@ function paint(el, c){
     if (d.kind === 'package' || d.kind === 'container') html += '<div class="tab' + (d.kind === 'container' && !sweepable(c) ? ' idle' : '') + '"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M100 0 L0 100"/></svg>'
       + '<svg class="tab-arrow" viewBox="0 0 24 24"><path d="M19 19 L6 6 M6 6 H15 M6 6 V15"/></svg></div>';
     // 붉은 택 (우상단): 신의 입 = 월드 정리, container = 배출
-    if (d.kind === 'container' || d.devour) html += `<div class="rtab${redTabReady(c) ? '' : ' idle'}"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 0 L100 100"/></svg></div>`;
+    if (d.kind === 'container' || d.devour || d.slots) html += `<div class="rtab${redTabReady(c) ? '' : ' idle'}"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 0 L100 100"/></svg></div>`;
     if (c.type === 'package' && c.contents === 'first' && speech && !S.cards.some(o => o.type === 'god')){
       html += `<div class="speech">${esc(speech)}</div>`;             // 갇힌 갓이 package 안에서 말함
     }
@@ -2309,7 +2308,10 @@ const KEEP_TAGS = ['도구', '무기', '방패'];
 const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && o.dun == null && !(drag && drag.id === o.id)
   && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t))
   && DEFS[o.type].kind !== 'package');                                // v0.77.0: package 유형(신의 선물·신의 구원 …)도 안 빨려감
-const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
+const equipped = c => Object.keys(c.equip || {}).filter(sl => c.equip[sl] && DEFS[c.equip[sl]]);   // v0.92.0: 장비한 칸
+const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0
+  : DEFS[c.type].slots ? equipped(c).length > 0                       // v0.92.0: 무장해제할 게 있을 때만
+  : (c.count || 0) > 0;
 let purgeAsking = false;                                    // 신의 입: 갓 대사가 끝나길 기다리는 중
 function pullRedTab(id){
   const c = byId(id);
@@ -2324,6 +2326,11 @@ function pullRedTab(id){
       if (!byId(id) || !purgeTargets().length) return;      // 그사이 신의 입이 없어졌거나 먹을 게 없어짐
       confirmModal('월드를 정리합니다. 되돌릴수 없습니다.', () => purgeWorld(id));
     });
+    return;
+  }
+  if (DEFS[c.type].slots){                                  // v0.92.0: 캐릭터 무장해제
+    if (!equipped(c).length){ toast(`${ic(c.type)} 장비한 것 없음`); return; }
+    disarm(id);
     return;
   }
   if (!c.fill || !c.count){ toast(`${ic(c.type)} 배출할 물건 없음`); return; }
@@ -2366,6 +2373,24 @@ function purgeWorld(id){
     toast(`${ic(mouth.type)} 월드 정리 — ${picks.length}장 빨아들임`);
     afterChange();
   }, 340);
+}
+// v0.92.0: 무장해제 — 장비 칸의 카드를 전부 밖으로 배출 (장비는 끌어서 뺄 수 없고 이 방법뿐)
+function disarm(id){
+  const c = byId(id);
+  if (!c) return;
+  const slots = equipped(c);
+  if (!slots.length) return;
+  for (const sl of slots){
+    const type = c.equip[sl];
+    delete c.equip[sl];
+    const p = findSpot(c.x + CW * 0.9, c.y);
+    const nc = addCard(type, p.x, p.y, null, true);          // 배출은 새로 생기는 게 아니라 월드 5장 상한과 무관
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x: c.x, y: c.y });
+  }
+  bumpIds.add(c.id);
+  toast(`${ic(c.type)} ${DEFS[c.type].name} 무장해제 — ${slots.length}장 배출`);
+  afterChange();
 }
 function ejectAll(id){
   const c = byId(id);
@@ -2527,20 +2552,6 @@ function onDown(e){
     return;
   }
 
-  // 장비 칸에서 장비 끌어내기
-  const eqEl = e.target.closest('.equip span[data-slot]');
-  if (eqEl && c.equip){
-    const slot = eqEl.dataset.slot;
-    const type = c.equip[slot];
-    if (!type) return;
-    delete c.equip[slot];
-    const nc = addCard(type, px - CW / 2, py - CH / 2, null, true);
-    spawned.delete(nc.id);
-    renderAll();
-    startDrag(nc, px, py, e.pointerId, { ox: c.x, oy: c.y, fromEquip: { id: c.id, slot } });
-    return;
-  }
-
   // container에서 한 장 꺼내기
   const heldEl = e.target.closest('.held[data-held]');
   if (heldEl && c.fill && c.count > 0){
@@ -2569,7 +2580,7 @@ function onDown(e){
   }
 
   // 붉은 택 당기기 (v0.67.0): 신의 입 = 월드 정리, container = 배출 (찢어지지 않음)
-  if ((DEFS[c.type].kind === 'container' || DEFS[c.type].devour) && e.target.closest('.rtab')){
+  if ((DEFS[c.type].kind === 'container' || DEFS[c.type].devour || DEFS[c.type].slots) && e.target.closest('.rtab')){
     tear = { id: c.id, sx: px, sy: py, el: cardEl, tab: cardEl.querySelector('.rtab'), pid: e.pointerId, dist: 0, sweep: true, red: true };
     return;
   }
@@ -2621,10 +2632,9 @@ function startDrag(c, px, py, pid, o){
     id: c.id, pid, el,
     offX: px - c.x, offY: py - c.y,
     sx: px, sy: py,
-    moved: !!(o.fromRequest || o.fromEquip || o.fromContainer || o.fromMouth),
+    moved: !!(o.fromRequest || o.fromContainer || o.fromMouth),
     ox: o.ox, oy: o.oy,
     fromRequest: o.fromRequest || null,
-    fromEquip: o.fromEquip || null,
     fromContainer: o.fromContainer || null,
     fromMouth: o.fromMouth || null,
     target: null,
@@ -2747,19 +2757,6 @@ function freeSpotFor(c, x, y){
 function bounce(c, d0){
   sayMaybe(LINES.bounce);
   markRing(c.id, 'fail');                                     // 되돌아가는 동안 빨간 테두리
-  if (d0.fromEquip){
-    const owner = byId(d0.fromEquip.id);
-    const slot = d0.fromEquip.slot;
-    if (owner && !(owner.equip && owner.equip[slot])){
-      tweenTo(c, owner.x, owner.y, () => {
-        removeCard(c.id);
-        owner.equip = owner.equip || {};
-        owner.equip[slot] = c.type;
-        afterChange();
-      });
-      return;
-    }
-  }
   if (d0.fromContainer){
     // 꺼낸 카드를 못 놓으면 자루로 돌아감 (자리가 있고 같은 종류일 때)
     const box = byId(d0.fromContainer);
