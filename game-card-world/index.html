@@ -370,6 +370,8 @@
   .cw.dying .emoji .icon, .i-icon.dying .icon{filter:grayscale(1);}
   /* 대결 중인 캐릭터·크리처 */
   .cw.dueling{box-shadow:0 0 0 2px #ff6b6b,var(--sh-md);}
+  /* v0.87.0: 던전 — 캐릭터가 들어오면 가로로 늘어나는 길 */
+  .cw.k-place{transition:width .3s ease-out;}
 </style>
 </head>
 <body>
@@ -395,7 +397,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.86.0';
+const VERSION = 'v0.87.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -440,6 +442,8 @@ const DEFS = {
   // 신의 입 (v0.64.0): 장소지만 방문 못 함. 캐릭터·장소·quest 빼고 전부 먹음, 최근 devour장 기록 → 기록에서 아무거나 꺼냄
   godmouth:  { name:'신의 입',     kind:'place', tags:['장소'], devour:3 },
   // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
+  // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
+  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, run:10000, span:3 },
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -481,6 +485,7 @@ const DESC = {
   mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
   godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
   river:      '물은 흐르고 조개는 기다린다. 여기선 갓도 한몫한다.',
+  dungeon:    '컴컴하고 길다. 아직은 아무것도 안 나온다. 아직은.',
   tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
   roastmeat:  '문명의 냄새가 난다.',
   roastclam:  '조개의 마지막 저항도 불 앞에선 무너졌다.',
@@ -598,7 +603,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'tree', 'bear', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -619,7 +624,8 @@ const LINES = {
   godPower:       '갓 파워!',
   godMouth:       '필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘',   // v0.84.0: 카드 30장이 넘으면
   mouthWarn:      '기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해',
-  river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',   // v0.73.0: 산 채집 quest 완료
+  river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',
+  dungeon:        '물장난은 그만. 저기 컴컴한 굴을 하나 파놨어. 끝까지 걸어가 봐',   // v0.87.0: 강 채집 quest 완료   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
   firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
@@ -865,6 +871,8 @@ function paint(el, c){
   if (bumpIds.has(c.id)) cls += ' bump';
   if (c.type === 'package' && c.contents === 'first') cls += ' rattle';   // 안에서 두드리는 첫 package
   el.className = cls;
+  // v0.87.0: 던전은 캐릭터가 들어와 있는 동안만 가로로 span배 (긴 길)
+  el.style.width = d.run && visitorsOf(c).length ? (CW * d.span) + 'px' : '';
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
   const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
@@ -1572,7 +1580,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'visit'){
     if (ev.full){ toast(`자리가 가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].capacity}명`); return false; }
-    if (d.visit !== t.id){ d.visit = t.id; d.visitSeq = ++S.z; }   // 방문: 장소 오른쪽 줄 끝에 섬
+    if (d.visit !== t.id){ d.visit = t.id; d.visitSeq = ++S.z; delete d.runMs; runLast.delete(d.id); }   // 방문: 장소 오른쪽 줄 끝에 섬 (v0.87.0: 던전 진행은 0부터)
     bumpIds.add(t.id);
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
     return true;
@@ -1791,7 +1799,8 @@ function rewardFor(rq, x, y){
     }
     return;
   }
-  if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }   // v0.73.0: 산 채집 → 강가
+  if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }
+  if (rq.quest === 'riverwork'){ giveDungeonReward(x, y); return; }   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
     if (pi < PEACE_STEPS.length - 1) givePeaceQuest(pi + 1);  // 다음 마음의 평화 quest
@@ -1957,6 +1966,31 @@ function giveRiverReward(x, y){
   popFrom.set(r.id, { x, y });
   toast(`${ic('river')} 산 채집 완료 — 강가`);
   say(LINES.river);                                         // "산만 두드리니 지겹지? 갓 파워! 강가도 줄게"
+  giveRiverQuest();
+}
+// 강 채집 quest (v0.87.0): 강가 게이지가 5번 차면 완료 → 보상으로 던전
+const RIVER_WORK = 5;
+function giveRiverQuest(){
+  if (S.flags.dungeonGiven || S.flags.riverWorkDone || questExists('riverwork')) return;
+  if (paused || drag || tear || busy){ setTimeout(giveRiverQuest, 200); return; }
+  const g = S.cards.find(c => c.type === 'god');
+  if (!g) return;
+  const rq = addCard('quest', g.x, g.y, { quest: 'riverwork', title: '강 채집', goal: 'gather', place: 'river',
+    target: g.id, giver: g.id, need: RIVER_WORK, gathered: 0, stack: [], rewards: ['dungeon'] });
+  slideOutFrom(rq, g);
+  save();
+  renderAll();
+}
+function giveDungeonReward(x, y){
+  S.flags.riverWorkDone = true;
+  if (S.flags.dungeonGiven || S.cards.some(c => c.type === 'dungeon')) return;
+  S.flags.dungeonGiven = true;
+  const p = findSpot(x, y);
+  const r = addCard('dungeon', p.x, p.y);
+  spawned.delete(r.id);
+  popFrom.set(r.id, { x, y });
+  toast(`${ic('dungeon')} 강 채집 완료 — 던전`);
+  say(LINES.dungeon);
 }
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
@@ -2041,6 +2075,7 @@ function godCheck(){
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
   if (!S.flags.mouthGiven && S.cards.length >= MOUTH_AT && !isTalking('god')){ giveGodMouth(); return; }   // v0.84.0: 월드가 어수선해지면 신의 입
   if (S.flags.mountainGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
+  if (S.flags.riverGiven && !S.flags.dungeonGiven && !S.flags.riverWorkDone && !questExists('riverwork') && !isTalking('god')){ giveRiverQuest(); return; }   // v0.87.0: 강 채집 quest를 받기 전에 새로고침한 경우
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -2979,11 +3014,10 @@ function yieldTick(){
         made = true;
       }
       if (miss.length) floatText(pl, `누락: ${miss.join(', ')}`, 'work');
-      // 산 채집 quest: 산 게이지가 찰 때마다 1번 (나무+돌이 같이 나와도 1번, 월드 상한으로 누락돼도 1번)
-      if (pl.type === 'mountain'){
-        const rq = S.cards.find(c => c.type === 'quest' && c.goal === 'gather' && c.place === 'mountain');
-        if (rq && (rq.gathered || 0) < rq.need){ rq.gathered = (rq.gathered || 0) + 1; progressed = true; }
-      }
+      // 채집 quest: 그 장소의 게이지가 찰 때마다 1번 (여러 장이 같이 나와도 1번, 월드 상한으로 누락돼도 1번)
+      // v0.87.0: 산·강가 공통
+      const gq = S.cards.find(c => c.type === 'quest' && c.goal === 'gather' && c.place === pl.type);
+      if (gq && (gq.gathered || 0) < gq.need){ gq.gathered = (gq.gathered || 0) + 1; progressed = true; }
     }
     const el = els.get(pl.id);
     const pie = el && el.querySelector('.pie');
@@ -3164,6 +3198,42 @@ function registerSlot(t){
   }
 }
 
+// ── 던전 (v0.87.0) ───────────────────────────────────────
+//   캐릭터를 올리면 던전이 가로로 span배 늘어나고, 캐릭터가 run(ms) 동안 왼쪽 → 오른쪽으로 걸어감
+//   끝까지 가면 캐릭터는 장소에서 탈락하고 던전은 원래 크기로. 중간에 끌어내면 탈락 + 진행 초기화
+//   아직 크리처·전리품 없음
+const runLast = new Map();                       // 방문자 id → 마지막 계산 시각
+const runProgress = (v, pl) => Math.min(1, (v.runMs || 0) / DEFS[pl.type].run);
+function stepDungeon(){
+  let moved = false;
+  const now = performance.now();
+  for (const pl of S.cards){
+    const d = DEFS[pl.type];
+    if (!d.run) continue;
+    const vs = visitorsOf(pl);
+    if (!vs.length) continue;
+    const v = vs[0];
+    if (heldId() === v.id){ runLast.set(v.id, now); continue; }   // 잡고 있는 동안은 멈춤
+    const last = runLast.get(v.id);
+    runLast.set(v.id, now);
+    if (last == null) continue;
+    v.runMs = (v.runMs || 0) + (now - last);
+    moved = true;
+    if (v.runMs >= d.run){                                       // 끝까지 도달 → 탈락
+      delete v.visit;
+      delete v.visitSeq;
+      delete v.runMs;
+      runLast.delete(v.id);
+      const p = clampPos(pl.x + CW * d.span + 12, pl.y);
+      v.x = p.x; v.y = p.y;
+      bumpIds.add(v.id);
+      toast(`${ic(pl.type)} ${DEFS[v.type].name} — 던전 끝까지 도달`);
+      afterChange();
+    }
+  }
+  return moved;
+}
+
 // ── 밀어내기 (물리) ───────────────────────────────────
 function velOf(id){
   let v = vel.get(id);
@@ -3176,6 +3246,7 @@ function physStep(){
   if (S && !busy && !paused){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
     if (stepHops()) moved = true;              // 동물 홉핑
+    if (stepDungeon()) moved = true;           // 던전 진행
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
     if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
@@ -3299,6 +3370,9 @@ function visitColumnTop(pl, n){
 // 방문자 열이 화면 밖으로 안 나가도록 장소가 있을 수 있는 범위
 function visitBounds(pl){
   const { w, h } = tableSize();
+  const pd = DEFS[pl.type];
+  // v0.87.0: 던전은 늘어난 폭만큼 자리를 차지하고, 방문자는 그 위를 걸어감
+  if (pd.run) return { minX: 8, maxX: Math.max(8, w - 8 - CW * pd.span), minY: TOP_PAD, maxY: h - 8 - CH };
   const n = visitorsOf(pl).length;
   const units = rowUnits(pl);
   const H = n * CH + (n - 1) * VISIT_VGAP;
@@ -3352,7 +3426,11 @@ function solveVisit(){
     const top = visitColumnTop(pl, list.length);
     for (let i = 0; i < list.length; i++){
       const v = list[i];
-      const tx = pl.x + CW + visitGap(), ty = top + vstep * i;  // 오른쪽으로 떨어진 열, 장소 기준 세로 가운데 정렬
+      let tx = pl.x + CW + visitGap(), ty = top + vstep * i;  // 오른쪽으로 떨어진 열, 장소 기준 세로 가운데 정렬
+      if (DEFS[pl.type].run){                                 // v0.87.0: 던전 — 길 위를 왼쪽에서 오른쪽으로
+        tx = pl.x + CW * (DEFS[pl.type].span - 1) * runProgress(v, pl);
+        ty = pl.y;
+      }
       if (hv && hv.id === v.id){
         // 잡아당기는 중: 자리로 끌어오지 않음. 멀어지면 떠남
         if (drag && Math.hypot(v.x - tx, v.y - ty) > detachDist()){
@@ -3836,6 +3914,12 @@ const CHAPTERS = [
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
     cards: ['mountain', 'godmouth', 'campfire', 'berry', 'animal', 'bear', 'handaxe', 'marrow'] },
+
+  { title: '강가 · 던전',                                  // v0.87.0
+    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true, mouthTaught: true, mountainWorkDone: true, riverGiven: true }),
+    knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
+    cards: ['river', 'dungeon', 'mountain', 'godmouth', 'campfire', 'shell', 'berry'] },
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
