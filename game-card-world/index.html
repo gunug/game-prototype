@@ -477,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.131.0';
+const VERSION = 'v0.132.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -4014,8 +4014,18 @@ function solveMap(){
     list.forEach((pl, i) => {
       const rowY = y + hs[i] / 2 - CH / 2;                     // 장소는 자기 칸의 가운데에
       y += hs[i] + VISIT_VGAP;
-      if (pl.id === hid || (drag && drag.id === pl.id)) return;
-      const p = { x: m.x + CW + visitGap() + leftPad, y: rowY };   // v0.131.0: 묶음이 변형되지 않게 낱장 클램프 안 함
+      const tx = m.x + CW + visitGap() + leftPad;
+      if (pl.id === hid || (drag && drag.id === pl.id)){
+        // v0.132.0: 잡아당기는 중엔 자리로 끌어오지 않음. 제자리에서 멀어지면 지도에서 떨어짐 (방문자가 장소를 떠나는 것과 같음)
+        if (drag && drag.id === pl.id && Math.hypot(pl.x - tx, pl.y - rowY) > detachDist()){
+          delete pl.onMap;
+          delete pl.mapSeq;
+          toast(`👋 ${DEFS[pl.type].name} — ${DEFS[m.type].name}에서 떨어짐`);
+          moved = true;
+        }
+        return;
+      }
+      const p = { x: tx, y: rowY };   // v0.131.0: 묶음이 변형되지 않게 낱장 클램프 안 함
       if (Math.abs(p.x - pl.x) > 0.05 || Math.abs(p.y - pl.y) > 0.05){ pl.x = p.x; pl.y = p.y; moveEl(pl); moved = true; }
     });
   }
