@@ -449,7 +449,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.120.0';
+const VERSION = 'v0.121.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -752,6 +752,17 @@ function markRing(id, cls){
   }, ms);
 }
 const markFresh = id => markRing(id, 'fresh');
+// v0.121.0: 막 생성된 카드는 잠깐 밀어내기에서 빠짐 (나오는 동안 제자리)
+const SPAWN_HOLD_MS = 600;
+const spawnHold = new Map();                     // id → 풀리는 시각
+const holdSpawn = id => spawnHold.set(id, performance.now() + SPAWN_HOLD_MS);
+function heldSpawn(id){
+  const t = spawnHold.get(id);
+  if (t == null) return false;
+  if (t > performance.now()) return true;
+  spawnHold.delete(id);
+  return false;
+}
 const settling = new Set();   // 정산 대기 중인 quest id
 let newSeen = [];
 let drag = null, tear = null, busy = false;
@@ -1814,10 +1825,16 @@ function apply(ev, d, t){
       const targetKept = !consumed.includes(t);
       for (const c of consumed) removeCard(c.id);
       const omitted = [];
+      // v0.121.0: 새 카드는 조합한 두 카드의 가운데에서 나옴 (여러 장이면 가운데를 중심으로 퍼짐)
+      const mx = (d.x + bx) / 2, my = (d.y + by) / 2;
+      let first = true;
       for (const o of (r.out || [])){
         if (!canSpawn(o)){ omitted.push(o); continue; }        // 월드 상한까지만 채움
-        const p = findSpot(targetKept ? bx + CW * 0.9 : bx, by);
-        markFresh(addCard(o, p.x, p.y).id);
+        const p = first && !targetKept ? clampPos(mx, my) : findSpot(mx, my);
+        first = false;
+        const nc = addCard(o, p.x, p.y);
+        markFresh(nc.id);
+        holdSpawn(nc.id);                                       // 나오는 동안은 안 밀림
       }
       omitToast(omitted);
       if (targetKept) bumpIds.add(t.id);
@@ -3910,7 +3927,7 @@ function physMove(){
   // 붙어 있는 request는 발주자와 한 몸으로 밀림. 끌고 있는 묶음은 밀지도 밀리지도 않음
   const hid = heldId();
   const dragBody = hid != null ? bodyOf(byId(hid)) : null;
-  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && bodyOf(c).duel == null);   // 대결 중인 묶음은 제자리
+  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && bodyOf(c).duel == null && !heldSpawn(c.id));   // 대결 중인 묶음·막 생성된 카드는 제자리 (v0.121.0)
   // v0.63.0: 카드끼리가 아니라 묶음 전체 사각형끼리 밀어냄 → 장소─캐릭터, 캐릭터─quest 틈에 다른 카드가 끼지 않음
   //   (예전엔 틈에 들어간 카드를 양쪽 카드가 반대로 밀어 제자리에 갇혔음)
   const gx = CW * 0.06, gy = CH * 0.04;                       // 카드 사이 최소 간격 (예전 gapX·gapY 와 같음)
@@ -3969,7 +3986,7 @@ const outsideHull = (x, y, g) => x + CW <= g.x1 || x >= g.x2 || y + CH <= g.y1 |
 function unwedge(){
   const hid = heldId();
   const dragBody = hid != null ? bodyOf(byId(hid)) : null;
-  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && !(returning && c.id === returning.id));
+  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && !(returning && c.id === returning.id) && !heldSpawn(c.id));   // v0.121.0: 막 생성된 카드 제외
   const hs = bodyHulls(cs);
   const groups = hs.filter(h => h.n > 1);
   let moved = false;
