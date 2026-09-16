@@ -397,7 +397,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.87.0';
+const VERSION = 'v0.88.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -408,7 +408,7 @@ const DEFS = {
   salvation: { name:'신의 구원',   kind:'package', fixed:['marrow', 'roastmeat', 'roastberry'] },   // 빈사 기사 구호물품
   quest:   { name:'quest',     kind:'quest' },
   knight:    { name:'기사',        kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
-  god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1, baseAtk:0, baseDef:0 },
+  god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1, immortal:true, baseAtk:0, baseDef:0 },   // v0.88.0: 체력 무한 — 피해를 안 받고 죽지 않음
   stone:     { name:'돌',          kind:'material', tags:['손질 lv1', '합칠 수 있음'] },   // v0.75.0: 무기 아님 (무기 태그·공격력 1 삭제) — 조합 재료
   twig:      { name:'나뭇가지',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   grass:     { name:'마른 풀',     kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -456,7 +456,7 @@ const DESC = {
   salvation:  '불쌍해서 주는 거다. 고맙다는 말은 기대 안 함.',
   quest:      '누군가의 부탁. 거절 버튼은 없다.',
   knight:     '말수가 적다. 적은 게 아니라 거의 없다.',
-  god:        '신… 비슷한 것. 체력은 1, 말발은 무한.',
+  god:        '신… 비슷한 것. 체력도 말발도 무한.',
   stone:      '깨고, 두드리고, 서로 부딪힌다. 휘두르기엔 좀 모자란 인류 최초의 재료.',
   twig:       '불 앞에선 연료, 기사 손에선 희망사항.',
   grass:      '바삭바삭. 불씨가 제일 좋아하는 간식.',
@@ -503,6 +503,8 @@ function iconHtml(t, inline){
 const frameOf = d => d.kind === 'character' ? 'gold' : tagLevel(d, '장소') ? 'stone' : 'wood';
 // v0.52.0: 캐릭터·크리처는 모두 공격·방어·체력을 가짐 (0이어도 카드에 표시)
 const fighter = d => d.kind === 'character' || d.kind === 'creature';
+// v0.88.0: 체력 표시 — 죽지 않는 카드(갓)는 ∞
+const hpText = c => DEFS[c.type].immortal ? '∞' : `${c.hp}/${DEFS[c.type].hp}`;
 // 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
 const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear']);
 const ICON_TOKEN = /⟦(\w+)⟧/g;
@@ -897,7 +899,7 @@ function paint(el, c){
     if (d.defense) html += `<div class="defl">${statImg('def')} +${d.defense}</div>`; // 장비 방어
     // 위쪽 가운데: 첫 줄 공격 · 방어 (장비 포함), 둘째 줄 체력
     if (fighter(d)) html += `<div class="stats"><div><span class="s-atk">${statImg('atk')}${atkOf(c)}</span>`
-      + `<span class="s-def">${statImg('def')}${defOf(c)}</span></div><div><span class="s-hp">${statImg('hp')}${c.hp}/${d.hp}</span></div></div>`;
+      + `<span class="s-def">${statImg('def')}${defOf(c)}</span></div><div><span class="s-hp">${statImg('hp')}${hpText(c)}</span></div></div>`;
     if (d.slots){
       // 장비 칸: 장비한 아이템 아이콘, 빈 칸은 칸 이름
       const eq = c.equip || {};
@@ -2900,7 +2902,7 @@ function duelTick(){
     const ch = byId(cr.duel);
     if (!ch || ch.duel !== cr.id){ endDuel(null, cr); changed = true; continue; }
     const charDmg = Math.max(0, atkOf(ch) - defOf(cr));
-    const foeDmg = Math.max(0, atkOf(cr) - defOf(ch));
+    const foeDmg = DEFS[ch.type].immortal ? 0 : Math.max(0, atkOf(cr) - defOf(ch));   // v0.88.0: 갓은 피해를 안 받음 → 서로 못 이기면 대결 끝
     if (charDmg <= 0 && foeDmg <= 0){
       endDuel(ch, cr);
       toast(`서로 피해를 못 줌 — 대결 끝`);
@@ -2989,7 +2991,11 @@ const pickWeighted = table => {
   return table[table.length - 1][0];
 };
 // v0.71.0: 게이지 기반 — 산 gauge:'atk' 방문자 공격력 합계, 강가 gauge:'people' 방문 인원
-const gaugeAdd = (d, vs) => d.gauge === 'people' ? vs.length : vs.reduce((sum, v) => sum + atkOf(v), 0);
+//   v0.88.0: 빈사 캐릭터는 일하지 않음 — 게이지에 안 들어감
+const gaugeAdd = (d, vs) => {
+  const w = vs.filter(v => !statusOf(v).includes('빈사'));
+  return d.gauge === 'people' ? w.length : w.reduce((sum, v) => sum + atkOf(v), 0);
+};
 function yieldTick(){
   if (!S || paused || busy) return;
   let made = false, progressed = false;
@@ -3698,7 +3704,7 @@ function inspectorHtml(c){
     c1 = fromBook ? iNone('quest 카드마다 다름') : iSub('진행', `<div class="i-pre">${rich(reqProgress(c))}</div>`);
   } else {
     let st = '';
-    if (fighter(d)) st += iRow(`${statImg('atk')}공격`, atkOf(c)) + iRow(`${statImg('def')}방어`, defOf(c)) + iRow(`${statImg('hp')}체력`, `${c.hp}/${d.hp}`);
+    if (fighter(d)) st += iRow(`${statImg('atk')}공격`, atkOf(c)) + iRow(`${statImg('def')}방어`, defOf(c)) + iRow(`${statImg('hp')}체력`, hpText(c));
     const heal = healOf(d);
     if (heal > 0) st += iRow(`${statImg('hp')}회복`, '+' + heal);
     if (d.atk) st += iRow(`${statImg('atk')}공격`, '+' + d.atk);
