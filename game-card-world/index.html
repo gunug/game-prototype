@@ -410,6 +410,11 @@
   .i-pre{white-space:pre-line;}
   .i-muted{color:var(--muted);}
   .i-chips{display:flex;flex-wrap:wrap;gap:1px 8px;}
+  /* v0.133.0: 조합대 — 만들 수 있는 것 (눌러서 고르기) */
+  .bench-picks{display:flex;flex-wrap:wrap;gap:3px;}
+  .bench-pick{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:1px;padding:1px 6px;border:1px solid var(--hairline);border-radius:6px;white-space:nowrap;}
+  .bench-pick:hover{background:var(--surface-soft);}
+  .bench-pick.on{border-color:var(--brand-yellow);color:var(--brand-yellow);}
   .i-chips span{display:inline-flex;align-items:center;white-space:nowrap;}
   .cw.selected{outline:2px solid #9fd0ff;outline-offset:3px;}
   /* 빈사 캐릭터: 그림만 무채색 (프레임·글자는 그대로) */
@@ -477,7 +482,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.132.0';
+const VERSION = 'v0.133.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -522,7 +527,7 @@ const DEFS = {
   hilt:      { name:'부러진 중검',   kind:'tool', tags:['무기'], atk:3 },   // v0.101.0: 이름 부러진 칼자루 → 부러진 중검 (id·아이콘 그대로)
   // 단검 (v0.98.0): 강화 가능 — 같은 강화 레벨끼리 합치면 레벨 +1, 공격력도 +1 (카드 종류는 안 늘어남. 카드에 붙는 값)
   dagger:    { name:'단검',        kind:'tool', tags:['무기', '손질 lv2', '강화 가능'], atk:1 },   // v0.103.0: 손질 lv2 (해체·가죽 손질 가능)
-  plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
+  plank:     { name:'나무방패',    kind:'tool', tags:['방패', '불에 타는'], defense:1 },   // v0.133.0: 나무판 → 나무방패 (나무판자와 헷갈리지 않게)
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
   sack:      { name:'부실한 자루', kind:'container', tags:['도구'], hold:5 },     // container: 한 종류만, 5장까지. v0.74.0: 도구
   // 산: 방문자 공격력으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
@@ -532,7 +537,11 @@ const DEFS = {
   // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
   // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
   // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
-  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1 },   // v0.105.0: 건축가의 첫 quest 보상 (하는 일은 아직 없음)
+  // v0.105.0: 건축가의 첫 quest 보상. v0.133.0: 캐릭터가 있으면 10초마다 나무 1개를 끌어와 나무판자 + 톱밥
+  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1, mill:{ from:'tree', out:['lumber', 'sawdust'], ms:10000 } },
+  lumber:    { name:'나무판자',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },   // v0.133.0: 목공 재료 (긴 나무판)
+  sawdust:   { name:'톱밥',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  workbench: { name:'조합대',      kind:'bench', tags:[] },   // v0.133.0: 건축가의 두 번째 quest 보상 — 만들어 본 아이템의 재료를 펼쳐 줌
   dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2], ['squidcarcass', 3]], yieldNeed:10, gauge:'people' },   // v0.125.0: 오징어 사체 추가
   // v0.125.0: 모험가와 지도
@@ -580,6 +589,9 @@ const DESC = {
   hostage:    '누군지 모른다. 밧줄부터 끊고 볼 일이다.',
   architect:  '묶여 있을 때도 천장 구조를 보고 있었다고 한다.',
   sawmill:    '나무를 나무답게 만드는 곳. 건축가의 첫 작품.',
+  lumber:     '곧게 켜야 뭐든 세운다. 건축가가 제일 좋아하는 모양.',
+  sawdust:    '켜고 남은 가루. 버리기엔 잘 탄다.',
+  workbench:  '한 번 만들어 본 건 손이 기억한다. 조합대는 그 기억을 적어 둔다.',
   treasurea:  '고블린이 아끼던 상자. 이제 주인이 바뀌었다.',
   plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
   tannedhide: '냄새가 빠졌다. 거의.',
@@ -720,7 +732,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'sawmill', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'hostage', 'architect', 'explorer', 'squidcarcass', 'ink', 'squidmeat', 'roastsquid', 'map', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'sawmill', 'lumber', 'sawdust', 'workbench', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'hostage', 'architect', 'explorer', 'squidcarcass', 'ink', 'squidmeat', 'roastsquid', 'map', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -837,7 +849,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 const byId = id => S.cards.find(c => c.id === id);
 // 장소는 quest 비용으로 지불되지 않음
-const submittable = def => !['character', 'package', 'quest', 'container'].includes(def.kind) && !tagLevel(def, '장소');
+const submittable = def => !['character', 'package', 'quest', 'container', 'bench'].includes(def.kind) && !tagLevel(def, '장소');
 
 function measure(){
   const { w, h } = viewSize();                                   // v0.122.0: 카드 크기는 보이는 화면 기준 (필드 폭이 아니라)
@@ -1007,7 +1019,9 @@ function newGame(){
 function placeFoot(d){
   if (!tagLevel(d, '장소')) return '';
   const lv = tagLevel(d, '체력 회복');
-  return lv ? `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>` : '';
+  if (lv) return `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>`;
+  if (d.mill) return `<span>${iconHtml(d.mill.from, true)}→${d.mill.out.map(t => iconHtml(t, true)).join('')} ${d.mill.ms / 1000}초</span>`;   // v0.133.0: 제재소
+  return '';
 }
 function paint(el, c){
   const d = DEFS[c.type];
@@ -1089,7 +1103,7 @@ function paint(el, c){
     if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
     // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
     const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
-    if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
+    if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields || d.mill) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
     if (d.kind === 'map') top += `<div class="cap">${mappedOf(c).length}/${d.register}</div>`;   // v0.125.0: 등록한 장소 수
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
@@ -1337,6 +1351,7 @@ function reqDone(rq){
     if (S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make)) rq.made = true;
     return !!rq.made;
   }
+  if (rq.goal === 'bench') return !!rq.tree && (rq.tree.kids || []).every(k => benchSat(rq, k));   // v0.133.0: 조합대
   if (rq.goal === 'hunt') return !!S.flags.hunted;             // v0.83.0: 크리처를 한 번이라도 쓰러뜨림
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'devour') return !!S.flags.devoured;         // v0.84.0: 신의 입에 한 장이라도 넣은 적 있음
@@ -1379,6 +1394,7 @@ function reqProgress(rq){
     // makeText: 결과 카드 이름 대신 쓸 설명 (예: 인질 quest는 "건축가 만들기"가 아니라 "인질 풀어주기")
     return `${done ? '✔' : '☐'} ${rq.makeText || `${ic(rq.make)} ${DEFS[rq.make].name} 만들기`}`;
   }
+  if (rq.goal === 'bench') return benchLines(rq);
   if (rq.goal === 'hunt') return `${S.flags.hunted ? '✔' : '☐'} ${ic('animal')} 토끼 사냥`;
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'devour') return `${S.flags.devoured ? '✔' : '☐'} ${ic('godmouth')} 신의 입에 아무거나 1장 넣기`;
@@ -1669,6 +1685,7 @@ function evaluateOne(d, t){
       const tg = byId(t.target);
       return tg && edible ? { act: 'eat', feed: tg } : null;
     }
+    if (t.goal === 'bench') return submittable(dd) && benchSlot(t, d.type) ? { act: 'benchput' } : null;   // v0.133.0: 조합대 quest
     if (t.goal || t.stack.length >= t.need) return null;      // 이미 다 참
     if (t.wantsMulti || t.wantsList) return wantsNeed(t, d.type) ? { act: 'submit' } : null;
     if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
@@ -1785,6 +1802,7 @@ function apply(ev, d, t){
     }
     return true;
   }
+  if (ev.act === 'benchput') return benchPut(t, d);
   if (ev.act === 'strike'){
     if (ev.low){
       toast(`${ic(d.type)} 무기의 공격력 낮음 (${si('atk')} ${itemAtk(d.type, d.lv)} < ${si('hp')} ${t.hp})`);
@@ -2084,6 +2102,8 @@ function rewardFor(rq, x, y){
   if (rq.quest === 'map1'){ giveMapQuest(1); return; }                       // 지도 만들기 → 장소 등록
   if (rq.quest === 'map2'){ giveDungeonReward(x, y); return; }               // 장소 3곳 등록 → 던전
   if (rq.quest === 'freehim'){ toast(`${ic('architect')} 밧줄을 끊었다`); return; }   // v0.114.0: 인질 → 건축가
+  if (rq.goal === 'bench'){ benchFinish(rq, x, y); return; }   // v0.133.0: 조합대
+  if (rq.quest === 'bench1'){ giveWorkbench(x, y); return; }   // v0.133.0: 건축가 → 조합대
   if (rq.quest === 'sawmill1'){ giveSawmill(x, y); return; }   // v0.105.0: 건축가 → 제재소   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
@@ -2319,9 +2339,11 @@ const ARCH_LINES = {
   freed: ['크하— 살았다! 밧줄 끊어줘서 고맙네, 은혜는 잊지 않아.',
           '내 꼴 때문에 고생 많았지. 미안하네. 이제 내가 갚을 차례야.'],
   mill:  '나무 다섯, 돌 다섯. 제재소부터 세우자고. 여기서 도시를 시작할 거야.',
+  bench: '판자 다섯 장이면 조합대를 짜 주지. 한 번 만든 건 두 번 고생 안 하게.',
 };
 function architectCheck(){
-  if (S.flags.millDone || questExists('sawmill1')) return false;
+  if (S.flags.millDone) return giveBenchQuest();              // v0.133.0: 제재소 다음 → 조합대를 짓겠어
+  if (questExists('sawmill1')) return false;
   const a = S.cards.find(c => c.type === 'architect');
   if (!a || paused || drag || tear || busy) return false;
   if (!S.flags.archFreed){                                    // 풀려난 직후 인사 → 대사가 끝나면 quest
@@ -2344,6 +2366,29 @@ function giveMillQuest(){
   save();
   renderAll();
   return true;
+}
+// v0.133.0: 건축가의 두 번째 quest "조합대를 짓겠어" — 나무판자 5장 → 조합대
+const BENCH_NEED = [['lumber', 5]];
+function giveBenchQuest(){
+  if (S.flags.benchGiven || questExists('bench1')) return false;
+  const a = S.cards.find(c => c.type === 'architect');
+  if (!a || paused || drag || tear || busy || isTalking('architect')) return false;
+  S.flags.benchGiven = true;
+  const rq = addCard('quest', a.x, a.y, { quest: 'bench1', title: '조합대를 짓겠어', wantsMulti: BENCH_NEED,
+    need: BENCH_NEED.reduce((n, [, k]) => n + k, 0), stack: [], target: a.id, giver: a.id, rewards: ['workbench'] });
+  slideOutFrom(rq, a);
+  archSay(ARCH_LINES.bench);
+  save();
+  renderAll();
+  return true;
+}
+function giveWorkbench(x, y){
+  S.flags.benchDone = true;
+  const p = findSpot(x, y);
+  const b = addCard('workbench', p.x, p.y);
+  spawned.delete(b.id);
+  popFrom.set(b.id, { x, y });
+  toast(`${ic('workbench')} 조합대 완성 — 탭해서 만들 것을 고르기`);
 }
 function giveSawmill(x, y){
   S.flags.millDone = true;
@@ -3355,6 +3400,7 @@ function duelTick(){
 //   장소마다 게이지 하나. 다 차면 방문자 전원 한꺼번에 +1. 빈사는 회복 안 됨 (빈사 치유가 필요)
 const REST_MS = 15000;                         // lv1 = 15초에 +1
 function pieValue(pl){
+  if (DEFS[pl.type].mill) return Math.min(1, (pl.millMs || 0) / DEFS[pl.type].mill.ms);   // v0.133.0: 제재소
   if (DEFS[pl.type].yields) return Math.min(1, (pl.yieldPts || 0) / DEFS[pl.type].yieldNeed);   // 산: 나무 게이지
   const lv = tagLevel(DEFS[pl.type], '체력 회복');
   if (!lv || !visitorsOf(pl).length) return 0;
@@ -4452,7 +4498,8 @@ function inspectorHtml(c){
   // ③ 조합·출현
   let c3 = '';
   if (d.loot) c3 += iSub('전리품', iChips(d.loot.map(cardRef)));
-  if (!['character', 'package', 'quest', 'creature'].includes(d.kind)){
+  if (d.kind === 'bench') c3 += iSub('만들 수 있는 것 — 눌러서 고르기', benchPickHtml(c));   // v0.133.0
+  if (!['character', 'package', 'quest', 'creature', 'bench'].includes(d.kind)){
     const { reach, use } = comboLists(c.type);
     c3 += iSub('도달하는 조합', reach.join('') || iNone('없음'));
     c3 += iSub('할 수 있는 조합', use.join('') || iNone('없음'));
@@ -4519,6 +4566,209 @@ function renderInspector(){
   if (html === inspKey) return;                               // 바뀐 게 있을 때만 다시 그림
   inspKey = html;
   insp.innerHTML = html;
+}
+insp.addEventListener('click', e => {                          // v0.133.0: 조합대에서 만들 것 고르기
+  const b = e.target.closest('.bench-pick');
+  if (b) pickBench(+b.dataset.bench, b.dataset.item);
+});
+
+// ── 제재소 (v0.133.0) ─────────────────────────────────────
+//   캐릭터가 있으면 일정 시간(고정)마다 게이지가 참. 다 차면 월드에서 가장 가까운 나무 1개를 끌어당겨 나무판자 + 톱밥
+//   빈사 캐릭터는 일하지 않음. 나무가 없으면 게이지는 가득 찬 채로 기다림
+function millTick(){
+  if (!S || paused || busy) return;
+  const hid = heldId();
+  for (const pl of S.cards){
+    const mill = DEFS[pl.type].mill;
+    if (!mill) continue;
+    const workers = visitorsOf(pl).filter(v => !statusOf(v).includes('빈사'));
+    if (workers.length) pl.millMs = Math.min(mill.ms, (pl.millMs || 0) + 1000);
+    const el = els.get(pl.id);
+    const pie = el && el.querySelector('.pie');
+    if (pie) pie.style.setProperty('--p', pieValue(pl));
+    if (!workers.length || pl.millMs < mill.ms) continue;
+    const tree = S.cards.filter(o => o.type === mill.from && o.id !== hid && bodyOf(o) === o && !heldSpawn(o.id))
+      .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y))[0];
+    if (!tree) continue;
+    pl.millMs = 0;
+    pullInto(pl, tree, mill.out);
+    return;                                                   // 끌어오는 연출 동안 busy — 한 번에 하나
+  }
+}
+// 카드 하나를 장소로 끌어당겨 없애고, 그 자리에서 결과물이 튀어나옴 (월드 상한은 누락 표시)
+function pullInto(pl, o, outs){
+  busy = true;
+  const el = els.get(o.id);
+  if (el){
+    el.style.zIndex = 1999998000;
+    el.style.transition = 'left .34s ease-in, top .34s ease-in, transform .34s ease-in, opacity .34s ease-in';
+    requestAnimationFrame(() => {
+      el.style.left = pl.x + 'px';
+      el.style.top = pl.y + 'px';
+      el.style.transform = 'scale(.35)';
+      el.style.opacity = '0';
+    });
+  }
+  setTimeout(() => {
+    removeCard(o.id);
+    busy = false;
+    const omitted = [];
+    for (const t of outs){
+      if (!canSpawn(t)){ omitted.push(t); continue; }
+      const p = findSpot(pl.x, pl.y + CH + 12);
+      const nc = addCard(t, p.x, p.y);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: pl.x, y: pl.y });
+    }
+    omitToast(omitted);
+    bumpIds.add(pl.id);
+    afterChange();
+  }, 360);
+}
+
+// ── 조합대 (v0.133.0) ─────────────────────────────────────
+//   인스펙터의 "만들 수 있는 것"에서 한 번이라도 조합한 아이템을 고르면, 재료를 모든 깊이까지 펼친 quest가 조합대 옆에 붙음
+//   칸마다 "상위 단계 하나"(그 카드를 그대로) 또는 "하위 단계 두 가지"(그 카드의 재료)로 채움 → 다 차면 중간 단계까지 한꺼번에 조합
+//   도구 칸(조합해도 남는 쪽)은 한 번 넣으면 같은 조건의 칸을 다 채우고, 완성되면 돌려줌
+const benchable = r => !r.cook && !r.burn && r.out && r.out.length
+  && r.out.every(t => !tagLevel(DEFS[t], '장소') && DEFS[t].kind !== 'character');
+const producerOf = type => RECIPES.find(r => S.found.includes(r.id) && benchable(r) && r.out.includes(type));
+const benchItems = () => [...new Set(RECIPES.filter(r => S.found.includes(r.id) && benchable(r)).flatMap(r => r.out))];
+function benchNode(side, kept, depth, seen, nextId){
+  const n = { id: nextId(), kept: !!kept };
+  if (side.card){
+    n.type = side.card;
+    const r = !kept && depth < 6 && !seen.has(side.card) ? producerOf(side.card) : null;
+    if (r){
+      const s2 = new Set(seen).add(side.card);
+      n.recipe = r.id;
+      n.kids = [benchNode(r.a, r.keep === 'a', depth + 1, s2, nextId), benchNode(r.b, r.keep === 'b', depth + 1, s2, nextId)];
+    }
+  } else if (side.tag){ n.tag = side.tag; n.lv = side.lv || 1; }
+  else if (side.atk) n.atk = side.atk;
+  return n;
+}
+const benchMatch = (n, type) => n.type ? n.type === type
+  : n.tag ? tagLevel(DEFS[type], n.tag) >= n.lv
+  : n.atk ? (DEFS[type].atk || 0) >= n.atk : false;
+function benchSat(rq, n){
+  if (n.kept) return (rq.tools || []).some(t => benchMatch(n, t));
+  if ((rq.fill || {})[n.id]) return true;
+  return !!n.kids && n.kids.every(k => benchSat(rq, k));
+}
+// 올린 카드가 들어갈 칸: 위에서부터 아직 안 찬 칸 중 가장 높은 칸(상위 단계 먼저). 없으면 도구 칸
+function benchSlot(rq, type){
+  if (!rq.tree) return null;
+  const walk = n => {
+    if (benchSat(rq, n)) return null;
+    if (n !== rq.tree && !n.kept && benchMatch(n, type)) return n;
+    if (n.kids && !(rq.fill || {})[n.id]) for (const k of n.kids){ const f = walk(k); if (f) return f; }
+    return null;
+  };
+  const hit = walk(rq.tree);
+  if (hit) return { node: hit };
+  const toolWalk = n => {
+    if (n.kept) return !benchSat(rq, n) && benchMatch(n, type) ? n : null;
+    if (benchSat(rq, n) || !n.kids) return null;
+    for (const k of n.kids){ const f = toolWalk(k); if (f) return f; }
+    return null;
+  };
+  return toolWalk(rq.tree) ? { tool: true } : null;
+}
+function benchPut(rq, d){
+  const slot = benchSlot(rq, d.type);
+  if (!slot) return false;
+  removeCard(d.id);
+  if (slot.tool){
+    rq.tools = (rq.tools || []).concat(d.type);
+  } else {
+    rq.fill = rq.fill || {};
+    // 상위 단계를 넣으면 그 아래에 넣어 둔 재료는 필요 없어짐 → 테이블로 돌려줌 (quest가 돌려주는 것이라 반환 금지 규칙과 별개)
+    const back = [];
+    const clear = n => { for (const k of (n.kids || [])){ if (rq.fill[k.id]){ back.push(rq.fill[k.id]); delete rq.fill[k.id]; } clear(k); } };
+    clear(slot.node);
+    rq.fill[slot.node.id] = d.type;
+    for (const t of back){
+      const p = findSpot(rq.x, rq.y + CH * 0.5);
+      const nc = addCard(t, p.x, p.y, null, true);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: rq.x, y: rq.y });
+    }
+  }
+  bumpIds.add(rq.id);
+  return true;
+}
+function benchLines(rq){
+  if (!rq.tree) return '';
+  const out = [];
+  const label = n => n.type ? `${ic(n.type)} ${DEFS[n.type].name}` : n.tag ? `🏷️ ${n.tag} lv${n.lv} 이상` : `⚔ 공격력 ${n.atk} 이상`;
+  const walk = (n, depth) => {
+    const sat = benchSat(rq, n);
+    out.push(`${'　'.repeat(depth)}${sat ? '✔' : '☐'} ${label(n)}${n.kept ? ' (도구)' : ''}`);
+    if (!sat && n.kids && !(rq.fill || {})[n.id]) n.kids.forEach(k => walk(k, depth + 1));
+  };
+  (rq.tree.kids || []).forEach(k => walk(k, 0));
+  return out.join('\n');
+}
+function benchFinish(rq, x, y){
+  const g = rq.giver != null ? byId(rq.giver) : null;
+  const bx = g ? g.x : x, by = g ? g.y : y;
+  const outs = [];
+  const walk = n => {
+    if (!n.kids || (rq.fill || {})[n.id]) return;              // 직접 넣은 칸은 만들 필요 없음
+    n.kids.forEach(walk);
+    const r = RECIPE_BY_ID.get(n.recipe);
+    const made = r && r.out ? r.out.slice() : [];
+    if (n !== rq.tree){ const i = made.indexOf(n.type); if (i >= 0) made.splice(i, 1); }   // 중간 결과물은 다음 단계에 쓰이고 나머지는 부산물
+    outs.push(...made);
+  };
+  walk(rq.tree);
+  const pop = t => {
+    const p = findSpot(bx, by + CH + 12);
+    const nc = addCard(t, p.x, p.y);
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x: bx, y: by });
+  };
+  const omitted = [];
+  for (const t of outs){ if (canSpawn(t)) pop(t); else omitted.push(t); }
+  for (const t of (rq.tools || [])) pop(t);                    // 도구는 돌려줌 (이미 있던 카드)
+  omitToast(omitted);
+  if (g) bumpIds.add(g.id);
+  toast(`${ic(rq.tree.type)} ${DEFS[rq.tree.type].name} 완성`);
+}
+// 인스펙터에서 고르면: 조합대 옆 quest 하나 (다른 걸 고르면 넣어 둔 재료·도구를 돌려주고 바꿈)
+function pickBench(benchId, type){
+  const bench = byId(benchId);
+  const r = producerOf(type);
+  if (!S || !bench || !r || paused || busy) return;
+  const old = S.cards.find(c => c.type === 'quest' && c.goal === 'bench' && c.giver === bench.id);
+  if (old){
+    if (old.tree && old.tree.type === type) return;
+    const back = Object.values(old.fill || {}).concat(old.tools || []);
+    removeCard(old.id);
+    for (const t of back){
+      const p = findSpot(bench.x, bench.y + CH + 12);
+      const nc = addCard(t, p.x, p.y, null, true);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: bench.x, y: bench.y });
+    }
+  }
+  let nid = 0;
+  const nextId = () => ++nid;
+  const seen = new Set([type]);
+  const tree = { id: 0, type, recipe: r.id,
+    kids: [benchNode(r.a, r.keep === 'a', 1, seen, nextId), benchNode(r.b, r.keep === 'b', 1, seen, nextId)] };
+  const rq = addCard('quest', bench.x, bench.y, { quest: 'bench:' + type, title: `${DEFS[type].name} 만들기`, goal: 'bench',
+    tree, fill: {}, tools: [], need: 0, stack: [], target: bench.id, giver: bench.id, rewards: r.out.slice() });
+  slideOutFrom(rq, bench);
+  save();
+  renderAll();
+}
+function benchPickHtml(bench){
+  const items = benchItems();
+  if (!items.length) return iNone('아직 조합해 본 것이 없음');
+  const cur = S.cards.find(c => c.type === 'quest' && c.goal === 'bench' && c.giver === bench.id);
+  return `<div class="bench-picks">${items.map(t => `<button class="bench-pick${cur && cur.tree && cur.tree.type === t ? ' on' : ''}" data-bench="${bench.id}" data-item="${t}">${cardRef(t)}</button>`).join('')}</div>`;
 }
 
 // ── 카드 hover 팝업 (v0.113.0) ────────────────────────────
@@ -4692,6 +4942,11 @@ const CHAPTERS = [
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'explorer', 'squidcarcass']).concat(['map', 'ink', 'squidmeat']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack', 'squid', 'mapmake']),
     cards: ['explorer', 'map', 'river', 'mountain', 'campfire', 'godmouth', 'bedding'] },   // 등록할 장소 넉넉히
+  { title: '건축가: 조합대를 짓겠어',                          // v0.133.0
+    flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true, mouthTaught: true, mountainWorkDone: true, riverGiven: true, riverWorkDone: true, explorerGiven: true, mapDone: true, dungeonGiven: true, hostageGiven: true, archFreed: true, millDone: true }),
+    knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
+    seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'explorer', 'squidcarcass', 'map', 'ink', 'squidmeat', 'dungeon', 'hostage', 'architect', 'sawmill', 'tree']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack', 'squid', 'mapmake', 'freeman']),
+    cards: ['architect', 'sawmill', 'mountain', 'campfire', 'tree', 'tree', 'tree', 'tree', 'tree', 'stone', 'stone', 'flint'] },   // 기사를 제재소에 → 판자 5 → 조합대
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
@@ -4757,7 +5012,8 @@ validateRecipes();
 // 고착 점검 안전망 — 상태 변화 없이도 주기적으로 한 번씩 본다
 setInterval(() => { if (!paused && !drag && !tear && !busy){ checkSettle(); godCheck(); trappedHint(false); } }, 5000);
 setInterval(restTick, 1000);                   // 체력 회복 장소
-setInterval(yieldTick, 1000);                  // 산: 나무 게이지
+setInterval(yieldTick, 1000);
+setInterval(millTick, 1000);                   // v0.133.0: 제재소                  // 산: 나무 게이지
 setInterval(duelTick, DUEL_MS);                // 크리처 대결
 setInterval(animalTick, 1000);                 // 동물 홉핑
 setInterval(() => { renderInspector(); refreshPop(); }, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
