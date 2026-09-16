@@ -416,7 +416,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.95.0';
+const VERSION = 'v0.96.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1706,7 +1706,7 @@ function apply(ev, d, t){
       S.found.push(r.id);
       if (bookOpen && !discoRunning) renderBook();
       toast('✨ 새 조합: ' + recipeText(r));
-      // v0.93.0: 첫 발견 대사는 없앰 — 첫 조합은 갓의 조합 quest 정산·기사 첫 quest 대사와 겹쳐 대사가 6줄이 됐음
+      // v0.96.0: 첫 발견 대사는 없앰 — 첫 조합은 갓의 조합 quest 정산·기사 첫 quest 대사와 겹쳐 대사가 6줄이 됐음
       if (!S.flags.discovered) S.flags.discovered = true;
       else sayMaybe(LINES.discover);
     }
@@ -3269,8 +3269,10 @@ function dunPortrait(pl, u, cls){
   r.classList.add(cls);
   setTimeout(() => r.classList.remove(cls), 320);
 }
+// v0.96.0: 피해 계산 한 곳으로 — 불사(갓)는 피해를 받지 않음 (대결과 같은 규칙)
+const dunDmg = (a, b) => DEFS[b.type].immortal ? 0 : Math.max(0, atkOf(a) - defOf(b));
 function dunHit(pl, a, b){
-  const dmg = Math.max(0, atkOf(a) - defOf(b));
+  const dmg = dunDmg(a, b);
   b.hp = Math.max(0, (b.hp || 0) - dmg);
   dunPortrait(pl, a, 'atk');
   dunPortrait(pl, b, 'hurt');
@@ -3306,6 +3308,15 @@ function stepDungeon(){
       const near = alive.filter(e => Math.abs(dunPos(e) - dunPos(u)) <= DUN_RANGE)
         .sort((a, b) => Math.abs(dunPos(a) - dunPos(u)) - Math.abs(dunPos(b) - dunPos(u)))[0];
       if (near){                                               // 2) 사거리 안에 적 → 공격
+        // v0.96.0: 서로 피해를 못 주면 끝나지 않음 (갓처럼 불사인데 공격력 0) → 캐릭터를 내보내고 던전 초기화
+        if (dunDmg(u, near) <= 0 && dunDmg(near, u) <= 0){
+          delete ch.visit; delete ch.visitSeq; delete ch.dunP; delete ch.atkT;
+          clearDungeon(pl);
+          toast(`서로 피해를 못 줌 — ${DEFS[ch.type].name} 던전에서 나옴`);
+          afterChange();
+          changed = true;
+          break;
+        }
         if (now - (u.atkT || 0) < DUN_HIT) continue;
         u.atkT = now;
         dunHit(pl, u, near);
