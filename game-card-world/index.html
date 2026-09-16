@@ -477,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.127.0';
+const VERSION = 'v0.128.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -3951,18 +3951,26 @@ function solveDun(){
   return moved;
 }
 // v0.125.0: 지도에 등록된 장소는 지도 오른쪽에 위에서 아래로 (방문 줄과 같은 배치)
+// v0.128.0: 장소마다 자기 방문자 줄 높이만큼 자리를 차지함 — 그만큼 띄워야 장소끼리 안 겹침
+const mapRowH = pl => {
+  const n = visitorsOf(pl).length;
+  return Math.max(CH, n ? n * CH + (n - 1) * VISIT_VGAP : CH);
+};
 function solveMap(){
   let moved = false;
   const hid = heldId();
-  const vstep = CH + VISIT_VGAP;
   for (const m of S.cards){
     if (DEFS[m.type].kind !== 'map') continue;
     const list = mappedOf(m);
     if (!list.length) continue;
-    const top = visitColumnTop(m, list.length);
+    const hs = list.map(mapRowH);
+    const H = hs.reduce((a, b) => a + b, 0) + VISIT_VGAP * (list.length - 1);
+    let y = m.y + CH / 2 - H / 2;                              // 줄 전체를 지도 세로 가운데에
     list.forEach((pl, i) => {
+      const rowY = y + hs[i] / 2 - CH / 2;                     // 장소는 자기 칸의 가운데에
+      y += hs[i] + VISIT_VGAP;
       if (pl.id === hid || (drag && drag.id === pl.id)) return;
-      const p = clampPos(m.x + CW + visitGap(), top + vstep * i);
+      const p = clampPos(m.x + CW + visitGap(), rowY);
       if (Math.abs(p.x - pl.x) > 0.05 || Math.abs(p.y - pl.y) > 0.05){ pl.x = p.x; pl.y = p.y; moveEl(pl); moved = true; }
     });
   }
