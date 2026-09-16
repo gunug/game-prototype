@@ -426,7 +426,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.103.0';
+const VERSION = 'v0.104.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -439,6 +439,9 @@ const DEFS = {
   treasurea: { name:'보물상자A',  kind:'package', fixed:['dagger', 'bone', 'meat'] },
   quest:   { name:'quest',     kind:'quest' },
   knight:    { name:'기사',        kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
+  // v0.104.0: 첫 던전 클리어 때 던전에서 튀어나옴. 빈사 · 공방체 0. 손질 lv2로 밧줄을 끊으면 건축가가 됨
+  hostage:   { name:'인질',        kind:'character', tags:['캐릭터'], hp:0, baseAtk:0, baseDef:0, startStatus:['빈사'] },
+  architect: { name:'건축가',      kind:'character', tags:['캐릭터', '수다쟁이'], hp:8, baseAtk:0, baseDef:0 },
   god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1, immortal:true, baseAtk:0, baseDef:0 },   // v0.88.0: 체력 무한 — 피해를 안 받고 죽지 않음
   stone:     { name:'돌',          kind:'material', tags:['손질 lv1', '합칠 수 있음'] },   // v0.75.0: 무기 아님 (무기 태그·공격력 1 삭제) — 조합 재료
   twig:      { name:'나뭇가지',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -478,6 +481,7 @@ const DEFS = {
   // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
   // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
   // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
+  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1 },   // v0.104.0: 건축가의 첫 quest 보상 (하는 일은 아직 없음)
   dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
@@ -515,6 +519,9 @@ const DESC = {
   ash:        '한때 뭔가였다. 지금은 아무 쓸모 없음… 아직은.',
   hilt:       '칼날은 어디 갔는지 모른다. 그래도 뗀석기보다 세다.',
   dagger:     '짧지만 날은 제대로다. 같은 것끼리 겹치면 더 날카로워진다.',
+  hostage:    '누군지 모른다. 밧줄부터 끊고 볼 일이다.',
+  architect:  '묶여 있을 때도 천장 구조를 보고 있었다고 한다.',
+  sawmill:    '나무를 나무답게 만드는 곳. 건축가의 첫 작품.',
   treasurea:  '고블린이 아끼던 상자. 이제 주인이 바뀌었다.',
   plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
   tannedhide: '냄새가 빠졌다. 거의.',
@@ -583,6 +590,7 @@ const RECIPES = [
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
+  { id:'freeman',  a:{ tag:'손질', lv:2 },  b:{ card:'hostage' },  out:['architect'], keep:'a' },   // v0.104.0: 밧줄을 끊으면 건축가
   { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
   { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
@@ -644,7 +652,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'sawmill', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'hostage', 'architect', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -1216,6 +1224,7 @@ function reqDone(rq){
   if (rq.goal === 'undevour') return !!S.flags.mouthTook;      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
   if (rq.goal === 'gather') return (rq.gathered || 0) >= rq.need;   // v0.73.0: 장소 게이지가 need번 참 (산 채집)
+  if (rq.wantsMulti) return rq.wantsMulti.every(([t, n]) => stackCount(rq, t) >= n);   // v0.104.0: 종류마다 필요한 장수
   if (rq.goal === 'visitPlace'){
     const t = byId(rq.target);
     const pl = t && t.visit != null ? byId(t.visit) : null;
@@ -1278,6 +1287,7 @@ function reqProgress(rq){
     const it = t && t.equip && t.equip[rq.slot];
     return `${rq.slot} 칸: ${it && DEFS[it] ? ic(it) : '비어 있음'}`;
   }
+  if (rq.wantsMulti) return rq.wantsMulti.map(([t, n]) => `${stackCount(rq, t) >= n ? '✔' : '☐'} ${ic(t)} ${DEFS[t].name} ${stackCount(rq, t)} / ${n}`).join('\n');
   if (rq.wantsList) return rq.wantsList.map(t => `${rq.stack.includes(t) ? '✔' : '☐'} ${ic(t)} ${DEFS[t].name}`).join('\n');
   if (rq.wants) return `${ic(rq.wants)} ${DEFS[rq.wants].name} ${rq.stack.length} / ${rq.need}`;
   return `${rq.stack.length} / ${rq.need}`;
@@ -1316,7 +1326,13 @@ function knightLine(k){
   return null;
 }
 // 이 quest가 이 카드를 아직 원하나 (wants: 한 종류 N개 / wantsList: 여러 종류 1개씩)
+const stackCount = (rq, type) => rq.stack.filter(t => t === type).length;
 function wantsNeed(rq, type){
+  // v0.104.0: wantsMulti — 종류마다 필요한 장수 (예: 나무 5 · 돌 5)
+  if (rq.wantsMulti){
+    const w = rq.wantsMulti.find(([t]) => t === type);
+    return !!w && stackCount(rq, type) < w[1];
+  }
   if (rq.wantsList) return rq.wantsList.includes(type) && !rq.stack.includes(type);
   if (rq.wants) return rq.wants === type && rq.stack.length < rq.need;
   return false;
@@ -1507,7 +1523,7 @@ function evaluateOne(d, t){
       return tg && edible ? { act: 'eat', feed: tg } : null;
     }
     if (t.goal || t.stack.length >= t.need) return null;      // 이미 다 참
-    if (t.wantsList) return wantsNeed(t, d.type) ? { act: 'submit' } : null;
+    if (t.wantsMulti || t.wantsList) return wantsNeed(t, d.type) ? { act: 'submit' } : null;
     if (t.wants) return d.type === t.wants ? { act: 'submit' } : null;
     return submittable(dd) ? { act: 'submit' } : null;
   }
@@ -1875,7 +1891,8 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }
-  if (rq.quest === 'riverwork'){ giveDungeonReward(x, y); return; }   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
+  if (rq.quest === 'riverwork'){ giveDungeonReward(x, y); return; }
+  if (rq.quest === 'sawmill1'){ giveSawmill(x, y); return; }   // v0.104.0: 건축가 → 제재소   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
     if (pi < PEACE_STEPS.length - 1) givePeaceQuest(pi + 1);  // 다음 마음의 평화 quest
@@ -2067,6 +2084,28 @@ function giveDungeonReward(x, y){
   toast(`${ic('dungeon')} 강 채집 완료 — 던전`);
   say(LINES.dungeon);
 }
+// 건축가 (v0.104.0): 밧줄을 끊어 주면 첫 quest "제재소를 짓겠어" — 나무 5 · 돌 5를 내면 제재소
+const MILL_NEED = [['tree', 5], ['stone', 5]];
+function architectCheck(){
+  if (S.flags.millDone || questExists('sawmill1')) return false;
+  const a = S.cards.find(c => c.type === 'architect');
+  if (!a || paused || drag || tear || busy) return false;
+  const rq = addCard('quest', a.x, a.y, { quest: 'sawmill1', title: '제재소를 짓겠어', wantsMulti: MILL_NEED,
+    need: MILL_NEED.reduce((n, [, k]) => n + k, 0), stack: [], target: a.id, giver: a.id, rewards: ['sawmill'] });
+  slideOutFrom(rq, a);
+  save();
+  renderAll();
+  return true;
+}
+function giveSawmill(x, y){
+  S.flags.millDone = true;
+  if (S.cards.some(c => c.type === 'sawmill')) return;        // 장소는 월드에 하나만
+  const p = findSpot(x, y);
+  const m = addCard('sawmill', p.x, p.y);
+  spawned.delete(m.id);
+  popFrom.set(m.id, { x, y });
+  toast(`${ic('sawmill')} 제재소 완성`);
+}
 function decideGift(){
   const has = type => S.cards.some(c => c.type === type);
   if (!has('god')) return null;
@@ -2151,6 +2190,7 @@ function godCheck(){
   if (!S.flags.mouthGiven && S.cards.length >= MOUTH_AT && !isTalking('god')){ giveGodMouth(); return; }   // v0.84.0: 월드가 어수선해지면 신의 입
   if (S.flags.mountainGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
   if (S.flags.riverGiven && !S.flags.dungeonGiven && !S.flags.riverWorkDone && !questExists('riverwork') && !isTalking('god')){ giveRiverQuest(); return; }   // v0.87.0: 강 채집 quest를 받기 전에 새로고침한 경우
+  if (architectCheck()) return;                                // v0.104.0: 건축가가 있으면 제재소 quest
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
   const kind = decideGift();
   if (!kind) return;
@@ -3328,7 +3368,9 @@ const DUN_SPEED = 0.34;                          // 1초에 길의 몇 %를 가�
 const DUN_RANGE = 0.14;                          // 사거리 (길 길이 대비)
 const DUN_HIT = 800;                             // 공격 간격 (ms)
 const runLast = new Map();                       // 던전 id → 마지막 계산 시각
-const dunFoes = pl => S.cards.filter(c => c.dun === pl.id);
+// v0.104.0: 던전 왼편 줄 = 등장 크리처 + 전리품(보물상자). 전투 상대는 크리처만
+const dunSide = pl => S.cards.filter(c => c.dun === pl.id);
+const dunFoes = pl => S.cards.filter(c => c.dun === pl.id && DEFS[c.type].kind === 'creature');
 const dunPos = u => u.dunP != null ? u.dunP : 0;
 // 던전 입장: 캐릭터는 오른쪽 끝, 크리처는 왼쪽 끝에서 시작
 function enterDungeon(pl, ch){
@@ -3340,10 +3382,16 @@ function enterDungeon(pl, ch){
     spawned.delete(g.id);
     popFrom.set(g.id, { x: pl.x, y: pl.y });
   }
+  const chest = DEFS[pl.type].chest;                          // v0.104.0: 전리품도 왼편에 미리 보임
+  if (chest && !S.cards.some(c => c.dun === pl.id && c.loot)){
+    const b = addCard(chest, pl.x - CW * 1.2, pl.y, { dun: pl.id, loot: true }, true);
+    spawned.delete(b.id);
+    popFrom.set(b.id, { x: pl.x, y: pl.y });
+  }
 }
 // 던전 정리: 남은 크리처 제거, 진행값 지움
 function clearDungeon(pl){
-  for (const g of dunFoes(pl)) removeCard(g.id);
+  for (const g of dunSide(pl)) removeCard(g.id);              // 크리처와 아직 못 챙긴 전리품
   runLast.delete(pl.id);
 }
 function dunPortrait(pl, u, cls){
@@ -3435,14 +3483,24 @@ function stepDungeon(){
         const q = clampPos(pl.x + CW * d.span + 12, pl.y);
         ch.x = q.x; ch.y = q.y;
         bumpIds.add(ch.id);
+        const box = S.cards.find(o => o.loot && o.dun === pl.id);   // v0.104.0: 왼편에 보이던 전리품 (정리 전에 잡아둠)
+        if (box){ delete box.dun; delete box.loot; }                // 정리에 같이 지워지지 않게
         clearDungeon(pl);
         toast(`${ic(pl.type)} ${DEFS[ch.type].name} — 던전 클리어`);
-        if (d.chest){                                            // v0.97.0: 길 끝의 보물상자를 집어 옴
-          const cp = findSpot(pl.x - CW * 1.2, pl.y);
-          const box = addCard(d.chest, cp.x, cp.y);
-          spawned.delete(box.id);
+        if (box){
+          const cp = findSpot(ch.x + CW * 1.1, ch.y);
+          box.x = cp.x; box.y = cp.y;
           popFrom.set(box.id, { x: pl.x, y: pl.y });
-          toast(`${ic(d.chest)} ${DEFS[d.chest].name} 획득`);
+          bumpIds.add(box.id);
+          toast(`${ic(box.type)} ${DEFS[box.type].name} 획득`);
+        }
+        if (!S.flags.hostageGiven){                              // v0.104.0: 첫 클리어 — 던전에서 인질이 튀어나옴
+          S.flags.hostageGiven = true;
+          const hs = findSpot(pl.x + CW * 0.6, pl.y + CH * 0.9);
+          const hos = addCard('hostage', hs.x, hs.y);
+          spawned.delete(hos.id);
+          popFrom.set(hos.id, { x: pl.x, y: pl.y });
+          toast(`${ic('hostage')} 던전에서 인질이 튀어나옴`);
         }
         afterChange();
       }
@@ -3589,7 +3647,7 @@ function solveDun(){
   const vstep = CH + VISIT_VGAP;
   for (const pl of S.cards){
     if (!DEFS[pl.type].span) continue;
-    const list = dunFoes(pl);
+    const list = dunSide(pl);
     if (!list.length) continue;
     const top = visitColumnTop(pl, list.length);
     list.forEach((g, i) => {
@@ -3616,8 +3674,10 @@ function visitBounds(pl){
   const units = rowUnits(pl);
   const H = n * CH + (n - 1) * VISIT_VGAP;
   const half = Math.max(0, (H - CH) / 2);
+  // v0.104.0: 던전은 왼편에 크리처·전리품 줄이 붙으므로 그만큼 오른쪽으로 밀어 자리를 만듦
+  const left = DEFS[pl.type].span && dunSide(pl).length ? CW + visitGap() : 0;
   return {
-    minX: 8,
+    minX: 8 + left,
     maxX: w - 8 - CW * spanOf(pl) - (CW + visitGap()) - (CW + ATTACH_GAP) * Math.max(0, units - 1),
     minY: TOP_PAD + half,
     maxY: h - 8 - CH - half,
@@ -3657,6 +3717,7 @@ function solveVisit(){
       // 장소가 끝에 몰려 방문자 열이 화면 밖이면 안쪽으로
       const b = visitBounds(pl);
       if (b.maxX >= b.minX && pl.x > b.maxX + 0.05){ pl.x = b.maxX; moveEl(pl); moved = true; }
+      if (b.maxX >= b.minX && pl.x < b.minX - 0.05){ pl.x = b.minX; moveEl(pl); moved = true; }   // v0.104.0: 왼편 줄 자리 확보
       if (b.maxY >= b.minY){
         const ny = Math.min(Math.max(pl.y, b.minY), b.maxY);
         if (Math.abs(ny - pl.y) > 0.05){ pl.y = ny; moveEl(pl); moved = true; }
