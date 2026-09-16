@@ -40,7 +40,8 @@
 
   /* 인스펙터와 상단 UI 막대를 뺀 나머지가 테이블 — 카드는 상단 UI 밑으로 들어가지 않음 */
   .table{
-    position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;
+    position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;   /* v0.122.0: 필드 가로 스크롤 */
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);
     touch-action:none;-webkit-user-select:none;user-select:none;
     -webkit-tap-highlight-color:transparent;
@@ -66,6 +67,12 @@
 
   /* request와 주체를 잇는 실선 — 카드 뒤에 깔림 */
   .links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible;}
+  /* v0.122.0: 필드 가로 스크롤 — 카드가 늘어나면 폭이 늘어남. 스크롤바는 필드와 인스펙터 사이(필드 아래)에 */
+  .field-spacer{position:absolute;left:0;top:0;height:1px;pointer-events:none;}
+  .table::-webkit-scrollbar{height:10px;}
+  .table::-webkit-scrollbar-track{background:rgba(0,0,0,.25);}
+  .table::-webkit-scrollbar-thumb{background:#4a4740;border-radius:5px;border:2px solid transparent;background-clip:content-box;}
+  .table::-webkit-scrollbar-thumb:hover{background:#6b675c;background-clip:content-box;}
   .links line{stroke:#e8d9a8;stroke-opacity:.55;stroke-width:2;}
   .links line.visit{stroke:#ffb070;}
   .links line.dun{stroke:#ff6b5e;}
@@ -449,7 +456,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.121.0';
+const VERSION = 'v0.122.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -724,6 +731,10 @@ const devnote = document.getElementById('devnote');
 const links = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 links.setAttribute('class', 'links');
 table.appendChild(links);
+// v0.122.0: 필드 폭을 정하는 스페이서 (카드가 많아질수록 넓어짐)
+const spacer = document.createElement('div');
+spacer.className = 'field-spacer';
+table.appendChild(spacer);
 document.getElementById('ver').textContent = VERSION;
 
 // ── 상태 ──────────────────────────────────────────────
@@ -766,6 +777,7 @@ function heldSpawn(id){
 const settling = new Set();   // 정산 대기 중인 quest id
 let newSeen = [];
 let drag = null, tear = null, busy = false;
+let pan = null;                  // v0.122.0: 빈 곳을 끌어 가로 스크롤 중
 let gift = null;              // 갓이 멘트 뒤에 줄 것 { kind:'quest' | 'package' }
 let speechWaiters = [];       // 멘트가 다 끝나면 부를 함수
 const popFrom = new Map();    // id → 튀어나온 출발점 {x, y}
@@ -792,15 +804,33 @@ const byId = id => S.cards.find(c => c.id === id);
 const submittable = def => !['character', 'package', 'quest', 'container'].includes(def.kind) && !tagLevel(def, '장소');
 
 function measure(){
-  const { w, h } = tableSize();                                  // v0.37.0: 인스펙터를 뺀 테이블 기준
+  const { w, h } = viewSize();                                   // v0.122.0: 카드 크기는 보이는 화면 기준 (필드 폭이 아니라)
   const m = Math.min(w, h);
   CW = Math.round(Math.max(57, Math.min(87, m / 7.375)));      // v0.76.0: 한 번 더 0.8배 (v0.57.0 71~109, m/5.9 ← v0.19.0 102~156, m/4.13). 글씨·그림도 카드 따라 0.8배
   CH = Math.round(CW * 1.36);
   table.style.setProperty('--cw', CW + 'px');
   table.style.setProperty('--cf', (CW / 0.7 * 0.8) + 'px');      // 카드 글씨 기준: 예전 카드 폭의 0.8배 (카드는 0.7배)
   table.style.setProperty('--ch', CH + 'px');
+  syncField();
 }
-function tableSize(){ return { w: table.clientWidth, h: table.clientHeight }; }
+// v0.122.0: 필드 폭 — 최소는 보이는 폭, 카드가 FIELD_BASE 장을 넘으면 한 장마다 조금씩 넓어짐
+const FIELD_BASE = 18;                           // 이 장수까지는 한 화면
+const FIELD_STEP = 0.06;                         // 한 장 넘을 때마다 보이는 폭의 6%씩
+const FIELD_MAX = 3;                             // 최대 3화면
+function fieldWidth(){
+  const vw = table.clientWidth;
+  const n = S ? S.cards.length : 0;
+  const mul = Math.min(FIELD_MAX, 1 + Math.max(0, n - FIELD_BASE) * FIELD_STEP);
+  return Math.round(vw * mul);
+}
+function syncField(){
+  const w = fieldWidth();
+  spacer.style.width = w + 'px';
+  const max = Math.max(0, w - table.clientWidth);
+  if (table.scrollLeft > max) table.scrollLeft = max;           // 폭이 줄면 스크롤도 안으로
+}
+const viewSize = () => ({ w: table.clientWidth, h: table.clientHeight });
+function tableSize(){ return { w: fieldWidth(), h: table.clientHeight }; }
 function clampPos(x, y){
   const { w, h } = tableSize();
   return {
@@ -1883,6 +1913,7 @@ function validateRecipes(){
 
 // ── 변화 후 처리 ──────────────────────────────────────
 function afterChange(){
+  syncField();                                 // v0.122.0: 카드 수가 바뀌면 필드 폭도
   checkSettle();
   save();
   renderAll();
@@ -2727,10 +2758,14 @@ function openPackage(id, t){
 // ── 포인터 ────────────────────────────────────────────
 function localPoint(e){
   const r = table.getBoundingClientRect();
-  return { px: e.clientX - r.left, py: e.clientY - r.top };
+  return { px: e.clientX - r.left + table.scrollLeft, py: e.clientY - r.top };   // v0.122.0: 스크롤한 만큼 더함
 }
 function onDown(e){
-  if (!e.target.closest('.cw')){ if (!drag && !tear) setSelected(null); return; }   // 빈 테이블 탭 → 인스펙터 비움
+  if (!e.target.closest('.cw')){
+    // v0.122.0: 빈 곳을 끌면 필드가 가로로 스크롤됨. 끌지 않고 탭만 하면 인스펙터 비움
+    if (!drag && !tear) pan = { pid: e.pointerId, sx: e.clientX, sl: table.scrollLeft, moved: false };
+    return;
+  }
   if (paused || drag || tear || busy || returning) return;
   const cardEl = e.target.closest('.cw');
   if (!cardEl || cardEl.classList.contains('half')) return;
@@ -2896,13 +2931,27 @@ function setTarget(t, c){
   if (!ev || ev.full) el.classList.add('no');
 }
 function onMove(e){
+  if (pan && e.pointerId === pan.pid){
+    const dx = e.clientX - pan.sx;
+    if (!pan.moved && Math.abs(dx) < 4) return;
+    pan.moved = true;
+    const max = Math.max(0, fieldWidth() - table.clientWidth);
+    table.scrollLeft = Math.max(0, Math.min(pan.sl - dx, max));
+    return;
+  }
   if (tear && e.pointerId === tear.pid){
     const { px, py } = localPoint(e);
     updateTear(px, py);
     return;
   }
   if (!drag || e.pointerId !== drag.pid) return;
-  const { px, py } = localPoint(e);
+  drag.cx = e.clientX; drag.cy = e.clientY;                     // v0.122.0: 자동 스크롤 중에도 손가락 아래를 지키려고 기억
+  moveDragTo(e.clientX, e.clientY);
+}
+function moveDragTo(clientX, clientY){
+  if (!drag) return;
+  const r = table.getBoundingClientRect();
+  const px = clientX - r.left + table.scrollLeft, py = clientY - r.top;
   if (!drag.moved && Math.hypot(px - drag.sx, py - drag.sy) < 4) return;
   drag.moved = true;
   const c = byId(drag.id);
@@ -2914,7 +2963,20 @@ function onMove(e){
   c.x = p.x; c.y = p.y;
   drag.el.style.left = p.x + 'px';
   drag.el.style.top = p.y + 'px';
-  setTarget(pickTarget(e.clientX, e.clientY, c), c);
+  setTarget(pickTarget(clientX, clientY, c), c);
+}
+// v0.122.0: 카드를 끄는 동안 그 카드가 가로 가운데로 오도록 부드럽게 스크롤
+function followDrag(){
+  if (!drag || !drag.moved) return;
+  const c = byId(drag.id);
+  if (!c) return;
+  const viewW = table.clientWidth;
+  const max = Math.max(0, fieldWidth() - viewW);
+  const want = Math.max(0, Math.min(c.x + CW / 2 - viewW / 2, max));
+  const cur = table.scrollLeft;
+  if (Math.abs(want - cur) < 0.5) return;
+  table.scrollLeft = cur + (want - cur) * 0.12;
+  if (drag.cx != null) moveDragTo(drag.cx, drag.cy);             // 스크롤이 움직인 만큼 카드도 손가락 아래로
 }
 function animateTo(el, x, y, done){
   busy = true;
@@ -2994,6 +3056,11 @@ function bounce(c, d0){
   tweenTo(c, spot.x, spot.y, () => afterChange());
 }
 function onUp(e){
+  if (pan && e.pointerId === pan.pid){
+    if (!pan.moved) setSelected(null);                           // 끌지 않았으면 빈 곳 탭 = 인스펙터 비움
+    pan = null;
+    return;
+  }
   if (tear && e.pointerId === tear.pid){ endTear(); return; }
   if (!drag || e.pointerId !== drag.pid) return;
   const c = byId(drag.id);
@@ -3612,6 +3679,7 @@ function velOf(id){
 }
 function physStep(){
   requestAnimationFrame(physStep);
+  followDrag();                                // v0.122.0: 끄는 카드를 가운데로
   let moved = false;
   if (S && !busy && !paused){
     if (stepReturn()) moved = true;            // 되돌아가는 카드를 먼저 옮기고
@@ -4283,6 +4351,15 @@ function refreshPop(){
 
 // ── 연결 ──────────────────────────────────────────────
 table.addEventListener('pointerdown', onDown);
+// v0.122.0: 마우스 휠(세로)도 가로 스크롤로
+table.addEventListener('wheel', e => {
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (!d) return;
+  const max = Math.max(0, fieldWidth() - table.clientWidth);
+  if (max <= 0) return;
+  table.scrollLeft = Math.max(0, Math.min(table.scrollLeft + d, max));
+  e.preventDefault();
+}, { passive: false });
 window.addEventListener('pointermove', onMove);
 window.addEventListener('pointerup', onUp);
 window.addEventListener('pointercancel', onUp);
