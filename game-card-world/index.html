@@ -449,7 +449,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.117.0';
+const VERSION = 'v0.118.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2773,11 +2773,13 @@ function linkedGroup(c){
 }
 // v0.116.0: 카드를 끌면 그 카드로 할 수 있는 상대만 또렷하게, 나머지는 흐리게 (놓으면 풀림)
 //   해봤는지와 상관없이 실제 판정(evaluate)으로 계산 — 조합·방문·대결·한 방·장비·먹이기·담기·제출·먹어치우기 전부
+//   v0.118.0: 지금 막힌 경우(자리 참·자루 가득·빈사라 대결 불가 등, ev.full)도 흐림
 //   (v0.100.0 의 "해봤는데 안 되던 조합만 흐리게"는 폐기)
 function dimOthers(c){
   const group = linkedGroup(c);                               // 같이 끌려오는 묶음은 그대로
   for (const o of S.cards){
-    if (o.id === c.id || group.has(o.id) || evaluate(c, o)) continue;
+    const ev = evaluate(c, o);
+    if (o.id === c.id || group.has(o.id) || (ev && !ev.full)) continue;
     const el = els.get(o.id);
     if (el) el.classList.add('dim');
   }
