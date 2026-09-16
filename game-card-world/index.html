@@ -259,6 +259,10 @@
 
   /* quest */
   /* v0.57.0: Quest 표시 왼쪽 위 → 위쪽 가운데 */
+  /* v0.117.0: 발주자가 빈사인 quest — 카드가 흐려지고 위에 '빈사' */
+  .cw.q-dying{opacity:.5;filter:saturate(.4);}
+  .dying-label{position:absolute;left:0;right:0;text-align:center;top:calc(var(--cw) * .2);font-size:calc(var(--cf) * .12);
+    font-weight:800;color:#ff8f8f;letter-spacing:.06em;pointer-events:none;}
   .quest-label{position:absolute;left:0;right:0;text-align:center;top:calc(var(--cw) * .05);font-size:calc(var(--cf) * .1);font-weight:800;letter-spacing:.04em;color:var(--brand-yellow);pointer-events:none;}
   .cw.k-quest{padding-top:calc(var(--ch) * .1);}
   .req-emoji{font-size:calc(var(--cw) * .24)!important;}
@@ -445,7 +449,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.116.0';
+const VERSION = 'v0.117.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -957,6 +961,12 @@ function paint(el, c){
   let html = '';
   if (d.kind === 'quest'){
     html += '<div class="quest-label">Quest</div>';
+    // v0.117.0: 발주자가 빈사면 quest도 흐려지고 위에 '빈사'
+    const gv = c.giver != null ? byId(c.giver) : null;
+    if (gv && statusOf(gv).includes('빈사')){
+      el.classList.add('q-dying');
+      html += '<div class="dying-label">빈사</div>';
+    }
     html += `<div class="emoji req-emoji">${iconHtml(c.type)}</div>`;
     html += `<div class="req-title">${esc(c.title)}</div>`;   // 조합식은 인스펙터에서만 (v0.37.0)
     html += `<div class="req-need">${rich(reqProgress(c))}</div>`;
@@ -1535,6 +1545,8 @@ function evaluateOne(d, t){
   if (dd.kind === 'character' && tagLevel(td, '장소')){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
     const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
+    // v0.117.0: 빈사는 싸울 수 없음 → 전투가 벌어지는 장소(던전)에는 못 들어감
+    if (td.span && statusOf(d).includes('빈사')) return { act: 'visit', full: true, dying: true };
     return { act: 'visit', full: others >= (td.capacity || Infinity) };
   }
   if (td.kind === 'container'){
@@ -1689,6 +1701,7 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'visit'){
+    if (ev.dying){ toast(`${DEFS[d.type].name} 빈사 상태 — ${DEFS[t.type].name}에 들어갈 수 없음`); return false; }   // v0.117.0
     if (ev.full){ toast(`자리가 가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].capacity}명`); return false; }
     if (d.visit !== t.id){
       d.visit = t.id; d.visitSeq = ++S.z;                      // 방문: 장소 오른쪽 줄 끝에 섬
