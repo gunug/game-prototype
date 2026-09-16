@@ -426,7 +426,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.105.0';
+const VERSION = 'v0.106.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -671,6 +671,7 @@ const LINES = {
   fireAsk:        '나를 모닥불 위에 올려놔.',
   bedGrumble:     '어이구, 이젠 잠자리까지. 소풍 왔나.',
   godPower:       '갓 파워!',
+  sleepGift:      '잘 잤어? 선물은 내가 준비했어. 신한테 고마워해.',   // v0.106.0: 잠이 보약 보상을 갓이 줌 (생색)
   godMouth:       '필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘',   // v0.84.0: 카드 30장이 넘으면
   mouthWarn:      '기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해',
   river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',
@@ -1870,13 +1871,24 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'sleepmedicine'){
-    const omitted = [];
-    if (canSpawn('hilt')) addCard('hilt', x, y); else omitted.push('hilt');   // 보상이 먼저 보이고
-    const p2 = findSpot(x + CW * 1.1, y);
-    if (canSpawn('plank')) addCard('plank', p2.x, p2.y); else omitted.push('plank');
-    omitToast(omitted);
+    // v0.106.0: 부러진 중검·나무판은 기사가 아니라 **갓**이 꺼내 줌 (생색 대사와 함께)
     S.flags.knightStage = 4;
     toast('💤 잠이 보약 완료');
+    say(LINES.sleepGift);
+    afterSpeech(() => {
+      const g = S.cards.find(c => c.type === 'god');
+      const omitted = [];
+      for (const ty of ['hilt', 'plank']){
+        if (!canSpawn(ty)){ omitted.push(ty); continue; }
+        const p = g ? findSpot(g.x, g.y + CH + 12) : findSpot(x, y);   // 갓 아래로 (갓이 없으면 quest 자리)
+        const c = addCard(ty, p.x, p.y);
+        if (g){ spawned.delete(c.id); popFrom.set(c.id, { x: g.x, y: g.y }); }
+      }
+      if (g) bumpIds.add(g.id);
+      omitToast(omitted);
+      save();
+      renderAll();
+    });
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
