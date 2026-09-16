@@ -397,7 +397,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.88.0';
+const VERSION = 'v0.89.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -817,6 +817,7 @@ function load(){
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
       if (c.type === 'quest' && c.title === '칼을 들어라') c.title = '무기를 들어라';
+      if (c.type === 'quest' && c.quest === 'bonepowder' && c.need > 1) c.need = 1;   // v0.89.0: 골수 2개 → 1개
       if (Array.isArray(c.eaten)) c.eaten = c.eaten.filter(r => r && DEFS[r.type]);   // 신의 입 기록 중 없어진 카드
 
       if (DEFS[c.type] && DEFS[c.type].kind === 'creature' && DEFS[c.type].hp && c.hp == null) c.hp = DEFS[c.type].hp;   // v0.47.0: 크리처 체력
@@ -1353,7 +1354,7 @@ function giveKnightQuest(kind){
   if (!k) return;
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
-    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 2, stack: [], rewardText: '보상: 빈사 → 허기짐' },
+    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 1, stack: [], rewardText: '보상: 빈사 → 허기짐' },
     food:  { quest: 'foodmedicine', title: '밥이 보약', wantsList: ['roastclam', 'roastmeat', 'roastberry'], need: 3, stack: [], rewardText: '보상: 허기짐 해결' },
     sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'sleep', place: 'bedding', target: k.id, need: 0, stack: [], rewards: ['hilt', 'plank'] },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
