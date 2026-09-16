@@ -449,7 +449,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.118.0';
+const VERSION = 'v0.119.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1544,10 +1544,12 @@ function evaluateOne(d, t){
   }
   if (dd.kind === 'character' && tagLevel(td, '장소')){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
-    const others = S.cards.filter(o => o.visit === t.id && o.id !== d.id).length;
+    // v0.119.0: 자리가 가득 차면 못 넣는 게 아니라, 가장 먼저 방문한 캐릭터가 방출됨
+    const others = visitorsOf(t).filter(o => o.id !== d.id);
     // v0.117.0: 빈사는 싸울 수 없음 → 전투가 벌어지는 장소(던전)에는 못 들어감
     if (td.span && statusOf(d).includes('빈사')) return { act: 'visit', full: true, dying: true };
-    return { act: 'visit', full: others >= (td.capacity || Infinity) };
+    const over = others.length >= (td.capacity || Infinity);
+    return { act: 'visit', evict: over ? others[0].id : null };   // v0.119.0: 넘치면 맨 앞(먼저 온) 캐릭터를 내보냄
   }
   if (td.kind === 'container'){
     // 담기: 합칠 수 있음 카드만, 한 종류만, 용량까지
@@ -1641,6 +1643,20 @@ function swallow(mouth, recs, from){
   }
   setTimeout(() => { if (byId(mouth.id)) floatText(mouth, `흡족 +${recs.length}`, 'work'); }, anim ? SWALLOW_MS : 0);
 }
+// v0.119.0: 장소에서 캐릭터를 내보냄 (자리가 밀려서 방출 / 던전이면 진행도 초기화)
+function leavePlace(v, pl){
+  if (!v || !pl) return;
+  delete v.visit;
+  delete v.visitSeq;
+  delete v.dunP;
+  delete v.atkT;
+  if (DEFS[pl.type].span) clearDungeon(pl);
+  const p = findSpot(pl.x + CW * (DEFS[pl.type].span || 1) + 12, pl.y);
+  v.x = p.x; v.y = p.y;
+  popFrom.set(v.id, { x: pl.x, y: pl.y });
+  bumpIds.add(v.id);
+  toast(`↩ ${ic(v.type)} ${DEFS[v.type].name} 방출 — ${DEFS[pl.type].name} 자리가 밀림`);
+}
 function apply(ev, d, t){
   const dd = DEFS[d.type];
   if (ev.act === 'submit'){
@@ -1702,7 +1718,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'visit'){
     if (ev.dying){ toast(`${DEFS[d.type].name} 빈사 상태 — ${DEFS[t.type].name}에 들어갈 수 없음`); return false; }   // v0.117.0
-    if (ev.full){ toast(`자리가 가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].capacity}명`); return false; }
+    if (ev.evict != null) leavePlace(byId(ev.evict), t);        // v0.119.0: 가득 차면 가장 먼저 방문한 캐릭터가 방출
     if (d.visit !== t.id){
       d.visit = t.id; d.visitSeq = ++S.z;                      // 방문: 장소 오른쪽 줄 끝에 섬
       if (DEFS[t.type].span) enterDungeon(t, d);               // v0.90.0: 던전이면 크리처 등장 + 오른쪽 끝에서 시작
