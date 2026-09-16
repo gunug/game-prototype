@@ -477,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.130.0';
+const VERSION = 'v0.130.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1376,7 +1376,8 @@ function reqProgress(rq){
   }
   if (rq.goal === 'make'){
     const done = rq.made || S.seen.includes(rq.make) || S.cards.some(c => c.type === rq.make);
-    return `${done ? '✔' : '☐'} ${ic(rq.make)} ${DEFS[rq.make].name} 만들기`;
+    // makeText: 결과 카드 이름 대신 쓸 설명 (예: 인질 quest는 "건축가 만들기"가 아니라 "인질 풀어주기")
+    return `${done ? '✔' : '☐'} ${rq.makeText || `${ic(rq.make)} ${DEFS[rq.make].name} 만들기`}`;
   }
   if (rq.goal === 'hunt') return `${S.flags.hunted ? '✔' : '☐'} ${ic('animal')} 토끼 사냥`;
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
@@ -3788,6 +3789,7 @@ function stepDungeon(){
           toast(`${ic('hostage')} 던전에서 인질이 튀어나옴`);
           const hq = addCard('quest', hos.x, hos.y, {         // v0.114.0: 인질 옆 "손질?" quest — 밧줄을 끊어 달라는 뜻
             quest: 'freehim', title: '손질?', goal: 'make', make: 'architect', recipeId: 'freeman',
+            makeText: `${ic('hostage')} 인질 풀어주기`,               // v0.130.1: "건축가 만들기"로 보이지 않게
             target: hos.id, giver: hos.id, need: 0, stack: [], rewardText: '보상 없음',
           });
           slideOutFrom(hq, hos);
