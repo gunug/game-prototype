@@ -477,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.128.0';
+const VERSION = 'v0.129.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -3956,6 +3956,21 @@ const mapRowH = pl => {
   const n = visitorsOf(pl).length;
   return Math.max(CH, n ? n * CH + (n - 1) * VISIT_VGAP : CH);
 };
+// v0.129.0: 지도 줄에 들어간 카드는 밀어내기로 흔들리지 않게 고정 — 장소끼리·캐릭터끼리 Y축이 어긋나던 문제
+function mapPinned(){
+  const ids = new Set();
+  for (const m of S.cards){
+    if (DEFS[m.type].kind !== 'map') continue;
+    for (const pl of mappedOf(m)){
+      ids.add(pl.id);
+      for (const v of visitorsOf(pl)){
+        ids.add(v.id);
+        for (const q of attachedList(v)) ids.add(q.id);
+      }
+    }
+  }
+  return ids;
+}
 function solveMap(){
   let moved = false;
   const hid = heldId();
@@ -4060,7 +4075,7 @@ function solveVisit(){
         continue;
       }
       if (Math.abs(v.x - tx) > 0.05 || Math.abs(v.y - ty) > 0.05){
-        const k = hid === pl.id ? 1 : 0.35;            // 장소를 끌 땐 바로, 아니면 부드럽게 제자리로
+        const k = (hid === pl.id || pl.onMap != null) ? 1 : 0.35;   // 장소를 끌 때·지도 줄에 있을 땐 바로 제자리로 (v0.129.0)
         const p = clampPos(v.x + (tx - v.x) * k, v.y + (ty - v.y) * k);
         v.x = p.x; v.y = p.y;
         moveEl(v);
@@ -4182,8 +4197,10 @@ function physMove(){
     }
   }
   let moving = false;
+  const pinned = mapPinned();                  // v0.129.0: 지도 줄 카드는 제자리 (다른 카드는 밀어냄)
   for (const c of cs){
     if (bodyOf(c) !== c) continue;             // 붙은 request는 붙이기가 위치를 정함
+    if (pinned.has(c.id)){ vel.delete(c.id); continue; }
     const v = vel.get(c.id);
     if (!v) continue;
     if (Math.abs(v.x) < 0.02 && Math.abs(v.y) < 0.02){ vel.delete(c.id); continue; }
@@ -4217,7 +4234,8 @@ const outsideHull = (x, y, g) => x + CW <= g.x1 || x >= g.x2 || y + CH <= g.y1 |
 function unwedge(){
   const hid = heldId();
   const dragBody = hid != null ? bodyOf(byId(hid)) : null;
-  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && !(returning && c.id === returning.id) && !heldSpawn(c.id));   // v0.121.0: 막 생성된 카드 제외
+  const pinned = mapPinned();                  // v0.129.0: 지도 줄 카드는 제자리
+  const cs = S.cards.filter(c => !(dragBody && bodyOf(c) === dragBody) && !(tear && c.id === tear.id) && !(returning && c.id === returning.id) && !heldSpawn(c.id) && !pinned.has(c.id));   // v0.121.0: 막 생성된 카드 제외
   const hs = bodyHulls(cs);
   const groups = hs.filter(h => h.n > 1);
   let moved = false;
