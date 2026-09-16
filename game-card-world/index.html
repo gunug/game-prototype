@@ -336,6 +336,13 @@
   .slot.unseen .n{color:var(--muted);}
   .slot:not(.unseen){cursor:pointer;}
   .slot.selected{border-color:#9fd0ff;box-shadow:0 0 0 2px rgba(159,208,255,.55);}   /* 인스펙터에 보이는 칸 */
+  /* v0.126.0: 콜렉터북 탭 */
+  .book-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;}
+  .book-tab{all:unset;cursor:pointer;padding:5px 10px;border:1px solid var(--hairline);border-radius:var(--r-pill);
+    font-size:12px;font-weight:700;color:var(--body);display:inline-flex;align-items:center;gap:5px;}
+  .book-tab:hover{background:var(--surface-soft);}
+  .book-tab.on{color:#1a1a17;background:var(--brand-yellow);border-color:var(--brand-yellow);}
+  .book-tab small{font-size:10.5px;font-weight:600;opacity:.75;}
   .book-sub{margin:20px 0 8px;font-size:16px;}
   .recipes{list-style:none;margin:0;padding:0;display:grid;gap:4px;}
   .recipes li{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;color:var(--ink);}
@@ -470,7 +477,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.124.0';
+const VERSION = 'v0.126.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -527,7 +534,14 @@ const DEFS = {
   // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
   sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1 },   // v0.105.0: 건축가의 첫 quest 보상 (하는 일은 아직 없음)
   dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
-  river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
+  river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2], ['squidcarcass', 3]], yieldNeed:10, gauge:'people' },   // v0.125.0: 오징어 사체 추가
+  // v0.125.0: 모험가와 지도
+  explorer:  { name:'모험가',      kind:'character', tags:['캐릭터', '수다쟁이'], hp:8, baseAtk:1, baseDef:0 },
+  squidcarcass:{ name:'오징어 사체', kind:'material', tags:['합칠 수 있음'] },
+  ink:       { name:'먹물',        kind:'material', tags:['합칠 수 있음'] },
+  squidmeat: { name:'오징어살',    kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastsquid' },
+  roastsquid:{ name:'구운 오징어살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  map:       { name:'지도',        kind:'map', tags:[], register:3 },   // 장소를 쌓으면 등록되어 오른쪽에 나열
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -573,6 +587,12 @@ const DESC = {
   mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
   godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
   river:      '물은 흐르고 조개는 기다린다. 여기선 갓도 한몫한다.',
+  explorer:   '지도에 없는 곳이 있으면 일단 간다. 겁이 없는 게 아니라 궁금한 거다.',
+  squidcarcass:'먹물을 다 쓰지도 못하고 잡혔다.',
+  ink:        '글씨도 되고 그림도 된다. 손에 묻으면 한참 간다.',
+  squidmeat:  '질깃하다. 불에 올리면 사정이 달라진다.',
+  roastsquid: '불 맛을 안 오징어. 강가의 자랑.',
+  map:        '가본 곳만 적힌다. 그래서 자꾸 나가게 된다.',
   dungeon:    '컴컴하고 길다. 안쪽에서 뭔가 낄낄대는 소리가 난다.',
   goblin:     '작고, 빠르고, 창을 들었다. 셋 다 기사에게 나쁜 소식.',
   tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
@@ -595,7 +615,7 @@ const fighter = d => d.kind === 'character' || d.kind === 'creature';
 // v0.88.0: 체력 표시 — 죽지 않는 카드(갓)는 ∞
 const hpText = c => DEFS[c.type].immortal ? '∞' : `${c.hp}/${DEFS[c.type].hp}`;
 // 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
-const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear', 'goblin',
+const PORTRAITS = new Set(['explorer', 'knight', 'god', 'animal', 'bear', 'goblin',
   'mountain', 'campfire', 'bedding', 'godmouth', 'dungeon', 'river']);   // v0.98.0: 장소 6종   // v0.91.0: 고블린
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
@@ -636,6 +656,8 @@ const RECIPES = [
   { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
   { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
   { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
+  { id:'squid',    a:{ tag:'손질', lv:2 },  b:{ card:'squidcarcass' }, out:['ink', 'squidmeat'], keep:'a' },   // v0.125.0: 오징어 손질 → 먹물·오징어살
+  { id:'mapmake',  a:{ card:'tannedhide' }, b:{ card:'ink' },      out:['map'] },                              // v0.125.0: 손질된 가죽 + 먹물 = 지도
   { id:'freeman',  a:{ tag:'손질', lv:2 },  b:{ card:'hostage' },  out:['architect'], keep:'a' },   // v0.105.0: 밧줄을 끊으면 건축가
   { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
   { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
@@ -698,7 +720,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'sawmill', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'hostage', 'architect', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'sawmill', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'hostage', 'architect', 'explorer', 'squidcarcass', 'ink', 'squidmeat', 'roastsquid', 'map', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -991,7 +1013,7 @@ function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
   if (fighter(d)) cls += ' has-corner';
-  else if (d.capacity || d.yields || d.devour) cls += ' has-top';
+  else if (d.capacity || d.yields || d.devour || d.kind === 'map') cls += ' has-top';
   if (placeFoot(d)) cls += ' has-foot';
   if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
@@ -1014,7 +1036,7 @@ function paint(el, c){
   if (wide) el.classList.add('long');
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
-  const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'architect' && archSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
+  const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'architect' && archSpeech) || (c.type === 'explorer' && expSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
   el.style.zIndex = talkingHere ? 1999999999 : c.z;
   el.classList.toggle('speaker', !!talkingHere);               // 말하는 카드
   let html = '';
@@ -1068,6 +1090,7 @@ function paint(el, c){
     // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
     const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
+    if (d.kind === 'map') top += `<div class="cap">${mappedOf(c).length}/${d.register}</div>`;   // v0.125.0: 등록한 장소 수
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
     // v0.90.0: 던전을 걷는 모습 — 카드가 아니라 포트레이트를 줄여 오른쪽을 보게 뒤집음
@@ -1091,6 +1114,7 @@ function paint(el, c){
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
     if (c.type === 'architect' && archSpeech) html += `<div class="speech">${esc(archSpeech)}</div>`;
+    if (c.type === 'explorer' && expSpeech) html += `<div class="speech">${esc(expSpeech)}</div>`;
   }
   el.innerHTML = html;
   const bubble = el.querySelector('.speech');
@@ -1164,8 +1188,8 @@ function toast(msg){
 
 // ── 갓의 말 ───────────────────────────────────────────
 const TALK_SCALE = 1;                          // 대사 머무는 시간 배율 — 모든 캐릭터 공통 (v0.26.1: 1.5 → 1 원래대로)
-const SPEAKERS = ['god', 'knight', 'architect'];   // 대사 우선순위 — 앞일수록 먼저 (v0.114.0: 건축가 추가)
-const talkQ = { god: [], knight: [], architect: [] };   // 사람마다 할 말 줄 [{ text, done }]
+const SPEAKERS = ['god', 'knight', 'architect', 'explorer'];   // 대사 우선순위 — 앞일수록 먼저 (v0.114.0: 건축가 추가)
+const talkQ = { god: [], knight: [], architect: [], explorer: [] };   // 사람마다 할 말 줄 [{ text, done }]
 let talking = null, talkTimer = null;           // 지금 말하는 사람
 let talkItem = null;                            // 지금 말하는 대사 { text, pri }
 function enqueueTalk(who, items){
@@ -1177,8 +1201,9 @@ const isTalking = who => talking === who || talkQ[who].length > 0;
 function setLine(who, text){
   if (who === 'god') speech = text;
   else if (who === 'knight') knightSpeech = text;
-  else archSpeech = text;
-  table.classList.toggle('talking', !!(speech || knightSpeech || archSpeech));   // 누가 말하는 동안 나머지 카드 반투명
+  else if (who === 'architect') archSpeech = text;
+  else expSpeech = text;
+  table.classList.toggle('talking', !!(speech || knightSpeech || archSpeech || expSpeech));   // 누가 말하는 동안 나머지 카드 반투명
   repaint(who);
   if (who === 'god'){
     const pk = S.cards.find(c => c.type === 'package' && c.contents === 'first');
@@ -1316,6 +1341,7 @@ function reqDone(rq){
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'devour') return !!S.flags.devoured;         // v0.84.0: 신의 입에 한 장이라도 넣은 적 있음
   if (rq.goal === 'undevour') return !!S.flags.mouthTook;      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
+  if (rq.goal === 'register') return mappedCount() >= rq.need;   // v0.125.0: 지도에 등록한 장소 수
   if (rq.goal === 'take') return !!S.flags.tookOut;            // v0.112.0: 자루에서 한 장 꺼낸 적 있음
   if (rq.goal === 'eject') return !!S.flags.ejected;           // v0.112.0: 붉은 택으로 전부 배출한 적 있음
   if (rq.goal === 'sweep') return !!S.flags.swept;             // 택을 당겨 쓸어담은 적 있음
@@ -1356,6 +1382,7 @@ function reqProgress(rq){
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'devour') return `${S.flags.devoured ? '✔' : '☐'} ${ic('godmouth')} 신의 입에 아무거나 1장 넣기`;
   if (rq.goal === 'undevour') return `${S.flags.mouthTook ? '✔' : '☐'} ${ic('godmouth')} 신의 입에서 한 장 꺼내기`;
+  if (rq.goal === 'register') return `${ic('map')} 장소 등록 ${mappedCount()} / ${rq.need}`;
   if (rq.goal === 'take') return `${S.flags.tookOut ? '✔' : '☐'} ${ic('sack')} 담긴 카드를 끌어 한 장 꺼내기`;
   if (rq.goal === 'eject') return `${S.flags.ejected ? '✔' : '☐'} ${ic('sack')} 우상단 붉은 택을 당겨 전부 배출`;
   if (rq.goal === 'sweep') return `${S.flags.swept ? '✔' : '☐'} ${ic('sack')} 택을 당겨 쓸어담기`;
@@ -1409,6 +1436,7 @@ function reqReward(rq){
 //   stage 5: 무기를 들어라 완료
 let knightSpeech = null, knightTimer = null;
 let archSpeech = null;                           // v0.114.0: 건축가 말풍선
+let expSpeech = null;                            // v0.125.0: 모험가 말풍선
 function repaint(type){
   if (drag) return;
   const c = S.cards.find(o => o.type === type);
@@ -1416,6 +1444,7 @@ function repaint(type){
   if (el) paint(el, c);
 }
 const archSay = (x, done) => speak('architect', x, PRI_EVENT, done);   // v0.114.0: 건축가 대사
+const expSay = (x, done) => speak('explorer', x, PRI_EVENT, done);     // v0.125.0: 모험가 대사
 function knightSay(text, done, pri){
   speak('knight', text, pri, done);
 }
@@ -1614,6 +1643,13 @@ function evaluateOne(d, t){
     const over = others.length >= (td.capacity || Infinity);
     return { act: 'visit', evict: over ? others[0].id : null };   // v0.119.0: 넘치면 맨 앞(먼저 온) 캐릭터를 내보냄
   }
+  if (td.kind === 'map' || dd.kind === 'map'){
+    // v0.125.0: 지도에 장소를 쌓으면 등록 (순서 무관). 장소는 지도 오른쪽에 나열됨
+    const mp = td.kind === 'map' ? t : d;
+    const pl = td.kind === 'map' ? d : t;
+    if (mp === pl || !tagLevel(DEFS[pl.type], '장소') || pl.onMap === mp.id) return null;
+    return { act: 'register', map: mp, place: pl, full: mappedOf(mp).length >= (DEFS[mp.type].register || 3) };
+  }
   if (td.kind === 'container'){
     // 담기: 합칠 수 있음 카드만, 한 종류만, 용량까지
     if (!tagLevel(dd, '합칠 수 있음')) return null;
@@ -1777,6 +1813,15 @@ function apply(ev, d, t){
     eatShift.add(t.id);
     bumpIds.add(t.id);
     toast(`${ic(d.type)} ${dd.name} → ${DEFS[t.type].name}`);
+    return true;
+  }
+  if (ev.act === 'register'){
+    if (ev.full){ toast(`지도가 가득 참 — 최대 ${DEFS[ev.map.type].register}곳`); return false; }
+    ev.place.onMap = ev.map.id;
+    ev.place.mapSeq = ++S.z;
+    bumpIds.add(ev.map.id);
+    bumpIds.add(ev.place.id);
+    toast(`${ic(ev.place.type)} ${DEFS[ev.place.type].name} — 지도에 등록`);
     return true;
   }
   if (ev.act === 'visit'){
@@ -2034,7 +2079,9 @@ function rewardFor(rq, x, y){
     return;
   }
   if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }
-  if (rq.quest === 'riverwork'){ giveDungeonReward(x, y); return; }
+  if (rq.quest === 'riverwork'){ giveExplorer(x, y); return; }              // v0.125.0: 던전 → 모험가
+  if (rq.quest === 'map1'){ giveMapQuest(1); return; }                       // 지도 만들기 → 장소 등록
+  if (rq.quest === 'map2'){ giveDungeonReward(x, y); return; }               // 장소 3곳 등록 → 던전
   if (rq.quest === 'freehim'){ toast(`${ic('architect')} 밧줄을 끊었다`); return; }   // v0.114.0: 인질 → 건축가
   if (rq.quest === 'sawmill1'){ giveSawmill(x, y); return; }   // v0.105.0: 건축가 → 제재소   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
@@ -2219,16 +2266,50 @@ function giveRiverQuest(){
   save();
   renderAll();
 }
-function giveDungeonReward(x, y){
+// v0.125.0: 모험가 — 성격 좋고 시원시원한 말투. 강 채집을 끝내면 강가에서 튀어나옴
+const EXP_LINES = {
+  intro: ['휘유— 드디어 나왔다! 물속은 이제 그만.', '나는 모험가야. 길 찾는 건 나한테 맡겨.'],
+  map1:  '가본 데를 적어둬야 안 헤매지. 손질된 가죽에 먹물이면 지도 한 장 나와.',
+  map2:  '지도가 비었잖아. 아무 데나 좋으니 세 군데만 얹어봐.',
+  found: '탐험 중에 던전을 찾았어요! 어두운 게 딱 뭐가 있겠는데?',
+};
+const MAP_NEED = 3;                              // 등록할 장소 수
+function giveExplorer(x, y){
   S.flags.riverWorkDone = true;
+  if (S.flags.explorerGiven || S.cards.some(c => c.type === 'explorer')) return;
+  S.flags.explorerGiven = true;
+  const p = findSpot(x, y);
+  const e = addCard('explorer', p.x, p.y);
+  spawned.delete(e.id);
+  popFrom.set(e.id, { x, y });
+  toast(`${ic('explorer')} 강 채집 완료 — 모험가`);
+  expSay(EXP_LINES.intro, () => giveMapQuest(0));
+}
+// 모험가 quest 줄: 0) 지도를 만들자  1) 장소를 등록하자
+function giveMapQuest(i){
+  const e = S.cards.find(c => c.type === 'explorer');
+  if (!e) return;
+  if (paused || drag || tear || busy){ setTimeout(() => giveMapQuest(i), 200); return; }
+  const spec = i === 0
+    ? { quest: 'map1', title: '지도를 만들자', goal: 'make', make: 'map', recipeId: 'mapmake' }
+    : { quest: 'map2', title: '장소를 등록하자', goal: 'register', need: MAP_NEED };
+  if (questExists(spec.quest) || (i === 1 && S.flags.mapDone)) return;
+  const rq = addCard('quest', e.x, e.y, Object.assign({ target: e.id, giver: e.id, need: 0, stack: [], rewardText: '보상 없음' }, spec));
+  slideOutFrom(rq, e);
+  expSay(i === 0 ? EXP_LINES.map1 : EXP_LINES.map2);
+  save();
+  renderAll();
+}
+function giveDungeonReward(x, y){
+  S.flags.mapDone = true;
   if (S.flags.dungeonGiven || S.cards.some(c => c.type === 'dungeon')) return;
   S.flags.dungeonGiven = true;
   const p = findSpot(x, y);
   const r = addCard('dungeon', p.x, p.y);
   spawned.delete(r.id);
   popFrom.set(r.id, { x, y });
-  toast(`${ic('dungeon')} 강 채집 완료 — 던전`);
-  say(LINES.dungeon);
+  toast(`${ic('dungeon')} 장소 등록 완료 — 던전`);
+  expSay(EXP_LINES.found);                                   // 탐험 중에 던전을 찾았어요
 }
 // 건축가 (v0.105.0): 밧줄을 끊어 주면 첫 quest "제재소를 짓겠어" — 나무 5 · 돌 5를 내면 제재소
 const MILL_NEED = [['tree', 5], ['stone', 5]];
@@ -2355,6 +2436,11 @@ function godCheck(){
   if (S.flags.peaceDone && !S.flags.mountainGiven && !isTalking('god')){ giveMountain(); return; }   // 산을 받기 전에 새로고침한 경우
   if (!S.flags.mouthGiven && S.cards.length >= MOUTH_AT && !isTalking('god')){ giveGodMouth(); return; }   // v0.84.0: 월드가 어수선해지면 신의 입
   if (S.flags.mountainGiven && !S.flags.riverGiven && !S.flags.mountainWorkDone && !questExists('mountainwork') && !isTalking('god')){ giveMountainQuest(); return; }   // 산 채집 quest를 받기 전에 새로고침한 경우 (예전 저장 포함)
+  if (S.flags.explorerGiven && !S.flags.mapDone && !questExists('map1') && !questExists('map2')
+      && S.cards.some(c => c.type === 'explorer') && !isTalking('explorer') && !isTalking('god')){
+    giveMapQuest(S.seen.includes('map') ? 1 : 0);             // v0.125.0: 모험가 quest를 받기 전에 새로고침한 경우
+    return;
+  }
   if (S.flags.riverGiven && !S.flags.dungeonGiven && !S.flags.riverWorkDone && !questExists('riverwork') && !isTalking('god')){ giveRiverQuest(); return; }   // v0.87.0: 강 채집 quest를 받기 전에 새로고침한 경우
   if (architectCheck()) return;                                // v0.105.0: 건축가가 있으면 제재소 quest
   if (salvationCheck()) return;                                // 빈사 기사를 살릴 방법이 없으면 신의 구원
@@ -3442,14 +3528,32 @@ let bookOpen = false;          // 시트가 올라와 있나
 let bookManual = false;        // 버튼으로 연 상태 (자동으로 닫지 않음)
 let bookPending = new Set();   // 아직 등록 연출 전이라 ??? 로 보일 카드
 let discoQ = [], discoRunning = false, discoTimer = null;
+// 콜렉터북 탭 (v0.126.0): 캐릭터 · 장소 · 무기,방패,도구 · 재료(나머지 전부)
+const BOOK_TABS = [
+  { key: 'char',  name: '캐릭터',        has: d => d.kind === 'character' },
+  { key: 'place', name: '장소',          has: d => !!tagLevel(d, '장소') },
+  { key: 'gear',  name: '무기,방패,도구', has: d => ['무기', '방패', '도구'].some(t => tagLevel(d, t)) },
+  { key: 'mat',   name: '재료',          has: () => true },
+];
+const bookTabOf = id => {
+  const d = DEFS[id];
+  return (BOOK_TABS.find(t => t.has(d)) || BOOK_TABS[BOOK_TABS.length - 1]).key;
+};
+let bookTab = 'char';
 function renderBook(){
   const seen = new Set(S.seen);
   const shown = id => seen.has(id) && !bookPending.has(id);
-  const n = PAGE.ids.filter(shown).length;
+  const ids = PAGE.ids.filter(id => bookTabOf(id) === bookTab);   // v0.126.0: 탭별 목록
+  const n = ids.filter(shown).length;
   let html = '<div class="book-panel"><div class="book-grip"></div><div class="book-head"><div>';
-  html += `<span class="eyebrow">콜렉터북</span><h2>${esc(PAGE.title)}<small class="book-count">${n} / ${PAGE.ids.length}</small></h2>`;
-  html += '</div><button class="btn btn-secondary btn-sm" data-close>닫기</button></div><div class="book-grid">';
-  for (const id of PAGE.ids){
+  html += `<span class="eyebrow">콜렉터북</span><h2>${esc(PAGE.title)}<small class="book-count">${n} / ${ids.length}</small></h2>`;
+  html += '</div><button class="btn btn-secondary btn-sm" data-close>닫기</button></div>';
+  html += '<div class="book-tabs">' + BOOK_TABS.map(t => {
+    const list = PAGE.ids.filter(id => bookTabOf(id) === t.key);
+    return `<button class="book-tab${t.key === bookTab ? ' on' : ''}" data-tab="${t.key}">${esc(t.name)}<small>${list.filter(shown).length}/${list.length}</small></button>`;
+  }).join('') + '</div>';
+  html += '<div class="book-grid">';
+  for (const id of ids){
     const d = DEFS[id];
     html += shown(id)
       ? `<div class="slot${id === selType ? ' selected' : ''}" data-slot="${id}"><div class="e">${iconHtml(id)}</div><div class="n">${esc(d.name)}</div></div>`
@@ -3500,6 +3604,7 @@ function runDiscoveries(){
   discoRunning = true;
   setPaused(true);                                // 등록 연출 동안 게임 필드 일시 정지
   const batch = discoQ.splice(0);
+  bookTab = bookTabOf(batch[0]);                  // v0.126.0: 새로 등록되는 카드가 있는 탭을 펼침
   renderBook();
   const delay = bookOpen ? 150 : 430;             // 막 올라오는 중이면 다 올라온 뒤에 등록
   setBookOpen(true);
@@ -3705,7 +3810,8 @@ function physStep(){
     if (stepDungeon()) moved = true;           // 던전 진행
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
-    if (solveDun()) moved = true;              // 던전 → 왼쪽 크리처 줄
+    if (solveDun()) moved = true;
+    if (solveMap()) moved = true;              // v0.125.0: 지도에 등록된 장소 줄              // 던전 → 왼쪽 크리처 줄
     if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
     if (phys ? physMove() : unwedge()) moved = true;   // 밀어내기 꺼짐이면 묶음 틈에 낀 카드만 빼냄
     if (solveVisit()) moved = true;
@@ -3839,6 +3945,24 @@ function solveDun(){
   }
   return moved;
 }
+// v0.125.0: 지도에 등록된 장소는 지도 오른쪽에 위에서 아래로 (방문 줄과 같은 배치)
+function solveMap(){
+  let moved = false;
+  const hid = heldId();
+  const vstep = CH + VISIT_VGAP;
+  for (const m of S.cards){
+    if (DEFS[m.type].kind !== 'map') continue;
+    const list = mappedOf(m);
+    if (!list.length) continue;
+    const top = visitColumnTop(m, list.length);
+    list.forEach((pl, i) => {
+      if (pl.id === hid || (drag && drag.id === pl.id)) return;
+      const p = clampPos(m.x + CW + visitGap(), top + vstep * i);
+      if (Math.abs(p.x - pl.x) > 0.05 || Math.abs(p.y - pl.y) > 0.05){ pl.x = p.x; pl.y = p.y; moveEl(pl); moved = true; }
+    });
+  }
+  return moved;
+}
 function visitColumnTop(pl, n){
   const H = n * CH + (n - 1) * VISIT_VGAP;
   return pl.y + CH / 2 - H / 2;
@@ -3864,6 +3988,9 @@ function visitBounds(pl){
     maxY: h - 8 - CH - half,
   };
 }
+// v0.125.0: 지도에 등록된 장소 (등록한 순서대로)
+const mappedOf = m => S.cards.filter(c => c.onMap === m.id).sort((a, b) => ((a.mapSeq || 0) - (b.mapSeq || 0)) || (a.id - b.id));
+const mappedCount = () => S.cards.filter(c => c.onMap != null).length;
 function visitorsOf(pl){
   return S.cards.filter(c => c.visit === pl.id).sort((a, b) => ((a.visitSeq || 0) - (b.visitSeq || 0)) || (a.id - b.id));
 }
@@ -3937,6 +4064,11 @@ function tetherLinks(){
     if (c.dun != null){                                       // v0.90.0: 던전 ─ 등장 크리처
       const dg = byId(c.dun);
       if (dg) out.push({ a: dg, b: c, kind: 'dun' });
+      continue;
+    }
+    if (c.onMap != null){                                     // v0.125.0: 지도 ─ 등록된 장소
+      const mp = byId(c.onMap);
+      if (mp) out.push({ a: mp, b: c, kind: 'visit' });
       continue;
     }
     if (c.visit == null) continue;
@@ -4392,6 +4524,8 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape' && !setModal.hi
 document.getElementById('copyBtn').addEventListener('click', () => { copyField(); openSettings(false); });
 book.addEventListener('click', e => {
   if (e.target.closest('[data-close]')){ closeBook(); return; }
+  const tab = e.target.closest('[data-tab]');
+  if (tab){ bookTab = tab.dataset.tab; renderBook(); return; }   // v0.126.0: 탭 전환
   const slot = e.target.closest('.slot');
   if (slot && !slot.classList.contains('unseen')) setBookSelected(slot.dataset.slot);   // ??? 칸은 못 고름
 });
@@ -4401,7 +4535,7 @@ function clearRuntime(){
   clearTimeout(godTimer);
   clearTimeout(talkTimer);
   talkTimer = null; talking = null; talkItem = null; talkQ.god = []; talkQ.knight = [];
-  speech = null; knightSpeech = null; archSpeech = null;
+  speech = null; knightSpeech = null; archSpeech = null; expSpeech = null;
   table.classList.remove('talking');
   gift = null; speechWaiters = [];
   closeBook();
