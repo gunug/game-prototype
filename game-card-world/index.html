@@ -447,7 +447,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.113.0';
+const VERSION = 'v0.114.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -971,7 +971,7 @@ function paint(el, c){
   if (wide) el.classList.add('long');
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
-  const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
+  const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'architect' && archSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
   el.style.zIndex = talkingHere ? 1999999999 : c.z;
   el.classList.toggle('speaker', !!talkingHere);               // 말하는 카드
   let html = '';
@@ -1043,6 +1043,7 @@ function paint(el, c){
     }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
+    if (c.type === 'architect' && archSpeech) html += `<div class="speech">${esc(archSpeech)}</div>`;
   }
   el.innerHTML = html;
   const bubble = el.querySelector('.speech');
@@ -1117,8 +1118,8 @@ function toast(msg){
 
 // ── 갓의 말 ───────────────────────────────────────────
 const TALK_SCALE = 1;                          // 대사 머무는 시간 배율 — 모든 캐릭터 공통 (v0.26.1: 1.5 → 1 원래대로)
-const SPEAKERS = ['god', 'knight'];            // 대사 우선순위 — 앞일수록 먼저
-const talkQ = { god: [], knight: [] };          // 사람마다 할 말 줄 [{ text, done }]
+const SPEAKERS = ['god', 'knight', 'architect'];   // 대사 우선순위 — 앞일수록 먼저 (v0.114.0: 건축가 추가)
+const talkQ = { god: [], knight: [], architect: [] };   // 사람마다 할 말 줄 [{ text, done }]
 let talking = null, talkTimer = null;           // 지금 말하는 사람
 let talkItem = null;                            // 지금 말하는 대사 { text, pri }
 function enqueueTalk(who, items){
@@ -1128,8 +1129,10 @@ function enqueueTalk(who, items){
 // 이 사람이 말하는 중이거나 할 말이 남아 있나
 const isTalking = who => talking === who || talkQ[who].length > 0;
 function setLine(who, text){
-  if (who === 'god') speech = text; else knightSpeech = text;
-  table.classList.toggle('talking', !!(speech || knightSpeech));   // 누가 말하는 동안 나머지 카드 반투명
+  if (who === 'god') speech = text;
+  else if (who === 'knight') knightSpeech = text;
+  else archSpeech = text;
+  table.classList.toggle('talking', !!(speech || knightSpeech || archSpeech));   // 누가 말하는 동안 나머지 카드 반투명
   repaint(who);
   if (who === 'god'){
     const pk = S.cards.find(c => c.type === 'package' && c.contents === 'first');
@@ -1359,12 +1362,14 @@ function reqReward(rq){
 //   stage 4: 잠이 보약 완료 → 부러진 중검·나무판 → "고맙다" → 무기를 들어라
 //   stage 5: 무기를 들어라 완료
 let knightSpeech = null, knightTimer = null;
+let archSpeech = null;                           // v0.114.0: 건축가 말풍선
 function repaint(type){
   if (drag) return;
   const c = S.cards.find(o => o.type === type);
   const el = c && els.get(c.id);
   if (el) paint(el, c);
 }
+const archSay = (x, done) => speak('architect', x, PRI_EVENT, done);   // v0.114.0: 건축가 대사
 function knightSay(text, done, pri){
   speak('knight', text, pri, done);
 }
@@ -1954,6 +1959,7 @@ function rewardFor(rq, x, y){
   }
   if (rq.quest === 'mountainwork'){ giveRiverReward(x, y); return; }
   if (rq.quest === 'riverwork'){ giveDungeonReward(x, y); return; }
+  if (rq.quest === 'freehim'){ toast(`${ic('architect')} 밧줄을 끊었다`); return; }   // v0.114.0: 인질 → 건축가
   if (rq.quest === 'sawmill1'){ giveSawmill(x, y); return; }   // v0.105.0: 건축가 → 제재소   // v0.87.0: 강 채집 → 던전   // v0.73.0: 산 채집 → 강가
   const pi = PEACE_STEPS.findIndex(f => f.quest === rq.quest);
   if (pi >= 0){
@@ -2150,13 +2156,33 @@ function giveDungeonReward(x, y){
 }
 // 건축가 (v0.105.0): 밧줄을 끊어 주면 첫 quest "제재소를 짓겠어" — 나무 5 · 돌 5를 내면 제재소
 const MILL_NEED = [['tree', 5], ['stone', 5]];
+// v0.114.0: 건축가 대사 — 수염 덥수룩한 쾌남. 미안함·고마움을 똑바로 말하고, 야망과 미래를 이야기함
+const ARCH_LINES = {
+  freed: ['크하— 살았다! 밧줄 끊어줘서 고맙네, 은혜는 잊지 않아.',
+          '내 꼴 때문에 고생 많았지. 미안하네. 이제 내가 갚을 차례야.'],
+  mill:  '나무 다섯, 돌 다섯. 제재소부터 세우자고. 여기서 도시를 시작할 거야.',
+};
 function architectCheck(){
   if (S.flags.millDone || questExists('sawmill1')) return false;
   const a = S.cards.find(c => c.type === 'architect');
   if (!a || paused || drag || tear || busy) return false;
+  if (!S.flags.archFreed){                                    // 풀려난 직후 인사 → 대사가 끝나면 quest
+    S.flags.archFreed = true;
+    save();
+    archSay(ARCH_LINES.freed, giveMillQuest);
+    return true;
+  }
+  return giveMillQuest();
+}
+function giveMillQuest(){
+  if (S.flags.millDone || questExists('sawmill1')) return false;
+  const a = S.cards.find(c => c.type === 'architect');
+  if (!a) return false;
+  if (paused || drag || tear || busy){ setTimeout(giveMillQuest, 200); return true; }
   const rq = addCard('quest', a.x, a.y, { quest: 'sawmill1', title: '제재소를 짓겠어', wantsMulti: MILL_NEED,
     need: MILL_NEED.reduce((n, [, k]) => n + k, 0), stack: [], target: a.id, giver: a.id, rewards: ['sawmill'] });
   slideOutFrom(rq, a);
+  archSay(ARCH_LINES.mill);                                   // 야망과 미래
   save();
   renderAll();
   return true;
@@ -3568,6 +3594,11 @@ function stepDungeon(){
           spawned.delete(hos.id);
           popFrom.set(hos.id, { x: pl.x, y: pl.y });
           toast(`${ic('hostage')} 던전에서 인질이 튀어나옴`);
+          const hq = addCard('quest', hos.x, hos.y, {         // v0.114.0: 인질 옆 "손질?" quest — 밧줄을 끊어 달라는 뜻
+            quest: 'freehim', title: '손질?', goal: 'make', make: 'architect', recipeId: 'freeman',
+            target: hos.id, giver: hos.id, need: 0, stack: [], rewardText: '보상 없음',
+          });
+          slideOutFrom(hq, hos);
         }
         afterChange();
       }
@@ -4272,7 +4303,7 @@ function clearRuntime(){
   clearTimeout(godTimer);
   clearTimeout(talkTimer);
   talkTimer = null; talking = null; talkItem = null; talkQ.god = []; talkQ.knight = [];
-  speech = null; knightSpeech = null;
+  speech = null; knightSpeech = null; archSpeech = null;
   table.classList.remove('talking');
   gift = null; speechWaiters = [];
   closeBook();
