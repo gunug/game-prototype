@@ -68,6 +68,7 @@
   .links{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible;}
   .links line{stroke:#e8d9a8;stroke-opacity:.55;stroke-width:2;}
   .links line.visit{stroke:#ffb070;}
+  .links line.dun{stroke:#ff6b5e;}
 
   /* 카드 */
   .cw{
@@ -376,9 +377,20 @@
   .cw.framed.long{background:none;border-style:solid;border-width:calc(var(--cw) * .12) calc(var(--cw) * .13);
     border-image:var(--frame) 16 18 fill round;}
   /* v0.90.0: 던전을 걷는 포트레이트 — 기본 방향이 왼쪽이라 뒤집어서 오른쪽을 보게 */
-  .cw .runner{position:absolute;bottom:calc(var(--cw) * .06);height:calc(var(--ch) * .62);width:auto;
-    left:calc(var(--rp, 0) * (100% - var(--cw) * .32));transform:scaleX(-1);image-rendering:pixelated;
-    pointer-events:none;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .cw .runner{position:absolute;bottom:calc(var(--cw) * .06);height:calc(var(--ch) * .62);width:calc(var(--cw) * .32);
+    left:calc(var(--rp, 0) * (100% - var(--cw) * .32));pointer-events:none;
+    display:flex;align-items:flex-end;justify-content:center;animation:dunBob .5s ease-in-out infinite;}
+  .cw .runner .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .cw .runner.foe .pic{transform:scaleX(-1);}               /* 포트레이트 기본 방향은 왼쪽 → 크리처는 뒤집어 오른쪽 */
+  /* v0.90.0: 이동 들썩들썩 / 공격 뒤로 뺐다 빠르게 전진 / 피격 빨강 */
+  @keyframes dunBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8%);}}
+  .cw .runner.atk .pic{animation:dunAtk .3s ease-out;}
+  .cw .runner.foe.atk .pic{animation:dunAtkF .3s ease-out;}
+  @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
+  @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
+  .cw .runner.hurt .pic{animation:dunHurt .3s steps(1,end) 2;}
+  @keyframes dunHurt{0%{filter:brightness(1.6) sepia(1) saturate(9) hue-rotate(-35deg);}50%{filter:none;}100%{filter:none;}}
 </style>
 </head>
 <body>
@@ -426,6 +438,7 @@ const DEFS = {
   // v0.52.0: strike → baseAtk (캐릭터와 같은 공방체)
   animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:2, baseAtk:1, baseDef:0, loot:['carcass'] },   // v0.68.0: 체력 3 → 2 (뗀석기 공격력 2로 한 방)   // v0.54.0: 전리품은 사체만 (뼈는 해체에서)   // v0.42.0: 동물 → 토끼 (id 그대로)
   bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, baseAtk:3, baseDef:0, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
+  goblin:    { name:'고블린',      kind:'creature', tags:[], hp:9, baseAtk:5, baseDef:0, loot:[] },   // v0.91.0: 던전 크리처 (월드에 안 돌아다님)
   bearcarcass:{ name:'곰 사체',    kind:'material', tags:['합칠 수 있음'] },
   shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
   berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
@@ -450,7 +463,8 @@ const DEFS = {
   godmouth:  { name:'신의 입',     kind:'place', tags:['장소'], devour:3 },
   // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
   // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
-  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, run:10000, span:3 },
+  // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
+  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'] },
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -492,7 +506,8 @@ const DESC = {
   mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
   godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
   river:      '물은 흐르고 조개는 기다린다. 여기선 갓도 한몫한다.',
-  dungeon:    '컴컴하고 길다. 아직은 아무것도 안 나온다. 아직은.',
+  dungeon:    '컴컴하고 길다. 안쪽에서 뭔가 낄낄대는 소리가 난다.',
+  goblin:     '작고, 빠르고, 창을 들었다. 셋 다 기사에게 나쁜 소식.',
   tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
   roastmeat:  '문명의 냄새가 난다.',
   roastclam:  '조개의 마지막 저항도 불 앞에선 무너졌다.',
@@ -513,7 +528,7 @@ const fighter = d => d.kind === 'character' || d.kind === 'creature';
 // v0.88.0: 체력 표시 — 죽지 않는 카드(갓)는 ∞
 const hpText = c => DEFS[c.type].immortal ? '∞' : `${c.hp}/${DEFS[c.type].hp}`;
 // 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
-const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear']);
+const PORTRAITS = new Set(['knight', 'god', 'animal', 'bear', 'goblin']);   // v0.91.0: 고블린
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 // v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
@@ -612,7 +627,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'goblin', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -882,7 +897,7 @@ function paint(el, c){
   if (c.type === 'package' && c.contents === 'first') cls += ' rattle';   // 안에서 두드리는 첫 package
   el.className = cls;
   // v0.87.0: 던전은 캐릭터가 들어와 있는 동안만 가로로 span배 (긴 길). v0.90.0: 프레임은 9slice, 안은 타일링
-  const wide = d.run && visitorsOf(c).length;
+  const wide = d.span && visitorsOf(c).length;
   el.style.width = wide ? (CW * d.span) + 'px' : '';
   if (wide) el.classList.add('long');
   el.style.left = c.x + 'px';
@@ -938,9 +953,12 @@ function paint(el, c){
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
     // v0.90.0: 던전을 걷는 모습 — 카드가 아니라 포트레이트를 줄여 오른쪽을 보게 뒤집음
-    if (d.run){
-      const v = visitorsOf(c)[0];
-      if (v && PORTRAITS.has(v.type)) html += `<img class="runner" src="images/portrait/portrait_${v.type}.png" alt="" draggable="false">`;
+    if (d.span && wide){                                    // v0.90.0: 길 위의 캐릭터·크리처 (카드가 아니라 포트레이트)
+      for (const u of visitorsOf(c).concat(dunFoes(c))){
+        if (!PORTRAITS.has(u.type)) continue;
+        html += `<div class="runner${u.dun != null ? ' foe' : ''}" data-run="${u.id}" style="--rp:${dunPos(u)}">`
+          + `<img class="pic" src="images/portrait/portrait_${u.type}.png" alt="" draggable="false"></div>`;
+      }
     }
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
@@ -1430,6 +1448,7 @@ const applyEv = (ev, d, t) => ev.swap ? apply(ev, t, d) : apply(ev, d, t);
 function evaluateOne(d, t){
   const dd = DEFS[d.type], td = DEFS[t.type];
   if (t.duel != null) return null;                            // 대결 중인 카드엔 아무것도 못 올림
+  if (t.dun != null || d.dun != null) return null;            // v0.90.0: 던전 안 크리처는 조합·쌓기 대상이 아님
   if (td.kind === 'creature'){
     if (dd.kind === 'character') return { act: 'duel', full: statusOf(d).includes('빈사') };   // 대결 (빈사면 못 함)
     if (tagLevel(dd, '무기')){
@@ -1597,7 +1616,10 @@ function apply(ev, d, t){
   }
   if (ev.act === 'visit'){
     if (ev.full){ toast(`자리가 가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].capacity}명`); return false; }
-    if (d.visit !== t.id){ d.visit = t.id; d.visitSeq = ++S.z; delete d.runMs; runLast.delete(d.id); }   // 방문: 장소 오른쪽 줄 끝에 섬 (v0.87.0: 던전 진행은 0부터)
+    if (d.visit !== t.id){
+      d.visit = t.id; d.visitSeq = ++S.z;                      // 방문: 장소 오른쪽 줄 끝에 섬
+      if (DEFS[t.type].span) enterDungeon(t, d);               // v0.90.0: 던전이면 크리처 등장 + 오른쪽 끝에서 시작
+    }
     bumpIds.add(t.id);
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
     return true;
@@ -2284,7 +2306,7 @@ const mouthEats = o => {
 };
 // v0.74.0: 도구·무기·방패 태그 카드는 월드 정리로 빨려가지 않음 (직접 끌어다 넣으면 먹음)
 const KEEP_TAGS = ['도구', '무기', '방패'];
-const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && !(drag && drag.id === o.id)
+const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && o.dun == null && !(drag && drag.id === o.id)
   && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t))
   && DEFS[o.type].kind !== 'package');                                // v0.77.0: package 유형(신의 선물·신의 구원 …)도 안 빨려감
 const redTabReady = c => DEFS[c.type].devour ? purgeTargets().length > 0 : (c.count || 0) > 0;
@@ -2488,6 +2510,7 @@ function onDown(e){
   if (!c) return;
   e.preventDefault();
   if (c.duel != null || bodyOf(c).duel != null){ setSelected(c.id); return; }   // 대결 중엔 못 움직임
+  if (c.dun != null){ setSelected(c.id); return; }                              // v0.90.0: 던전 안 크리처는 못 움직임
   const { px, py } = localPoint(e);
 
   // quest 위에 쌓인 카드 꺼내기
@@ -2574,7 +2597,7 @@ function linkedGroup(c){
     const x = queue.shift();
     for (const m of S.cards){
       if (ids.has(m.id)) continue;
-      if (bodyOf(m) === bodyOf(x) || m.visit === x.id || x.visit === m.id){
+      if (bodyOf(m) === bodyOf(x) || m.visit === x.id || x.visit === m.id || m.dun === x.id || x.dun === m.id){
         ids.add(m.id);
         queue.push(m);
       }
@@ -3219,41 +3242,115 @@ function registerSlot(t){
   }
 }
 
-// ── 던전 (v0.87.0) ───────────────────────────────────────
-//   캐릭터를 올리면 던전이 가로로 span배 늘어나고, 캐릭터가 run(ms) 동안 왼쪽 → 오른쪽으로 걸어감
-//   끝까지 가면 캐릭터는 장소에서 탈락하고 던전은 원래 크기로. 중간에 끌어내면 탈락 + 진행 초기화
-//   아직 크리처·전리품 없음
-const runLast = new Map();                       // 방문자 id → 마지막 계산 시각
-const runProgress = (v, pl) => Math.min(1, (v.runMs || 0) / DEFS[pl.type].run);
+// ── 던전 전투 (v0.90.0) ──────────────────────────────────
+//   캐릭터를 올리면 던전이 가로 span배로 늘어나고, 왼쪽 끝에 spawns 크리처가 등장 (카드는 던전 왼쪽에 선으로 연결)
+//   길 위의 모습은 카드가 아니라 포트레이트. 캐릭터는 오른쪽 → 왼쪽, 크리처는 왼쪽 → 오른쪽으로 전진
+//   1) 사거리 안에 적이 없으면 자기 목표(반대쪽 끝)로 이동  2) 사거리 안에 적이 있으면 공격
+//   피해 = 공격력 − 상대 방어 (최소 0). 캐릭터 체력이 0이면 빈사로 탈락, 끝까지 도달하면 클리어
+const DUN_SPEED = 0.34;                          // 1초에 길의 몇 %를 가나
+const DUN_RANGE = 0.14;                          // 사거리 (길 길이 대비)
+const DUN_HIT = 800;                             // 공격 간격 (ms)
+const runLast = new Map();                       // 던전 id → 마지막 계산 시각
+const dunFoes = pl => S.cards.filter(c => c.dun === pl.id);
+const dunPos = u => u.dunP != null ? u.dunP : 0;
+// 던전 입장: 캐릭터는 오른쪽 끝, 크리처는 왼쪽 끝에서 시작
+function enterDungeon(pl, ch){
+  ch.dunP = 1;
+  delete ch.atkT;
+  for (const ty of DEFS[pl.type].spawns || []){
+    if (S.cards.some(c => c.dun === pl.id && c.type === ty)) continue;
+    const g = addCard(ty, pl.x - CW * 1.2, pl.y, { dun: pl.id, dunP: 0, hp: DEFS[ty].hp }, true);
+    spawned.delete(g.id);
+    popFrom.set(g.id, { x: pl.x, y: pl.y });
+  }
+}
+// 던전 정리: 남은 크리처 제거, 진행값 지움
+function clearDungeon(pl){
+  for (const g of dunFoes(pl)) removeCard(g.id);
+  runLast.delete(pl.id);
+}
+function dunPortrait(pl, u, cls){
+  const el = els.get(pl.id);
+  const r = el && el.querySelector(`.runner[data-run="${u.id}"]`);
+  if (!r) return;
+  r.classList.remove(cls);
+  void r.offsetWidth;
+  r.classList.add(cls);
+  setTimeout(() => r.classList.remove(cls), 320);
+}
+function dunHit(pl, a, b){
+  const dmg = Math.max(0, atkOf(a) - defOf(b));
+  b.hp = Math.max(0, (b.hp || 0) - dmg);
+  dunPortrait(pl, a, 'atk');
+  dunPortrait(pl, b, 'hurt');
+  floatText(b, `-${dmg}`);
+  const be = els.get(b.id);
+  if (be) paint(be, b);                          // 맞은 카드의 체력만 다시 그림 (던전 카드 안 포트레이트는 그대로)
+  save();
+  return dmg;
+}
 function stepDungeon(){
-  let moved = false;
+  if (!S) return false;
   const now = performance.now();
-  for (const pl of S.cards){
+  let changed = false;
+  for (const pl of S.cards.slice()){
     const d = DEFS[pl.type];
-    if (!d.run) continue;
-    const vs = visitorsOf(pl);
-    if (!vs.length) continue;
-    const v = vs[0];
-    if (heldId() === v.id){ runLast.set(v.id, now); continue; }   // 잡고 있는 동안은 멈춤
-    const last = runLast.get(v.id);
-    runLast.set(v.id, now);
+    if (!d.span) continue;
+    const chs = visitorsOf(pl);
+    const foes = dunFoes(pl);
+    if (!chs.length){                                          // 아무도 없으면 던전 초기화
+      if (foes.length){ clearDungeon(pl); changed = true; }
+      continue;
+    }
+    const ch = chs[0];
+    const last = runLast.get(pl.id);
+    runLast.set(pl.id, now);
     if (last == null) continue;
-    v.runMs = (v.runMs || 0) + (now - last);
-    const el = els.get(pl.id);                                  // v0.90.0: 걸어가는 포트레이트 위치만 갱신 (카드는 제자리)
-    if (el) el.style.setProperty('--rp', runProgress(v, pl));
-    if (v.runMs >= d.run){                                       // 끝까지 도달 → 탈락
-      delete v.visit;
-      delete v.visitSeq;
-      delete v.runMs;
-      runLast.delete(v.id);
-      const p = clampPos(pl.x + CW * d.span + 12, pl.y);
-      v.x = p.x; v.y = p.y;
-      bumpIds.add(v.id);
-      toast(`${ic(pl.type)} ${DEFS[v.type].name} — 던전 끝까지 도달`);
-      afterChange();
+    const dt = Math.min(0.2, (now - last) / 1000);
+    if (heldId() === ch.id) continue;                          // 잡고 있는 동안은 멈춤
+    const units = [{ u: ch, dir: -1, goal: 0, foes }].concat(foes.map(g => ({ u: g, dir: 1, goal: 1, foes: [ch] })));
+    for (const { u, dir, goal, foes: es } of units){
+      if (!byId(u.id)) continue;
+      const alive = es.filter(e => byId(e.id) && (e.hp == null || e.hp > 0));
+      const near = alive.filter(e => Math.abs(dunPos(e) - dunPos(u)) <= DUN_RANGE)
+        .sort((a, b) => Math.abs(dunPos(a) - dunPos(u)) - Math.abs(dunPos(b) - dunPos(u)))[0];
+      if (near){                                               // 2) 사거리 안에 적 → 공격
+        if (now - (u.atkT || 0) < DUN_HIT) continue;
+        u.atkT = now;
+        dunHit(pl, u, near);
+        changed = true;
+        if (near.hp <= 0){
+          if (near.id === ch.id){                              // 캐릭터 패배 → 빈사로 탈락
+            setStatus(ch, ['허기짐'], ['빈사']);
+            delete ch.visit; delete ch.visitSeq; delete ch.dunP; delete ch.atkT;
+            clearDungeon(pl);
+            toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
+          } else {
+            toast(`🏆 ${ic(near.type)} ${DEFS[near.type].name} 쓰러뜨림`);
+            removeCard(near.id);
+          }
+          afterChange();
+        }
+        continue;
+      }
+      // 1) 사거리 안에 아무도 없으면 목표(반대쪽 끝)로 이동
+      const np = Math.min(1, Math.max(0, dunPos(u) + dir * DUN_SPEED * dt));
+      if (np !== dunPos(u)){ u.dunP = np; changed = true; }
+      const el = els.get(pl.id);
+      const r = el && el.querySelector(`.runner[data-run="${u.id}"]`);
+      if (r) r.style.setProperty('--rp', u.dunP);
+      if (u.id === ch.id && np <= 0 && !dunFoes(pl).length){    // 끝까지 도달 → 클리어
+        delete ch.visit; delete ch.visitSeq; delete ch.dunP; delete ch.atkT;
+        const q = clampPos(pl.x + CW * d.span + 12, pl.y);
+        ch.x = q.x; ch.y = q.y;
+        bumpIds.add(ch.id);
+        clearDungeon(pl);
+        toast(`${ic(pl.type)} ${DEFS[ch.type].name} — 던전 클리어`);
+        afterChange();
+      }
     }
   }
-  return moved;
+  return false;                                                 // 카드 위치는 안 건드림 (포트레이트만 움직임)
 }
 
 // ── 밀어내기 (물리) ───────────────────────────────────
@@ -3271,6 +3368,7 @@ function physStep(){
     if (stepDungeon()) moved = true;           // 던전 진행
     if (solveAttach()) moved = true;           // 잡은 quest → 발주자
     if (solveVisit()) moved = true;            // 장소 → 방문자 줄 / 멀리 당기면 떠남
+    if (solveDun()) moved = true;              // 던전 → 왼쪽 크리처 줄
     if (solveAttach()) moved = true;           // 방문자 → 붙은 quest
     if (phys ? physMove() : unwedge()) moved = true;   // 밀어내기 꺼짐이면 묶음 틈에 낀 카드만 빼냄
     if (solveVisit()) moved = true;
@@ -3307,6 +3405,7 @@ function bodyOf(c){
   for (let i = 0; cur && i < 6; i++){
     if (cur.type === 'quest' && cur.giver != null){ const g = byId(cur.giver); if (g){ cur = g; continue; } }
     if (cur.visit != null){ const pl = byId(cur.visit); if (pl){ cur = pl; continue; } }
+    if (cur.dun != null){ const dg = byId(cur.dun); if (dg){ cur = dg; continue; } }
     break;
   }
   return cur;
@@ -3385,6 +3484,24 @@ const detachDist = () => CW * 1.1;           // 자리에서 이만큼(카드 �
 const visitGap = () => CW * 0.225;           // 장소와 방문자 열 사이 가로 간격 (v0.63.0: 0.45 → 절반)
 const VISIT_VGAP = 6;                        // 방문자끼리 위아래 간격
 // 방문자 열의 맨 위 y — 장소의 세로 가운데에 맞춤
+// v0.90.0: 던전 왼쪽에 등장 크리처 줄 (방문자 줄과 같은 방식, 방향만 반대)
+function solveDun(){
+  let moved = false;
+  const hid = heldId();
+  const vstep = CH + VISIT_VGAP;
+  for (const pl of S.cards){
+    if (!DEFS[pl.type].span) continue;
+    const list = dunFoes(pl);
+    if (!list.length) continue;
+    const top = visitColumnTop(pl, list.length);
+    list.forEach((g, i) => {
+      if (g.id === hid) return;
+      const p = clampPos(pl.x - CW - visitGap(), top + vstep * i);
+      if (Math.abs(p.x - g.x) > 0.05 || Math.abs(p.y - g.y) > 0.05){ g.x = p.x; g.y = p.y; moveEl(g); moved = true; }
+    });
+  }
+  return moved;
+}
 function visitColumnTop(pl, n){
   const H = n * CH + (n - 1) * VISIT_VGAP;
   return pl.y + CH / 2 - H / 2;
@@ -3477,6 +3594,11 @@ function solveVisit(){
 function tetherLinks(){
   const out = [];
   for (const c of S.cards){
+    if (c.dun != null){                                       // v0.90.0: 던전 ─ 등장 크리처
+      const dg = byId(c.dun);
+      if (dg) out.push({ a: dg, b: c, kind: 'dun' });
+      continue;
+    }
     if (c.visit == null) continue;
     const pl = byId(c.visit);
     if (pl) out.push({ a: pl, b: c, kind: 'visit' });
