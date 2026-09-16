@@ -137,6 +137,10 @@
   .cw .foot span{display:inline-flex;align-items:center;white-space:nowrap;}
   .cw .foot .rest{color:#ff8f8f;}
   .float.work{color:#ffd27a;}
+  /* v0.102.0: 장비 교체·무장해제로 바뀐 공격·방어 — 오르면 녹색 +, 내리면 빨강 - */
+  .float .up{color:#8fe08f;}
+  .float .down{color:#ff8f8f;}
+  .float .up + .down,.float .down + .up,.float .up + .up,.float .down + .down{margin-left:calc(var(--cf) * .12);}
   /* container 담긴 카드: 그림 + 수량. 잡아끌면 한 장씩 꺼냄 */
   .cw .held{display:flex;align-items:center;gap:2px;font-size:calc(var(--cf) * .13);font-weight:800;color:var(--ink);line-height:1;
     background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);border-radius:6px;padding:2px 6px;pointer-events:none;}
@@ -422,7 +426,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.101.0';
+const VERSION = 'v0.102.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1656,6 +1660,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'equip'){
     if (ev.onto){ bumpIds.add(t.id); t = ev.onto; }            // request에 놓음 → 대상에게 장비
+    const before = statSnap(t);                                // v0.102.0: 장비 교체 전 공방
     const slot = ev.slot;
     t.equip = t.equip || {};
     const prev = t.equip[slot];
@@ -1674,6 +1679,7 @@ function apply(ev, d, t){
       popFrom.set(pc.id, { x: t.x, y: t.y });
       toast(`↩ ${DEFS[prev].name} 방출`);
     }
+    statDeltaFloat(t, before);                                 // 달라진 공격·방어를 머리 위에
     return true;
   }
   if (ev.act === 'eat'){
@@ -2415,6 +2421,7 @@ function disarm(id){
   if (!c) return;
   const slots = equipped(c);
   if (!slots.length) return;
+  const before = statSnap(c);                                 // v0.102.0: 무장해제로 내려간 공방도 표시
   for (const sl of slots){
     const type = c.equip[sl];
     const lv = (c.equipLv || {})[sl] || 0;                  // v0.97.0: 강화 레벨 유지
@@ -2426,6 +2433,7 @@ function disarm(id){
     popFrom.set(nc.id, { x: c.x, y: c.y });
   }
   bumpIds.add(c.id);
+  statDeltaFloat(c, before);
   toast(`${ic(c.type)} ${DEFS[c.type].name} 무장해제 — ${slots.length}장 배출`);
   afterChange();
 }
@@ -2877,6 +2885,18 @@ function onUp(e){
 }
 
 // 카드 위에 +N 같은 수치를 띄움 (떠오르며 사라짐)
+// v0.102.0: 장비가 바뀌어 달라진 공격·방어를 캐릭터 머리 위에 띄움 (오르면 녹색 +, 내리면 빨강 -)
+function statDeltaFloat(c, before){
+  const now = { atk: atkOf(c), def: defOf(c) };
+  const parts = [];
+  for (const k of ['atk', 'def']){
+    const dv = now[k] - before[k];
+    if (!dv) continue;
+    parts.push(`<span class="${dv > 0 ? 'up' : 'down'}">${si(k)}${dv > 0 ? '+' : ''}${dv}</span>`);
+  }
+  if (parts.length) floatText(c, parts.join(''));
+}
+const statSnap = c => ({ atk: atkOf(c), def: defOf(c) });
 function floatText(c, text, cls){
   const f = document.createElement('div');
   f.className = 'float' + (cls ? ' ' + cls : '');
