@@ -25,14 +25,17 @@ NAME_RE = re.compile(r"portrait_[a-z0-9]+(?:-[a-z0-9]+)*")
 # 캐릭터: 강한 음영 + 흰 배경 (얼굴 초상 때 어두운 갑옷이 검은 배경과 붙어 남았음)
 # 크리처: 검은 배경
 KINDS = {
-    "character": {"subject": "single character", "bg": "white", "shade": True},
-    "creature": {"subject": "single creature", "bg": "black", "shade": False},
+    "character": {"subject": "single character", "bg": "white", "shade": True, "body": "full body visible from head to feet"},
+    "creature": {"subject": "single creature", "bg": "black", "shade": False, "body": "full body visible"},
+    # 장소: 세로로 긴 칸을 채우도록 아래에서 올려다본 구도 (v0.96.0)
+    "place": {"subject": "single place", "bg": "black", "shade": False,
+              "body": "the whole place visible, tall vertical composition seen from a low angle, the scene fills the tall frame from top to bottom"},
 }
 # 카드 아이콘(64px) 캐릭터와 같은 음영 문구 — 그림이 카드와 어긋나지 않게
 SHADE = ", strong shading with deep defined shadows, high contrast between light and shadow, dramatic directional key light from the upper left, shadowed side of the face clearly darker"
 BG_COLORS = {"black": "#000000", "white": "#ffffff white"}
 SUFFIX = (
-    ", {subject}, centered composition, isolated, full body visible{feet}, clean readable silhouette, "
+    ", {subject}, centered composition, isolated, {body}, clean readable silhouette, "
     "simple solid {bg} background, no text, no additional objects"
 )
 
@@ -41,7 +44,7 @@ def main():
     ap = argparse.ArgumentParser(description="ComfyUI 전신 포트레이트 생성")
     ap.add_argument("--name", required=True, help="파일명 portrait_<카드 id> (확장자 없이)")
     ap.add_argument("--prompt", required=True, help="영문 — 전신 자세·생김새·옷차림")
-    ap.add_argument("--kind", choices=sorted(KINDS), required=True, help="character: 흰 배경+강한 음영 / creature: 검은 배경")
+    ap.add_argument("--kind", choices=sorted(KINDS), required=True, help="character: 흰 배경+강한 음영 / creature: 검은 배경 / place: 세로로 긴 풍경 구도")
     ap.add_argument("--label", default="", help="기록용 한글 이름")
     ap.add_argument("--bg", choices=sorted(BG_COLORS), default=None, help="생성 배경색 (기본: kind 에 따름)")
     ap.add_argument("--seed", type=int, default=None, help="고정 시드 (없으면 랜덤)")
@@ -63,7 +66,7 @@ def main():
     kind = KINDS[a.kind]
     bg = a.bg or kind["bg"]
     text = a.prompt.rstrip(" ,.") + (SHADE if kind["shade"] else "") + SUFFIX.format(
-        subject=kind["subject"], feet=" from head to feet" if a.kind == "character" else "", bg=BG_COLORS[bg])
+        subject=kind["subject"], body=kind["body"], bg=BG_COLORS[bg])
     if not a.no_style:
         text = STYLE_PREFIX + text
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
