@@ -416,7 +416,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.94.0';
+const VERSION = 'v0.95.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -2877,7 +2877,8 @@ function stepHops(){
 
 // ── 크리처: 무기로 한 방 / 캐릭터와 대결 ─────────────────
 //   무기를 쌓음: 무기 공격력 ≥ 크리처 남은 체력이면 바로 쓰러뜨리고 전리품. 아니면 "무기의 공격력 낮음"
-//   캐릭터를 쌓음: 대결 — 캐릭터 선공, 크리처 후공을 한쪽이 쓰러질 때까지 반복 (DUEL_MS마다 한 번)
+//   캐릭터를 쌓음: 대결 — 캐릭터와 크리처가 **동시에** 때리기를 한쪽이 쓰러질 때까지 반복 (DUEL_MS마다 한 번)
+//     v0.95.0: 선공/후공 없앰 — 한 방에 잡아도 상대의 반격은 그대로 맞음 (토끼를 무피해로 잡던 문제)
 //     피해 = 공격력 − 상대 방어 (최소 0). 크리처도 공방체 (v0.52.0, 지금 방어 0)
 //     승리: 전리품. 패배: 캐릭터 빈사, 크리처는 남은 체력 그대로
 //     둘 다 피해를 못 주면 바로 끝 (무승부)
@@ -2908,7 +2909,6 @@ function startDuel(ch, cr){
   hops.delete(cr.id);
   ch.duel = cr.id;
   cr.duel = ch.id;
-  cr.turn = 'char';                                           // 캐릭터 선공
   setStatus(ch, [], ['대결']);
   setStatus(cr, [], ['대결']);
   // 크리처 왼쪽, 캐릭터 오른쪽으로 나란히 (캐릭터에 붙은 quest는 그 오른쪽)
@@ -2941,24 +2941,21 @@ function duelTick(){
       changed = true;
       continue;
     }
-    if ((cr.turn || 'char') === 'char'){
-      cr.hp = Math.max(0, cr.hp - charDmg);
-      floatText(cr, `-${charDmg}`);
-      bumpIds.add(cr.id);
-      if (cr.hp <= 0){
-        endDuel(ch, cr);
-        toast(`🏆 ${DEFS[ch.type].name} 승리`);
-        killCreature(cr);
-      } else cr.turn = 'foe';
-    } else {
-      ch.hp = Math.max(0, ch.hp - foeDmg);
-      floatText(ch, `-${foeDmg}`);
-      bumpIds.add(ch.id);
-      if (ch.hp <= 0){
-        endDuel(ch, cr);
-        setStatus(ch, ['허기짐'], ['빈사']);                    // 패배: 캐릭터 빈사, 크리처는 체력 회복 안 함
-        toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
-      } else cr.turn = 'char';
+    // 동시 타격: 양쪽이 같은 번에 피해를 주고받음 → 둘 다 쓰러질 수 있음
+    cr.hp = Math.max(0, cr.hp - charDmg);
+    ch.hp = Math.max(0, ch.hp - foeDmg);
+    if (charDmg > 0) floatText(cr, `-${charDmg}`);
+    if (foeDmg > 0) floatText(ch, `-${foeDmg}`);
+    bumpIds.add(cr.id);
+    bumpIds.add(ch.id);
+    const crDown = cr.hp <= 0, chDown = ch.hp <= 0;
+    if (crDown || chDown){
+      endDuel(ch, cr);
+      if (crDown && chDown) toast(`💀 ${DEFS[ch.type].name} · ${DEFS[cr.type].name} 서로 쓰러짐`);
+      else if (crDown) toast(`🏆 ${DEFS[ch.type].name} 승리`);
+      else toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
+      if (chDown) setStatus(ch, ['허기짐'], ['빈사']);          // 패배: 캐릭터 빈사, 크리처는 체력 회복 안 함
+      if (crDown) killCreature(cr);                            // 승리: 전리품 (둘 다 쓰러져도 전리품은 나옴)
     }
     changed = true;
   }
