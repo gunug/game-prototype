@@ -250,6 +250,10 @@
   .cmodal .cm-box{background:var(--surface-soft);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);padding:18px 18px 14px;max-width:320px;width:100%;color:var(--ink);}
   .cmodal p{margin:0 0 14px;font-size:15px;font-weight:600;line-height:1.45;white-space:pre-line;}
   .cmodal .cm-btns{display:flex;justify-content:flex-end;gap:8px;}
+  /* v0.123.0: 설정 모달 */
+  .set-title{margin:0 0 12px;font-size:15px;font-weight:800;}
+  .set-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .set-list .btn{justify-content:flex-start;width:100%;}
   .cmodal .cm-ok{background:#c0392b;border-color:#c0392b;color:#fff;}
   .cw.peeling{cursor:grabbing;}
   .tab-piece{position:absolute;z-index:2000000002;pointer-events:none;transform-origin:35% 35%;
@@ -439,14 +443,24 @@
   <header class="topbar" id="topbar">
   <div class="title"><a href="../index.html" target="_top">← 목록</a> · 카드 월드 RPG <span id="ver"></span></div>
   <div class="hud">
-    <label class="btn btn-sm toggle" title="갤럭시 S26 울트라 화면 크기로 줄여 그림"><input type="checkbox" id="mobileToggle"> 모바일</label>
-    <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 밀어내기</label>
-    <button class="btn btn-sm" id="copyBtn" title="현재 필드 상태를 JSON으로 클립보드에 복사">📋 복사</button>
     <button class="btn btn-sm" id="bookBtn">📖 콜렉터북 <span class="count" id="bookCount"></span></button>
-    <button class="btn btn-sm" id="chapterBtn" title="플레이 테스트용: 챕터로 점프">⏭ 챕터</button>
-    <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
+    <button class="btn btn-sm" id="setBtn">⚙ 설정</button>
   </div>
   </header>
+  <!-- v0.123.0: 콜렉터북 말고는 전부 설정 모달로 -->
+  <div class="cmodal setmodal" id="setModal" hidden>
+    <div class="cm-box" role="dialog" aria-modal="true">
+      <h3 class="set-title">설정</h3>
+      <div class="set-list">
+        <label class="btn btn-sm toggle" title="갤럭시 S26 울트라 화면 크기로 줄여 그림"><input type="checkbox" id="mobileToggle"> 모바일 화면으로 보기</label>
+        <label class="btn btn-sm toggle"><input type="checkbox" id="physToggle"> 카드 밀어내기</label>
+        <button class="btn btn-sm" id="copyBtn" title="현재 필드 상태를 JSON으로 클립보드에 복사">📋 필드 상태 복사</button>
+        <button class="btn btn-sm" id="chapterBtn" title="플레이 테스트용: 챕터로 점프">⏭ 챕터 점프</button>
+        <button class="btn btn-sm" id="resetBtn">↺ 처음부터</button>
+      </div>
+      <div class="cm-btns"><button type="button" class="btn" id="setClose">닫기</button></div>
+    </div>
+  </div>
   <div class="toasts" id="toasts"></div>
   <div class="chapters" id="chapters" hidden></div>
   <div class="book" id="book"></div>
@@ -456,7 +470,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.122.0';
+const VERSION = 'v0.123.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -4364,7 +4378,14 @@ window.addEventListener('pointermove', onMove);
 window.addEventListener('pointerup', onUp);
 window.addEventListener('pointercancel', onUp);
 document.getElementById('bookBtn').addEventListener('click', toggleBook);
-document.getElementById('copyBtn').addEventListener('click', copyField);
+// v0.123.0: 설정 모달
+const setModal = document.getElementById('setModal');
+const openSettings = on => { setModal.hidden = !on; };
+document.getElementById('setBtn').addEventListener('click', () => openSettings(setModal.hidden));
+document.getElementById('setClose').addEventListener('click', () => openSettings(false));
+setModal.addEventListener('pointerdown', e => { if (e.target === setModal) openSettings(false); });
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && !setModal.hidden) openSettings(false); });
+document.getElementById('copyBtn').addEventListener('click', () => { copyField(); openSettings(false); });
 book.addEventListener('click', e => {
   if (e.target.closest('[data-close]')){ closeBook(); return; }
   const slot = e.target.closest('.slot');
@@ -4390,6 +4411,7 @@ function clearRuntime(){
 }
 document.getElementById('resetBtn').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까? 콜렉션 기록도 지워짐.')) return;
+  openSettings(false);
   clearRuntime();
   newGame();
 });
@@ -4472,7 +4494,7 @@ function startChapter(ch){
 const chaptersEl = document.getElementById('chapters');
 chaptersEl.innerHTML = '<div class="ch-head">테스트용 챕터 점프 — 지금 진행이 지워짐</div>'
   + CHAPTERS.map((ch, i) => `<button data-ch="${i}">${i}. ${esc(ch.title)}</button>`).join('');
-document.getElementById('chapterBtn').addEventListener('click', () => { chaptersEl.hidden = !chaptersEl.hidden; });
+document.getElementById('chapterBtn').addEventListener('click', () => { openSettings(false); chaptersEl.hidden = !chaptersEl.hidden; });   // v0.123.0: 설정 닫고 목록
 chaptersEl.addEventListener('click', e => {
   const b = e.target.closest('[data-ch]');
   if (!b) return;
