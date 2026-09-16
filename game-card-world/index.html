@@ -372,6 +372,13 @@
   .cw.dueling{box-shadow:0 0 0 2px #ff6b6b,var(--sh-md);}
   /* v0.87.0: 던전 — 캐릭터가 들어오면 가로로 늘어나는 길 */
   .cw.k-place{transition:width .3s ease-out;}
+  /* v0.90.0: 늘어난 카드는 프레임을 9slice로 — 모서리 비율 유지, 테두리·안쪽은 타일링 */
+  .cw.framed.long{background:none;border-style:solid;border-width:calc(var(--cw) * .12) calc(var(--cw) * .13);
+    border-image:var(--frame) 16 18 fill round;}
+  /* v0.90.0: 던전을 걷는 포트레이트 — 기본 방향이 왼쪽이라 뒤집어서 오른쪽을 보게 */
+  .cw .runner{position:absolute;bottom:calc(var(--cw) * .06);height:calc(var(--ch) * .62);width:auto;
+    left:calc(var(--rp, 0) * (100% - var(--cw) * .32));transform:scaleX(-1);image-rendering:pixelated;
+    pointer-events:none;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
 </style>
 </head>
 <body>
@@ -397,7 +404,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.89.0';
+const VERSION = 'v0.90.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -874,8 +881,10 @@ function paint(el, c){
   if (bumpIds.has(c.id)) cls += ' bump';
   if (c.type === 'package' && c.contents === 'first') cls += ' rattle';   // 안에서 두드리는 첫 package
   el.className = cls;
-  // v0.87.0: 던전은 캐릭터가 들어와 있는 동안만 가로로 span배 (긴 길)
-  el.style.width = d.run && visitorsOf(c).length ? (CW * d.span) + 'px' : '';
+  // v0.87.0: 던전은 캐릭터가 들어와 있는 동안만 가로로 span배 (긴 길). v0.90.0: 프레임은 9slice, 안은 타일링
+  const wide = d.run && visitorsOf(c).length;
+  el.style.width = wide ? (CW * d.span) + 'px' : '';
+  if (wide) el.classList.add('long');
   el.style.left = c.x + 'px';
   el.style.top = c.y + 'px';
   const talkingHere = (c.type === 'god' && speech) || (c.type === 'knight' && knightSpeech) || (c.type === 'package' && c.contents === 'first' && speech);
@@ -928,6 +937,11 @@ function paint(el, c){
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
+    // v0.90.0: 던전을 걷는 모습 — 카드가 아니라 포트레이트를 줄여 오른쪽을 보게 뒤집음
+    if (d.run){
+      const v = visitorsOf(c)[0];
+      if (v && PORTRAITS.has(v.type)) html += `<img class="runner" src="images/portrait/portrait_${v.type}.png" alt="" draggable="false">`;
+    }
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
     if (d.devour){
@@ -3225,7 +3239,8 @@ function stepDungeon(){
     runLast.set(v.id, now);
     if (last == null) continue;
     v.runMs = (v.runMs || 0) + (now - last);
-    moved = true;
+    const el = els.get(pl.id);                                  // v0.90.0: 걸어가는 포트레이트 위치만 갱신 (카드는 제자리)
+    if (el) el.style.setProperty('--rp', runProgress(v, pl));
     if (v.runMs >= d.run){                                       // 끝까지 도달 → 탈락
       delete v.visit;
       delete v.visitSeq;
@@ -3375,18 +3390,20 @@ function visitColumnTop(pl, n){
   return pl.y + CH / 2 - H / 2;
 }
 // 방문자 열이 화면 밖으로 안 나가도록 장소가 있을 수 있는 범위
+// v0.90.0: 장소 폭 — 던전은 캐릭터가 들어와 있는 동안 span배
+function spanOf(pl){
+  const d = DEFS[pl.type];
+  return d.span && visitorsOf(pl).length ? d.span : 1;
+}
 function visitBounds(pl){
   const { w, h } = tableSize();
-  const pd = DEFS[pl.type];
-  // v0.87.0: 던전은 늘어난 폭만큼 자리를 차지하고, 방문자는 그 위를 걸어감
-  if (pd.run) return { minX: 8, maxX: Math.max(8, w - 8 - CW * pd.span), minY: TOP_PAD, maxY: h - 8 - CH };
   const n = visitorsOf(pl).length;
   const units = rowUnits(pl);
   const H = n * CH + (n - 1) * VISIT_VGAP;
   const half = Math.max(0, (H - CH) / 2);
   return {
     minX: 8,
-    maxX: w - 8 - CW - (CW + visitGap()) - (CW + ATTACH_GAP) * Math.max(0, units - 1),
+    maxX: w - 8 - CW * spanOf(pl) - (CW + visitGap()) - (CW + ATTACH_GAP) * Math.max(0, units - 1),
     minY: TOP_PAD + half,
     maxY: h - 8 - CH - half,
   };
@@ -3433,11 +3450,8 @@ function solveVisit(){
     const top = visitColumnTop(pl, list.length);
     for (let i = 0; i < list.length; i++){
       const v = list[i];
-      let tx = pl.x + CW + visitGap(), ty = top + vstep * i;  // 오른쪽으로 떨어진 열, 장소 기준 세로 가운데 정렬
-      if (DEFS[pl.type].run){                                 // v0.87.0: 던전 — 길 위를 왼쪽에서 오른쪽으로
-        tx = pl.x + CW * (DEFS[pl.type].span - 1) * runProgress(v, pl);
-        ty = pl.y;
-      }
+      // v0.90.0: 던전도 다른 장소와 같음 — 카드는 선으로 연결해 오른쪽에 두고, 던전 안은 포트레이트가 걸어감
+      const tx = pl.x + CW * spanOf(pl) + visitGap(), ty = top + vstep * i;
       if (hv && hv.id === v.id){
         // 잡아당기는 중: 자리로 끌어오지 않음. 멀어지면 떠남
         if (drag && Math.hypot(v.x - tx, v.y - ty) > detachDist()){
