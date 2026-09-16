@@ -174,8 +174,7 @@
   /* 대사 중: 말하는 카드만 원래대로, 나머지는 반투명 → 대사에 집중 */
   .cw{transition:filter .2s;}
   /* v0.100.0: '흐려짐' = 어둡고 저채도 (반투명은 카드가 겹쳐 보여서, 블러는 안 씀) */
-  .cw.dim,.cw.dim-sel,.table.talking .cw:not(.speaker):not(.dragging){filter:brightness(.42) saturate(.3);}
-  .cw.dim-sel{transition:filter .18s;}   /* v0.110.0: 캐릭터를 선택하면 갈 수 없는 곳·못 싸우는 상대는 흐리게 */
+  .cw.dim,.table.talking .cw:not(.speaker):not(.dragging){filter:brightness(.42) saturate(.3);}
   .links{transition:opacity .25s;}
   .table.talking .links{opacity:.35;}
   .table.paused{filter:saturate(.7) brightness(.82);transition:filter .2s;}
@@ -446,7 +445,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.115.0';
+const VERSION = 'v0.116.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -874,7 +873,6 @@ function load(){
     st.cards = st.cards.filter(c => DEFS[c.type]);
     st.seen = (st.seen || []).filter(t => DEFS[t]);
     st.found = (st.found || []).filter(k => RECIPE_BY_ID.has(k));
-    st.nope = (st.nope || []).filter(k => typeof k === 'string' && k.split('|').every(t => DEFS[t]));   // v0.100.0: 해봤는데 안 되던 조합
     st.flags = st.flags || {};
     for (const c of st.cards) if (c.type === 'quest' && !Array.isArray(c.stack)) c.stack = [];
     for (const c of st.cards){                      // v0.69.0: 없어진 카드 (예: 뾰족한 막대) — quest 위·자루 안에서도 뺌
@@ -910,7 +908,7 @@ function load(){
   } catch (e) { return false; }
 }
 function newGame(){
-  S = { cards: [], seen: ['package'], found: [], nope: [], flags: { discovered: false, requestsGiven: 0 }, nextId: 1, z: 1 };
+  S = { cards: [], seen: ['package'], found: [], flags: { discovered: false, requestsGiven: 0 }, nextId: 1, z: 1 };
   const { w, h } = tableSize();
   addCard('package', w / 2 - CW / 2, h / 2 - CH / 2, { contents: 'first' }, true);
   save();
@@ -926,22 +924,6 @@ function placeFoot(d){
   const lv = tagLevel(d, '체력 회복');
   return lv ? `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>` : '';
 }
-// v0.110.0: 캐릭터를 선택하면 갈 수 있는 장소·싸울 수 있는 상대만 또렷하게, 나머지는 흐리게
-//   selFocus = 또렷하게 둘 카드 id 모음 (null 이면 아무것도 안 흐림)
-let selFocus = null;
-function updateFocus(){
-  const sel = selId != null ? byId(selId) : null;
-  if (!sel || DEFS[sel.type].kind !== 'character' || sel.duel != null || sel.dun != null){ selFocus = null; return; }
-  const ids = new Set([sel.id]);
-  if (sel.visit != null) ids.add(sel.visit);                  // 지금 머무는 장소
-  for (const o of S.cards){
-    if (o.id === sel.id) continue;
-    if (o.type === 'quest' && o.giver === sel.id){ ids.add(o.id); continue; }   // 자기에게 붙은 quest
-    const ev = evaluate(sel, o);
-    if (ev && !ev.full && (ev.act === 'visit' || ev.act === 'duel')) ids.add(o.id);
-  }
-  selFocus = ids.size > 1 ? ids : null;                       // 갈 곳도 싸울 상대도 없으면 그냥 두기
-}
 function paint(el, c){
   const d = DEFS[c.type];
   let cls = 'cw k-' + d.kind + ' framed f-' + frameOf(d);
@@ -951,7 +933,6 @@ function paint(el, c){
   if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
-  if (selFocus && !selFocus.has(c.id)) cls += ' dim-sel';      // v0.110.0: 선택한 캐릭터가 못 가는 곳·못 싸우는 상대
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
   const pf = popFrom.get(c.id);
   if (pf){
@@ -1069,7 +1050,6 @@ function fitBubbles(){
 }
 function renderAll(){
   if (drag) return;
-  updateFocus();
   const alive = new Set();
   for (const c of S.cards){
     alive.add(c.id);
@@ -2778,20 +2758,13 @@ function linkedGroup(c){
   }
   return ids;
 }
-// v0.100.0: 한 번이라도 드래그 드롭으로 해봤는데 안 되던 조합 — 다음에 그 카드를 끌면 상대 재료가 흐려짐
-//   기록하는 건 "조합 자체가 없음"뿐. 자루가 가득 참·자리가 참처럼 상황 때문에 막힌 건 기록하지 않음
-const nopeKey = (a, b) => [a, b].sort().join('|');
-function markNope(a, b){
-  if (!S.nope) S.nope = [];                                   // 챕터 점프·예전 저장
-  const k = nopeKey(a, b);
-  if (S.nope.includes(k)) return;
-  S.nope.push(k);
-  save();
-}
-const isNope = (a, b) => (S.nope || []).includes(nopeKey(a, b));
-function dimNope(c){
+// v0.116.0: 카드를 끌면 그 카드로 할 수 있는 상대만 또렷하게, 나머지는 흐리게 (놓으면 풀림)
+//   해봤는지와 상관없이 실제 판정(evaluate)으로 계산 — 조합·방문·대결·한 방·장비·먹이기·담기·제출·먹어치우기 전부
+//   (v0.100.0 의 "해봤는데 안 되던 조합만 흐리게"는 폐기)
+function dimOthers(c){
+  const group = linkedGroup(c);                               // 같이 끌려오는 묶음은 그대로
   for (const o of S.cards){
-    if (o.id === c.id || !isNope(c.type, o.type)) continue;
+    if (o.id === c.id || group.has(o.id) || evaluate(c, o)) continue;
     const el = els.get(o.id);
     if (el) el.classList.add('dim');
   }
@@ -2823,7 +2796,7 @@ function startDrag(c, px, py, pid, o){
   };
   el.style.zIndex = 2000000000;
   el.classList.add('dragging');
-  dimNope(c);                                                 // 안 되는 조합의 상대 카드는 흐리게
+  dimOthers(c);                                               // 할 수 있는 상대만 또렷하게
 }
 // 대상 고르기: 끌고 있는 카드와 겹친 넓이로 판단 (포인터 아래만 보던 v0.7.0보다 넓음)
 //   카드 넓이의 15% 이상 겹친 카드 중에서, 되는 조합이면 2배 가산해 가장 점수 높은 카드
@@ -2982,7 +2955,6 @@ function onUp(e){
   if (t && byId(t.id)){
     const ev = evaluate(c, t);
     if (ev && applyEv(ev, c, t)){ afterChange(); return; }
-    if (!ev) markNope(c.type, t.type);             // 조합 자체가 없음 → 다음부터 흐리게
     bounce(c, d0);                                // 쌓기 실패 → 되돌아감
     return;
   }
@@ -4020,7 +3992,6 @@ function setSelected(id){
   if (selType != null){ selType = null; markBookSelected(); }
   const el = id != null ? els.get(id) : null;
   if (el) el.classList.add('selected');
-  renderAll();                                                 // v0.110.0: 흐리게 처리 다시 계산
   renderInspector();
 }
 // 콜렉터북 칸을 고르면 그 카드 종류를 인스펙터에 (테이블 카드 선택은 풀림)
