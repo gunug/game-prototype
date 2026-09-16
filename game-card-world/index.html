@@ -3623,7 +3623,12 @@ function closeBook(){
 }
 function registerSlot(t){
   bookPending.delete(t);
-  const slot = book.querySelector(`.slot[data-slot="${t}"]`);
+  let slot = book.querySelector(`.slot[data-slot="${t}"]`);
+  if (!slot){                                    // v0.126.0: 다른 탭의 카드면 그 탭을 펼치고 다시 찾음
+    bookTab = bookTabOf(t);
+    renderBook();
+    slot = book.querySelector(`.slot[data-slot="${t}"]`);
+  }
   if (!slot) return;
   const d = DEFS[t];
   slot.classList.remove('unseen');
