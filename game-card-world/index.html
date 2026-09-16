@@ -345,6 +345,16 @@
     .insp{top:auto;left:0;width:auto;height:var(--insp-h);border-left:none;border-top:1px solid var(--hairline);
       padding:6px 10px calc(env(safe-area-inset-bottom,0px) + 6px);}
   }
+  /* v0.113.0: PC 편의 — 카드에 마우스를 올리면 카드 오른쪽에 인스펙터 축소판이 뜸 (마우스가 벗어나면 사라짐)
+     모바일·터치는 기존 인스펙터 창만 씀 */
+  .cardpop{position:fixed;z-index:2147483200;width:250px;max-height:58vh;overflow:hidden;
+    transform:scale(.88);transform-origin:0 0;   /* 작게 — zoom 은 left/top 까지 줄여 자리가 틀어짐 */
+    background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);
+    padding:8px 10px;color:var(--ink);font-size:11px;line-height:1.3;pointer-events:none;}
+  .cardpop .i-grid{grid-template-columns:minmax(0,1fr);}
+  .cardpop .i-cell{border-bottom:1px solid var(--hairline);border-left:none;padding:4px 0;}
+  .cardpop .i-cell:last-child{border-bottom:none;}
+  @media (hover: none){ .cardpop{display:none!important;} }
   .i-empty{flex:1;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);font-weight:600;}
   /* 전신 포트레이트 (v0.56.0) — 인스펙터 오른쪽 아래. 정보는 .i-body 안에서 스크롤, 그림은 겹치지 않게 따로 자리 */
   .i-body{flex:1;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;}
@@ -437,7 +447,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.112.0';
+const VERSION = 'v0.113.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -4192,6 +4202,58 @@ function renderInspector(){
   insp.innerHTML = html;
 }
 
+// ── 카드 hover 팝업 (v0.113.0) ────────────────────────────
+//   PC 전용 편의 기능: 카드에 마우스를 올리면 오른쪽에 인스펙터 축소판, 벗어나면 사라짐
+//   터치·모바일 틀에서는 안 뜸 (인스펙터 창으로만 봄)
+const cardPop = document.createElement('div');
+cardPop.className = 'cardpop';
+cardPop.hidden = true;
+document.body.appendChild(cardPop);
+let popId = null;
+const POP_SCALE = 0.88;                          // .cardpop 의 transform scale 과 같은 값
+const hoverOk = () => matchMedia('(hover: hover) and (pointer: fine)').matches && !(window.MOBILE && MOBILE.on);
+function hidePop(){
+  if (popId == null) return;
+  popId = null;
+  cardPop.hidden = true;
+}
+function placePop(el){
+  const r = el.getBoundingClientRect();
+  const w = cardPop.offsetWidth * POP_SCALE, h = cardPop.offsetHeight * POP_SCALE;   // 화면에 보이는 크기
+  let x = r.right + 10;
+  if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 10);   // 오른쪽이 좁으면 왼쪽으로
+  const y = Math.max(8, Math.min(r.top, innerHeight - h - 8));
+  cardPop.style.left = x + 'px';
+  cardPop.style.top = y + 'px';
+}
+function showPop(c, el){
+  popId = c.id;
+  cardPop.innerHTML = inspectorHtml(c);
+  cardPop.hidden = false;
+  placePop(el);
+}
+function popMove(e){
+  if (!hoverOk() || drag || tear || busy || !S){ hidePop(); return; }
+  const el = e.target.closest && e.target.closest('.cw');
+  if (!el || el.classList.contains('half')){ hidePop(); return; }
+  const c = byId(+el.dataset.id);
+  if (!c){ hidePop(); return; }
+  if (popId === c.id){ placePop(el); return; }
+  showPop(c, el);
+}
+table.addEventListener('mousemove', popMove);
+table.addEventListener('mouseleave', hidePop);
+window.addEventListener('blur', hidePop);
+// 값이 바뀌면 (체력·게이지 등) 팝업도 같이 갱신
+function refreshPop(){
+  if (popId == null) return;
+  const c = byId(popId);
+  const el = els.get(popId);
+  if (!c || !el){ hidePop(); return; }
+  cardPop.innerHTML = inspectorHtml(c);
+  placePop(el);
+}
+
 // ── 연결 ──────────────────────────────────────────────
 table.addEventListener('pointerdown', onDown);
 window.addEventListener('pointermove', onMove);
@@ -4349,7 +4411,7 @@ setInterval(restTick, 1000);                   // 체력 회복 장소
 setInterval(yieldTick, 1000);                  // 산: 나무 게이지
 setInterval(duelTick, DUEL_MS);                // 크리처 대결
 setInterval(animalTick, 1000);                 // 동물 홉핑
-setInterval(renderInspector, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
+setInterval(() => { renderInspector(); refreshPop(); }, 500);             // 인스펙터 실시간 갱신 (체력·게이지·진행)
 
 syncTopH();
 measure();
