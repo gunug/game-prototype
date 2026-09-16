@@ -449,7 +449,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.119.0';
+const VERSION = 'v0.120.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1517,11 +1517,15 @@ function knightCheck(){
 // ── 판정: 대상 + 올리는 카드 ──────────────────────────
 // v0.82.0 (확정 5-2): 두 카드의 조합만 본다. 쌓은 순서는 중요하지 않음
 //   올린 쪽 기준으로 되는 게 없으면 반대로도 봄 (예: 장소를 캐릭터에 쌓아도 캐릭터가 방문)
+// v0.120.0: 아이템이 없어지는 행동(제출·먹이기·먹어치우기)은 **그 아이템을 끌어 올렸을 때만**
+//   quest·캐릭터·신의 입을 끌어서 아이템에 닿는 것으로는 안 됨 (실수로 잃지 않게)
+const NO_SWAP = ['submit', 'eat', 'devour'];
 function evaluate(d, t){
   const ev = evaluateOne(d, t);
   if (ev) return ev;
   const rev = evaluateOne(t, d);
-  return rev ? Object.assign({ swap: true }, rev) : null;    // swap = d와 t의 역할이 바뀜
+  if (!rev || NO_SWAP.includes(rev.act)) return null;
+  return Object.assign({ swap: true }, rev);                 // swap = d와 t의 역할이 바뀜
 }
 const applyEv = (ev, d, t) => ev.swap ? apply(ev, t, d) : apply(ev, d, t);
 function evaluateOne(d, t){
