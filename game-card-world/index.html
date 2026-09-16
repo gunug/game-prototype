@@ -381,7 +381,12 @@
     display:flex;align-items:flex-end;justify-content:center;animation:dunBob .5s ease-in-out infinite;}
   .cw .runner .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;
     filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  .cw .runner.foe .pic{transform:scaleX(-1);}               /* 포트레이트 기본 방향은 왼쪽 → 크리처는 뒤집어 오른쪽 */
+  .cw .runner.foe .pic{transform:scaleX(-1);}
+  /* v0.97.0: 던전 길 끝(왼쪽)의 보물상자 */
+  .cw .chest{position:absolute;left:calc(var(--cw) * .05);bottom:calc(var(--cw) * .06);width:calc(var(--cw) * .3);height:auto;
+    image-rendering:pixelated;pointer-events:none;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  /* v0.97.0: 강화 레벨 — 이름 아래 */
+  .cw .lv{color:#ffd27a;font-size:calc(var(--cf) * .105);font-weight:800;line-height:1.1;pointer-events:none;}               /* 포트레이트 기본 방향은 왼쪽 → 크리처는 뒤집어 오른쪽 */
   /* v0.90.0: 이동 들썩들썩 / 공격 뒤로 뺐다 빠르게 전진 / 피격 빨강 */
   @keyframes dunBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8%);}}
   .cw .runner.atk .pic{animation:dunAtk .3s ease-out;}
@@ -425,6 +430,8 @@ const DEFS = {
   // package = 유형(kind). 카드: 신의 선물(무작위) · 신의 구원(정해진 구호물품)
   package:   { name:'신의 선물',   kind:'package' },          // v0.51.0: 이름 package → 신의 선물 (id 그대로)
   salvation: { name:'신의 구원',   kind:'package', fixed:['marrow', 'roastmeat', 'roastberry'] },   // 빈사 기사 구호물품
+  // 보물상자 (v0.98.0): 상자마다 구성이 다름 (A·B·C·D). 던전 끝에 놓여 있고 도달하면 획득
+  treasurea: { name:'보물상자A',  kind:'package', fixed:['dagger', 'bone', 'meat'] },
   quest:   { name:'quest',     kind:'quest' },
   knight:    { name:'기사',        kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
   god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1, immortal:true, baseAtk:0, baseDef:0 },   // v0.88.0: 체력 무한 — 피해를 안 받고 죽지 않음
@@ -454,6 +461,8 @@ const DEFS = {
   campfire:  { name:'모닥불',      kind:'fire', tags:['불', '장소', '체력 회복 lv1'], capacity:3 },
   ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
   hilt:      { name:'부러진 칼자루', kind:'tool', tags:['무기'], atk:3 },
+  // 단검 (v0.98.0): 강화 가능 — 같은 강화 레벨끼리 합치면 레벨 +1, 공격력도 +1 (카드 종류는 안 늘어남. 카드에 붙는 값)
+  dagger:    { name:'단검',        kind:'tool', tags:['무기', '강화 가능'], atk:1 },
   plank:     { name:'나무판',      kind:'tool', tags:['방패', '불에 타는'], defense:1 },
   tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
   sack:      { name:'부실한 자루', kind:'container', tags:['도구'], hold:5 },     // container: 한 종류만, 5장까지. v0.74.0: 도구
@@ -464,7 +473,7 @@ const DEFS = {
   // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
   // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
   // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
-  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'] },
+  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2]], yieldNeed:10, gauge:'people' },
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -500,6 +509,8 @@ const DESC = {
   campfire:   '따뜻하고, 멍때리기 좋다. 갓의 최애 장소.',
   ash:        '한때 뭔가였다. 지금은 아무 쓸모 없음… 아직은.',
   hilt:       '칼날은 어디 갔는지 모른다. 그래도 뗀석기보다 세다.',
+  dagger:     '짧지만 날은 제대로다. 같은 것끼리 겹치면 더 날카로워진다.',
+  treasurea:  '고블린이 아끼던 상자. 이제 주인이 바뀌었다.',
   plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
   tannedhide: '냄새가 빠졌다. 거의.',
   sack:       '구멍이 하나 있다. 다섯 장까지만 믿어라.',
@@ -627,7 +638,7 @@ const PAGE = {
   ids: ['package', 'quest', 'knight', 'god',
         'stone', 'twig', 'grass', 'flint', 'bone', 'animal', 'carcass', 'shell', 'berry',
         'handaxe', 'marrow', 'clam', 'meat', 'hide', 'tinder', 'bedding',
-        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'goblin', 'bearcarcass', 'salvation'],
+        'ember', 'campfire', 'ash', 'roastmeat', 'roastclam', 'roastberry', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon', 'tree', 'bear', 'goblin', 'dagger', 'treasurea', 'bearcarcass', 'salvation'],
 };
 
 // 갓의 대사
@@ -920,7 +931,8 @@ function paint(el, c){
     html += `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`;
     const heal = healOf(d);
     if (heal > 0) html += `<div class="heal">${statImg('hp')} +${heal}</div>`;       // 음식 회복량을 이름 아래에
-    if (d.atk) html += `<div class="atk">${statImg('atk')} +${d.atk}</div>`;         // 장비 공격력
+    if (d.atk) html += `<div class="atk">${statImg('atk')} +${itemAtk(c.type, c.lv)}</div>`;   // 장비 공격력 (강화 포함)
+    if (lvOf(c)) html += `<div class="lv">강화 lv${lvOf(c)}</div>`;                    // v0.97.0: 강화 레벨
     if (d.defense) html += `<div class="defl">${statImg('def')} +${d.defense}</div>`; // 장비 방어
     // 위쪽 가운데: 첫 줄 공격 · 방어 (장비 포함), 둘째 줄 체력
     if (fighter(d)) html += `<div class="stats"><div><span class="s-atk">${statImg('atk')}${atkOf(c)}</span>`
@@ -953,6 +965,7 @@ function paint(el, c){
     if (d.devour) top += `<div class="cap">흡족 ${c.satisfied || 0}</div>`;                  // 신의 입이 삼킨 횟수
     if (top) html += `<div class="top">${top}</div>`;
     // v0.90.0: 던전을 걷는 모습 — 카드가 아니라 포트레이트를 줄여 오른쪽을 보게 뒤집음
+    if (d.span && wide && d.chest) html += `<img class="chest" src="images/icon/card_${d.chest}.png" alt="" draggable="false">`;   // v0.97.0: 길 끝의 보물상자
     if (d.span && wide){                                    // v0.90.0: 길 위의 캐릭터·크리처 (카드가 아니라 포트레이트)
       for (const u of visitorsOf(c).concat(dunFoes(c))){
         if (!PORTRAITS.has(u.type)) continue;
@@ -1452,7 +1465,7 @@ function evaluateOne(d, t){
   if (td.kind === 'creature'){
     if (dd.kind === 'character') return { act: 'duel', full: statusOf(d).includes('빈사') };   // 대결 (빈사면 못 함)
     if (tagLevel(dd, '무기')){
-      const low = (dd.atk || 0) < t.hp;                         // 한 방에 못 쓰러뜨림
+      const low = itemAtk(d.type, d.lv) < t.hp;                  // 한 방에 못 쓰러뜨림 (강화 포함)
       return { act: 'strike', full: low, low };                // 전리품이 상한이면 그 카드만 안 나옴
     }
     return null;
@@ -1501,6 +1514,11 @@ function evaluateOne(d, t){
     const into = S.cards.find(r => r.type === 'quest' && r.giver === t.id && wantsNeed(r, d.type));
     if (into) return { act: 'submit', into, eatToo: true };   // quest 수량도 오르고, 체력 카드면 먹어서 체력도 오름
     return { act: 'eat' };
+  }
+  // v0.97.0: 강화 — 같은 카드끼리, 강화 레벨이 같을 때만 합쳐져 레벨 +1
+  if (d.type === t.type && canUpgrade(d)){
+    if (lvOf(d) !== lvOf(t)) return { act: 'upgrade', full: true, lvGap: true };
+    return { act: 'upgrade' };
   }
   const ms = usableRecipes(d.type, t.type);
   if (!ms.length) return null;
@@ -1585,7 +1603,7 @@ function apply(ev, d, t){
   }
   if (ev.act === 'strike'){
     if (ev.low){
-      toast(`${ic(d.type)} 무기의 공격력 낮음 (${si('atk')} ${dd.atk || 0} < ${si('hp')} ${t.hp})`);
+      toast(`${ic(d.type)} 무기의 공격력 낮음 (${si('atk')} ${itemAtk(d.type, d.lv)} < ${si('hp')} ${t.hp})`);
       floatText(t, '무기의 공격력 낮음', 'work');
       return false;
     }
@@ -1624,19 +1642,31 @@ function apply(ev, d, t){
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
     return true;
   }
+  if (ev.act === 'upgrade'){                                  // v0.97.0: 강화
+    if (ev.lvGap){ toast(`${ic(d.type)} 강화 레벨이 같아야 합쳐짐 (lv${lvOf(d)} ≠ lv${lvOf(t)})`); return false; }
+    removeCard(d.id);
+    t.lv = lvOf(t) + 1;
+    bumpIds.add(t.id);
+    floatText(t, `강화 lv${t.lv}`, 'work');
+    toast(`${ic(t.type)} ${dd.name} 강화 lv${t.lv} (${si('atk')} +${itemAtk(t.type, t.lv)})`);
+    return true;
+  }
   if (ev.act === 'equip'){
     if (ev.onto){ bumpIds.add(t.id); t = ev.onto; }            // request에 놓음 → 대상에게 장비
     const slot = ev.slot;
     t.equip = t.equip || {};
     const prev = t.equip[slot];
+    const prevLv = (t.equipLv || {})[slot] || 0;               // v0.97.0: 장비의 강화 레벨도 같이 옮김
     removeCard(d.id);
     t.equip[slot] = d.type;
+    t.equipLv = t.equipLv || {};
+    t.equipLv[slot] = lvOf(d);
     bumpIds.add(t.id);
     toast(`${ic(d.type)} ${DEFS[t.type].name}: ${DEFS[d.type].name} 장비 (${slot})`);
     if (prev && DEFS[prev]){
       // 같은 칸에 다른 장비가 올라오면 이전 장비는 방출
       const p = findSpot(t.x + CW * 1.1, t.y + CH * 0.3);
-      const pc = addCard(prev, p.x, p.y, null, true);
+      const pc = addCard(prev, p.x, p.y, prevLv ? { lv: prevLv } : null, true);
       spawned.delete(pc.id);
       popFrom.set(pc.id, { x: t.x, y: t.y });
       toast(`↩ ${DEFS[prev].name} 방출`);
@@ -2303,6 +2333,10 @@ const mouthEats = o => {
 };
 // v0.74.0: 도구·무기·방패 태그 카드는 월드 정리로 빨려가지 않음 (직접 끌어다 넣으면 먹음)
 const KEEP_TAGS = ['도구', '무기', '방패'];
+// v0.97.0: 강화 — 카드 종류는 그대로, 카드에 붙는 값 lv 로 표현. 공격력 = 기본 공격력 + 강화 레벨
+const lvOf = c => c.lv || 0;
+const itemAtk = (type, lv) => (DEFS[type] && DEFS[type].atk || 0) + (lv || 0);
+const canUpgrade = c => tagLevel(DEFS[c.type], '강화 가능');
 const purgeTargets = () => S.cards.filter(o => mouthEats(o) && o.duel == null && o.dun == null && !(drag && drag.id === o.id)
   && !KEEP_TAGS.some(t => tagLevel(DEFS[o.type], t))
   && DEFS[o.type].kind !== 'package');                                // v0.77.0: package 유형(신의 선물·신의 구원 …)도 안 빨려감
@@ -2380,9 +2414,11 @@ function disarm(id){
   if (!slots.length) return;
   for (const sl of slots){
     const type = c.equip[sl];
+    const lv = (c.equipLv || {})[sl] || 0;                  // v0.97.0: 강화 레벨 유지
     delete c.equip[sl];
+    if (c.equipLv) delete c.equipLv[sl];
     const p = findSpot(c.x + CW * 0.9, c.y);
-    const nc = addCard(type, p.x, p.y, null, true);          // 배출은 새로 생기는 게 아니라 월드 5장 상한과 무관
+    const nc = addCard(type, p.x, p.y, lv ? { lv } : null, true);   // 배출은 새로 생기는 게 아니라 월드 5장 상한과 무관
     spawned.delete(nc.id);
     popFrom.set(nc.id, { x: c.x, y: c.y });
   }
@@ -3013,7 +3049,9 @@ function restTick(){
 //   방문자가 떠나도 게이지는 남음
 function atkOf(c){
   const d = DEFS[c.type];
-  return (d.baseAtk || 0) + Object.values(c.equip || {}).reduce((sum, ty) => sum + ((DEFS[ty] && DEFS[ty].atk) || 0), 0);
+  const eq = c.equip || {};
+  // v0.97.0: 장비한 무기의 강화 레벨(equipLv)만큼 공격력이 더 오름
+  return (d.baseAtk || 0) + Object.keys(eq).reduce((sum, sl) => sum + itemAtk(eq[sl], (c.equipLv || {})[sl]), 0);
 }
 const pickWeighted = table => {
   let r = Math.random() * table.reduce((sum, [, w]) => sum + w, 0);
@@ -3319,7 +3357,9 @@ function stepDungeon(){
           changed = true;
           break;
         }
-        if (now - (u.atkT || 0) < DUN_HIT) continue;
+        // v0.97.0: 첫 접촉에서 캐릭터가 반 박자 먼저 침 (크리처는 0.4초 늦게) — 프레임 흔들림에 승패가 뒤집히지 않게
+        if (u.atkT == null) u.atkT = now - DUN_HIT + (u.dun != null ? 400 : 0);
+        if (now - u.atkT < DUN_HIT) continue;
         u.atkT = now;
         dunHit(pl, u, near);
         changed = true;
@@ -3350,6 +3390,13 @@ function stepDungeon(){
         bumpIds.add(ch.id);
         clearDungeon(pl);
         toast(`${ic(pl.type)} ${DEFS[ch.type].name} — 던전 클리어`);
+        if (d.chest){                                            // v0.97.0: 길 끝의 보물상자를 집어 옴
+          const cp = findSpot(pl.x - CW * 1.2, pl.y);
+          const box = addCard(d.chest, cp.x, cp.y);
+          spawned.delete(box.id);
+          popFrom.set(box.id, { x: pl.x, y: pl.y });
+          toast(`${ic(d.chest)} ${DEFS[d.chest].name} 획득`);
+        }
         afterChange();
       }
     }
@@ -3848,7 +3895,8 @@ function inspectorHtml(c){
     if (fighter(d)) st += iRow(`${statImg('atk')}공격`, atkOf(c)) + iRow(`${statImg('def')}방어`, defOf(c)) + iRow(`${statImg('hp')}체력`, hpText(c));
     const heal = healOf(d);
     if (heal > 0) st += iRow(`${statImg('hp')}회복`, '+' + heal);
-    if (d.atk) st += iRow(`${statImg('atk')}공격`, '+' + d.atk);
+    if (d.atk) st += iRow(`${statImg('atk')}공격`, '+' + itemAtk(c.type, c.lv));
+    if (canUpgrade(c)) st += iRow('강화', `lv${lvOf(c)}`);
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
@@ -4066,7 +4114,7 @@ const CHAPTERS = [
     flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true, mouthTaught: true, mountainWorkDone: true, riverGiven: true }),
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'dungeon']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack']),
-    cards: ['river', 'dungeon', 'mountain', 'godmouth', 'campfire', 'shell', 'berry'] },
+    cards: ['river', 'dungeon', 'mountain', 'godmouth', 'campfire', 'shell', 'berry', 'dagger', 'dagger'] },   // 단검 2장: 강화 합치기 확인용
 ];
 function startChapter(ch){
   if (ch.start){ newGame(); toast('⏭ ' + ch.title); return; }
