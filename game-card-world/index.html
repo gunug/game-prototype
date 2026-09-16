@@ -415,7 +415,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.92.0';
+const VERSION = 'v0.93.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -651,7 +651,6 @@ const LINES = {
   dungeon:        '물장난은 그만. 저기 컴컴한 굴을 하나 파놨어. 끝까지 걸어가 봐',   // v0.87.0: 강 채집 quest 완료   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
   settle:         ['자, 약속한 거.', '이번 건 진짜 좋은 게 들었어. 아마.', '거래 완료. 환불은 없다.'],
-  firstDiscovery: ['오? 그거 내가 가르쳐준 거 알지?', '이제 좀 굴러가네. 알아서 해봐.'],
   discover:       ['흠, 나쁘지 않네.', '그것도 내 계획대로야.', '오호.'],
   bounce:         ['그건 안 돼. 나도 해봤어.', '신도 모르는 조합이네.', '…아니야, 그거.'],
   stuck:          ['막혔지? 아무거나 줘봐.', '할 게 없으면 나한테 와.'],
@@ -1706,12 +1705,9 @@ function apply(ev, d, t){
       S.found.push(r.id);
       if (bookOpen && !discoRunning) renderBook();
       toast('✨ 새 조합: ' + recipeText(r));
-      if (!S.flags.discovered){
-        S.flags.discovered = true;
-        say(LINES.firstDiscovery);
-      } else {
-        sayMaybe(LINES.discover);
-      }
+      // v0.93.0: 첫 발견 대사는 없앰 — 첫 조합은 갓의 조합 quest 정산·기사 첫 quest 대사와 겹쳐 대사가 6줄이 됐음
+      if (!S.flags.discovered) S.flags.discovered = true;
+      else sayMaybe(LINES.discover);
     }
     return true;
   }
