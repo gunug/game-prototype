@@ -19,9 +19,15 @@
 
   /* 상단 막대 */
   .topbar{position:fixed;left:0;right:0;top:0;height:var(--top-h);z-index:2147483000;display:flex;align-items:center;gap:10px;padding:0 12px;
-    background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);box-sizing:border-box;}
+    background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);box-sizing:border-box;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
+  .topbar > *{flex:none;}                                           /* v0.7.7: 좁으면 줄어들지 않고 가로 스크롤 */
+  .topbar::-webkit-scrollbar{height:4px;}
+  .topbar::-webkit-scrollbar-track{background:transparent;}
+  .topbar::-webkit-scrollbar-thumb{background:rgba(255,212,0,.35);border-radius:4px;}
+  .topbar::-webkit-scrollbar-thumb:hover{background:rgba(255,212,0,.7);}
   .topbar .title{font-weight:800;font-size:14px;white-space:nowrap;}
-  .tabs{display:flex;gap:4px;flex:1;min-width:0;overflow:hidden;}
+  .topbar > .tabs{display:flex;gap:4px;flex:1 0 auto;}
   .tabbtn{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:700;
     padding:6px 12px;border-radius:var(--r-pill);white-space:nowrap;cursor:pointer;}
   .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);border-color:var(--brand-yellow);}
@@ -361,7 +367,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.6';
+const VERSION = 'v0.7.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -862,6 +868,13 @@ function setTab(tab){
   gatherEl.hidden = tab !== 'gather';
   renderGather(); renderInsp(); save();
 }
+// 상단 막대 가로 스크롤 (v0.7.7): 마우스 휠 세로 굴림도 가로로
+const topbarEl = document.querySelector('.topbar');
+topbarEl.addEventListener('wheel', e => {
+  if (topbarEl.scrollWidth <= topbarEl.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  topbarEl.scrollLeft += e.deltaY;
+  e.preventDefault();
+}, { passive: false });
 document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]');
   if (b) setTab(b.dataset.tab);
