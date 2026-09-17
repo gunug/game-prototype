@@ -100,7 +100,11 @@
   .exp-lane .tok{position:absolute;bottom:9px;width:calc(var(--cw) * .66);height:calc(var(--cw) * .66);margin-left:calc(var(--cw) * -.33);transition:left .12s linear;}
   .exp-lane .tok img{width:100%;height:100%;image-rendering:pixelated;}
   .exp-lane .tok .hp{position:absolute;left:-50%;right:-50%;top:-13px;text-align:center;font-size:11px;font-weight:800;text-shadow:0 1px 2px #000;}
+  .exp-lane .tok.enemy{transition:opacity .3s,transform .3s;}
   .exp-lane .tok.enemy .hp{color:#ff9d9d;}
+  .exp-lane .tok.enemy:not(.now):not(.dead){opacity:.75;}          /* 아직 만나지 않은 고블린 */
+  .exp-lane .tok.enemy.dead{opacity:0;transform:translateY(8px) scale(.6);}
+  .exp-lane .tok.enemy.now{filter:drop-shadow(0 0 4px rgba(255,120,120,.8));}
   .exp-lane .tok.hit{animation:bump .26s ease-out;}
   .exp-line{font-size:12px;color:var(--muted);text-align:center;min-height:1.3em;}
 
@@ -434,7 +438,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.13.0';
+const VERSION = 'v0.13.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1115,7 +1119,9 @@ function expStart(id, cardEl){
   if (st.left >= FIELD_MAX) st.prog = 0;
   st.left--;
   flash(cardEl, 'tap', 300);
-  exp = { id, t: 0, phase: 'run', idx: 0, enemy: null, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  // v0.13.1: 고블린은 길 위에 미리 서 있음 (도착할 때 생기는 것처럼 보이지 않게)
+  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false }));
+  exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   renderStock(); renderGather(); renderInsp(); save();
 }
 function expTick(dt){
@@ -1129,10 +1135,9 @@ function expTick(dt){
       exp.idx++;
       if (ev.loot){ expLoot(); }
       else if (ev.fight){
-        const e = ENEMIES[ev.fight];
-        exp.enemy = { key: ev.fight, hp: e.hp };
+        exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
-        exp.line = `${e.name}과 마주쳤다`;
+        exp.line = `${ENEMIES[ev.fight].name}과 마주쳤다`;
       } else if (ev.boss){ expEnd('boss'); return; }
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
@@ -1147,12 +1152,13 @@ function expTick(dt){
 }
 // 한 번 주고받기 — 기사가 먼저 친다
 function expBeat(){
-  const k = S.knight, e = exp.enemy, def = ENEMIES[e.key];
+  const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
   const kd = Math.max(1, KNIGHT.atk - def.def);
   e.hp -= kd;
-  expHit('enemy');
+  expHit(exp.foe);
   if (e.hp <= 0){
-    exp.enemy = null;
+    e.dead = true;
+    exp.foe = -1;
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
     return;
@@ -1171,7 +1177,7 @@ function expEnd(kind){
   if (kind === 'down') toast('🩸 기사 빈사 — 원정 중단');
   if (kind === 'boss') toast('👑 보스는 아직 준비 중');
   exp.phase = 'end';
-  exp.enemy = null;
+  exp.foe = -1;
   exp.line = line;
   expPaint();
   setTimeout(() => {
@@ -1228,10 +1234,12 @@ function expBuild(){
   el.hidden = !exp;
   if (!exp){ el.innerHTML = ''; return; }
   el.innerHTML = '<div class="exp-lane">'
-    + planOf(exp.id).filter(e => !e.boss).map(e => `<div class="mark${e.fight ? ' fight' : ''}" style="left:${e.at * 100}%"></div>`).join('')
+    + planOf(exp.id).filter(e => e.loot).map(e => `<div class="mark" style="left:${e.at * 100}%"></div>`).join('')
     + '<div class="bar"></div><div class="boss">👑</div>'
+    // v0.13.1: 고블린은 처음부터 제자리에 서 있음
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${f.at * 100}%">`
+        + `<div class="hp"></div><img src="images/icon/${ENEMIES[f.key].icon}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + '<div class="tok knight"><div class="hp"></div><img src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
-    + '<div class="tok enemy" hidden><div class="hp"></div><img alt="" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
   expPaint();
 }
@@ -1241,20 +1249,18 @@ function expPaint(){
   const lane = el.querySelector('.exp-lane');
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
   const kt = lane.querySelector('.tok.knight');
-  kt.style.left = (5 + exp.t * 88) + '%';
+  kt.style.left = (5 + exp.t * 88 - (exp.foe >= 0 ? 6 : 0)) + '%';   // v0.13.1: 전투 중엔 고블린 앞에
   kt.querySelector('.hp').textContent = `${S.knight.hp}/${KNIGHT.hp}`;
-  const et = lane.querySelector('.tok.enemy');
-  if (exp.enemy){
-    const def = ENEMIES[exp.enemy.key];
-    et.hidden = false;
-    et.style.left = (5 + exp.t * 88 + 9) + '%';
-    et.querySelector('img').src = `images/icon/${def.icon}.png`;
-    et.querySelector('.hp').textContent = `${Math.max(0, exp.enemy.hp)}/${def.hp}`;
-  } else et.hidden = true;
+  for (const et of lane.querySelectorAll('.tok.enemy')){          // v0.13.1: 미리 서 있는 고블린들
+    const f = exp.foes[+et.dataset.foe];
+    et.classList.toggle('dead', f.dead);
+    et.classList.toggle('now', exp.foe === +et.dataset.foe);
+    et.querySelector('.hp').textContent = f.dead ? '' : `${Math.max(0, f.hp)}/${ENEMIES[f.key].hp}`;
+  }
   el.querySelector('.exp-line').textContent = exp.line || '';
 }
 function expHit(who){
-  const el = document.querySelector(`#exp .tok.${who}`);
+  const el = document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
   if (el) flash(el, 'hit', 260);
 }
 // 기사 줄의 체력만 고침
