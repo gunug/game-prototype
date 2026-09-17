@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.131.0';
+const VERSION = 'v0.136.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -756,7 +756,7 @@ const LINES = {
   riverGo:        '위대한 사명을 내린다. 흐르는 물 앞에 서라. …그리고 조개나 주워 와.',   // v0.109.0: 강가가 나온 뒤 (웅장하게 시작해서 힘빠지게)
   sleepGift:      '잘 잤어? 선물은 내가 준비했어. 신한테 고마워해.',   // v0.106.0: 잠이 보약 보상을 갓이 줌 (생색)
   godMouth:       '필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘',   // v0.84.0: 카드 30장이 넘으면
-  mouthWarn:      '맛있게 먹었어. 먹은 건 안 돌려줘, 신중히 골라.',   // v0.134.0: 꺼내기 없앰
+  mouthWarn:      '꿀꺽. 먹은 건 안 돌려줘, 신중히 골라.',   // v0.136.0: 넣자마자 삼킴
   river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',
   dungeon:        '물장난은 그만. 저기 컴컴한 굴을 하나 파놨어. 끝까지 걸어가 봐',   // v0.87.0: 강 채집 quest 완료   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
@@ -1031,7 +1031,6 @@ function paint(el, c){
   if (fighter(d)) cls += ' has-corner';
   else if (d.capacity || d.yields || d.devour || d.kind === 'map') cls += ' has-top';
   if (placeFoot(d)) cls += ' has-foot';
-  if (d.devour) cls += ' has-eaten';
   if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
@@ -1120,13 +1119,7 @@ function paint(el, c){
     }
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
-    if (d.devour){
-      // 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄
-      const eaten = c.eaten || [];
-      html += `<div class="eaten${eatShift.delete(c.id) ? ' shift' : ''}">` + Array.from({ length: d.devour }, (_, i) => eaten[i] && DEFS[eaten[i].type]
-        ? `<div class="mini framed f-${frameOf(DEFS[eaten[i].type])}" data-eat="${i}" title="먹은 기록 — 돌려받을 수 없음">${iconHtml(eaten[i].type)}</div>`
-        : '<div class="mini empty"></div>').join('') + '</div>';
-    }
+    // v0.136.0: 신의 입 기록 칸 없앰 (넣으면 바로 삼킴)
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
     if (c.type === 'architect' && archSpeech) html += `<div class="speech">${esc(archSpeech)}</div>`;
@@ -1823,10 +1816,10 @@ function apply(ev, d, t){
   }
   if (ev.act === 'devour'){
     S.flags.devoured = true;                                // v0.84.0: 신의 입 quest 1단계
+    const del = els.get(d.id);
+    const from = del ? del.getBoundingClientRect() : null;
     removeCard(d.id);
-    const from = swallowFrom(t);
-    swallow(t, recordEaten(t, d, 0), from);                 // 기록이 가득 차 있으면 맨 오른쪽이 밀려나 삼켜짐
-    eatShift.add(t.id);
+    swallow(t, [{ type: d.type }], from);                   // v0.136.0: 기록 없이 바로 삼킴 → 흡족 +1
     bumpIds.add(t.id);
     toast(`${ic(d.type)} ${dd.name} → ${DEFS[t.type].name}`);
     return true;
@@ -2728,15 +2721,13 @@ function purgeWorld(id){
     busy = false;
     const mouth = byId(id);
     if (!mouth){ afterChange(); return; }
-    const from = swallowFrom(mouth);
-    let gone = [];
+    const gone = [];
     for (const o of picks){
       if (!byId(o.id)) continue;
       removeCard(o.id);
-      gone = gone.concat(recordEaten(mouth, o, 0));         // 기록 3칸에서 밀려난 카드는 삼킴
+      gone.push({ type: o.type });                            // v0.136.0: 기록 없이 전부 삼킴
     }
-    swallow(mouth, gone, from);
-    eatShift.add(mouth.id);
+    swallow(mouth, gone, null);
     bumpIds.add(mouth.id);
     toast(`${ic(mouth.type)} 월드 정리 — ${picks.length}장 빨아들임`);
     afterChange();
@@ -3474,6 +3465,7 @@ function yieldTick(){
     if (!d.yields) continue;
     const vs = visitorsOf(pl);
     if (!vs.length){                                          // v0.134.0: 모두 떠나면 게이지 초기화 (생산시설 공통)
+      delete pl.yieldRoll;
       if (pl.yieldPts){
         pl.yieldPts = 0;
         const el0 = els.get(pl.id);
@@ -3483,12 +3475,20 @@ function yieldTick(){
       continue;
     }
     const add = gaugeAdd(d, vs);
-    pl.yieldPts = (pl.yieldPts || 0) + add;
-    floatText(pl, `+${add}`, 'work');                         // 게이지에 들어간 만큼
-    while (pl.yieldPts >= d.yieldNeed){
-      pl.yieldPts -= d.yieldNeed;
+    const before = pl.yieldPts || 0;
+    pl.yieldPts = Math.min(d.yieldNeed, before + add);           // v0.136.0: 가득 차면 더 안 오름
+    if (pl.yieldPts > before) floatText(pl, `+${pl.yieldPts - before}`, 'work');   // 게이지에 들어간 만큼
+    const elG = els.get(pl.id);
+    const pieG = elG && elG.querySelector('.pie');
+    if (pieG) pieG.style.setProperty('--p', pieValue(pl));      // 기다리는 동안에도 가득 찬 게이지가 보이게
+    if (pl.yieldPts >= d.yieldNeed){
+      // v0.136.0: 나올 카드는 한 번 뽑아 두고, 하나도 못 나오면(월드 5장 상한) 게이지가 가득 찬 채로 기다림 (제재소와 같음)
+      const roll = pl.yieldRoll || (pl.yieldRoll = [].concat(pickWeighted(d.yields)));   // 나무 + 돌 · 토끼 · 곰
+      if (!roll.some(ty => canSpawn(ty))) continue;
+      pl.yieldPts = 0;
+      delete pl.yieldRoll;
       const miss = [];
-      for (const ty of [].concat(pickWeighted(d.yields))){   // 나무 + 돌 · 토끼 · 곰
+      for (const ty of roll){
         if (!canSpawn(ty)){ miss.push(DEFS[ty].name); continue; }   // 월드 수량 초과
         const p = findSpot(pl.x, pl.y + CH + 12);
         const nc = addCard(ty, p.x, p.y);
@@ -3502,6 +3502,10 @@ function yieldTick(){
       // v0.87.0: 산·강가 공통
       const gq = S.cards.find(c => c.type === 'quest' && c.goal === 'gather' && c.place === pl.type);
       if (gq && (gq.gathered || 0) < gq.need){ gq.gathered = (gq.gathered || 0) + 1; progressed = true; }
+      const el = els.get(pl.id);
+      const pie = el && el.querySelector('.pie');
+      if (pie) pie.style.setProperty('--p', pieValue(pl));
+      continue;
     }
     const el = els.get(pl.id);
     const pie = el && el.querySelector('.pie');
@@ -4454,7 +4458,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
-    if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
+    if (d.devour) st += iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
       const period = REST_MS / lv;
@@ -4494,10 +4498,6 @@ function inspectorHtml(c){
   if (c.duel != null){
     const op = byId(c.duel);
     if (op) c2 += iSub('대결 중', iLine(cardRef(op.type)));
-  }
-  if (d.devour){
-    const eaten = (c.eaten || []).filter(r => DEFS[r.type]);
-    c2 += iSub('버린 카드 — 최근 순, 아무거나 꺼낼 수 있음', eaten.length ? iChips(eaten.map(r => cardRef(r.type))) : iNone('없음'));
   }
   if (d.kind === 'container'){
     c2 += iSub('담긴 카드', c.count && c.fill && DEFS[c.fill] ? iLine(`${cardRef(c.fill)} ×${c.count}`) : iNone('비어 있음'));
@@ -4601,6 +4601,7 @@ function millTick(){
     const pie = el && el.querySelector('.pie');
     if (pie) pie.style.setProperty('--p', pieValue(pl));
     if (!workers.length || pl.millPts < mill.need) continue;
+    if (!mill.out.some(t => canSpawn(t))) continue;              // v0.136.0: 하나도 못 나오면(월드 5장 상한) 가득 찬 채로 기다림
     const tree = S.cards.filter(o => o.type === mill.from && o.id !== hid && bodyOf(o) === o && !heldSpawn(o.id))
       .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y))[0];
     if (!tree) continue;
