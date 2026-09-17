@@ -89,7 +89,7 @@
   @keyframes gone{to{transform:scale(.3);opacity:0;}}
 
   /* 알림 */
-  .toasts{position:fixed;left:0;right:var(--insp-w);z-index:2147483100;top:calc(var(--top-h) + 8px);
+  .toasts{position:fixed;left:0;right:var(--insp-w);z-index:2147483300;top:calc(var(--top-h) + 8px);
     display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;}
   .toast{background:rgba(28,28,23,.94);border:1px solid var(--hairline);color:var(--ink);
     font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--r-pill);white-space:nowrap;animation:toast 2.6s forwards;}
@@ -112,20 +112,52 @@
   .insp .i-muted{color:var(--muted);}
   .locked .icon{filter:brightness(0) opacity(.45);}                 /* 미발견: 검은 실루엣 */
 
-  /* 콜렉터북 (v0.3.0) — 필드 자리를 덮는 판 */
-  .book{position:fixed;left:0;right:var(--insp-w);top:var(--top-h);bottom:var(--insp-h);z-index:2147482950;overflow-y:auto;box-sizing:border-box;
-    padding:12px 16px 24px;background:rgba(18,18,14,.98);}
-  .book-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
+  .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
+  .book-back.open{opacity:1;pointer-events:auto;}
+  .book{position:fixed;left:0;right:0;bottom:0;z-index:2147483210;max-height:82vh;display:flex;flex-direction:column;box-sizing:border-box;
+    background:linear-gradient(180deg,#2a2419,#1b1812);border-top:1px solid var(--hairline);border-radius:18px 18px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.6);
+    transform:translateY(105%);transition:transform .38s cubic-bezier(.2,.85,.25,1);padding-bottom:env(safe-area-inset-bottom,0px);}
+  .book.open{transform:translateY(0);}
+  .book-grip{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.2);margin:8px auto 2px;flex:none;}
+  .book-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 16px 8px;flex:none;}
   .book-title{font-weight:800;font-size:15px;}
   .book-tabs{display:flex;gap:4px;flex:1;}
   .book-head .meta{font-size:12px;color:var(--muted);}
   .book-close{border:1px solid var(--hairline);background:transparent;color:var(--ink);font:inherit;width:30px;height:30px;border-radius:var(--r-pill);cursor:pointer;}
+  .book-close:disabled{opacity:.3;cursor:default;}
+  .book-detail{margin:0 16px 6px;padding:8px 10px;border-radius:var(--r-md);background:rgba(255,255,255,.04);font-size:12px;line-height:1.5;min-height:1.5em;flex:none;}
+  .book-detail .nm{font-weight:800;font-size:13px;}
+  .book-detail .i-muted{color:var(--muted);}
+  .book-body{overflow-y:auto;padding:0 16px 20px;}
+  .book-inner{max-width:760px;margin:0 auto;}
   .book-field{margin:10px 0 14px;}
   .book-fname{font-size:13px;font-weight:800;color:var(--brand-yellow);margin-bottom:6px;}
   .book-row{display:flex;gap:10px;flex-wrap:wrap;}
-  .book .cw{position:relative;cursor:pointer;}
-  .book .cw.locked .name{color:var(--muted);}
-</style>
+  /* 슬리브: 카드를 끼우는 투명 비닐 주머니. 앞면 아래쪽 덮개(::after)가 카드 위에 겹쳐 '끼워진' 느낌 */
+  .sleeve{position:relative;width:calc(var(--cw) + 8px);height:calc(var(--ch) + 8px);border-radius:calc(var(--r-md) + 2px);cursor:pointer;
+    background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
+  .sleeve::after{content:'';position:absolute;left:0;right:0;bottom:0;height:58%;border-radius:0 0 calc(var(--r-md) + 2px) calc(var(--r-md) + 2px);
+    background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.05) 30%,rgba(255,255,255,.03));border-top:1px solid rgba(255,255,255,.22);pointer-events:none;z-index:2;}
+  .sleeve .cw{position:absolute;left:4px;top:4px;cursor:pointer;z-index:1;}
+  .sleeve .cw.locked{opacity:.55;}
+  .sleeve .cw.locked .name{color:var(--muted);}
+  .sleeve.sel{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}
+  /* 새 카드 끼우기: 슬리브 위에서 아래로 쑥 */
+  .sleeve .cw.insert{animation:sleeveIn .7s cubic-bezier(.3,.7,.3,1) both;}
+  @keyframes sleeveIn{
+    0%{transform:translateY(calc(-1 * var(--ch) - 30px)) rotate(-4deg);opacity:0;}
+    25%{opacity:1;}
+    75%{transform:translateY(4px) rotate(0deg);}
+    100%{transform:translateY(0);}
+  }
+  .sleeve .cw.ghost{animation:ghostOut .35s ease-out forwards;}
+  @keyframes ghostOut{to{opacity:0;}}
+  .sleeve.glow{animation:sleeveGlow .6s ease-out .6s;}
+  @keyframes sleeveGlow{0%{box-shadow:inset 0 0 0 2px var(--brand-yellow),0 0 0 0 rgba(255,212,0,.6);}100%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 0 0 12px rgba(255,212,0,0);}}
+  /* 일시정지: 필드 연출도 멈춤 */
+  .table.paused .cw{animation-play-state:paused;}
+</style></style>
 </head>
 <body>
 <div class="topbar">
@@ -141,7 +173,8 @@
   <button class="gift" id="gift"></button>
   <div class="trash" id="trash"><span class="big">🗑️</span>버리기</div>
 </div>
-<div class="book" id="book" hidden></div>
+<div class="book-back" id="bookBack"></div>
+<div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
 <div class="insp" id="insp"></div>
 <script>
@@ -248,7 +281,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.3.1';
+const VERSION = 'v0.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -368,7 +401,6 @@ function renderMeta(){
   const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
   document.getElementById('seenMeta').textContent = `발견 ${found}/${CRAFT_TYPES.length}`;
   document.getElementById('hint').hidden = S.cards.length > 0;
-  if (typeof renderBook === 'function' && bookEl) renderBook();   // 새 발견을 콜렉터북에 바로
 }
 
 // ── 알림 ────────────────────────────────────────────
@@ -389,7 +421,7 @@ function addCard(type, x, y, anim, from, made){
   if (!S.seen.includes(type)){
     S.seen.push(type);
     toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
-    const el = els.get(c.id);
+    queueInsert(type);                                            // v0.4.0: 콜렉터북 슬리브에 끼우기 (게임 일시정지)
   }
   return c;
 }
@@ -459,6 +491,7 @@ const PUSH_GAP = 4;                                              // 카드 사�
 const PUSH_RATE = 0.3;                                           // 한 프레임에 겹친 만큼의 몇 배를 풀지
 let pushSaveTimer = 0;
 function pushStep(){
+  if (paused){ requestAnimationFrame(pushStep); return; }        // v0.4.0: 콜렉터북에 끼우는 동안 멈춤
   const list = S.cards.filter(c => !(drag && drag.moved && drag.c === c));
   const sx = CW + PUSH_GAP, sy = CH + PUSH_GAP;
   const move = new Map();
@@ -501,6 +534,7 @@ function cardAt(px, py, skip){
   return null;
 }
 table.addEventListener('pointerdown', e => {
+  if (paused) return;
   const el = e.target.closest('.cw');
   if (!el || el.classList.contains('gone')) return;
   const c = byId(+el.dataset.id);
@@ -611,53 +645,115 @@ function renderInsp(){
   inspEl.innerHTML = h;
 }
 
-// ── 콜렉터북 (v0.3.0) ────────────────────────────────
-// 티어별 탭 → 필드별 4칸. 미발견은 검은 실루엣 + ???. 칸을 탭하면 인스펙터
+// ── 콜렉터북 (v0.4.0) ────────────────────────────────
+// 아래에서 올라오는 모달. 티어 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
+// 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
+const bookBack = document.getElementById('bookBack');
 let bookTier = TIERS[0];
+let bookOpen = false;
+let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
+let paused = false;
+const pendingInsert = [];                                         // 끼우기를 기다리는 카드 (발견은 됐지만 아직 슬리브엔 실루엣)
+const shownSeen = t => S.seen.includes(t) && !pendingInsert.includes(t);
+function slotHtml(t){
+  const on = shownSeen(t);
+  return `<div class="sleeve${bookPick === t ? ' sel' : ''}" data-book="${t}">`
+    + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}"><div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
+}
+function detailHtml(){
+  if (!bookPick) return '<span class="i-muted">슬리브를 탭하면 카드 정보가 나와요.</span>';
+  const t = bookPick, d = DEFS[t], f = FIELD_BY_ID[d.field];
+  const where = `${d.tier}티어 · ${f.emoji} ${f.name}`;
+  return shownSeen(t)
+    ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span><br>${esc(DESC[t] || '')}`
+    : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
+}
 function renderBook(){
-  if (bookEl.hidden) return;
+  if (!bookOpen) return;
   const inTier = CRAFT_TYPES.filter(t => DEFS[t].tier === bookTier);
-  const found = inTier.filter(t => S.seen.includes(t)).length;
-  let h = '<div class="book-head"><span class="book-title">📖 콜렉터북</span>'
+  const found = inTier.filter(shownSeen).length;
+  let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">' + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${n}티어</button>`).join('') + '</div>'
-    + `<span class="meta">발견 ${found}/${inTier.length}</span><button class="book-close" data-close="1">✕</button></div>`;
+    + `<span class="meta">발견 ${found}/${inTier.length}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
+    + `<div class="book-detail">${detailHtml()}</div><div class="book-body"><div class="book-inner">`;
   for (const f of FIELDS){
     const list = inTier.filter(t => DEFS[t].field === f.id);
     if (!list.length) continue;
-    h += `<div class="book-field"><div class="book-fname">${f.emoji} ${f.name}</div><div class="book-row">`
-      + list.map(t => {
-        const on = S.seen.includes(t);
-        return `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}${inspType === t ? ' sel' : ''}" data-book="${t}">`
-          + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div>`;
-      }).join('') + '</div></div>';
+    h += `<div class="book-field"><div class="book-fname">${f.emoji} ${f.name}</div><div class="book-row">${list.map(slotHtml).join('')}</div></div>`;
   }
-  bookEl.innerHTML = h;
+  const body = bookEl.querySelector('.book-body');
+  const keep = body ? body.scrollTop : 0;
+  bookEl.innerHTML = h + '</div></div>';
+  bookEl.querySelector('.book-body').scrollTop = keep;
 }
 function openBook(open){
-  bookEl.hidden = !open;
+  bookOpen = open;
+  bookEl.classList.toggle('open', open);
+  bookBack.classList.toggle('open', open);
   document.getElementById('bookBtn').classList.toggle('on', open);
-  if (!open && inspType){ inspType = null; renderInsp(); }
+  if (!open) bookPick = null;
   renderBook();
 }
-document.getElementById('bookBtn').addEventListener('click', () => openBook(bookEl.hidden));
+const wait = ms => new Promise(r => setTimeout(r, ms));
+function setPaused(on){
+  paused = on;
+  table.classList.toggle('paused', on);
+  const x = bookEl.querySelector('.book-close');
+  if (x) x.disabled = on;
+}
+let inserting = false;
+function queueInsert(t){
+  pendingInsert.push(t);
+  if (!inserting) runInserts();
+}
+async function runInserts(){
+  inserting = true;
+  setPaused(true);
+  if (drag) endDrag({ type: 'pointercancel' });                  // 끌던 카드는 그 자리에 놓음
+  const wasOpen = bookOpen;
+  if (!bookOpen){ openBook(true); await wait(420); }            // 올라오는 시간
+  while (pendingInsert.length){
+    const t = pendingInsert[0];
+    if (bookTier !== DEFS[t].tier){ bookTier = DEFS[t].tier; renderBook(); }
+    const slot = bookEl.querySelector(`[data-book="${t}"]`);
+    if (slot){
+      slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      await wait(250);
+      pendingInsert.shift();
+      const ghost = slot.querySelector('.cw');
+      ghost.classList.add('ghost');                               // 실루엣은 흐려지며 빠지고
+      const card = document.createElement('div');                 // 진짜 카드가 위에서 끼워짐
+      card.className = `cw framed f-${frameOf(DEFS[t])} insert`;
+      card.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+      slot.appendChild(card);
+      slot.classList.add('glow');
+      await wait(1000);
+    } else pendingInsert.shift();
+    renderBook();
+  }
+  await wait(250);
+  setPaused(false);
+  inserting = false;
+  if (!wasOpen) openBook(false);
+  else renderBook();
+}
+document.getElementById('bookBtn').addEventListener('click', () => { if (!paused) openBook(!bookOpen); });
+bookBack.addEventListener('click', () => { if (!paused) openBook(false); });
 bookEl.addEventListener('click', e => {
+  if (paused) return;
   if (e.target.closest('[data-close]')) return openBook(false);
   const tab = e.target.closest('[data-tier]');
   if (tab){ bookTier = +tab.dataset.tier; return renderBook(); }
   const slot = e.target.closest('[data-book]');
-  if (slot){
-    if (selected != null) els.get(selected)?.classList.remove('sel');
-    selected = null;
-    inspType = slot.dataset.book;
-    renderInsp(); renderBook();
-  }
+  if (slot){ bookPick = slot.dataset.book; renderBook(); }
 });
 
 // ── 시작 ────────────────────────────────────────────
 document.getElementById('ver').textContent = VERSION;
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
+  if (paused) return;
   S = fresh(); selected = null; renderAll(); save();
 });
 addEventListener('resize', () => { measure(); renderAll(); });
