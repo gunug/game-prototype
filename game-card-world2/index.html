@@ -361,7 +361,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.4';
+const VERSION = 'v0.7.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -492,7 +492,7 @@ function addCard(type, x, y, anim, from, made){
   if (!S.seen.includes(type)){
     S.seen.push(type);
     toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
-    queueInsert(type);                                            // v0.4.0: 콜렉터북 슬리브에 끼우기 (게임 일시정지)
+    queueInsert(type, anim ? INSERT_AFTER_SPAWN : 0);              // v0.4.0: 콜렉터북 슬리브에 끼우기 (게임 일시정지). v0.7.5: 조합 결과가 필드에 튀어나온 게 보인 뒤에
   }
   return c;
 }
@@ -771,9 +771,12 @@ function setPaused(on){
   if (all) all.disabled = on;
 }
 let inserting = false;
-function queueInsert(t){
-  pendingInsert.push(t);
-  if (!inserting) runInserts();
+const INSERT_AFTER_SPAWN = 800;                                   // v0.7.5: 결과 카드 등장(0.5초)을 보고 난 뒤 콜렉터북
+function queueInsert(t, delay){
+  pendingInsert.push(t);                                          // 슬리브는 바로 실루엣으로 (끼우기 대기)
+  if (inserting) return;
+  if (delay) setTimeout(() => { if (!inserting && pendingInsert.length) runInserts(); }, delay);
+  else runInserts();
 }
 async function runInserts(){
   inserting = true;
