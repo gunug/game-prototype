@@ -162,6 +162,11 @@
   .cw.has-eaten{padding-bottom:calc(var(--ch) * .25);}
   .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
   .cw .eaten .mini[data-eat]{cursor:pointer;}
+  /* v0.146.0: 던전 출발 버튼 — 캐릭터를 올려 펼쳐진 뒤, 누르면 던전 시작 */
+  .cw .dun-go{position:absolute;left:50%;bottom:calc(var(--cw) * .09);transform:translateX(-50%);z-index:4;pointer-events:auto;cursor:pointer;touch-action:none;
+    padding:calc(var(--cw) * .03) calc(var(--cw) * .12);border-radius:999px;border:none;background:var(--brand-yellow);color:#1a1a17;
+    font-size:calc(var(--cf) * .12);font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.45);}
+  .cw .dun-go:hover{filter:brightness(1.08);}
   .cw [data-stock]{pointer-events:auto;cursor:pointer;touch-action:none;}   /* v0.142.1: 제재소 등록 나무 탭 = 배출 */   /* v0.141.0: 탭해서 되돌리기 */
   .cw .eaten .mini{width:calc(var(--cw) * .27);height:calc(var(--cw) * .32);margin:0;border-radius:4px;font-size:calc(var(--cw) * .17);}
   .cw .eaten .mini.empty{background:rgba(0,0,0,.3);border:1px dashed rgba(255,255,255,.2);box-shadow:none;cursor:default;pointer-events:none;}
@@ -485,7 +490,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.145.1';
+const VERSION = 'v0.146.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1128,6 +1133,7 @@ function paint(el, c){
           + `<img class="pic" src="images/portrait/portrait_${u.type}.png" alt="" draggable="false"></div>`;
       }
     }
+    if (d.span && wide && !c.dunGo) html += '<button class="dun-go" data-dungo>출발</button>';   // v0.146.0: 펼쳐 둔 상태 → 누르면 시작
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
     if (d.devour){
@@ -1868,7 +1874,7 @@ function apply(ev, d, t){
     if (ev.evict != null) leavePlace(byId(ev.evict), t);        // v0.119.0: 가득 차면 가장 먼저 방문한 캐릭터가 방출
     if (d.visit !== t.id){
       d.visit = t.id; d.visitSeq = ++S.z;                      // 방문: 장소 오른쪽 줄 끝에 섬
-      if (DEFS[t.type].span) enterDungeon(t, d);               // v0.90.0: 던전이면 크리처 등장 + 오른쪽 끝에서 시작
+      if (DEFS[t.type].span) enterDungeon(t, d);               // v0.90.0: 던전이면 크리처·전리품이 펼쳐짐. v0.146.0: 시작은 출발 버튼
     }
     bumpIds.add(t.id);
     toast(`📍 ${dd.name} → ${DEFS[t.type].name} 방문`);
@@ -2988,6 +2994,14 @@ function onDown(e){
   const c = byId(+cardEl.dataset.id);
   if (!c) return;
   e.preventDefault();
+  if (e.target.closest('[data-dungo]') && DEFS[c.type].span && visitorsOf(c).length && !c.dunGo){   // v0.146.0: 던전 출발
+    c.dunGo = true;
+    runLast.delete(c.id);
+    toast(`${ic(c.type)} ${DEFS[visitorsOf(c)[0].type].name} — 던전 출발`);
+    save();
+    renderAll();
+    return;
+  }
   if (c.duel != null || bodyOf(c).duel != null){ setSelected(c.id); return; }   // 대결 중엔 못 움직임
   if (c.dun != null){ setSelected(c.id); return; }                              // v0.90.0: 던전 안 크리처는 못 움직임
   const { px, py } = localPoint(e);
@@ -3807,6 +3821,7 @@ function enterDungeon(pl, ch){
 function clearDungeon(pl){
   for (const g of dunSide(pl)) removeCard(g.id);              // 크리처와 아직 못 챙긴 전리품
   runLast.delete(pl.id);
+  delete pl.dunGo;                                             // v0.146.0: 다음엔 다시 출발 버튼부터
 }
 function dunPortrait(pl, u, cls){
   const el = els.get(pl.id);
@@ -3844,6 +3859,7 @@ function stepDungeon(){
       continue;
     }
     const ch = chs[0];
+    if (!pl.dunGo){ runLast.delete(pl.id); continue; }            // v0.146.0: 출발 버튼을 누르기 전엔 펼쳐 두기만
     const last = runLast.get(pl.id);
     runLast.set(pl.id, now);
     if (last == null) continue;
