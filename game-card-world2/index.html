@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>카드 월드 RPG 2 — Game Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets-ds.css">
+<style>
+  html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:none;}
+  body{background:var(--canvas);color:var(--ink);font-family:var(--font);-webkit-user-select:none;user-select:none;}
+  [hidden]{display:none!important;}
+  /* 인스펙터 자리: 가로가 긴 화면은 오른쪽 폭, 세로가 긴 화면은 하단 높이 (레거시와 같음) */
+  :root{--insp-w:0px;--insp-h:0px;--top-h:48px;}
+  @media (orientation: landscape){ :root{--insp-w:clamp(200px, 22vw, 280px);} }
+  @media (orientation: portrait){ :root{--insp-h:clamp(150px, 28vh, 240px);} }
+
+  /* 상단 막대 */
+  .topbar{position:fixed;left:0;right:0;top:0;height:var(--top-h);z-index:2147483000;display:flex;align-items:center;gap:10px;padding:0 12px;
+    background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);box-sizing:border-box;}
+  .topbar .title{font-weight:800;font-size:14px;white-space:nowrap;}
+  .tabs{display:flex;gap:4px;flex:1;min-width:0;overflow:hidden;}
+  .tabbtn{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:700;
+    padding:6px 12px;border-radius:var(--r-pill);white-space:nowrap;cursor:pointer;}
+  .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);border-color:var(--brand-yellow);}
+  .topbar .meta{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .topbar .reset{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:4px 10px;border-radius:var(--r-pill);cursor:pointer;}
+  @media (max-width:480px){ .topbar .title{display:none;} }
+
+  /* 필드 */
+  .table{position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;touch-action:none;
+    background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
+  .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
+
+  /* 필드 아래 조작: 신의 선물 / 버리기 */
+  .gift{position:absolute;left:12px;bottom:12px;z-index:2147482000;display:flex;align-items:center;gap:6px;
+    background:var(--brand-yellow);color:var(--on-brand);border:0;font:inherit;font-weight:800;font-size:14px;padding:10px 14px;border-radius:var(--r-pill);box-shadow:var(--sh-md);cursor:pointer;}
+  .gift .icon{width:24px;height:24px;margin:0;}
+  .gift:active{transform:scale(.96);}
+  .trash{position:absolute;right:12px;bottom:12px;z-index:1;width:calc(var(--cw) * 1.2);height:calc(var(--ch) * .9);
+    border:2px dashed var(--hairline);border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:var(--muted);font-size:12px;font-weight:700;gap:2px;pointer-events:none;transition:background .15s,border-color .15s;}
+  .trash .big{font-size:22px;}
+  .trash.hot{border-color:#ff6b6b;background:rgba(255,90,90,.15);color:#ffb3b3;}
+
+  /* 카드 (레거시 모양 그대로) */
+  .cw{
+    position:absolute;width:var(--cw);height:var(--ch);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--cw) * .03);
+    background:linear-gradient(160deg,var(--surface-soft),#191914);
+    border:1px solid var(--hairline);border-radius:var(--r-md);
+    box-shadow:var(--sh-md);cursor:grab;touch-action:none;box-sizing:border-box;
+    --tone:#8E8C82;
+  }
+  .cw::before{content:'';position:absolute;inset:0;border-radius:inherit;background:var(--tone);opacity:.10;pointer-events:none;}
+  .cw .emoji{font-size:calc(var(--cw) * .38);line-height:1;pointer-events:none;}
+  .icon{display:block;width:1.15em;height:1.15em;margin:auto;image-rendering:pixelated;pointer-events:none;-webkit-user-drag:none;}
+  .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
+  .cw .name{color:var(--ink);font-size:calc(var(--cf) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
+  .cw .stats{position:absolute;left:0;right:0;top:calc(var(--cw) * .05);display:flex;justify-content:center;gap:4px;
+    font-size:calc(var(--cf) * .095);font-weight:700;line-height:1;pointer-events:none;}
+  .cw .stats .icon.inline{width:1.1em;height:1.1em;margin:0 1px 0 0;vertical-align:0;}
+  .cw.framed{background:var(--frame) center/100% 100% no-repeat border-box;border-color:transparent;}
+  .cw.framed::before{opacity:0;}
+  .f-gold{--frame:url(images/frame/frame_gold.png);}
+  .f-stone{--frame:url(images/frame/frame_stone.png);}
+  .f-wood{--frame:url(images/frame/frame_wood.png);}
+  .cw.sel{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;}
+  .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);pointer-events:none;}
+  /* 조합 대상 테두리 — 되는 조합 노랑. 끄는 카드가 올라간 대상은 더 강하게 */
+  .cw.is-target{--ring:var(--brand-yellow);--ring-soft:rgba(255,212,0,.45);
+    border-color:var(--ring);box-shadow:0 0 0 2px var(--ring),var(--sh-lg);animation:targetPulse .5s ease-in-out infinite alternate;}
+  .cw.is-target.over{box-shadow:0 0 0 4px var(--ring),var(--sh-lg);animation:none;}
+  @keyframes targetPulse{
+    from{box-shadow:0 0 0 2px var(--ring),var(--sh-md);}
+    to{box-shadow:0 0 0 6px var(--ring-soft),0 0 0 2px var(--ring),var(--sh-lg);}
+  }
+  .cw.spawn{animation:spawn .32s ease-out;}
+  .cw.pop{animation:pop .5s cubic-bezier(.2,1.3,.4,1);}
+  @keyframes pop{from{transform:translate(var(--fx),var(--fy)) scale(.2);opacity:0;}60%{opacity:1;}to{transform:none;opacity:1;}}
+  .cw.bump{animation:bump .3s ease-out;}
+  .cw.fresh::after,.cw.fail::after{content:'';position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--brand-yellow);
+    box-shadow:0 0 6px rgba(255,212,0,.5);pointer-events:none;animation:freshBlink .5s steps(1,end) infinite;}
+  .cw.fail::after{border-color:#ff6b6b;box-shadow:0 0 6px rgba(255,90,90,.55);}
+  @keyframes freshBlink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
+  .cw.gone{animation:gone .3s ease-in forwards;pointer-events:none;}
+  .cw.slide{transition:left .22s ease-out,top .22s ease-out;}
+  @keyframes spawn{from{transform:scale(.4);opacity:0;}to{transform:scale(1);opacity:1;}}
+  @keyframes bump{0%{transform:scale(1);}40%{transform:scale(1.12);}100%{transform:scale(1);}}
+  @keyframes gone{to{transform:scale(.3);opacity:0;}}
+
+  /* 알림 */
+  .toasts{position:fixed;left:0;right:var(--insp-w);z-index:2147483100;top:calc(var(--top-h) + 8px);
+    display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;}
+  .toast{background:rgba(28,28,23,.94);border:1px solid var(--hairline);color:var(--ink);
+    font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--r-pill);white-space:nowrap;animation:toast 2.6s forwards;}
+  @keyframes toast{0%{opacity:0;transform:translateY(-6px);}10%{opacity:1;transform:none;}85%{opacity:1;}100%{opacity:0;}}
+
+  /* 인스펙터 */
+  .insp{position:fixed;z-index:2147482900;background:rgba(22,22,18,.97);box-sizing:border-box;overflow-y:auto;padding:12px 14px;font-size:13px;line-height:1.5;}
+  @media (orientation: landscape){ .insp{right:0;top:var(--top-h);bottom:0;width:var(--insp-w);border-left:1px solid var(--hairline);} }
+  @media (orientation: portrait){ .insp{left:0;right:0;bottom:0;height:var(--insp-h);border-top:1px solid var(--hairline);} }
+  .insp .empty{color:var(--muted);}
+  .insp .head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .insp .head .pic{font-size:34px;line-height:1;}
+  .insp .head .nm{font-size:16px;font-weight:800;}
+  .insp .head .kd{font-size:12px;color:var(--muted);}
+  .insp .desc{color:var(--muted);font-style:italic;margin:2px 0 8px;}
+  .insp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
+  .insp .chip{font-size:11px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--ink);}
+  .insp .sub{font-size:11px;font-weight:800;color:var(--brand-yellow);margin:8px 0 4px;letter-spacing:.02em;}
+  .insp .row{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .insp .i-muted{color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="title">🃏 카드 월드 2</span>
+  <div class="tabs" id="tabs"><button class="tabbtn on" data-tab="craft">🔨 크래프팅</button></div>
+  <span class="meta" id="seenMeta"></span>
+  <button class="reset" id="reset">처음부터</button>
+  <span class="meta" id="ver"></span>
+</div>
+<div class="table" id="table">
+  <div class="hint" id="hint">🎁 <b>신의 선물</b>을 눌러 재료를 받고<br>카드를 끌어 다른 카드에 놓아 조합해 보세요</div>
+  <button class="gift" id="gift"></button>
+  <div class="trash" id="trash"><span class="big">🗑️</span>버리기</div>
+</div>
+<div class="toasts" id="toasts"></div>
+<div class="insp" id="insp"></div>
+<script>
+// ── 레거시 game-card-world v0.147.1에서 복사: 카드 정의 · 설명 · 그림 · 조합식 (수정하면 여기만) ──
+const DEFS = {
+  // v0.58.0: 합칠 수 있음 = 카드 유형(package·quest·container)·캐릭터·크리처·장소·장비 전용(재료로 안 쓰는 무기·방패) 빼고 전부
+  // package = 유형(kind). 카드: 신의 선물(무작위) · 신의 구원(정해진 구호물품)
+  package:   { name:'신의 선물',   kind:'package' },          // v0.51.0: 이름 package → 신의 선물 (id 그대로)
+  salvation: { name:'신의 구원',   kind:'package', fixed:['marrow', 'roastmeat', 'roastberry'] },   // 빈사 기사 구호물품
+  // 보물상자 (v0.98.0): 상자마다 구성이 다름 (A·B·C·D). 던전 끝에 놓여 있고 도달하면 획득
+  treasurea: { name:'보물상자A',  kind:'package', fixed:['dagger', 'bone', 'meat'] },
+  quest:   { name:'quest',     kind:'quest' },
+  knight:    { name:'기사',        kind:'character', tags:['캐릭터', '과묵'], hp:10, startHp:0, startStatus:['빈사'], slots:['무기', '방패'], baseAtk:0, baseDef:0 },
+  // v0.105.0: 첫 던전 클리어 때 던전에서 튀어나옴. 빈사 · 공방체 0. 손질 lv2로 밧줄을 끊으면 건축가가 됨
+  hostage:   { name:'인질',        kind:'character', tags:['캐릭터'], hp:0, baseAtk:0, baseDef:0, startStatus:['빈사'] },
+  architect: { name:'건축가',      kind:'character', tags:['캐릭터', '수다쟁이'], hp:8, baseAtk:0, baseDef:0 },
+  god:       { name:'갓',          kind:'character', tags:['캐릭터', '수다쟁이'], hp:1, immortal:true, baseAtk:0, baseDef:0 },   // v0.88.0: 체력 무한 — 피해를 안 받고 죽지 않음
+  stone:     { name:'돌',          kind:'material', tags:['손질 lv1', '합칠 수 있음'] },   // v0.75.0: 무기 아님 (무기 태그·공격력 1 삭제) — 조합 재료
+  twig:      { name:'나뭇가지',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  grass:     { name:'마른 풀',     kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  flint:     { name:'부싯돌',      kind:'material', tags:['합칠 수 있음'] },
+  bone:      { name:'뼈',          kind:'material', tags:['합칠 수 있음'] },
+  carcass:   { name:'토끼 사체',   kind:'material', tags:['합칠 수 있음'] },       // v0.42.0: 동물 사체 → 토끼 사체 (id 그대로)
+  // 크리처 (v0.47.0): hp 체력, baseAtk 공격력, baseDef 방어, loot 쓰러뜨리면 나오는 전리품
+  // v0.52.0: strike → baseAtk (캐릭터와 같은 공방체)
+  animal:    { name:'토끼',        kind:'creature', tags:['동물'], hops:true, hp:2, baseAtk:1, baseDef:0, loot:['carcass'] },   // v0.68.0: 체력 3 → 2 (뗀석기 공격력 2로 한 방)   // v0.54.0: 전리품은 사체만 (뼈는 해체에서)   // v0.42.0: 동물 → 토끼 (id 그대로)
+  bear:      { name:'곰',          kind:'creature', tags:['동물'], hops:true, hopScale:2, hopMs:560, hopAnim:'run', hp:10, baseAtk:3, baseDef:0, loot:['bearcarcass'] },   // 토끼보다 2배 멀리, 우다다다
+  goblin:    { name:'고블린',      kind:'creature', tags:[], hp:9, baseAtk:5, baseDef:0, loot:[] },   // v0.91.0: 던전 크리처 (월드에 안 돌아다님)
+  bearcarcass:{ name:'곰 사체',    kind:'material', tags:['합칠 수 있음'] },
+  shell:     { name:'조개',  kind:'material', tags:['합칠 수 있음'] },
+  berry:     { name:'열매',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastberry' },
+  handaxe:   { name:'뗀석기',      kind:'tool', tags:['손질 lv2', '무기'], atk:2 },
+  marrow:    { name:'골수',        kind:'food', tags:['먹을 수 있음', '빈사 치유', '합칠 수 있음'] },   // v0.55.0: 합칠 수 있음 추가
+  clam:      { name:'조갯살',      kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastclam' },
+  // v0.49.0: 크기 (소)·(중) 없앰 — 같은 아이템을 타입으로 늘리지 않고 수량으로 (곰 해체 = 고기 2 · 가죽 2)
+  meat:      { name:'고기',        kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastmeat' },
+  hide:      { name:'가죽',        kind:'material', tags:['합칠 수 있음'] },
+  tinder:    { name:'불쏘시개',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  bedding:   { name:'풀 깔개',     kind:'material', tags:['불에 타는', '장소', '체력 회복 lv1'], capacity:1 },
+  ember:     { name:'불씨',        kind:'fire', tags:['합칠 수 있음'] },
+  campfire:  { name:'모닥불',      kind:'fire', tags:['불', '장소', '체력 회복 lv1'], capacity:3 },
+  ash:       { name:'재',          kind:'material', tags:['합칠 수 있음'] },
+  hilt:      { name:'부러진 중검',   kind:'tool', tags:['무기'], atk:3 },   // v0.101.0: 이름 부러진 칼자루 → 부러진 중검 (id·아이콘 그대로)
+  // 단검 (v0.98.0): 강화 가능 — 같은 강화 레벨끼리 합치면 레벨 +1, 공격력도 +1 (카드 종류는 안 늘어남. 카드에 붙는 값)
+  dagger:    { name:'단검',        kind:'tool', tags:['무기', '손질 lv2', '강화 가능'], atk:1 },   // v0.103.0: 손질 lv2 (해체·가죽 손질 가능)
+  plank:     { name:'나무방패',    kind:'tool', tags:['방패', '불에 타는'], defense:1 },   // v0.133.0: 나무판 → 나무방패 (나무판자와 헷갈리지 않게)
+  tannedhide:{ name:'손질된 가죽', kind:'material', tags:['합칠 수 있음'] },
+  sack:      { name:'부실한 자루', kind:'container', tags:['도구'], hold:5 },     // container: 한 종류만, 5장까지. v0.74.0: 도구
+  // 산 (생산시설): v0.134.0 방문 인원으로 게이지 → 다 차면 가중치대로 하나 (나무 7 · 토끼 2 · 곰 1 = 토끼 1/5, 곰 1/10)
+  mountain:  { name:'산',          kind:'place', tags:['장소'], capacity:1, yields:[[['tree', 'stone'], 7], ['animal', 2], ['bear', 1]], yieldNeed:10, gauge:'people' },   // v0.51.0: 나무 + 돌 함께
+  // 신의 입 (v0.64.0): 장소지만 방문 못 함. 캐릭터·장소·quest 빼고 전부 먹음, 최근 devour장 기록 → 기록에서 아무거나 꺼냄
+  godmouth:  { name:'신의 입',     kind:'place', tags:['장소'], devour:3 },
+  // 강가 (v0.71.0): 산에서 전리품 10번 → 갓이 줌. 게이지는 방문 인원 기반 (gauge:'people') — 공격력 0인 갓도 일함
+  // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
+  // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
+  // v0.105.0: 건축가의 첫 quest 보상 (생산시설). v0.134.0: 방문 인원으로 게이지 10 → 나무 1개를 끌어와 나무판자 + 톱밥
+  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1, gauge:'people', mill:{ from:'tree', out:['lumber', 'sawdust'], need:10, max:10 } },   // v0.143.0: 나무 등록 최대 10
+  lumber:    { name:'나무판자',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },   // v0.133.0: 목공 재료 (긴 나무판)
+  sawdust:   { name:'톱밥',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  workbench: { name:'조합소',      kind:'place', tags:['장소'], bench:true },   // v0.133.0: 건축가의 두 번째 quest 보상 — 만들어 본 아이템의 재료를 펼쳐 줌. v0.138.0: 조합대 → 조합소, 장소
+  dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
+  river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2], ['squidcarcass', 3]], yieldNeed:10, gauge:'people' },   // v0.125.0: 오징어 사체 추가
+  // v0.125.0: 모험가와 지도
+  explorer:  { name:'모험가',      kind:'character', tags:['캐릭터', '수다쟁이'], hp:8, baseAtk:1, baseDef:0 },
+  squidcarcass:{ name:'오징어 사체', kind:'material', tags:['합칠 수 있음'] },
+  ink:       { name:'먹물',        kind:'material', tags:['합칠 수 있음'] },
+  squidmeat: { name:'오징어살',    kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastsquid' },
+  roastsquid:{ name:'구운 오징어살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  map:       { name:'지도',        kind:'map', tags:['도구'], register:3 },   // v0.137.0: 도구 태그 (콜렉터북 도구 탭, 신의 입 빨아들이기 제외)   // 장소를 쌓으면 등록되어 오른쪽에 나열
+  tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
+  roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+  roastberry:{ name:'구운 열매',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
+};
+// 카드 설명 — 인스펙터 이름 아래 (v0.66.0). 익살스럽고 재치 있게. 새 카드를 만들면 여기에도
+const DESC = {
+  package:    '뭐가 들었는지는 신도 모름. 포장만 신이 했다.',
+  salvation:  '불쌍해서 주는 거다. 고맙다는 말은 기대 안 함.',
+  quest:      '누군가의 부탁. 거절 버튼은 없다.',
+  knight:     '말수가 적다. 적은 게 아니라 거의 없다.',
+  god:        '신… 비슷한 것. 체력도 말발도 무한.',
+  stone:      '깨고, 두드리고, 서로 부딪힌다. 휘두르기엔 좀 모자란 인류 최초의 재료.',
+  twig:       '불 앞에선 연료, 기사 손에선 희망사항.',
+  grass:      '바삭바삭. 불씨가 제일 좋아하는 간식.',
+  flint:      '돌이랑 부딪히면 성질을 낸다. 그 성질이 곧 불이다.',
+  bone:       '누군가의 과거. 깨 보면 누군가의 저녁.',
+  carcass:    '더 이상 뛰지 않는다. 손질하면 저녁이 된다.',
+  animal:     '귀엽다. 잡히기 싫어서 쉬지 않고 뛴다.',
+  bear:       '크고, 빠르고, 배고프다. 셋 다 기사에게 나쁜 소식.',
+  bearcarcass:'누가 이겼는지 증명하는 카드. 증거치곤 무겁다.',
+  shell:      '입을 꾹 다물었다. 돌로 설득하면 연다.',
+  berry:      '그냥 먹어도 된다. 구우면 더 맛있다는 건 비밀도 아니다.',
+  handaxe:    '돌 두 개가 싸운 결과. 이긴 쪽이 날카로워졌다.',
+  marrow:     '뼛속까지 영양가. 다 죽어가던 기사도 벌떡.',
+  clam:       '조개가 끝까지 지키던 것. 결국 뺏겼다.',
+  meat:       '날것이다. 용감하면 그냥, 현명하면 구워서.',
+  hide:       '아직 냄새난다. 손질하면 조금 덜 난다.',
+  tinder:     '불붙기만 기다리는 성격 급한 뭉치.',
+  bedding:    '침대라고 부르기엔 양심에 찔린다. 그래도 눕긴 좋다.',
+  ember:      '몸집은 작아도 꿈은 모닥불.',
+  campfire:   '따뜻하고, 멍때리기 좋다. 갓의 최애 장소.',
+  ash:        '한때 뭔가였다. 지금은 아무 쓸모 없음… 아직은.',
+  hilt:       '칼날은 어디 갔는지 모른다. 그래도 뗀석기보다 세다.',
+  dagger:     '짧지만 날은 제대로다. 같은 것끼리 겹치면 더 날카로워진다.',
+  hostage:    '누군지 모른다. 밧줄부터 끊고 볼 일이다.',
+  architect:  '묶여 있을 때도 천장 구조를 보고 있었다고 한다.',
+  sawmill:    '나무를 나무답게 만드는 곳. 건축가의 첫 작품.',
+  lumber:     '곧게 켜야 뭐든 세운다. 건축가가 제일 좋아하는 모양.',
+  sawdust:    '켜고 남은 가루. 버리기엔 잘 탄다.',
+  workbench:  '한 번 만들어 본 건 손이 기억한다. 조합소는 그 기억을 적어 둔다.',
+  treasurea:  '고블린이 아끼던 상자. 이제 주인이 바뀌었다.',
+  plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
+  tannedhide: '냄새가 빠졌다. 거의.',
+  sack:       '구멍이 하나 있다. 다섯 장까지만 믿어라.',
+  mountain:   '기사가 두드리면 뭔가 굴러 나온다. 가끔은 곰도.',
+  godmouth:   '신이 그저 배를 채우기 위한 입, 아무것도 없다.',
+  river:      '물은 흐르고 조개는 기다린다. 여기선 갓도 한몫한다.',
+  explorer:   '지도에 없는 곳이 있으면 일단 간다. 겁이 없는 게 아니라 궁금한 거다.',
+  squidcarcass:'먹물을 다 쓰지도 못하고 잡혔다.',
+  ink:        '글씨도 되고 그림도 된다. 손에 묻으면 한참 간다.',
+  squidmeat:  '질깃하다. 불에 올리면 사정이 달라진다.',
+  roastsquid: '불 맛을 안 오징어. 강가의 자랑.',
+  map:        '가본 곳만 적힌다. 그래서 자꾸 나가게 된다.',
+  dungeon:    '컴컴하고 길다. 안쪽에서 뭔가 낄낄대는 소리가 난다.',
+  goblin:     '작고, 빠르고, 창을 들었다. 셋 다 기사에게 나쁜 소식.',
+  tree:       '산이 순순히 내준 통나무. 기사 팔은 순순하지 않았다.',
+  roastmeat:  '문명의 냄새가 난다.',
+  roastclam:  '조개의 마지막 저항도 불 앞에선 무너졌다.',
+  roastberry: '달아졌다. 구운 사람의 자부심도 같이.',
+};
+
+// 카드 그림: images/icon/card_<id>.png (v0.35.0: 모든 카드, 이모지 없음)
+function iconHtml(t, inline){
+  const d = DEFS[t];
+  return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
+}
+// 글자 줄(조합식·진행·보상·알림) 안의 카드 그림 자리표
+//   ic(t) 로 넣고, 화면에 찍을 땐 rich() → 그림, 복사용 글자는 plain() → 지움
+// 카드 프레임: 캐릭터 금색, 장소 회색 돌무늬, 나머지 수수한 나무 (v0.36.0)
+const frameOf = d => d.kind === 'character' ? 'gold' : tagLevel(d, '장소') ? 'stone' : 'wood';
+// v0.52.0: 캐릭터·크리처는 모두 공격·방어·체력을 가짐 (0이어도 카드에 표시)
+const fighter = d => d.kind === 'character' || d.kind === 'creature';
+// v0.88.0: 체력 표시 — 죽지 않는 카드(갓)는 ∞
+const hpText = c => DEFS[c.type].immortal ? '∞' : `${c.hp}/${DEFS[c.type].hp}`;
+// 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
+const PORTRAITS = new Set(['architect', 'hostage', 'explorer', 'knight', 'god', 'animal', 'bear', 'goblin',
+  'mountain', 'campfire', 'bedding', 'godmouth', 'dungeon', 'river', 'workbench', 'sawmill']);   // v0.143.2: 제재소   // v0.138.0: 조합소   // v0.98.0: 장소 6종   // v0.91.0: 고블린
+const ICON_TOKEN = /⟦(\w+)⟧/g;
+const ic = t => `⟦${t}⟧`;
+// v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
+const STAT_NAME = { atk:'공격', def:'방어', hp:'체력', people:'인원' };   // v0.71.0: 인원 (이모지 👤 대신)
+const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
+const si = k => `⟦s_${k}⟧`;                       // 글자 줄 안의 자리표 (rich → 그림, plain → 지움)
+const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
+// v0.111.0: 이미 만든 HTML 안의 자리표만 그림으로 (이스케이프하지 않음)
+const richRaw = s => String(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
+const plain = s => String(s).replace(ICON_TOKEN, '').replace(/ {2,}/g, ' ').trim();
+
+// 2장 조합
+//   각 쪽은 { card:'카드' } 또는 { tag:'태그', lv:최소 레벨 }
+//   레벨 태그("손질 lv2")는 요구 레벨 이상이면 맞음 — 상위 도구는 하위 손질도 함
+//   keep: 'a' / 'b' = 조합해도 남는 쪽
+//   조합끼리 겹치면 안 됨 → 겹치면 제작자 알림 (validateRecipes)
+const RECIPES = [
+  { id:'handaxe',  a:{ card:'stone' },      b:{ card:'stone' },    out:['handaxe'] },
+  { id:'ember',    a:{ card:'stone' },      b:{ card:'flint' },    out:['ember'], keep:'a' },
+  { id:'marrow',   a:{ tag:'손질', lv:1 },  b:{ card:'bone' },     out:['marrow'], keep:'a' },
+  { id:'clam',     a:{ tag:'손질', lv:1 },  b:{ card:'shell' },    out:['clam'], keep:'a' },
+  // v0.54.0: 뼈는 크리처 전리품이 아니라 사체 해체에서 나옴
+  { id:'butcher',  a:{ tag:'손질', lv:2 },  b:{ card:'carcass' },  out:['meat', 'hide', 'bone'], keep:'a' },
+  { id:'butcher2', a:{ tag:'손질', lv:2 },  b:{ card:'bearcarcass' }, out:['meat', 'meat', 'hide', 'hide', 'bone'], keep:'a' },   // 곰 고기·가죽 = 토끼의 두 배, 뼈 1
+  // v0.47.0: 사냥 조합(공격력 1 이상 + 토끼) 없앰 → 크리처 규칙 (무기로 한 방 / 대결)
+  // v0.69.0: 뾰족한 막대(손질 lv2 + 나뭇가지) 조합 없앰 — 어떤 quest에도 안 쓰임
+  { id:'tinder',   a:{ card:'grass' },      b:{ card:'twig' },     out:['tinder'] },
+  { id:'plank',    a:{ card:'twig' },       b:{ card:'twig' },     out:['plank'] },
+  { id:'bedding',  a:{ card:'grass' },      b:{ card:'grass' },    out:['bedding'] },
+  { id:'campfire', a:{ card:'ember' },      b:{ card:'tinder' },   out:['campfire'] },
+  { id:'tan',      a:{ tag:'손질', lv:2 },  b:{ card:'hide' },     out:['tannedhide'], keep:'a' },
+  { id:'squid',    a:{ tag:'손질', lv:2 },  b:{ card:'squidcarcass' }, out:['ink', 'squidmeat'], keep:'a' },   // v0.125.0: 오징어 손질 → 먹물·오징어살
+  { id:'mapmake',  a:{ card:'tannedhide' }, b:{ card:'ink' },      out:['map'] },                              // v0.125.0: 손질된 가죽 + 먹물 = 지도
+  { id:'freeman',  a:{ tag:'손질', lv:2 },  b:{ card:'hostage' },  out:['architect'], keep:'a' },   // v0.105.0: 밧줄을 끊으면 건축가
+  { id:'sack',     a:{ card:'tannedhide' }, b:{ card:'tannedhide' }, out:['sack'] },
+  { id:'cook',     a:{ tag:'불' },          b:{ tag:'날것' },      cook:true, keep:'a' },
+  { id:'burn',     a:{ tag:'불' },          b:{ tag:'불에 타는' }, out:['ash'], burn:true, keep:'a' },
+];
+const RECIPE_BY_ID = new Map(RECIPES.map(r => [r.id, r]));
+// "조합 가능" 태그: 결과가 나오는 조합에 들어갈 수 있는 카드. 없으면 최후의 카드
+let COMBOABLE = new Set();
+
+function tagLevel(def, name){
+  let lv = 0;
+  for (const t of (def.tags || [])){
+    if (t === name) lv = Math.max(lv, 1);
+    else if (t.startsWith(name + ' lv')){
+      const n = parseInt(t.slice(name.length + 3), 10);
+      if (n > lv) lv = n;
+    }
+  }
+  return lv;
+}
+// 조합 한쪽: { card } 카드 / { tag, lv } 태그 레벨 / { atk } 공격력 이상
+const sideMatch = (side, type) => side.card ? side.card === type
+  : side.atk ? (DEFS[type].atk || 0) >= side.atk
+  : tagLevel(DEFS[type], side.tag) >= (side.lv || 1);
+// x, y 두 카드에 맞는 조합 전부. aIsX = x가 a쪽
+function recipesFor(x, y){
+  const out = [];
+  for (const r of RECIPES){
+    if (sideMatch(r.a, x) && sideMatch(r.b, y)) out.push({ r, aIsX: true });
+    else if (sideMatch(r.a, y) && sideMatch(r.b, x)) out.push({ r, aIsX: false });
+  }
+  return out;
+}
+function usableRecipes(x, y){
+  return recipesFor(x, y).filter(m => {
+    const a = m.aIsX ? x : y, b = m.aIsX ? y : x;
+    if (m.r.cook && !DEFS[b].cooked) return false;
+    // 장소는 파괴되지 않음 → 장소가 없어지는 조합은 안 됨 (예: 모닥불 + 풀 깔개 태우기)
+    if (m.r.keep !== 'a' && tagLevel(DEFS[a], '장소')) return false;
+    if (m.r.keep !== 'b' && tagLevel(DEFS[b], '장소')) return false;
+    return true;
+  });
+}
+function sideText(sd){
+  if (sd.atk) return `${si('atk')} 공격력 ${sd.atk} 이상`;
+  return sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+}
+function outText(r){
+  if (r.burn) return `${ic('ash')} 재 (태우기)`;
+  if (r.cook) return '익힘 (날것이 익은 것으로)';
+  const counts = new Map();
+  for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
+  return [...counts].map(([o, n]) => ic(o) + ' ' + DEFS[o].name + (n > 1 ? ` ×${n}` : '')).join(', ');   // 같은 카드 여러 장 = ×N
+}
+const recipeText = r => `${sideText(r.a)} + ${sideText(r.b)} → ${outText(r)}`;
+
+// ── 공용 도우미 ───────────────────────────────────────
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
+
+// ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
+const VERSION = 'v0.1.0';
+const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
+// 크래프팅 탭에 올라오는 카드 종류 — 캐릭터·크리처·장소·quest·package는 다른 탭 몫
+const CRAFT_KINDS = new Set(['material', 'food', 'tool', 'fire', 'container', 'map']);
+const craftable = t => !!DEFS[t] && CRAFT_KINDS.has(DEFS[t].kind);
+const CRAFT_TYPES = Object.keys(DEFS).filter(craftable);
+// 크래프팅 탭에서 쓸 수 있는 조합식: 양쪽 다 크래프팅 카드로 채울 수 있고, 결과도 크래프팅 카드
+const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.some(t => sideMatch(sd, t)))
+  && (r.out || []).every(craftable));
+// 신의 선물 풀 — 레거시 POOL에서 토끼(크리처) 빼고, 사냥·산·강가 대신 사체·나무를 넣음 (판단)
+const GIFT_DRAW = 5;
+const GIFT_POOL = [
+  ['stone', 18], ['berry', 18], ['twig', 16], ['grass', 14],
+  ['bone', 12], ['shell', 12], ['flint', 4],
+  ['carcass', 5], ['tree', 6], ['squidcarcass', 3],
+];
+function drawGift(n){
+  const total = GIFT_POOL.reduce((s, [, w]) => s + w, 0);
+  const out = [];
+  for (let i = 0; i < n; i++){
+    let r = Math.random() * total;
+    for (const [t, w] of GIFT_POOL){ r -= w; if (r < 0){ out.push(t); break; } }
+  }
+  return out;
+}
+const SPAWN_CAP = 3;                                            // 월드 최대 생성 개수 (레거시 v0.144.0 값)
+const KIND_NAME = { material:'재료', food:'음식', tool:'도구', fire:'불', container:'container', map:'지도' };
+
+const table = document.getElementById('table');
+const inspEl = document.getElementById('insp');
+let CW = 70, CH = 95;
+let S = load() || fresh();
+const els = new Map();
+let selected = null;
+
+function fresh(){ return { cards: [], seen: [], nextId: 1 }; }
+function load(){
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!s || !Array.isArray(s.cards)) return null;
+    s.cards = s.cards.filter(c => craftable(c.type));
+    s.seen = (s.seen || []).filter(t => DEFS[t]);
+    return s;
+  } catch (e){ return null; }
+}
+function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+const byId = id => S.cards.find(c => c.id === id);
+const looseCount = type => S.cards.filter(c => c.type === type).length;
+
+function measure(){
+  const m = Math.min(innerWidth, innerHeight);
+  CW = Math.round(Math.max(57, Math.min(87, m / 7.375)));
+  CH = Math.round(CW * 1.36);
+  table.style.setProperty('--cw', CW + 'px');
+  table.style.setProperty('--cf', (CW / 0.7 * 0.8) + 'px');
+  table.style.setProperty('--ch', CH + 'px');
+}
+const bounds = () => ({ w: table.clientWidth, h: table.clientHeight });
+function clampPos(x, y){
+  const { w, h } = bounds();
+  return { x: Math.max(4, Math.min(w - CW - 4, x)), y: Math.max(4, Math.min(h - CH - 4, y)) };
+}
+// 빈 자리 찾기 — (x, y) 둘레를 나선으로
+function findSpot(x, y, skip){
+  const step = CW * 1.05;
+  for (let r = 0; r < 10; r++){
+    const n = r === 0 ? 1 : r * 6;
+    for (let i = 0; i < n; i++){
+      const ang = (i / n) * Math.PI * 2 + r * 0.5;
+      const p = clampPos(x + Math.cos(ang) * step * r, y + Math.sin(ang) * step * r * 1.1);
+      if (S.cards.every(o => o.id === skip || Math.abs(o.x - p.x) > CW * 0.8 || Math.abs(o.y - p.y) > CH * 0.7)) return p;
+    }
+  }
+  return clampPos(x + (Math.random() - 0.5) * CW, y + (Math.random() - 0.5) * CH);
+}
+
+// ── 카드 그리기 ─────────────────────────────────────
+function cardHtml(c){
+  const d = DEFS[c.type];
+  let html = '';
+  if (d.atk || d.defense){
+    html += '<div class="stats">'
+      + (d.atk ? `<span>${statImg('atk')}${d.atk}</span>` : '')
+      + (d.defense ? `<span>${statImg('def')}${d.defense}</span>` : '')
+      + '</div>';
+  }
+  return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`;
+}
+function mount(c, anim, from){
+  const el = document.createElement('div');
+  el.className = `cw framed f-${frameOf(DEFS[c.type])}`;
+  el.dataset.id = c.id;
+  el.innerHTML = cardHtml(c);
+  place(el, c);
+  table.appendChild(el);
+  els.set(c.id, el);
+  if (anim === 'pop' && from){
+    el.style.setProperty('--fx', (from.x - c.x) + 'px');
+    el.style.setProperty('--fy', (from.y - c.y) + 'px');
+  }
+  if (anim) flash(el, anim, anim === 'pop' ? 500 : 320);
+  return el;
+}
+const place = (el, c) => { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; };
+function flash(el, cls, ms){
+  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  setTimeout(() => el.classList.remove(cls), ms);
+}
+function renderAll(){
+  for (const el of els.values()) el.remove();
+  els.clear();
+  for (const c of S.cards){
+    const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y;
+    mount(c);
+  }
+  renderMeta();
+  renderInsp();
+}
+function renderMeta(){
+  const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
+  document.getElementById('seenMeta').textContent = `발견 ${found}/${CRAFT_TYPES.length}`;
+  document.getElementById('hint').hidden = S.cards.length > 0;
+}
+
+// ── 알림 ────────────────────────────────────────────
+function toast(s){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = rich(s);
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 2700);
+}
+
+// ── 카드 추가 / 제거 ─────────────────────────────────
+function addCard(type, x, y, anim, from){
+  const p = findSpot(x, y);
+  const c = { id: S.nextId++, type, x: p.x, y: p.y };
+  S.cards.push(c);
+  mount(c, anim, from);
+  if (!S.seen.includes(type)){
+    S.seen.push(type);
+    toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
+    const el = els.get(c.id);
+    el.classList.add('fresh');
+    setTimeout(() => el.classList.remove('fresh'), 3000);
+  }
+  return c;
+}
+function removeCard(id){
+  S.cards = S.cards.filter(c => c.id !== id);
+  const el = els.get(id);
+  els.delete(id);
+  if (el){ el.classList.add('gone'); setTimeout(() => el.remove(), 300); }
+  if (selected === id) selected = null;
+}
+// 여러 장 생성 — 상한까지 채우고, 빠진 것만 한 번에 '누락:' 알림. 실제로 나온 장 수를 돌려줌
+function spawnMany(types, x, y, from){
+  const made = [], miss = new Map();
+  for (const t of types){
+    if (looseCount(t) < SPAWN_CAP) made.push(addCard(t, x, y, 'pop', from));
+    else miss.set(t, (miss.get(t) || 0) + 1);
+  }
+  if (miss.size){
+    toast('누락: ' + [...miss].map(([t, n]) => `${ic(t)} ${DEFS[t].name}${n > 1 ? ' ×' + n : ''}`).join(', ') + ` — 월드에 ${SPAWN_CAP}장`);
+  }
+  return made;
+}
+
+// ── 신의 선물 ───────────────────────────────────────
+const giftBtn = document.getElementById('gift');
+giftBtn.innerHTML = `${iconHtml('package')}신의 선물`;
+giftBtn.addEventListener('click', () => {
+  const r = giftBtn.getBoundingClientRect(), tr = table.getBoundingClientRect();
+  const from = { x: r.left - tr.left, y: r.top - tr.top - CH };
+  const { w, h } = bounds();
+  spawnMany(drawGift(GIFT_DRAW), w * 0.5 - CW / 2, h * 0.45 - CH / 2, from);
+  renderMeta(); renderInsp(); save();
+});
+
+// ── 조합 ────────────────────────────────────────────
+// 크래프팅 탭에서 되는 조합 (첫 번째)
+function craftMatch(x, y){
+  return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r)) || null;
+}
+function craft(drag, tgt, m){
+  const r = m.r;
+  const a = m.aIsX ? drag : tgt, b = m.aIsX ? tgt : drag;
+  const outs = r.cook ? [DEFS[b.type].cooked] : r.out.slice();
+  const eaten = r.keep === 'a' ? [b] : r.keep === 'b' ? [a] : [a, b];
+  // 재료가 사라진 뒤로 상한을 셈. 하나도 못 나오면 조합 안 됨
+  const left = t => looseCount(t) - eaten.filter(c => c.type === t).length;
+  if (!outs.some(t => left(t) < SPAWN_CAP)){
+    const t = outs[0];
+    toast(`${ic(t)} ${DEFS[t].name} — 월드에 ${SPAWN_CAP}장 있어서 더 생성되지 않음`);
+    return false;
+  }
+  const from = { x: tgt.x, y: tgt.y };
+  for (const c of eaten) removeCard(c.id);
+  spawnMany(outs, tgt.x, tgt.y, from);
+  const kept = eaten.includes(tgt) ? null : tgt;
+  if (kept && els.get(kept.id)) flash(els.get(kept.id), 'bump', 300);
+  if (!eaten.includes(drag)) nudge(drag);                        // 남는 도구·불은 대상 옆으로 비킴
+  return true;
+}
+function nudge(c){
+  const p = findSpot(c.x, c.y, c.id);
+  c.x = p.x; c.y = p.y;
+  const el = els.get(c.id);
+  if (!el) return;
+  el.classList.add('slide');
+  place(el, c);
+  setTimeout(() => el.classList.remove('slide'), 240);
+}
+
+// ── 끌기 ────────────────────────────────────────────
+let drag = null;
+const trashEl = document.getElementById('trash');
+const overTrash = (px, py) => { const r = trashEl.getBoundingClientRect(); return px >= r.left && px <= r.right && py >= r.top && py <= r.bottom; };
+function cardAt(px, py, skip){
+  const tr = table.getBoundingClientRect();
+  const x = px - tr.left, y = py - tr.top;
+  for (let i = S.cards.length - 1; i >= 0; i--){
+    const c = S.cards[i];
+    if (c.id !== skip && x >= c.x && x <= c.x + CW && y >= c.y && y <= c.y + CH) return c;
+  }
+  return null;
+}
+table.addEventListener('pointerdown', e => {
+  const el = e.target.closest('.cw');
+  if (!el || el.classList.contains('gone')) return;
+  const c = byId(+el.dataset.id);
+  if (!c) return;
+  e.preventDefault();
+  el.setPointerCapture(e.pointerId);
+  drag = { c, el, sx: e.clientX, sy: e.clientY, ox: c.x, oy: c.y, moved: false, over: null };
+});
+table.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!drag.moved){
+    if (Math.hypot(dx, dy) < 6) return;
+    drag.moved = true;
+    drag.el.classList.add('dragging');
+    table.appendChild(drag.el);                                   // 맨 위로
+    S.cards = S.cards.filter(c => c !== drag.c).concat(drag.c);
+    for (const o of S.cards) if (o !== drag.c && craftMatch(drag.c.type, o.type)) els.get(o.id)?.classList.add('is-target');
+  }
+  const p = clampPos(drag.ox + dx, drag.oy + dy);
+  drag.c.x = p.x; drag.c.y = p.y;
+  place(drag.el, drag.c);
+  const over = cardAt(e.clientX, e.clientY, drag.c.id);
+  if (drag.over && drag.over !== over) els.get(drag.over.id)?.classList.remove('over');
+  drag.over = over;
+  if (over) els.get(over.id)?.classList.add('over');
+  trashEl.classList.toggle('hot', overTrash(e.clientX, e.clientY));
+});
+function endDrag(e){
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  d.el.classList.remove('dragging');
+  for (const el of els.values()) el.classList.remove('is-target', 'over');
+  trashEl.classList.remove('hot');
+  if (!d.moved){ select(d.c.id); return; }
+  if (e.type !== 'pointercancel' && overTrash(e.clientX, e.clientY)){
+    removeCard(d.c.id);
+  } else {
+    const tgt = e.type === 'pointercancel' ? null : cardAt(e.clientX, e.clientY, d.c.id);
+    const m = tgt && craftMatch(d.c.type, tgt.type);
+    if (m){
+      if (!craft(d.c, tgt, m)){ flash(d.el, 'fail', 1500); nudge(d.c); }
+    } else if (tgt || S.cards.some(o => o !== d.c && Math.abs(o.x - d.c.x) < CW * 0.5 && Math.abs(o.y - d.c.y) < CH * 0.5)){
+      nudge(d.c);
+    }
+  }
+  renderMeta(); renderInsp(); save();
+}
+table.addEventListener('pointerup', endDrag);
+table.addEventListener('pointercancel', endDrag);
+
+// ── 인스펙터 ────────────────────────────────────────
+const UNK = '<span class="i-muted">???</span>';
+function select(id){
+  if (selected != null) els.get(selected)?.classList.remove('sel');
+  selected = id;
+  els.get(id)?.classList.add('sel');
+  renderInsp();
+}
+// 조합식 한 쪽이 가리키는 결과 — 발견 전이면 ???
+function outHtml(r, t){
+  if (r.cook){
+    if (DEFS[t].cooked) return S.seen.includes(DEFS[t].cooked) ? rich(`${ic(DEFS[t].cooked)} ${DEFS[DEFS[t].cooked].name}`) : UNK;
+    return '익힘 (날것이 익은 것으로)';
+  }
+  return r.out.every(o => S.seen.includes(o)) ? rich(outText(r)) : UNK;
+}
+function renderInsp(){
+  const c = selected != null && byId(selected);
+  if (!c){
+    inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
+      + `크래프팅 탭 — 카드를 끌어 다른 카드에 놓으면 조합.<br>같은 카드는 월드에 ${SPAWN_CAP}장까지.</div>`;
+    return;
+  }
+  const t = c.type, d = DEFS[t];
+  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${KIND_NAME[d.kind] || d.kind} · 월드 ${looseCount(t)}/${SPAWN_CAP}</div></div></div>`;
+  if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
+  const tags = (d.tags || []).slice();
+  if (d.atk) tags.push(`공격력 ${d.atk}`);
+  if (d.defense) tags.push(`방어 ${d.defense}`);
+  if (tags.length) h += '<div class="chips">' + tags.map(x => `<span class="chip">${esc(x)}</span>`).join('') + '</div>';
+  // 쓰이는 조합 — 이 카드가 들어가는 쪽의 반대편 + 결과
+  const uses = [];
+  for (const r of CRAFT_RECIPES){
+    for (const [mine, other] of [[r.a, r.b], [r.b, r.a]]){
+      if (!sideMatch(mine, t)) continue;
+      if (r.cook && mine.tag === '날것' && !d.cooked) continue;
+      const keep = (r.keep === 'a' && mine === r.a) || (r.keep === 'b' && mine === r.b);
+      uses.push(`<div class="row">+ ${rich(sideText(other))} → ${outHtml(r, t)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
+      break;
+    }
+  }
+  h += '<div class="sub">쓰이는 조합</div>' + (uses.length ? uses.join('') : '<div class="i-muted">없음</div>');
+  // 만드는 법 — 발견한 카드만
+  const makes = CRAFT_RECIPES.filter(r => r.cook ? CRAFT_TYPES.some(x => DEFS[x].cooked === t) : (r.out || []).includes(t));
+  if (makes.length){
+    h += '<div class="sub">만드는 법</div>' + makes.map(r => {
+      if (r.cook){
+        const raw = CRAFT_TYPES.find(x => DEFS[x].cooked === t);
+        return `<div class="row">${rich(sideText(r.a))} + ${rich(`${ic(raw)} ${DEFS[raw].name}`)}</div>`;
+      }
+      return `<div class="row">${rich(sideText(r.a))} + ${rich(sideText(r.b))}</div>`;
+    }).join('');
+  }
+  inspEl.innerHTML = h;
+}
+
+// ── 시작 ────────────────────────────────────────────
+document.getElementById('ver').textContent = VERSION;
+document.getElementById('reset').addEventListener('click', () => {
+  if (!confirm('처음부터 다시 시작할까요?')) return;
+  S = fresh(); selected = null; renderAll(); save();
+});
+addEventListener('resize', () => { measure(); renderAll(); });
+measure();
+renderAll();
+</script>
+</body>
+</html>
