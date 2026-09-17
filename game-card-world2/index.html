@@ -68,6 +68,9 @@
   .f-stone{--frame:url(images/frame/frame_stone.png);}
   .f-wood{--frame:url(images/frame/frame_wood.png);}
   .cw.sel{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;}
+  /* v0.1.1: 끌기 시작하면 조합 안 되는 카드는 흐려짐 (레거시 '흐려짐' = 어둡고 저채도) */
+  .cw{transition:filter .2s;}
+  .cw.dim{filter:brightness(.42) saturate(.3);}
   .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);pointer-events:none;}
   /* 조합 대상 테두리 — 되는 조합 노랑. 끄는 카드가 올라간 대상은 더 강하게 */
   .cw.is-target{--ring:var(--brand-yellow);--ring-soft:rgba(255,212,0,.45);
@@ -369,7 +372,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.1.0';
+const VERSION = 'v0.1.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 종류 — 캐릭터·크리처·장소·quest·package는 다른 탭 몫
 const CRAFT_KINDS = new Set(['material', 'food', 'tool', 'fire', 'container', 'map']);
@@ -614,7 +617,7 @@ table.addEventListener('pointermove', e => {
     drag.el.classList.add('dragging');
     table.appendChild(drag.el);                                   // 맨 위로
     S.cards = S.cards.filter(c => c !== drag.c).concat(drag.c);
-    for (const o of S.cards) if (o !== drag.c && craftMatch(drag.c.type, o.type)) els.get(o.id)?.classList.add('is-target');
+    for (const o of S.cards) if (o !== drag.c) els.get(o.id)?.classList.add(craftMatch(drag.c.type, o.type) ? 'is-target' : 'dim');   // v0.1.1: 안 되면 흐려짐
   }
   const p = clampPos(drag.ox + dx, drag.oy + dy);
   drag.c.x = p.x; drag.c.y = p.y;
@@ -630,7 +633,7 @@ function endDrag(e){
   const d = drag;
   drag = null;
   d.el.classList.remove('dragging');
-  for (const el of els.values()) el.classList.remove('is-target', 'over');
+  for (const el of els.values()) el.classList.remove('is-target', 'over', 'dim');
   trashEl.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
   if (e.type !== 'pointercancel' && overTrash(e.clientX, e.clientY)){
