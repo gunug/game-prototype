@@ -89,6 +89,8 @@
   .god-speech[hidden]{display:none;}
   @keyframes speechIn{from{opacity:0;transform:translateY(4px) scale(.96);}to{opacity:1;transform:none;}}
   /* 갓 파워로 풀리는 자물쇠 */
+  .gather .cw.field.unlock-bump{animation:unlockBump .3s ease-out;}   /* v0.10.1: 채집 튐(1.12배)의 절반 */
+  @keyframes unlockBump{0%{transform:scale(1);}40%{transform:scale(1.06);}100%{transform:scale(1);}}
   .gather .cw.field .lock.unlocking{animation:unlockOut .6s ease-in forwards;}
   @keyframes unlockOut{0%{transform:translate(-50%,-50%) scale(1);}30%{transform:translate(-50%,-50%) scale(1.25) rotate(-12deg);opacity:1;}100%{transform:translate(-50%,-110%) scale(.6) rotate(8deg);opacity:0;}}
   .quest.q-new{animation:questIn .5s ease-out;}
@@ -407,7 +409,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.10.0';
+const VERSION = 'v0.10.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1155,21 +1157,21 @@ function runGodIntro(){
     { text: GOD_LINES.quest, done: () => giveQuest('gather') },
   ]);
 }
+// v0.10.1: 여러 곳을 한 번에 — 필드마다 따로 다시 그리면 뒤에 그린 게 앞 필드의 튐을 지워 마지막 필드만 튀었음
 function unlockFields(ids){
-  for (const id of ids){
-    if (!S.fields[id].locked) continue;
-    const el = gatherEl.querySelector(`[data-field="${id}"]`);
-    el?.querySelector('.lock')?.classList.add('unlocking');       // 자물쇠가 튀어 오르며 사라짐
-    setTimeout(() => {
-      S.fields[id].locked = false;
-      S.fields[id].left = FIELD_MAX; S.fields[id].prog = 0;
-      renderGather();
-      const nel = gatherEl.querySelector(`[data-field="${id}"]`);
-      if (nel) flash(nel, 'tap', 300);
-      if (fieldPick === id) renderInsp();
-      save();
-    }, 600);
-  }
+  ids = ids.filter(id => S.fields[id].locked);
+  if (!ids.length) return;
+  for (const id of ids) gatherEl.querySelector(`[data-field="${id}"] .lock`)?.classList.add('unlocking');   // 자물쇠가 튀어 오르며 사라짐
+  setTimeout(() => {
+    for (const id of ids){ S.fields[id].locked = false; S.fields[id].left = FIELD_MAX; S.fields[id].prog = 0; }
+    renderGather();                                               // 한 번만 그리고
+    for (const id of ids){                                        // 열린 필드 모두 톡 튐
+      const el = gatherEl.querySelector(`[data-field="${id}"]`);
+      if (el) flash(el, 'unlock-bump', 300);
+    }
+    if (ids.includes(fieldPick)) renderInsp();
+    save();
+  }, 600);
 }
 function giveQuest(id){
   S.quest = { ...freshQuest(), id };
