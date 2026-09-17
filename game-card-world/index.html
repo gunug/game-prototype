@@ -161,6 +161,7 @@
   /* 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄 */
   .cw.has-eaten{padding-bottom:calc(var(--ch) * .25);}
   .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
+  .cw .eaten .mini[data-eat]{cursor:pointer;}   /* v0.141.0: 탭해서 되돌리기 */
   .cw .eaten .mini{width:calc(var(--cw) * .27);height:calc(var(--cw) * .32);margin:0;border-radius:4px;font-size:calc(var(--cw) * .17);}
   .cw .eaten .mini.empty{background:rgba(0,0,0,.3);border:1px dashed rgba(255,255,255,.2);box-shadow:none;cursor:default;pointer-events:none;}
   /* v0.65.0: 새 기록이 들어오면 기록 칸이 한 칸씩 밀림 / 밀려난 카드는 입 그림 쪽으로 돌며 작아짐 (삼킴) */
@@ -483,7 +484,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.140.1';
+const VERSION = 'v0.141.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -756,7 +757,7 @@ const LINES = {
   riverGo:        '위대한 사명을 내린다. 흐르는 물 앞에 서라. …그리고 조개나 주워 와.',   // v0.109.0: 강가가 나온 뒤 (웅장하게 시작해서 힘빠지게)
   sleepGift:      '잘 잤어? 선물은 내가 준비했어. 신한테 고마워해.',   // v0.106.0: 잠이 보약 보상을 갓이 줌 (생색)
   godMouth:       '필요 없는 건 나한테 줘. 먹어치울게. 대신 안 돌려줘',   // v0.84.0: 카드 30장이 넘으면
-  mouthWarn:      '꿀꺽. 먹은 건 안 돌려줘, 신중히 골라.',   // v0.136.0: 넣자마자 삼킴
+  mouthWarn:      '기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해',   // v0.141.0: 되돌리기 3회 복구
   river:          '산만 두드리니 지겹지? 갓 파워! 강가도 줄게',
   dungeon:        '물장난은 그만. 저기 컴컴한 굴을 하나 파놨어. 끝까지 걸어가 봐',   // v0.87.0: 강 채집 quest 완료   // v0.73.0: 산 채집 quest 완료
   mouthPurge:     '신중히 선택해, 되돌릴수 없어. 나야 배부르겠지만',   // v0.67.0: 신의 입 붉은 택
@@ -1034,6 +1035,7 @@ function paint(el, c){
   if (fighter(d)) cls += ' has-corner';
   else if (d.capacity || d.yields || d.devour || d.kind === 'map') cls += ' has-top';
   if (placeFoot(d)) cls += ' has-foot';
+  if (d.devour) cls += ' has-eaten';                             // v0.141.0: 기록 칸 복구
   if (c.duel != null) cls += ' dueling';
   if (selId === c.id) cls += ' selected';                      // 인스펙터에 보이는 카드
   if (d.kind === 'character' && statusOf(c).includes('빈사')) cls += ' dying';   // 빈사 → 그림 무채색
@@ -1122,7 +1124,13 @@ function paint(el, c){
     }
     const foot = placeFoot(d);
     if (foot) html += `<div class="foot">${foot}</div>`;
-    // v0.136.0: 신의 입 기록 칸 없앰 (넣으면 바로 삼킴)
+    if (d.devour){
+      // 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). v0.141.0: 복구 — 탭하면 꺼냄 (자루·장비 칸과 같은 조작)
+      const eaten = c.eaten || [];
+      html += `<div class="eaten${eatShift.delete(c.id) ? ' shift' : ''}">` + Array.from({ length: d.devour }, (_, i) => eaten[i] && DEFS[eaten[i].type]
+        ? `<div class="mini framed f-${frameOf(DEFS[eaten[i].type])}" data-eat="${i}" title="탭해서 되돌리기 — 세 장까지 기록">${iconHtml(eaten[i].type)}</div>`
+        : '<div class="mini empty"></div>').join('') + '</div>';
+    }
     if (c.type === 'god' && speech) html += `<div class="speech">${esc(speech)}</div>`;
     if (c.type === 'knight' && knightSpeech) html += `<div class="speech">${esc(knightSpeech)}</div>`;
     if (c.type === 'architect' && archSpeech) html += `<div class="speech">${esc(archSpeech)}</div>`;
@@ -1353,7 +1361,7 @@ function reqDone(rq){
   if (rq.goal === 'hunt') return !!S.flags.hunted;             // v0.83.0: 크리처를 한 번이라도 쓰러뜨림
   if (rq.goal === 'store') return !!S.flags.stored;            // container에 한 장이라도 담은 적 있음
   if (rq.goal === 'devour') return !!S.flags.devoured;         // v0.84.0: 신의 입에 한 장이라도 넣은 적 있음
-  if (rq.goal === 'undevour') return true;                     // v0.134.0: 꺼내기 없앰 — 예전 저장의 "도로 뱉어"는 바로 완료      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
+  if (rq.goal === 'undevour') return !!S.flags.mouthTook;   // v0.141.0: 되돌리기 복구 //                     // v0.134.0: 꺼내기 없앰 — 예전 저장의 "도로 뱉어"는 바로 완료      // v0.84.0: 신의 입 기록에서 꺼낸 적 있음
   if (rq.goal === 'register') return mappedCount() >= rq.need;   // v0.125.0: 지도에 등록한 장소 수
   if (rq.goal === 'take') return !!S.flags.tookOut;            // v0.112.0: 자루에서 한 장 꺼낸 적 있음
   if (rq.goal === 'eject') return !!S.flags.ejected;           // v0.112.0: 붉은 택으로 전부 배출한 적 있음
@@ -1396,7 +1404,7 @@ function reqProgress(rq){
   if (rq.goal === 'hunt') return `${S.flags.hunted ? '✔' : '☐'} ${ic('animal')} 토끼 사냥`;
   if (rq.goal === 'store') return `${S.flags.stored ? '✔' : '☐'} ${ic('sack')} 합칠 수 있음 카드 1장 담기`;
   if (rq.goal === 'devour') return `${S.flags.devoured ? '✔' : '☐'} ${ic('godmouth')} 신의 입에 아무거나 1장 넣기`;
-  if (rq.goal === 'undevour') return `${S.flags.mouthTook ? '✔' : '☐'} ${ic('godmouth')} 신의 입에서 한 장 꺼내기`;
+  if (rq.goal === 'undevour') return `${S.flags.mouthTook ? '✔' : '☐'} ${ic('godmouth')} 신의 입 기록을 탭해 한 장 되돌리기`;
   if (rq.goal === 'register') return `${ic('map')} 장소 등록 ${mappedCount()} / ${rq.need}`;
   if (rq.goal === 'take') return `${S.flags.tookOut ? '✔' : '☐'} ${ic('sack')} 담긴 카드를 탭해 한 장 꺼내기`;
   if (rq.goal === 'eject') return `${S.flags.ejected ? '✔' : '☐'} ${ic('sack')} 우상단 붉은 택을 당겨 전부 배출`;
@@ -1820,10 +1828,10 @@ function apply(ev, d, t){
   }
   if (ev.act === 'devour'){
     S.flags.devoured = true;                                // v0.84.0: 신의 입 quest 1단계
-    const del = els.get(d.id);
-    const from = del ? del.getBoundingClientRect() : null;
     removeCard(d.id);
-    swallow(t, [{ type: d.type }], from);                   // v0.136.0: 기록 없이 바로 삼킴 → 흡족 +1
+    const from = swallowFrom(t);
+    swallow(t, recordEaten(t, d, 0), from);                 // v0.141.0: 기록 복구 — 기록이 가득 차 있으면 맨 오른쪽이 밀려나 삼켜짐
+    eatShift.add(t.id);
     bumpIds.add(t.id);
     toast(`${ic(d.type)} ${dd.name} → ${DEFS[t.type].name}`);
     return true;
@@ -2078,13 +2086,12 @@ function rewardFor(rq, x, y){
     knightSay('고맙다', knightCheck);                        // "고맙다" 뒤에 무기를 들어라
     return;
   }
-  if (rq.quest === 'mouth2'){ S.flags.mouthTaught = true; return; }   // v0.134.0: 꺼내기 단계 없앰 — 예전 저장에 남은 quest는 그냥 끝냄
   const mi = MOUTH_STEPS.findIndex(f => f.quest === rq.quest);
   if (mi >= 0){
     if (mi < MOUTH_STEPS.length - 1) giveMouthQuest(mi + 1);  // 넣기 → 꺼내기
     else {
       S.flags.mouthTaught = true;
-      toast(`${ic('godmouth')} 신의 입 — 먹은 건 돌려받을 수 없음`);
+      toast(`${ic('godmouth')} 신의 입 — 기록은 ${DEFS.godmouth.devour}장까지`);
       say(LINES.mouthWarn);                                 // "기록은 세 장까지야. 그 뒤론 되돌릴 수 없으니 조심해"
     }
     return;
@@ -2220,6 +2227,7 @@ function giveGodMouth(){
 // 신의 입 사용법 quest (v0.84.0): 넣기 → 꺼내기. 끝나면 갓이 기록 3장 경고
 const MOUTH_STEPS = [
   { quest: 'mouth1', title: '먹을걸 줘', goal: 'devour' },
+  { quest: 'mouth2', title: '도로 뱉어', goal: 'undevour' },   // v0.141.0: 복구
 ];
 function giveMouthQuest(i){
   const step = MOUTH_STEPS[i];
@@ -2726,13 +2734,15 @@ function purgeWorld(id){
     busy = false;
     const mouth = byId(id);
     if (!mouth){ afterChange(); return; }
-    const gone = [];
+    const from = swallowFrom(mouth);
+    let gone = [];
     for (const o of picks){
       if (!byId(o.id)) continue;
       removeCard(o.id);
-      gone.push({ type: o.type });                            // v0.136.0: 기록 없이 전부 삼킴
+      gone = gone.concat(recordEaten(mouth, o, 0));         // v0.141.0: 기록 복구 — 기록 3칸에서 밀려난 카드는 삼킴
     }
-    swallow(mouth, gone, null);
+    swallow(mouth, gone, from);
+    eatShift.add(mouth.id);
     bumpIds.add(mouth.id);
     toast(`${ic(mouth.type)} 월드 정리 — ${picks.length}장 빨아들임`);
     afterChange();
@@ -2741,6 +2751,17 @@ function purgeWorld(id){
 // v0.134.0: 탭으로 한 장 빼기 — 자루는 담긴 카드 1장, 캐릭터는 탭한 장비 칸. 끌면 카드째 움직임 (끌어서 빼지 않음)
 //   이미 있던 카드가 나오는 것이라 월드 5장 상한과 무관
 function tapTakeOut(c, part){
+  if (part.kind === 'eat'){                                   // v0.141.0: 신의 입 기록에서 한 장 되돌리기 (카드 상태 그대로)
+    const rec = (c.eaten || []).splice(part.idx, 1)[0];
+    if (!rec || !DEFS[rec.type]) return false;
+    S.flags.mouthTook = true;                                 // 신의 입 quest "도로 뱉어"
+    const p = findSpot(c.x, c.y + CH + 12);
+    const nc = addCard(rec.type, p.x, p.y, rec, true);
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x: c.x, y: c.y });
+    bumpIds.add(c.id);
+    return true;
+  }
   if (part.kind === 'held'){
     if (!c.fill || !c.count || !DEFS[c.fill]) return false;
     const type = c.fill;
@@ -2951,9 +2972,10 @@ function onDown(e){
   const heldEl = e.target.closest('.held[data-held]');
   const eqEl = e.target.closest('.equip span[data-eq]');
   const tapPart = heldEl && c.fill && c.count > 0 ? { kind: 'held' }
-    : eqEl && c.equip && c.equip[eqEl.dataset.eq] ? { kind: 'equip', slot: eqEl.dataset.eq } : null;
+    : eqEl && c.equip && c.equip[eqEl.dataset.eq] ? { kind: 'equip', slot: eqEl.dataset.eq }
+    : e.target.closest('[data-eat]') && c.eaten ? { kind: 'eat', idx: +e.target.closest('[data-eat]').dataset.eat } : null;   // v0.141.0: 신의 입 기록
 
-  // v0.134.0: 신의 입 기록에서 꺼내기 없앰 — 먹은 건 돌려받을 수 없음
+  // v0.141.0: 신의 입 기록에서 되돌리기 복구 — 기록 칸을 탭 (위 tapPart)
 
   // 붉은 택 당기기 (v0.67.0): 신의 입 = 월드 정리, container = 배출 (찢어지지 않음)
   if ((DEFS[c.type].kind === 'container' || DEFS[c.type].devour || DEFS[c.type].slots) && e.target.closest('.rtab')){
@@ -4472,7 +4494,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
-    if (d.devour) st += iRow('흡족', c.satisfied || 0);
+    if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
       const period = REST_MS / lv;
@@ -4508,6 +4530,10 @@ function inspectorHtml(c){
   if (c.visit != null){
     const pl = byId(c.visit);
     if (pl) c2 += iSub('방문 중', iLine(cardRef(pl.type)));
+  }
+  if (d.devour){                                              // v0.141.0: 기록 복구
+    const eaten = (c.eaten || []).filter(r => DEFS[r.type]);
+    c2 += iSub('버린 카드 — 최근 순, 기록 칸을 탭하면 되돌림', eaten.length ? iChips(eaten.map(r => cardRef(r.type))) : iNone('없음'));
   }
   if (c.duel != null){
     const op = byId(c.duel);
