@@ -409,7 +409,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.10.1';
+const VERSION = 'v0.11.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -430,13 +430,18 @@ const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
 const START_FIELDS = ['mountain', 'grassland'];                  // v0.9.0: 처음 열린 필드. v0.10.0: 처음엔 전부 잠김 → 갓이 이 둘을 열어 줌
 const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0, locked: true }]));
 // v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
-const QUESTS = { gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 } };
+const QUESTS = {
+  gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
+  stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
+};
 const freshQuest = () => ({ id: 'gather', n: 0, done: false });
 // v0.10.0: 갓 첫 등장 — intro: 'start'(아직) | 'done'
 const GOD_LINES = {
   intro: ['오, 드디어 누가 왔네.', '뭘 봐. 갓이다. 신… 비슷한 거.', '여긴 전부 잠겨 있어. 빈손으론 아무것도 못 하지.'],
   power: '갓 파워!',
   quest: '산이랑 초원은 열어 줬어. 가서 다섯 번만 캐 와.',
+  gatherDone: ['처음은 쉽지, 안 그래?', '다음은 재료 모으기야.'],   // v0.11.0: 채집 퀘스트 완료
+  stoneQuest: '운이 좀 필요할 거야.',                           //          이 줄이 뜰 때 퀘스트 '돌 5개 모으기'
 };
 let S = load() || fresh();
 const els = new Map();
@@ -1092,6 +1097,7 @@ function harvest(fieldId, cardEl){
     flash(tb, 'catch', 350);
     const { w, h } = bounds();
     addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === 'craft' ? 'spawn' : null);
+    if (t === 'stone') questStep('stone');                        // v0.11.0: 돌 5개 모으기
     renderMeta(); save();
   })();
 }
@@ -1112,8 +1118,24 @@ function questStep(id){
   if (!q || q.done || q.id !== id) return;
   const def = QUESTS[q.id];
   q.n++;
-  if (q.n >= def.goal){ q.done = true; toast(`📜 퀘스트 완료: ${def.name}`); }
+  if (q.n >= def.goal){
+    q.done = true;
+    toast(`📜 퀘스트 완료: ${def.name}`);
+    questNext();
+  }
   renderQuest();
+  save();
+}
+// v0.11.0: 퀘스트가 끝난 뒤 갓의 다음 퀘스트 (다시 열었을 때도 이어짐)
+function questNext(){
+  const q = S.quest;
+  if (!q || !q.done || godItem || godQ.length) return;
+  if (q.id === 'gather'){
+    godSay([
+      ...GOD_LINES.gatherDone,
+      { text: GOD_LINES.stoneQuest, start: () => giveQuest('stone') },
+    ]);
+  }
 }
 
 // ── 갓 (v0.10.0) ────────────────────────────────────
@@ -1174,7 +1196,7 @@ function unlockFields(ids){
   }, 600);
 }
 function giveQuest(id){
-  S.quest = { ...freshQuest(), id };
+  S.quest = { id, n: 0, done: false };
   S.intro = 'done';
   const el = document.getElementById('quest');
   renderQuest();
@@ -1198,6 +1220,7 @@ if (!S.tab || S.intro !== 'done') S.tab = 'gather';              // v0.10.0: 갓
 renderAll();
 setTab(S.tab);
 runGodIntro();
+questNext();
 requestAnimationFrame(pushStep);
 setInterval(regenTick, 100);
 </script>
