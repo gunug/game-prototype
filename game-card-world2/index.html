@@ -56,12 +56,6 @@
   @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
 
-  /* 필드 아래 조작: 버리기 */
-  .trash{position:absolute;right:12px;bottom:12px;z-index:1;width:calc(var(--cw) * 1.2);height:calc(var(--ch) * .9);
-    border:2px dashed var(--hairline);border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;
-    color:var(--muted);font-size:12px;font-weight:700;gap:2px;pointer-events:none;transition:background .15s,border-color .15s;}
-  .trash .big{font-size:22px;}
-  .trash.hot{border-color:#ff6b6b;background:rgba(255,90,90,.15);color:#ffb3b3;}
 
   /* 카드 (레거시 모양 그대로) */
   .cw{
@@ -197,7 +191,6 @@
 </div>
 <div class="table" id="table">
   <div class="hint" id="hint">🧺 <b>채집</b> 탭에서 필드를 탭해 원물을 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
-  <div class="trash" id="trash"><span class="big">🗑️</span>버리기</div>
 </div>
 <div class="book-back" id="bookBack"></div>
 <div class="book" id="book"></div>
@@ -372,7 +365,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.8.0';
+const VERSION = 'v0.8.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -605,8 +598,6 @@ function pushStep(){
 
 // ── 끌기 ────────────────────────────────────────────
 let drag = null;
-const trashEl = document.getElementById('trash');
-const overTrash = (px, py) => { const r = trashEl.getBoundingClientRect(); return px >= r.left && px <= r.right && py >= r.top && py <= r.bottom; };
 function cardAt(px, py, skip){
   const tr = table.getBoundingClientRect();
   const x = px - tr.left, y = py - tr.top;
@@ -640,7 +631,6 @@ table.addEventListener('pointermove', e => {
   const p = clampPos(drag.ox + dx, drag.oy + dy);
   drag.c.x = p.x; drag.c.y = p.y;
   place(drag.el, drag.c);
-  trashEl.classList.toggle('hot', overTrash(e.clientX, e.clientY));
 });
 function endDrag(e){
   if (!drag) return;
@@ -648,17 +638,10 @@ function endDrag(e){
   drag = null;
   d.el.classList.remove('dragging');
   for (const el of els.values()) el.classList.remove('dim');
-  trashEl.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
-  if (e.type !== 'pointercancel' && overTrash(e.clientX, e.clientY)){
-    useOne(d.c);                                                  // v0.8.0: 한 장만 버림
-  } else {
-    const tgt = e.type === 'pointercancel' ? null : cardAt(e.clientX, e.clientY, d.c.id);
-    const m = tgt && craftMatch(d.c.type, tgt.type);
-    if (m){
-      if (!craft(d.c, tgt, m)) flash(d.el, 'fail', 1500);
-    }                                                             // 겹친 채 놓인 카드는 밀어내기가 벌려 줌
-  }
+  const tgt = e.type === 'pointercancel' ? null : cardAt(e.clientX, e.clientY, d.c.id);   // v0.8.1: 버리기 칸 없앰
+  const m = tgt && craftMatch(d.c.type, tgt.type);
+  if (m && !craft(d.c, tgt, m)) flash(d.el, 'fail', 1500);     // 겹친 채 놓인 카드는 밀어내기가 벌려 줌
   renderMeta(); renderInsp(); save();
 }
 table.addEventListener('pointerup', endDrag);
