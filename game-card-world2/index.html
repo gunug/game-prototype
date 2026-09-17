@@ -146,8 +146,8 @@
 <div class="insp" id="insp"></div>
 <script>
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
-// 레거시 조합식·재료는 쓰지 않음. 1티어 12장만 있고, 2티어가 정해질 때까지 조합식 없음
-// 1티어 = 자연에서 얻는 원물. 필드마다 3종
+// 레거시 조합식·재료는 쓰지 않음. 1티어만 있고, 2티어가 정해질 때까지 조합식 없음
+// 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
 const FIELDS = [
   { id:'mountain',  name:'산',   emoji:'⛰️' },
   { id:'forest',    name:'숲',   emoji:'🌲' },
@@ -161,18 +161,22 @@ const DEFS = {
   stone:   { name:'돌',     kind:'material', tier:1, field:'mountain' },
   flint:   { name:'부싯돌', kind:'material', tier:1, field:'mountain' },
   ore:     { name:'광석',   kind:'material', tier:1, field:'mountain' },
+  coal:    { name:'석탄',   kind:'material', tier:1, field:'mountain' },
   // 🌲 숲
   tree:    { name:'나무',   kind:'material', tier:1, field:'forest' },
   berry:   { name:'열매',   kind:'material', tier:1, field:'forest' },
   sap:     { name:'수액',   kind:'material', tier:1, field:'forest' },
+  herb:    { name:'약초',   kind:'material', tier:1, field:'forest' },
   // 🏞️ 강가
   water:   { name:'물',     kind:'material', tier:1, field:'river' },
   soil:    { name:'흙',     kind:'material', tier:1, field:'river' },
   sand:    { name:'모래',   kind:'material', tier:1, field:'river' },
+  fish:    { name:'물고기', kind:'material', tier:1, field:'river' },
   // 🌾 초원
   grass:   { name:'풀',     kind:'material', tier:1, field:'grassland' },
   beast:   { name:'짐승',   kind:'material', tier:1, field:'grassland' },
   seed:    { name:'씨앗',   kind:'material', tier:1, field:'grassland' },
+  honeycomb:{ name:'벌집',  kind:'material', tier:1, field:'grassland' },
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
@@ -188,6 +192,10 @@ const DESC = {
   grass: '뽑아도 뽑아도 또 난다. 재료로선 최고의 성격.',
   beast: '털, 고기, 그리고 성질머리. 전부 한 몸에.',
   seed:  '작다. 그런데 안에 나무가 들어 있다고 한다.',
+  coal:  '만지면 손이 까매진다. 태우면 기분이 좋아진다.',
+  herb:  '쓴맛이 날수록 잘 듣는다고들 한다. 증명한 사람은 없다.',
+  fish:  '물 밖에선 할 말이 없어 보인다.',
+  honeycomb: '달콤함의 대가는 벌 떼가 청구한다.',
 };
 
 // 카드 그림: images/icon/card_<id>.png
@@ -240,7 +248,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.3.0';
+const VERSION = 'v0.3.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -562,7 +570,7 @@ function renderInsp(){
   const t = c ? c.type : inspType;
   if (!t){
     inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
-      + `크래프팅 탭 — 1티어 원물 12장. 조합식은 2티어가 정해지면 들어옴.<br>같은 카드는 월드에 ${SPAWN_CAP}장까지.</div>`;
+      + `크래프팅 탭 — 1티어 원물 16장. 조합식은 2티어가 정해지면 들어옴.<br>같은 카드는 월드에 ${SPAWN_CAP}장까지.</div>`;
     return;
   }
   const d = DEFS[t];
@@ -604,7 +612,7 @@ function renderInsp(){
 }
 
 // ── 콜렉터북 (v0.3.0) ────────────────────────────────
-// 티어별 탭 → 필드별 3칸. 미발견은 검은 실루엣 + ???. 칸을 탭하면 인스펙터
+// 티어별 탭 → 필드별 4칸. 미발견은 검은 실루엣 + ???. 칸을 탭하면 인스펙터
 const bookEl = document.getElementById('book');
 let bookTier = TIERS[0];
 function renderBook(){
