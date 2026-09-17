@@ -207,16 +207,16 @@
   .sleeve .cw.locked .name{color:var(--muted);}
   .sleeve.sel{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}
   /* 새 카드 끼우기: 슬리브 위에서 아래로 쑥 */
-  .sleeve .cw.insert{animation:sleeveIn .35s cubic-bezier(.3,.7,.3,1) both;}
+  .sleeve .cw.insert{animation:sleeveIn .24s cubic-bezier(.3,.7,.3,1) both;}
   @keyframes sleeveIn{
     0%{transform:translateY(calc(-1 * var(--ch) - 30px)) rotate(-4deg);opacity:0;}
     25%{opacity:1;}
     75%{transform:translateY(4px) rotate(0deg);}
     100%{transform:translateY(0);}
   }
-  .sleeve .cw.ghost{animation:ghostOut .18s ease-out forwards;}
+  .sleeve .cw.ghost{animation:ghostOut .12s ease-out forwards;}
   @keyframes ghostOut{to{opacity:0;}}
-  .sleeve.glow{animation:sleeveGlow .3s ease-out .3s;}
+  .sleeve.glow{animation:sleeveGlow .15s ease-out .12s;}   /* v0.11.1: 하이라이트 0.3초(0.3초 뒤) → 0.15초(0.12초 뒤) */
   @keyframes sleeveGlow{0%{box-shadow:inset 0 0 0 2px var(--brand-yellow),0 0 0 0 rgba(255,212,0,.6);}100%{box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 0 0 12px rgba(255,212,0,0);}}
   /* 일시정지: 필드 연출도 멈춤 */
   .table.paused .cw{animation-play-state:paused;}
@@ -409,7 +409,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.11.0';
+const VERSION = 'v0.11.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -887,7 +887,7 @@ async function runInserts(){
     const slot = bookEl.querySelector(`[data-book="${t}"]`);
     if (slot){
       slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      await wait(125);
+      await wait(80);
       S.newCards = S.newCards.filter(x => x !== t);
       renderNew();
       const ghost = slot.querySelector('.cw');
@@ -897,11 +897,11 @@ async function runInserts(){
       card.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
       slot.appendChild(card);
       slot.classList.add('glow');
-      await wait(500);
+      await wait(300);
     } else { S.newCards = S.newCards.filter(x => x !== t); renderNew(); }
     renderBook();
   }
-  await wait(125);
+  await wait(80);
   setPaused(false);
   inserting = false;
   renderBook(); save();
