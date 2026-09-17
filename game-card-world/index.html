@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.139.0';
+const VERSION = 'v0.140.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -3486,11 +3486,18 @@ function yieldTick(){
     const pieG = elG && elG.querySelector('.pie');
     if (pieG) pieG.style.setProperty('--p', pieValue(pl));      // 기다리는 동안에도 가득 찬 게이지가 보이게
     if (pl.yieldPts >= d.yieldNeed){
-      // v0.136.0: 나올 카드는 한 번 뽑아 두고, 하나도 못 나오면(월드 5장 상한) 게이지가 가득 찬 채로 기다림 (제재소와 같음)
-      const roll = pl.yieldRoll || (pl.yieldRoll = [].concat(pickWeighted(d.yields)));   // 나무 + 돌 · 토끼 · 곰
-      if (!roll.some(ty => canSpawn(ty))) continue;
-      pl.yieldPts = 0;
+      // v0.140.0: 나올 수 있는 카드가 전부 월드 5장이면 게이지가 가득 찬 채로 멈춤 (자리가 생기면 진행)
+      //   하나라도 자리가 있으면 뽑음 → 뽑힌 카드가 5장이라 하나도 못 나오면 이번 생산은 꽝(필드 5장 경고), 게이지 비우고 다음 진행
+      //   (v0.136.0은 뽑은 결과를 붙잡고 기다려서, 다른 카드는 자리가 있어도 생산이 멈췄음)
       delete pl.yieldRoll;
+      if (!d.yields.some(([t]) => [].concat(t).some(ty => canSpawn(ty)))) continue;
+      pl.yieldPts = 0;
+      const roll = [].concat(pickWeighted(d.yields));          // 나무 + 돌 · 토끼 · 곰
+      if (!roll.some(ty => canSpawn(ty))){
+        floatText(pl, `꽝 — 필드에 ${roll.map(ty => DEFS[ty].name).join('·')} ${SPAWN_CAP}장`, 'work');
+        if (pieG) pieG.style.setProperty('--p', 0);
+        continue;
+      }
       const miss = [];
       for (const ty of roll){
         if (!canSpawn(ty)){ miss.push(DEFS[ty].name); continue; }   // 월드 수량 초과
