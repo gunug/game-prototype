@@ -97,15 +97,26 @@
   .exp-lane .mark{position:absolute;bottom:5px;width:2px;height:9px;margin-left:-1px;background:rgba(255,255,255,.3);}
   .exp-lane .mark.fight{background:#ff8a8a;height:13px;}
   .exp-lane .boss{position:absolute;right:8px;bottom:12px;font-size:calc(var(--cw) * .5);opacity:.55;}
-  .exp-lane .tok{position:absolute;bottom:9px;width:calc(var(--cw) * .66);height:calc(var(--cw) * .66);margin-left:calc(var(--cw) * -.33);transition:left .12s linear;}
-  .exp-lane .tok img{width:100%;height:100%;image-rendering:pixelated;}
-  .exp-lane .tok .hp{position:absolute;left:-50%;right:-50%;top:-13px;text-align:center;font-size:11px;font-weight:800;text-shadow:0 1px 2px #000;}
+  /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
+  .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .74);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
+    display:flex;align-items:flex-end;justify-content:center;transition:left .12s linear;}
+  .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .tok.walk{animation:dunBob .5s ease-in-out infinite;}
+  .exp-lane .tok.enemy .pic{transform:scaleX(-1);}                 /* 고블린은 왼쪽(기사 쪽)을 봄 */
+  @keyframes dunBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8%);}}
+  .exp-lane .tok.atk .pic{animation:dunAtk .3s ease-out;}
+  .exp-lane .tok.enemy.atk .pic{animation:dunAtkF .3s ease-out;}
+  @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
+  @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
+  .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .dmg{position:absolute;z-index:3;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
+    color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1s ease-out forwards;}
+  .exp-lane .tok .hp{position:absolute;left:-50%;right:-50%;top:0;text-align:center;font-size:11px;font-weight:800;text-shadow:0 1px 2px #000;}
   .exp-lane .tok.enemy{transition:opacity .3s,transform .3s;}
   .exp-lane .tok.enemy .hp{color:#ff9d9d;}
   .exp-lane .tok.enemy:not(.now):not(.dead){opacity:.75;}          /* 아직 만나지 않은 고블린 */
   .exp-lane .tok.enemy.dead{opacity:0;transform:translateY(8px) scale(.6);}
   .exp-lane .tok.enemy.now{filter:drop-shadow(0 0 4px rgba(255,120,120,.8));}
-  .exp-lane .tok.hit{animation:bump .26s ease-out;}
   .exp-line{font-size:12px;color:var(--muted);text-align:center;min-height:1.3em;}
 
   .god-row{display:flex;align-items:center;gap:14px;width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);min-height:var(--ch);}
@@ -438,7 +449,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.13.1';
+const VERSION = 'v0.13.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1083,7 +1094,7 @@ gatherEl.addEventListener('click', e => {
 // 필드 카드를 탭하면 기사가 원정을 떠난다. 가로로 긴 진행 막대 위를 왼쪽 → 오른쪽으로 걸으며
 //   도중에 재료를 줍고(크래프팅 탭으로 날아감), 고블린과 싸우고, 끝에는 보스 (보스는 아직 디자인 전)
 // 기사는 공 1 · 방 0 · 체 10. 체력이 0이 되면 빈사로 돌아오고, 쉬는 동안 회복된다
-const ENEMIES = { goblin: { name:'고블린', icon:'card_goblin', atk:1, def:0, hp:3 } };
+const ENEMIES = { goblin: { name:'고블린', portrait:'portrait_goblin', atk:1, def:0, hp:3 } };   // v0.13.2: 포트레이트
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const HEAL_MS = 3000;                                            // 원정 밖에서 체력 +1
@@ -1155,7 +1166,7 @@ function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
   const kd = Math.max(1, KNIGHT.atk - def.def);
   e.hp -= kd;
-  expHit(exp.foe);
+  expSwing('knight', exp.foe, kd);
   if (e.hp <= 0){
     e.dead = true;
     exp.foe = -1;
@@ -1165,7 +1176,7 @@ function expBeat(){
   }
   const ed = Math.max(1, def.atk - KNIGHT.def);
   k.hp = Math.max(0, k.hp - ed);
-  expHit('knight');
+  expSwing(exp.foe, 'knight', ed);
   renderKnight();
   save();
   if (k.hp <= 0) expEnd('down');
@@ -1238,8 +1249,8 @@ function expBuild(){
     + '<div class="bar"></div><div class="boss">👑</div>'
     // v0.13.1: 고블린은 처음부터 제자리에 서 있음
     + exp.foes.map((f, i) => `<div class="tok enemy${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${f.at * 100}%">`
-        + `<div class="hp"></div><img src="images/icon/${ENEMIES[f.key].icon}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
-    + '<div class="tok knight"><div class="hp"></div><img src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
+        + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
+    + '<div class="tok knight walk"><div class="hp"></div><img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
   expPaint();
 }
@@ -1250,6 +1261,7 @@ function expPaint(){
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
   const kt = lane.querySelector('.tok.knight');
   kt.style.left = (5 + exp.t * 88 - (exp.foe >= 0 ? 6 : 0)) + '%';   // v0.13.1: 전투 중엔 고블린 앞에
+  kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
   kt.querySelector('.hp').textContent = `${S.knight.hp}/${KNIGHT.hp}`;
   for (const et of lane.querySelectorAll('.tok.enemy')){          // v0.13.1: 미리 서 있는 고블린들
     const f = exp.foes[+et.dataset.foe];
@@ -1259,9 +1271,21 @@ function expPaint(){
   }
   el.querySelector('.exp-line').textContent = exp.line || '';
 }
-function expHit(who){
-  const el = document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
-  if (el) flash(el, 'hit', 260);
+// 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
+const tokOf = who => document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
+function expSwing(from, to, dmg){
+  const a = tokOf(from), b = tokOf(to);
+  if (a) flash(a, 'atk', 300);
+  if (b){
+    flash(b, 'hurt', 300);
+    const f = document.createElement('div');
+    f.className = 'dmg';
+    f.textContent = `-${dmg}`;
+    f.style.left = b.style.left || '5%';
+    f.style.bottom = 'calc(var(--ch) * .7)';
+    b.parentElement.appendChild(f);
+    setTimeout(() => f.remove(), 1000);
+  }
 }
 // 기사 줄의 체력만 고침
 function renderKnight(){
