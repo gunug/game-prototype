@@ -485,7 +485,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.143.0';
+const VERSION = 'v0.143.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1027,7 +1027,7 @@ function placeFoot(d){
   if (!tagLevel(d, '장소')) return '';
   const lv = tagLevel(d, '체력 회복');
   if (lv) return `<span class="rest">${statImg('hp')} +1 / ${REST_MS / lv / 1000}초</span>`;
-  if (d.mill) return `<span>${iconHtml(d.mill.from, true)}→${d.mill.out.map(t => iconHtml(t, true)).join('')}</span>`;   // v0.133.0: 제재소
+  // v0.143.1: 제재소 조합식은 카드 아래 줄에서 빼고 인스펙터에만
   return '';
 }
 function paint(el, c){
@@ -1095,7 +1095,7 @@ function paint(el, c){
     if (d.mill){                                                // v0.143.0: 제재소 등록 나무 — 자루 수량 표시와 같은 모양 (탭하면 하나 배출)
       html += c.stock > 0
         ? `<div class="held" data-stock title="탭해서 한 개 꺼내기">${iconHtml(d.mill.from, true)} ${c.stock}/${d.mill.max}</div>`
-        : `<div class="held empty">0/${d.mill.max}</div>`;
+        : `<div class="held empty">${iconHtml(d.mill.from, true)} 0/${d.mill.max}</div>`;   // v0.143.1: 비어도 무엇을 넣는지 그림
     }
     if (d.kind === 'container'){
       const takeQ = c.count && S.cards.some(q => q.type === 'quest' && q.goal === 'take');   // v0.112.0: 꺼내기 quest 중엔 깜빡임
@@ -4585,6 +4585,7 @@ function inspectorHtml(c){
     c3 += iSub('도달하는 조합', reach.join('') || iNone('없음'));
     c3 += iSub('할 수 있는 조합', use.join('') || iNone('없음'));
   }
+  if (d.mill) c3 += iSub('만드는 것', iLine(`${cardRef(d.mill.from)} → ${d.mill.out.map(cardRef).join(' + ')}`));   // v0.143.1: 제재소 조합식
   if (d.yields) c3 += iSub('나오는 카드 — 게이지마다 하나', oddsChips(d.yields));
   if (d.kind === 'package' && d.fixed) c3 += iSub('들어 있는 카드', iChips(d.fixed.map(cardRef)));
   else if (d.kind === 'package'){
