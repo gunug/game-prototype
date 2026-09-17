@@ -278,12 +278,12 @@ const DESC = {
   herb:  '쓴맛이 날수록 잘 듣는다고들 한다. 증명한 사람은 없다.',
   fish:  '물 밖에선 할 말이 없어 보인다.',
   honeycomb: '달콤함의 대가는 벌 떼가 청구한다.',
-  blade:     '돌이 돌을 때렸다. 이긴 쪽이 날이 됐다.',
+  blade:     '돌이 부싯돌을 때렸다. 떨어져 나간 쪽이 날이 됐다.',
   whetstone: '모래에 문질러 매끈해진 돌. 이제 남을 매끈하게 만든다.',
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
   firewood:  '나무였을 땐 그늘이었고, 이제는 온기가 될 차례.',
   clay:      '물과 흙이 손잡았다. 모양은 네가 정해라.',
-  cord:      '풀도 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
+  cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
   wax:       '벌들이 공들여 지은 집의 벽. 미안하게 됐다.',
   crushedore:'부숴 보니 반짝이는 게 조금 더 많아졌다.',
   meat:      '아직은 짐승이었던 기억이 남아 있다.',
@@ -312,12 +312,12 @@ const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, tru
 // 2장 조합 — 각 쪽은 { card } 또는 { tag, lv }. keep: 'a'/'b' = 남는 쪽
 // v0.3.0: 레거시 조합식을 비움. v0.5.0: 2티어 추천안 16장 (미확정). 남는 쪽(돌·부싯돌)은 도구 규칙이 정해질 때까지 가안
 const RECIPES = [
-  { id:'blade',      a:{ card:'stone' },  b:{ card:'stone' },     out:['blade'] },
+  { id:'blade',      a:{ card:'stone' },  b:{ card:'flint' },     out:['blade'], keep:'a' },   // v0.7.6: 자기+자기 조합 없음
   { id:'whetstone',  a:{ card:'sand' },   b:{ card:'stone' },     out:['whetstone'] },
   { id:'ember',      a:{ card:'flint' },  b:{ card:'coal' },      out:['ember'], keep:'a' },
   { id:'clay',       a:{ card:'water' },  b:{ card:'soil' },      out:['clay'] },
   { id:'firewood',   a:{ card:'stone' },  b:{ card:'tree' },      out:['firewood'], keep:'a' },
-  { id:'cord',       a:{ card:'grass' },  b:{ card:'grass' },     out:['cord'] },
+  { id:'cord',       a:{ card:'grass' },  b:{ card:'water' },     out:['cord'] },
   { id:'honey',      a:{ card:'stone' },  b:{ card:'honeycomb' }, out:['honey', 'wax'], keep:'a' },
   { id:'crushedore', a:{ card:'stone' },  b:{ card:'ore' },       out:['crushedore'], keep:'a' },
   { id:'butcher',    a:{ card:'flint' },  b:{ card:'beast' },     out:['hide', 'meat', 'bone'], keep:'a' },
@@ -361,7 +361,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.5';
+const VERSION = 'v0.7.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
