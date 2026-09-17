@@ -490,7 +490,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.147.0';
+const VERSION = 'v0.147.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -4877,19 +4877,43 @@ document.body.appendChild(cardPop);
 let popId = null;
 const POP_SCALE = 0.88;                          // .cardpop 의 transform scale 과 같은 값
 const hoverOk = () => matchMedia('(hover: hover) and (pointer: fine)').matches && !(window.MOBILE && MOBILE.on);
+// v0.147.1: 부드럽게 — 목표 자리로 바로 옮기지 않고 매 프레임 조금씩 따라감.
+//   카드가 밀려 움직여도 매 프레임 카드 자리를 다시 재서 같이 따라감 (예전엔 마우스를 움직일 때·0.5초마다만 옮겨 뚝뚝 끊김)
+const POP_EASE = 0.22;                           // 한 프레임에 남은 거리의 몇 %를 가나
+let popX = null, popY = null, popTX = 0, popTY = 0, popRaf = 0;
 function hidePop(){
   if (popId == null) return;
   popId = null;
+  popX = popY = null;
   cardPop.hidden = true;
 }
-function placePop(el){
+function popTarget(el){
   const r = el.getBoundingClientRect();
   const w = cardPop.offsetWidth * POP_SCALE, h = cardPop.offsetHeight * POP_SCALE;   // 화면에 보이는 크기
   let x = r.right + 10;
   if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 10);   // 오른쪽이 좁으면 왼쪽으로
-  const y = Math.max(8, Math.min(r.top, innerHeight - h - 8));
-  cardPop.style.left = x + 'px';
-  cardPop.style.top = y + 'px';
+  popTX = x;
+  popTY = Math.max(8, Math.min(r.top, innerHeight - h - 8));
+}
+function placePop(el){
+  popTarget(el);
+  if (popX == null){ popX = popTX; popY = popTY; }             // 처음 뜰 때는 제자리에서 바로
+  cardPop.style.left = popX + 'px';
+  cardPop.style.top = popY + 'px';
+  if (!popRaf) popRaf = requestAnimationFrame(popStep);
+}
+function popStep(){
+  popRaf = 0;
+  if (popId == null || popX == null) return;
+  const el = els.get(popId);
+  if (el) popTarget(el);
+  popX += (popTX - popX) * POP_EASE;
+  popY += (popTY - popY) * POP_EASE;
+  if (Math.abs(popTX - popX) < 0.3) popX = popTX;
+  if (Math.abs(popTY - popY) < 0.3) popY = popTY;
+  cardPop.style.left = popX + 'px';
+  cardPop.style.top = popY + 'px';
+  popRaf = requestAnimationFrame(popStep);                     // 떠 있는 동안 계속 따라감
 }
 function showPop(c, el){
   popId = c.id;
