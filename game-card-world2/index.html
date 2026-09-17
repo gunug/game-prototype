@@ -361,7 +361,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.2';
+const VERSION = 'v0.7.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -714,7 +714,9 @@ const bookBack = document.getElementById('bookBack');
 let bookTier = TIERS[0];
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
+const BOOK_ALL_KEY = 'card-world2.bookAll';                       // v0.7.3: 따로 저장 — 처음부터 해도 유지
 let bookAll = false;                                              // '모든 카드 보기' (v0.7.1): 미발견도 보여 줌. 발견 기록은 안 바뀜
+try { bookAll = localStorage.getItem(BOOK_ALL_KEY) === '1'; } catch (e) {}
 let paused = false;
 const pendingInsert = [];                                         // 끼우기를 기다리는 카드 (발견은 됐지만 아직 슬리브엔 실루엣)
 const shownSeen = t => S.seen.includes(t) && !pendingInsert.includes(t);
@@ -817,6 +819,7 @@ bookEl.addEventListener('click', e => {
 bookEl.addEventListener('change', e => {
   if (!e.target.matches('[data-all]')) return;
   bookAll = e.target.checked;
+  try { localStorage.setItem(BOOK_ALL_KEY, bookAll ? '1' : '0'); } catch (e) {}
   renderBook();
 });
 
