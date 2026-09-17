@@ -84,6 +84,9 @@
     from{box-shadow:0 0 0 0 rgba(255,212,0,.45);}
     to{box-shadow:0 0 0 4px rgba(255,212,0,.45);}
   }
+  /* v0.2.2: 제작 성공 — 조합으로 막 나온 카드는 3초 동안 노란 테두리 깜빡임 (레거시 v0.79.0 모양) */
+  .cw.made::after{content:'';position:absolute;inset:-2px;border-radius:inherit;border:2px solid var(--brand-yellow);
+    box-shadow:0 0 6px rgba(255,212,0,.5);pointer-events:none;animation:freshBlink .5s steps(1,end) infinite;}
   .cw.fail::after{content:'';position:absolute;inset:-2px;border-radius:inherit;border:2px solid #ff6b6b;
     box-shadow:0 0 6px rgba(255,90,90,.55);pointer-events:none;animation:freshBlink .5s steps(1,end) infinite;}
   @keyframes freshBlink{0%,49%{opacity:1;}50%,100%{opacity:0;}}
@@ -370,7 +373,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.2.1';
+const VERSION = 'v0.2.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 종류 — 캐릭터·크리처·장소·quest·package는 다른 탭 몫
 const CRAFT_KINDS = new Set(['material', 'food', 'tool', 'fire', 'container', 'map']);
@@ -504,7 +507,7 @@ function toast(s){
 }
 
 // ── 카드 추가 / 제거 ─────────────────────────────────
-function addCard(type, x, y, anim, from){
+function addCard(type, x, y, anim, from, made){
   const p = findSpot(x, y);
   const c = { id: S.nextId++, type, x: p.x, y: p.y };
   S.cards.push(c);
@@ -513,8 +516,10 @@ function addCard(type, x, y, anim, from){
     S.seen.push(type);
     toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
     const el = els.get(c.id);
-    el.classList.add('fresh');
-    setTimeout(() => el.classList.remove('fresh'), 3000);
+    if (!made){                                        // 제작 성공 깜빡임이 먼저 (둘 다 테두리라 겹치지 않게)
+      el.classList.add('fresh');
+      setTimeout(() => el.classList.remove('fresh'), 3000);
+    }
   }
   return c;
 }
@@ -526,10 +531,14 @@ function removeCard(id){
   if (selected === id) selected = null;
 }
 // 여러 장 생성 — 상한까지 채우고, 빠진 것만 한 번에 '누락:' 알림. 실제로 나온 장 수를 돌려줌
-function spawnMany(types, x, y, from){
+function spawnMany(types, x, y, from, made3s){
   const made = [], miss = new Map();
   for (const t of types){
-    if (looseCount(t) < SPAWN_CAP) made.push(addCard(t, x, y, 'pop', from));
+    if (looseCount(t) < SPAWN_CAP){
+      const c = addCard(t, x, y, 'pop', from, made3s);
+      made.push(c);
+      if (made3s){ const el = els.get(c.id); el.classList.add('made'); setTimeout(() => el.classList.remove('made'), 3000); }   // v0.2.2
+    }
     else miss.set(t, (miss.get(t) || 0) + 1);
   }
   if (miss.size){
@@ -568,7 +577,7 @@ function craft(drag, tgt, m){
   }
   const from = { x: tgt.x, y: tgt.y };
   for (const c of eaten) removeCard(c.id);
-  spawnMany(outs, tgt.x, tgt.y, from);
+  spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
   const kept = eaten.includes(tgt) ? null : tgt;
   if (kept && els.get(kept.id)) flash(els.get(kept.id), 'bump', 300);
   return true;                                                   // 남는 도구·불은 밀어내기로 비킴
