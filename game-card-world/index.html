@@ -485,7 +485,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.142.1';
+const VERSION = 'v0.143.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -541,7 +541,7 @@ const DEFS = {
   // 던전 (v0.87.0): 캐릭터를 올리면 가로로 span배 늘어난 길이 되고, 캐릭터가 왼쪽 → 오른쪽으로 run(ms) 동안 이동. 끝까지 가면 탈락
   // 던전: 캐릭터를 올리면 가로 span배로 늘어난 길. v0.91.0: 시간이 아니라 전투 — spawns 크리처가 왼쪽에 등장
   // v0.105.0: 건축가의 첫 quest 보상 (생산시설). v0.134.0: 방문 인원으로 게이지 10 → 나무 1개를 끌어와 나무판자 + 톱밥
-  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1, gauge:'people', mill:{ from:'tree', out:['lumber', 'sawdust'], need:10 } },
+  sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1, gauge:'people', mill:{ from:'tree', out:['lumber', 'sawdust'], need:10, max:10 } },   // v0.143.0: 나무 등록 최대 10
   lumber:    { name:'나무판자',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },   // v0.133.0: 목공 재료 (긴 나무판)
   sawdust:   { name:'톱밥',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   workbench: { name:'조합소',      kind:'place', tags:['장소'], bench:true },   // v0.133.0: 건축가의 두 번째 quest 보상 — 만들어 본 아이템의 재료를 펼쳐 줌. v0.138.0: 조합대 → 조합소, 장소
@@ -1092,6 +1092,11 @@ function paint(el, c){
         ? `<span data-eq="${esc(sl)}" title="${esc(sl)} — 탭해서 빼기 · 우상단 붉은 택으로 전부 무장해제">${iconHtml(eq[sl])}</span>`
         : `<span class="empty">${esc(sl)}</span>`).join('') + '</div>';
     }
+    if (d.mill){                                                // v0.143.0: 제재소 등록 나무 — 자루 수량 표시와 같은 모양 (탭하면 하나 배출)
+      html += c.stock > 0
+        ? `<div class="held" data-stock title="탭해서 한 개 꺼내기">${iconHtml(d.mill.from, true)} ${c.stock}/${d.mill.max}</div>`
+        : `<div class="held empty">0/${d.mill.max}</div>`;
+    }
     if (d.kind === 'container'){
       const takeQ = c.count && S.cards.some(q => q.type === 'quest' && q.goal === 'take');   // v0.112.0: 꺼내기 quest 중엔 깜빡임
       html += c.count && c.fill && DEFS[c.fill]
@@ -1108,7 +1113,6 @@ function paint(el, c){
     // 장소 위쪽 가운데 한 줄: 방문 인원 + 게이지
     let top = '';
     if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
-    if (d.mill) top += `<div class="cap"${c.stock ? ' data-stock' : ''} title="등록된 ${esc(DEFS[d.mill.from].name)} — 탭해서 한 개 빼기">${iconHtml(d.mill.from, true)}${c.stock || 0}</div>`;   // v0.142.0: 제재소에 등록된 나무 수. v0.142.1: 탭하면 하나 배출
     // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
     const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields || d.mill) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
@@ -1652,7 +1656,7 @@ function evaluateOne(d, t){
     }
     return null;
   }
-  if (td.mill && d.type === td.mill.from) return { act: 'millput' };   // v0.142.0: 제재소에 나무를 내려놓으면 등록 (나무를 끌었을 때만)
+  if (td.mill && d.type === td.mill.from) return { act: 'millput', full: (t.stock || 0) >= td.mill.max };   // v0.142.0: 제재소에 나무를 내려놓으면 등록 (나무를 끌었을 때만)
   if (td.devour){
     // 신의 입: 캐릭터·장소·quest 빼고 전부 먹음. 캐릭터는 방문도 못 함
     // v0.67.0: 물건이 들어 있는 container도 못 먹음
@@ -1808,7 +1812,8 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'benchput') return benchPut(t, d);
-  if (ev.act === 'millput'){                                    // v0.142.0: 제재소 나무 등록 — 개수만 오름, 계속 추가 가능
+  if (ev.act === 'millput'){                                    // v0.142.0: 제재소 나무 등록. v0.143.0: 최대 10 (자루와 같음)
+    if (ev.full){ toast(`가득 참 — ${DEFS[t.type].name} 최대 ${DEFS[t.type].mill.max}개`); return false; }
     removeCard(d.id);
     t.stock = (t.stock || 0) + 1;
     bumpIds.add(t.id);
@@ -4516,7 +4521,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
-    if (d.mill) st += iRow(`등록된 ${DEFS[d.mill.from].name}`, c.stock || 0);   // v0.142.0
+    if (d.mill) st += iRow(`등록된 ${DEFS[d.mill.from].name}`, `${c.stock || 0}/${d.mill.max}`);   // v0.142.0
     if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
