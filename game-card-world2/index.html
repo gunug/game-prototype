@@ -79,7 +79,7 @@
   /* v0.9.0: 잠긴 필드 — 어둡게 + 자물쇠 */
   .gather .cw.field.field-locked{cursor:default;}
   .gather .cw.field.field-locked > :not(.lock){filter:brightness(.3) saturate(.15);}
-  .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}
+  .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   .tabbtn.catch{animation:tabCatch .35s ease-out;}
   @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
@@ -229,11 +229,11 @@
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
 // 레거시 조합식·재료는 쓰지 않음. 1티어만 있고, 2티어가 정해질 때까지 조합식 없음
 // 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
-const FIELDS = [
+const FIELDS = [                                                  // v0.9.1: 순서 산 · 초원 · 숲 · 강가 (열린 필드 먼저)
   { id:'mountain',  name:'산',   emoji:'⛰️', desc:'올라갈수록 돌이 많아지고, 캘수록 반짝이는 게 나온다.' },
+  { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.' },
   { id:'forest',    name:'숲',   emoji:'🌲', desc:'그늘, 열매, 끈적한 것, 쓴 풀. 길을 잃기 딱 좋다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.' },
-  { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
@@ -394,7 +394,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.9.0';
+const VERSION = 'v0.9.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
