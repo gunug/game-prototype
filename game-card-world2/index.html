@@ -361,7 +361,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.3';
+const VERSION = 'v0.7.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -900,25 +900,37 @@ function harvest(fieldId, cardEl){
   const tab = document.querySelector('#tabs [data-tab="craft"]').getBoundingClientRect();
   const tx = tab.left + tab.width / 2 - CW / 2, ty = tab.top + tab.height / 2 - CH / 2;  // 크래프팅 탭
   const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
-  const anim = fly.animate([
-    { offset: 0,    transform: at(sx, sy, 0.3, 0), opacity: 0 },
-    { offset: 0.2,  transform: at(ux, uy - 14, 1.12, -6), opacity: 1, easing: 'ease-out' },
-    { offset: 0.3,  transform: at(ux, uy, 1, 0), opacity: 1 },
-    { offset: 0.52, transform: at(ux, uy, 1, 0), opacity: 1, easing: 'cubic-bezier(.5,0,.75,.3)' },   // 잠시 머묾
-    { offset: 1,    transform: at(tx, ty, 0.18, 20), opacity: 0.4 },
-  ], { duration: 1300, fill: 'forwards' });
-  anim.onfinish = () => {
+  // v0.7.4: 순서 — ① 필드에서 튀어나옴 → ② (새 카드면) 콜렉터북 끼우기 → ③ 크래프팅 탭으로 날아감
+  (async () => {
+    // ① 튀어나와 잠시 머묾
+    await fly.animate([
+      { offset: 0,    transform: at(sx, sy, 0.3, 0), opacity: 0 },
+      { offset: 0.45, transform: at(ux, uy - 14, 1.12, -6), opacity: 1, easing: 'ease-out' },
+      { offset: 0.7,  transform: at(ux, uy, 1, 0), opacity: 1 },
+      { offset: 1,    transform: at(ux, uy, 1, 0), opacity: 1 },
+    ], { duration: 680, fill: 'forwards' }).finished;
+    // ② 새 카드면 여기서 발견 → 콜렉터북 끼우기가 끝날 때까지 떠 있는 채로 기다림
+    if (!S.seen.includes(t)){
+      S.seen.push(t);
+      toast(`✨ 새 카드: ${ic(t)} ${DEFS[t].name}`);
+      queueInsert(t);
+      renderMeta(); renderGather(); save();                        // 필드 카드 아래 실루엣 → 그림
+    }
+    while (inserting || pendingInsert.length) await wait(60);     // 다른 카드 끼우기 중이어도 끝난 뒤에 날아감
+    // ③ 작아지며 크래프팅 탭으로
+    await fly.animate([
+      { transform: at(ux, uy, 1, 0), opacity: 1 },
+      { transform: at(tx, ty, 0.18, 20), opacity: 0.4 },
+    ], { duration: 620, easing: 'cubic-bezier(.5,0,.75,.3)', fill: 'forwards' }).finished;
     fly.remove();
     inFlight.set(t, flightCount(t) - 1);
     const tb = document.querySelector('#tabs [data-tab="craft"]');
     flash(tb, 'catch', 350);
     if (looseCount(t) >= SPAWN_CAP){ toast(`누락: ${ic(t)} ${DEFS[t].name} — 월드에 ${SPAWN_CAP}장`); return; }
     const { w, h } = bounds();
-    const isNew = !S.seen.includes(t);
     addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === 'craft' ? 'spawn' : null);
     renderMeta(); save();
-    if (isNew) renderGather();                                     // 필드 카드 아래 실루엣 → 그림 (연타 중 다시 그리지 않게 새 발견 때만)
-  };
+  })();
 }
 
 // ── 시작 ────────────────────────────────────────────
