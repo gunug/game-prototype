@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.136.0';
+const VERSION = 'v0.136.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -982,6 +982,7 @@ function load(){
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
       if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상 없음'; }
+      if (c.type === 'quest' && c.quest === 'riverwork') c.rewards = ['explorer'];   // v0.136.1: 강 채집 보상 표시 던전 → 모험가
       if (Array.isArray(c.status)) c.status = c.status.filter(t => t !== '허기짐');   // v0.135.0: 허기짐 없앰
       if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
@@ -2264,7 +2265,7 @@ function giveRiverQuest(){
   const g = S.cards.find(c => c.type === 'god');
   if (!g) return;
   const rq = addCard('quest', g.x, g.y, { quest: 'riverwork', title: '강 채집', goal: 'gather', place: 'river',
-    target: g.id, giver: g.id, need: RIVER_WORK, gathered: 0, stack: [], rewards: ['dungeon'] });
+    target: g.id, giver: g.id, need: RIVER_WORK, gathered: 0, stack: [], rewards: ['explorer'] });   // v0.136.1: 실제 보상(모험가)과 표시를 맞춤
   slideOutFrom(rq, g);
   save();
   renderAll();
