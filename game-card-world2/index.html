@@ -88,6 +88,11 @@
   .f-stone{--frame:url(images/frame/frame_stone.png);}
   .f-wood{--frame:url(images/frame/frame_wood.png);}
   .cw.sel{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;}
+  /* v0.8.0: 보유 수량 — 카드 오른쪽 위 알약 */
+  .cw .cnt{position:absolute;right:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;min-width:calc(var(--cf) * .2);height:calc(var(--cf) * .2);padding:0 calc(var(--cf) * .05);box-sizing:border-box;
+    display:flex;align-items:center;justify-content:center;border-radius:999px;background:var(--brand-yellow);color:var(--on-brand);
+    font-size:calc(var(--cf) * .12);font-weight:800;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;font-variant-numeric:tabular-nums;}
+  .cw .cnt.tick{animation:bump .3s ease-out;}
   /* v0.1.1: 끌기 시작하면 조합 안 되는 카드는 흐려짐 (레거시 '흐려짐' = 어둡고 저채도) */
   .cw{transition:filter .2s;}
   .cw.dim{filter:brightness(.42) saturate(.3);}
@@ -367,7 +372,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.7.7';
+const VERSION = 'v0.8.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -376,7 +381,7 @@ const TIERS = [...new Set(CRAFT_TYPES.map(t => DEFS[t].tier))].sort((x, y) => x 
 // 크래프팅 탭에서 쓸 수 있는 조합식: 양쪽 다 크래프팅 카드로 채울 수 있고, 결과도 크래프팅 카드
 const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.some(t => sideMatch(sd, t)))
   && (r.out || []).every(craftable));
-const SPAWN_CAP = 2;                                            // 월드 최대 생성 개수. v0.5.1: 3 → 2
+// v0.8.0: 월드 최대 생성 개수(SPAWN_CAP) 없앰 — 종류마다 카드 한 장 + 보유 수량(n)
 const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}` : ''; };
 
 const table = document.getElementById('table');
@@ -391,14 +396,21 @@ function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
     if (!s || !Array.isArray(s.cards)) return null;
-    s.cards = s.cards.filter(c => craftable(c.type));
+    const merged = new Map();                                     // v0.8.0: 예전 저장의 같은 카드 여러 장 → 한 장 + 수량
+    for (const c of s.cards.filter(c => craftable(c.type))){
+      const m = merged.get(c.type);
+      if (m) m.n += c.n || 1;
+      else merged.set(c.type, { ...c, n: c.n || 1 });
+    }
+    s.cards = [...merged.values()];
     s.seen = (s.seen || []).filter(t => DEFS[t]);
     return s;
   } catch (e){ return null; }
 }
 function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
 const byId = id => S.cards.find(c => c.id === id);
-const looseCount = type => S.cards.filter(c => c.type === type).length;
+const cardOf = type => S.cards.find(c => c.type === type);
+const have = type => cardOf(type)?.n || 0;                       // 보유 수량
 
 function measure(){
   const m = Math.min(innerWidth, innerHeight);
@@ -440,7 +452,11 @@ function cardHtml(c){
       + (d.defense ? `<span>${statImg('def')}${d.defense}</span>` : '')
       + '</div>';
   }
-  return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`;
+  return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`;
+}
+function setCount(c){
+  const b = els.get(c.id)?.querySelector('.cnt');
+  if (b){ b.textContent = c.n; flash(b, 'tick', 300); }
 }
 function mount(c, anim, from){
   const el = document.createElement('div');
@@ -490,11 +506,19 @@ function toast(s){
 }
 
 // ── 카드 추가 / 제거 ─────────────────────────────────
+// v0.8.0: 이미 있는 종류면 수량만 +1 (카드는 그 자리에서 톡 튐), 없으면 새 카드
 function addCard(type, x, y, anim, from, made){
-  const p = findSpot(x, y);
-  const c = { id: S.nextId++, type, x: p.x, y: p.y };
-  S.cards.push(c);
-  mount(c, anim, from);
+  let c = cardOf(type);
+  if (c){
+    c.n++;
+    setCount(c);
+    if (anim) flash(els.get(c.id), 'bump', 300);
+  } else {
+    const p = findSpot(x, y);
+    c = { id: S.nextId++, type, x: p.x, y: p.y, n: 1 };
+    S.cards.push(c);
+    mount(c, anim, from);
+  }
   if (!S.seen.includes(type)){
     S.seen.push(type);
     toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
@@ -509,19 +533,19 @@ function removeCard(id){
   if (el){ el.classList.add('gone'); setTimeout(() => el.remove(), 300); }
   if (selected === id) selected = null;
 }
-// 여러 장 생성 — 상한까지 채우고, 빠진 것만 한 번에 '누락:' 알림. 실제로 나온 장 수를 돌려줌
+// 한 장 쓰기 — 수량 -1, 0이면 카드 사라짐
+function useOne(c){
+  c.n--;
+  if (c.n <= 0) removeCard(c.id);
+  else setCount(c);
+}
+// 여러 장 생성. v0.8.0: 상한 없음 — 있는 종류는 수량 +1
 function spawnMany(types, x, y, from, made3s){
-  const made = [], miss = new Map();
+  const made = [];
   for (const t of types){
-    if (looseCount(t) < SPAWN_CAP){
-      const c = addCard(t, x, y, 'pop', from, made3s);
-      made.push(c);
-      if (made3s){ const el = els.get(c.id); el.classList.add('made'); setTimeout(() => el.classList.remove('made'), 3000); }   // v0.2.2
-    }
-    else miss.set(t, (miss.get(t) || 0) + 1);
-  }
-  if (miss.size){
-    toast('누락: ' + [...miss].map(([t, n]) => `${ic(t)} ${DEFS[t].name}${n > 1 ? ' ×' + n : ''}`).join(', ') + ` — 월드에 ${SPAWN_CAP}장`);
+    const c = addCard(t, x, y, 'pop', from, made3s);
+    made.push(c);
+    if (made3s){ const el = els.get(c.id); el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); }   // v0.2.2
   }
   return made;
 }
@@ -536,19 +560,12 @@ function craft(drag, tgt, m){
   const a = m.aIsX ? drag : tgt, b = m.aIsX ? tgt : drag;
   const outs = r.cook ? [DEFS[b.type].cooked] : r.out.slice();
   const eaten = r.keep === 'a' ? [b] : r.keep === 'b' ? [a] : [a, b];
-  // 재료가 사라진 뒤로 상한을 셈. 하나도 못 나오면 조합 안 됨
-  const left = t => looseCount(t) - eaten.filter(c => c.type === t).length;
-  if (!outs.some(t => left(t) < SPAWN_CAP)){
-    const t = outs[0];
-    toast(`${ic(t)} ${DEFS[t].name} — 월드에 ${SPAWN_CAP}장 있어서 더 생성되지 않음`);
-    return false;
-  }
+  // v0.8.0: 재료는 한 장씩만 씀 (수량 -1). 상한 없음
   const from = { x: tgt.x, y: tgt.y };
-  for (const c of eaten) removeCard(c.id);
+  for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
-  const kept = eaten.includes(tgt) ? null : tgt;
-  if (kept && els.get(kept.id)) flash(els.get(kept.id), 'bump', 300);
-  return true;                                                   // 남는 도구·불은 밀어내기로 비킴
+  if (byId(tgt.id) && els.get(tgt.id)) flash(els.get(tgt.id), 'bump', 300);
+  return true;                                                   // 남은 카드는 밀어내기로 비킴
 }
 
 // ── 밀어내기 (v0.2.0) ────────────────────────────────
@@ -634,7 +651,7 @@ function endDrag(e){
   trashEl.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
   if (e.type !== 'pointercancel' && overTrash(e.clientX, e.clientY)){
-    removeCard(d.c.id);
+    useOne(d.c);                                                  // v0.8.0: 한 장만 버림
   } else {
     const tgt = e.type === 'pointercancel' ? null : cardAt(e.clientX, e.clientY, d.c.id);
     const m = tgt && craftMatch(d.c.type, tgt.type);
@@ -671,7 +688,7 @@ function renderInsp(){
   const t = c ? c.type : inspType;
   if (!t){
     inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
-      + `크래프팅 탭 — 1티어 원물 16장 · 2티어 16장 (추천안). 카드를 끌어 다른 카드에 놓으면 조합.<br>같은 카드는 월드에 ${SPAWN_CAP}장까지.</div>`;
+      + `크래프팅 탭 — 1티어 원물 16장 · 2티어 16장 (추천안). 카드를 끌어 다른 카드에 놓으면 조합.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>`;
     return;
   }
   const d = DEFS[t];
@@ -680,7 +697,7 @@ function renderInsp(){
       + '<div class="desc">아직 발견하지 못한 카드.</div>';
     return;
   }
-  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 월드 ${looseCount(t)}/${SPAWN_CAP}</div></div></div>`;
+  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 보유 ${have(t)}</div></div></div>`;
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
   const tags = (d.tags || []).slice();
   if (d.atk) tags.push(`공격력 ${d.atk}`);
@@ -892,18 +909,11 @@ gatherEl.addEventListener('click', e => {
 });
 
 // 채집 (v0.7.0): 필드 카드를 탭하면 그 필드의 1티어 하나가 나옴 → 필드 카드 위로 튀어나왔다 작아지며 크래프팅 탭으로 날아감 → 크래프팅 필드에 놓임
-//   같은 카드가 크래프팅 필드에 SPAWN_CAP장(날아가는 중 포함)이면 그 카드는 안 나옴 — 나머지 중에서 고름
-const inFlight = new Map();                                       // 날아가는 중인 카드 수 (상한 계산에 포함)
-const flightCount = t => inFlight.get(t) || 0;
+//   v0.8.0: 수량 제한 없음 — 그 필드의 1티어 4종 중 하나
 function harvest(fieldId, cardEl){
-  const pool = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === fieldId && looseCount(t) + flightCount(t) < SPAWN_CAP);
+  const pool = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === fieldId);
   flash(cardEl, 'tap', 300);
-  if (!pool.length){
-    toast(`${FIELD_BY_ID[fieldId].emoji} ${FIELD_BY_ID[fieldId].name} — 나오는 원물이 크래프팅 필드에 전부 ${SPAWN_CAP}장씩 있음`);
-    return;
-  }
   const t = pick(pool);
-  inFlight.set(t, flightCount(t) + 1);
   // 날아가는 카드: 크래프팅 카드와 같은 모양
   const fly = document.createElement('div');
   fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
@@ -939,10 +949,8 @@ function harvest(fieldId, cardEl){
       { transform: at(tx, ty, 0.18, 20), opacity: 0.4 },
     ], { duration: 620, easing: 'cubic-bezier(.5,0,.75,.3)', fill: 'forwards' }).finished;
     fly.remove();
-    inFlight.set(t, flightCount(t) - 1);
     const tb = document.querySelector('#tabs [data-tab="craft"]');
     flash(tb, 'catch', 350);
-    if (looseCount(t) >= SPAWN_CAP){ toast(`누락: ${ic(t)} ${DEFS[t].name} — 월드에 ${SPAWN_CAP}장`); return; }
     const { w, h } = bounds();
     addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === 'craft' ? 'spawn' : null);
     renderMeta(); save();
