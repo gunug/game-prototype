@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.136.1';
+const VERSION = 'v0.137.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -551,7 +551,7 @@ const DEFS = {
   ink:       { name:'먹물',        kind:'material', tags:['합칠 수 있음'] },
   squidmeat: { name:'오징어살',    kind:'food', tags:['먹을 수 있음', '날것', '합칠 수 있음'], cooked:'roastsquid' },
   roastsquid:{ name:'구운 오징어살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
-  map:       { name:'지도',        kind:'map', tags:[], register:3 },   // 장소를 쌓으면 등록되어 오른쪽에 나열
+  map:       { name:'지도',        kind:'map', tags:['도구'], register:3 },   // v0.137.0: 도구 태그 (콜렉터북 도구 탭, 신의 입 빨아들이기 제외)   // 장소를 쌓으면 등록되어 오른쪽에 나열
   tree:      { name:'나무',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
   roastmeat: { name:'구운 고기',   kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
   roastclam: { name:'구운 조갯살', kind:'food', tags:['먹을 수 있음', '익힘', '합칠 수 있음'] },
@@ -3595,11 +3595,14 @@ let bookOpen = false;          // 시트가 올라와 있나
 let bookManual = false;        // 버튼으로 연 상태 (자동으로 닫지 않음)
 let bookPending = new Set();   // 아직 등록 연출 전이라 ??? 로 보일 카드
 let discoQ = [], discoRunning = false, discoTimer = null;
-// 콜렉터북 탭 (v0.126.0): 캐릭터 · 장소 · 무기,방패,도구 · 재료(나머지 전부)
+// 콜렉터북 탭 (v0.126.0): 캐릭터 · 크리처 · 장소 · 무기,방패,도구 · 패키지 · 재료(나머지 전부)
+//   v0.137.0: 크리처(토끼·곰·고블린)·패키지(신의 선물·신의 구원·보물상자A) 탭 추가
 const BOOK_TABS = [
   { key: 'char',  name: '캐릭터',        has: d => d.kind === 'character' },
+  { key: 'crea',  name: '크리처',        has: d => d.kind === 'creature' },
   { key: 'place', name: '장소',          has: d => !!tagLevel(d, '장소') },
   { key: 'gear',  name: '무기,방패,도구', has: d => ['무기', '방패', '도구'].some(t => tagLevel(d, t)) },
+  { key: 'pack',  name: '패키지',        has: d => d.kind === 'package' },
   { key: 'mat',   name: '재료',          has: () => true },
 ];
 const bookTabOf = id => {
