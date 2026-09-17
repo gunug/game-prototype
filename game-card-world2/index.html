@@ -373,7 +373,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.8.2';
+const VERSION = 'v0.8.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -388,14 +388,14 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 const table = document.getElementById('table');
 const inspEl = document.getElementById('insp');
 let CW = 70, CH = 95;
+// v0.8.2: 필드 고갈 — 필드마다 남은 횟수(left)와 회복 진행(prog, ms). v0.8.3: S를 불러오기 전에 선언
+const FIELD_MAX = 10;                                            // 최대 횟수
+const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
+const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0 }]));
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-// v0.8.2: 필드 고갈 — 필드마다 남은 횟수(left)와 회복 진행(prog, ms)
-const FIELD_MAX = 10;                                            // 최대 횟수
-const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
-const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0 }]));
 function fresh(){ return { cards: [], seen: [], nextId: 1, tab: 'craft', fields: freshFields() }; }
 function load(){
   try {
