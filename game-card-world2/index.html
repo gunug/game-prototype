@@ -80,6 +80,19 @@
   .gather .cw.field.field-locked{cursor:default;}
   .gather .cw.field.field-locked > :not(.lock){filter:brightness(.3) saturate(.15);}
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
+  /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
+  .god-row{display:flex;align-items:center;gap:14px;width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);min-height:var(--ch);}
+  .god-row .cw.god{position:relative;flex:none;cursor:pointer;}
+  .god-speech{position:relative;max-width:min(300px, 62vw);background:var(--ink);color:#1a1a17;font-size:13px;font-weight:600;line-height:1.35;
+    padding:8px 12px;border-radius:12px;box-shadow:var(--sh-md);cursor:pointer;animation:speechIn .18s ease-out;}
+  .god-speech::after{content:'';position:absolute;right:100%;top:50%;margin-top:-6px;border:6px solid transparent;border-right-color:var(--ink);}
+  .god-speech[hidden]{display:none;}
+  @keyframes speechIn{from{opacity:0;transform:translateY(4px) scale(.96);}to{opacity:1;transform:none;}}
+  /* 갓 파워로 풀리는 자물쇠 */
+  .gather .cw.field .lock.unlocking{animation:unlockOut .6s ease-in forwards;}
+  @keyframes unlockOut{0%{transform:translate(-50%,-50%) scale(1);}30%{transform:translate(-50%,-50%) scale(1.25) rotate(-12deg);opacity:1;}100%{transform:translate(-50%,-110%) scale(.6) rotate(8deg);opacity:0;}}
+  .quest.q-new{animation:questIn .5s ease-out;}
+  @keyframes questIn{0%{background:rgba(255,212,0,.35);}100%{background:rgba(34,31,20,.96);}}
   .tabbtn.catch{animation:tabCatch .35s ease-out;}
   @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
@@ -394,7 +407,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.9.1';
+const VERSION = 'v0.10.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -412,16 +425,22 @@ let CW = 70, CH = 95;
 // v0.8.2: 필드 고갈 — 필드마다 남은 횟수(left)와 회복 진행(prog, ms). v0.8.3: S를 불러오기 전에 선언
 const FIELD_MAX = 10;                                            // 최대 횟수
 const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
-const START_FIELDS = ['mountain', 'grassland'];                  // v0.9.0: 처음 열린 필드. 나머지는 잠김
-const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0, locked: !START_FIELDS.includes(f.id) }]));
+const START_FIELDS = ['mountain', 'grassland'];                  // v0.9.0: 처음 열린 필드. v0.10.0: 처음엔 전부 잠김 → 갓이 이 둘을 열어 줌
+const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0, locked: true }]));
 // v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
 const QUESTS = { gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 } };
 const freshQuest = () => ({ id: 'gather', n: 0, done: false });
+// v0.10.0: 갓 첫 등장 — intro: 'start'(아직) | 'done'
+const GOD_LINES = {
+  intro: ['오, 드디어 누가 왔네.', '뭘 봐. 갓이다. 신… 비슷한 거.', '여긴 전부 잠겨 있어. 빈손으론 아무것도 못 하지.'],
+  power: '갓 파워!',
+  quest: '산이랑 초원은 열어 줬어. 가서 다섯 번만 캐 와.',
+};
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quest: freshQuest() }; }
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quest: null, intro: 'start' }; }
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -437,11 +456,12 @@ function load(){
     const fs = freshFields();                                     // v0.8.2: 필드 고갈 (없으면 가득)
     for (const id in fs){
       const o = s.fields && s.fields[id];
-      if (o) fs[id] = { left: Math.max(0, Math.min(FIELD_MAX, o.left | 0)), prog: Math.max(0, Math.min(FIELD_REGEN_MS, +o.prog || 0)), locked: typeof o.locked === 'boolean' ? o.locked : fs[id].locked };
+      if (o) fs[id] = { left: Math.max(0, Math.min(FIELD_MAX, o.left | 0)), prog: Math.max(0, Math.min(FIELD_REGEN_MS, +o.prog || 0)), locked: typeof o.locked === 'boolean' ? o.locked : !START_FIELDS.includes(id) };
     }
     s.fields = fs;
     s.newCards = (s.newCards || []).filter(t => DEFS[t] && s.seen.includes(t));   // v0.9.0: 콜렉터북에 아직 안 끼운 새 카드
-    s.quest = s.quest && QUESTS[s.quest.id] ? s.quest : freshQuest();
+    s.intro = s.intro === 'start' ? 'start' : 'done';              // v0.10.0: 예전 저장은 갓 등장을 본 것으로
+    s.quest = s.quest && QUESTS[s.quest.id] ? s.quest : s.intro === 'done' ? freshQuest() : null;
     return s;
   } catch (e){ return null; }
 }
@@ -880,7 +900,7 @@ async function runInserts(){
   renderBook(); save();
 }
 document.getElementById('bookBtn').addEventListener('click', () => {
-  if (paused) return;
+  if (paused || S.intro !== 'done') return;
   openBook(!bookOpen);
   if (bookOpen) runInserts();
 });
@@ -906,7 +926,10 @@ bookEl.addEventListener('change', e => {
 let fieldPick = null;
 function renderGather(){
   if (S.tab !== 'gather') return;
-  gatherEl.innerHTML = '<div class="gather-row">' + FIELDS.map(f => {
+  gatherEl.innerHTML = '<div class="god-row">'
+    + `<div class="cw framed f-gold god${godPick ? ' sel' : ''}" data-god="1"><div class="emoji">${godIcon()}</div><div class="name">갓</div></div>`
+    + `<div class="god-speech" data-god="1"${godLine ? '' : ' hidden'}>${esc(godLine || '')}</div></div>`
+    + '<div class="gather-row">' + FIELDS.map(f => {
     const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
     const locked = S.fields[f.id].locked;
     return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
@@ -946,6 +969,11 @@ function regenTick(){
   if (changed){ if (S.tab === 'gather' && fieldPick) renderInsp(); save(); }
 }
 function renderFieldInsp(){
+  if (godPick){                                                   // v0.10.0: 갓을 탭했을 때
+    inspEl.innerHTML = `<div class="head"><div class="pic">${godIcon()}</div><div><div class="nm">갓</div><div class="kd">캐릭터 · 수다쟁이</div></div></div>`
+      + '<div class="desc">신… 비슷한 것. 체력도 말발도 무한.</div>';
+    return;
+  }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
   if (!f){
     inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 재료가 나오는 필드 4곳.</div>';
@@ -968,6 +996,7 @@ function renderFieldInsp(){
 }
 function setTab(tab){
   if (paused) return;
+  if (S.intro !== 'done' && tab !== 'gather') return;             // v0.10.0: 갓 등장 동안은 채집 탭에 머묾
   if (drag) endDrag({ type: 'pointercancel' });
   S.tab = tab;
   for (const b of document.querySelectorAll('#tabs [data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
@@ -988,8 +1017,14 @@ document.getElementById('tabs').addEventListener('click', e => {
 });
 gatherEl.addEventListener('click', e => {
   if (paused) return;
+  if (e.target.closest('[data-god]')){                            // v0.10.0: 갓 탭 → 말하는 중이면 다음 대사로, 인스펙터에 갓
+    if (godItem) finishGodLine();
+    if (!godPick){ godPick = true; fieldPick = null; renderGather(); renderInsp(); }
+    return;
+  }
   const card = e.target.closest('[data-field]');
   if (!card) return;
+  if (godPick){ godPick = false; gatherEl.querySelector('.god')?.classList.remove('sel'); }
   if (fieldPick !== card.dataset.field){
     for (const el of gatherEl.querySelectorAll('[data-field]')) el.classList.toggle('sel', el === card);
     fieldPick = card.dataset.field;
@@ -1061,7 +1096,9 @@ function harvest(fieldId, cardEl){
 
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
 function renderQuest(){
-  const q = S.quest, def = QUESTS[q.id], el = document.getElementById('quest');
+  const q = S.quest, el = document.getElementById('quest');
+  if (!q){ el.innerHTML = ''; el.classList.remove('done'); return; }   // v0.10.0: 갓이 주기 전엔 빈 줄
+  const def = QUESTS[q.id];
   el.classList.toggle('done', q.done);
   if (!el.firstChild) el.innerHTML = '<span class="q-tag">📜</span><b class="q-name"></b><span class="q-text"></span><span class="q-n"></span>';
   el.querySelector('.q-name').textContent = def.name;
@@ -1069,11 +1106,79 @@ function renderQuest(){
   setNum(el.querySelector('.q-n'), `${Math.min(q.n, def.goal)}/${def.goal}${q.done ? ' ✓' : ''}`);
 }
 function questStep(id){
-  const q = S.quest, def = QUESTS[q.id];
-  if (q.done || q.id !== id) return;
+  const q = S.quest;
+  if (!q || q.done || q.id !== id) return;
+  const def = QUESTS[q.id];
   q.n++;
   if (q.n >= def.goal){ q.done = true; toast(`📜 퀘스트 완료: ${def.name}`); }
   renderQuest();
+}
+
+// ── 갓 (v0.10.0) ────────────────────────────────────
+// 채집 화면 위쪽에 캐릭터 카드. 대사는 오른쪽 말풍선에 한 줄씩 (길이에 따라 1.8초~), 갓이나 말풍선을 탭하면 다음 줄
+let godPick = false;                                              // 인스펙터에 갓
+let godLine = null, godItem = null, godTimer = null;
+const godQ = [];
+const godIcon = () => '<img class="icon" src="images/icon/card_god.png" alt="갓" draggable="false">';
+// lines: 문자열 또는 { text, start, done } — start는 그 줄이 뜰 때, done은 그 줄이 끝날 때
+function godSay(lines){
+  godQ.push(...lines.map(x => typeof x === 'string' ? { text: x } : x));
+  if (!godItem) nextGodLine();
+}
+function nextGodLine(){
+  godItem = godQ.shift() || null;
+  godLine = godItem ? godItem.text : null;
+  const b = gatherEl.querySelector('.god-speech');
+  if (b){
+    b.hidden = !godLine;
+    b.textContent = godLine || '';
+    if (godLine){ b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; }
+  }
+  if (!godItem) return;
+  if (godItem.start) godItem.start();
+  godTimer = setTimeout(finishGodLine, Math.max(1800, godItem.text.length * 110));
+}
+function finishGodLine(){
+  const it = godItem;
+  if (!it) return;
+  clearTimeout(godTimer);
+  godItem = null;
+  if (it.done) it.done();
+  nextGodLine();
+}
+// 첫 등장: 인사 3줄 → "갓 파워!"(산·초원 자물쇠가 풀림) → 퀘스트 한 줄 → 끝나면 퀘스트 "채집"
+function runGodIntro(){
+  if (S.intro === 'done') return;
+  godSay([
+    ...GOD_LINES.intro,
+    { text: GOD_LINES.power, start: () => unlockFields(START_FIELDS) },
+    { text: GOD_LINES.quest, done: () => giveQuest('gather') },
+  ]);
+}
+function unlockFields(ids){
+  for (const id of ids){
+    if (!S.fields[id].locked) continue;
+    const el = gatherEl.querySelector(`[data-field="${id}"]`);
+    el?.querySelector('.lock')?.classList.add('unlocking');       // 자물쇠가 튀어 오르며 사라짐
+    setTimeout(() => {
+      S.fields[id].locked = false;
+      S.fields[id].left = FIELD_MAX; S.fields[id].prog = 0;
+      renderGather();
+      const nel = gatherEl.querySelector(`[data-field="${id}"]`);
+      if (nel) flash(nel, 'tap', 300);
+      if (fieldPick === id) renderInsp();
+      save();
+    }, 600);
+  }
+}
+function giveQuest(id){
+  S.quest = { ...freshQuest(), id };
+  S.intro = 'done';
+  const el = document.getElementById('quest');
+  renderQuest();
+  flash(el, 'q-new', 520);
+  toast(`📜 새 퀘스트: ${QUESTS[id].name}`);
+  save();
 }
 
 // ── 시작 ────────────────────────────────────────────
@@ -1081,13 +1186,16 @@ document.getElementById('ver').textContent = VERSION;
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
   if (paused) return;
+  clearTimeout(godTimer); godQ.length = 0; godItem = null; godLine = null; godPick = false;   // v0.10.0: 하던 대사는 끊고 갓 등장부터 다시
   S = fresh(); selected = null; fieldPick = null; renderAll(); setTab(S.tab); save();   // v0.9.0: 처음부터는 채집 탭에서
+  runGodIntro();
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
-if (!S.tab) S.tab = 'craft';
+if (!S.tab || S.intro !== 'done') S.tab = 'gather';              // v0.10.0: 갓 등장 전이면 채집 탭
 renderAll();
 setTab(S.tab);
+runGodIntro();
 requestAnimationFrame(pushStep);
 setInterval(regenTick, 100);
 </script>
