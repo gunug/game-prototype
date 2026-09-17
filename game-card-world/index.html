@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.137.0';
+const VERSION = 'v0.138.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -542,7 +542,7 @@ const DEFS = {
   sawmill:   { name:'제재소',      kind:'place', tags:['장소'], capacity:1, gauge:'people', mill:{ from:'tree', out:['lumber', 'sawdust'], need:10 } },
   lumber:    { name:'나무판자',    kind:'material', tags:['불에 타는', '합칠 수 있음'] },   // v0.133.0: 목공 재료 (긴 나무판)
   sawdust:   { name:'톱밥',        kind:'material', tags:['불에 타는', '합칠 수 있음'] },
-  workbench: { name:'조합대',      kind:'bench', tags:[] },   // v0.133.0: 건축가의 두 번째 quest 보상 — 만들어 본 아이템의 재료를 펼쳐 줌
+  workbench: { name:'조합소',      kind:'place', tags:['장소'], bench:true },   // v0.133.0: 건축가의 두 번째 quest 보상 — 만들어 본 아이템의 재료를 펼쳐 줌. v0.138.0: 조합대 → 조합소, 장소
   dungeon:   { name:'던전',        kind:'place', tags:['장소'], capacity:1, span:3, spawns:['goblin'], chest:'treasurea' },   // v0.98.0: 끝에 보물상자
   river:     { name:'강가',        kind:'place', tags:['장소'], capacity:3, yields:[['shell', 5], ['grass', 3], ['flint', 2], ['squidcarcass', 3]], yieldNeed:10, gauge:'people' },   // v0.125.0: 오징어 사체 추가
   // v0.125.0: 모험가와 지도
@@ -592,7 +592,7 @@ const DESC = {
   sawmill:    '나무를 나무답게 만드는 곳. 건축가의 첫 작품.',
   lumber:     '곧게 켜야 뭐든 세운다. 건축가가 제일 좋아하는 모양.',
   sawdust:    '켜고 남은 가루. 버리기엔 잘 탄다.',
-  workbench:  '한 번 만들어 본 건 손이 기억한다. 조합대는 그 기억을 적어 둔다.',
+  workbench:  '한 번 만들어 본 건 손이 기억한다. 조합소는 그 기억을 적어 둔다.',
   treasurea:  '고블린이 아끼던 상자. 이제 주인이 바뀌었다.',
   plank:      '나뭇가지 두 개의 우정. 방패라고 부르기로 했다.',
   tannedhide: '냄새가 빠졌다. 거의.',
@@ -629,7 +629,7 @@ const fighter = d => d.kind === 'character' || d.kind === 'creature';
 const hpText = c => DEFS[c.type].immortal ? '∞' : `${c.hp}/${DEFS[c.type].hp}`;
 // 전신 포트레이트가 있는 카드 — 인스펙터 오른쪽 아래 (images/portrait/portrait_<id>.png, v0.56.0)
 const PORTRAITS = new Set(['architect', 'hostage', 'explorer', 'knight', 'god', 'animal', 'bear', 'goblin',
-  'mountain', 'campfire', 'bedding', 'godmouth', 'dungeon', 'river']);   // v0.98.0: 장소 6종   // v0.91.0: 고블린
+  'mountain', 'campfire', 'bedding', 'godmouth', 'dungeon', 'river', 'workbench']);   // v0.138.0: 조합소   // v0.98.0: 장소 6종   // v0.91.0: 고블린
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 // v0.53.0: 공격·방어·체력 그림 (이모지 ⚔ 🛡 ❤ 대신) — images/icon/ui_<k>.png
@@ -982,7 +982,8 @@ function load(){
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
       if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상 없음'; }
-      if (c.type === 'quest' && c.quest === 'riverwork') c.rewards = ['explorer'];   // v0.136.1: 강 채집 보상 표시 던전 → 모험가
+      if (c.type === 'quest' && c.quest === 'riverwork') c.rewards = ['explorer'];
+      if (c.type === 'quest' && c.quest === 'bench1') c.title = '조합소를 짓겠어';   // v0.138.0: 조합대 → 조합소   // v0.136.1: 강 채집 보상 표시 던전 → 모험가
       if (Array.isArray(c.status)) c.status = c.status.filter(t => t !== '허기짐');   // v0.135.0: 허기짐 없앰
       if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
@@ -1646,6 +1647,7 @@ function evaluateOne(d, t){
     if (!mouthEats(d)) return null;
     return { act: 'devour' };
   }
+  if (td.bench && dd.kind === 'character') return null;      // v0.138.0: 조합소는 장소지만 방문하지 않음 (하는 일이 없음)
   if (dd.kind === 'character' && tagLevel(td, '장소')){
     // 방문. 장소마다 최대 인원이 있음 (다 차 있으면 못 함)
     // v0.119.0: 자리가 가득 차면 못 넣는 게 아니라, 가장 먼저 방문한 캐릭터가 방출됨
@@ -2322,7 +2324,7 @@ const ARCH_LINES = {
   freed: ['크하— 살았다! 밧줄 끊어줘서 고맙네, 은혜는 잊지 않아.',
           '내 꼴 때문에 고생 많았지. 미안하네. 이제 내가 갚을 차례야.'],
   mill:  '나무 다섯, 돌 다섯. 제재소부터 세우자고. 여기서 도시를 시작할 거야.',
-  bench: '판자 다섯 장이면 조합대를 짜 주지. 한 번 만든 건 두 번 고생 안 하게.',
+  bench: '판자 다섯 장이면 조합소를 지어 주지. 한 번 만든 건 두 번 고생 안 하게.',
 };
 function architectCheck(){
   if (S.flags.millDone) return giveBenchQuest();              // v0.133.0: 제재소 다음 → 조합대를 짓겠어
@@ -2357,7 +2359,7 @@ function giveBenchQuest(){
   const a = S.cards.find(c => c.type === 'architect');
   if (!a || paused || drag || tear || busy || isTalking('architect')) return false;
   S.flags.benchGiven = true;
-  const rq = addCard('quest', a.x, a.y, { quest: 'bench1', title: '조합대를 짓겠어', wantsMulti: BENCH_NEED,
+  const rq = addCard('quest', a.x, a.y, { quest: 'bench1', title: '조합소를 짓겠어', wantsMulti: BENCH_NEED,
     need: BENCH_NEED.reduce((n, [, k]) => n + k, 0), stack: [], target: a.id, giver: a.id, rewards: ['workbench'] });
   slideOutFrom(rq, a);
   archSay(ARCH_LINES.bench);
@@ -2367,11 +2369,12 @@ function giveBenchQuest(){
 }
 function giveWorkbench(x, y){
   S.flags.benchDone = true;
+  if (S.cards.some(c => c.type === 'workbench')) return;        // v0.138.0: 장소는 월드에 하나만
   const p = findSpot(x, y);
   const b = addCard('workbench', p.x, p.y);
   spawned.delete(b.id);
   popFrom.set(b.id, { x, y });
-  toast(`${ic('workbench')} 조합대 완성 — 탭해서 만들 것을 고르기`);
+  toast(`${ic('workbench')} 조합소 완성 — 탭해서 만들 것을 고르기`);
 }
 function giveSawmill(x, y){
   S.flags.millDone = true;
@@ -4515,8 +4518,8 @@ function inspectorHtml(c){
   // ③ 조합·출현
   let c3 = '';
   if (d.loot) c3 += iSub('전리품', iChips(d.loot.map(cardRef)));
-  if (d.kind === 'bench') c3 += iSub('만들 수 있는 것 — 눌러서 고르기', benchPickHtml(c));   // v0.133.0
-  if (!['character', 'package', 'quest', 'creature', 'bench'].includes(d.kind)){
+  if (d.bench) c3 += iSub('만들 수 있는 것 — 눌러서 고르기', benchPickHtml(c));   // v0.133.0
+  if (!['character', 'package', 'quest', 'creature'].includes(d.kind) && !d.bench){
     const { reach, use } = comboLists(c.type);
     c3 += iSub('도달하는 조합', reach.join('') || iNone('없음'));
     c3 += iSub('할 수 있는 조합', use.join('') || iNone('없음'));
@@ -4947,7 +4950,7 @@ const CHAPTERS = [
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'explorer', 'squidcarcass']).concat(['map', 'ink', 'squidmeat']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack', 'squid', 'mapmake']),
     cards: ['explorer', 'map', 'river', 'mountain', 'campfire', 'godmouth', 'bedding'] },   // 등록할 장소 넉넉히
-  { title: '건축가: 조합대를 짓겠어',                          // v0.133.0
+  { title: '건축가: 조합소를 짓겠어',                          // v0.133.0
     flags: Object.assign({}, CH_PEACE, { peaceGiven: true, stored: true, swept: true, peaceDone: true, mountainGiven: true, mouthGiven: true, mouthTaught: true, mountainWorkDone: true, riverGiven: true, riverWorkDone: true, explorerGiven: true, mapDone: true, dungeonGiven: true, hostageGiven: true, archFreed: true, millDone: true }),
     knight: { hp: 10, status: [], equip: { '무기': 'hilt', '방패': 'plank' } },
     seen: CH_SEEN_FOOD.concat(['bedding', 'hilt', 'plank', 'tannedhide', 'sack', 'mountain', 'godmouth', 'river', 'explorer', 'squidcarcass', 'map', 'ink', 'squidmeat', 'dungeon', 'hostage', 'architect', 'sawmill', 'tree']), found: CH_FOUND_FOOD.concat(['bedding', 'tan', 'sack', 'squid', 'mapmake', 'freeman']),
