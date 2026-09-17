@@ -484,7 +484,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.141.0';
+const VERSION = 'v0.142.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1107,6 +1107,7 @@ function paint(el, c){
     // 장소 위쪽 가운데 한 줄: 방문 인원 + 게이지
     let top = '';
     if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
+    if (d.mill) top += `<div class="cap" title="등록된 ${esc(DEFS[d.mill.from].name)}">${iconHtml(d.mill.from, true)}${c.stock || 0}</div>`;   // v0.142.0: 제재소에 등록된 나무 수
     // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
     const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields || d.mill) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
@@ -1650,6 +1651,7 @@ function evaluateOne(d, t){
     }
     return null;
   }
+  if (td.mill && d.type === td.mill.from) return { act: 'millput' };   // v0.142.0: 제재소에 나무를 내려놓으면 등록 (나무를 끌었을 때만)
   if (td.devour){
     // 신의 입: 캐릭터·장소·quest 빼고 전부 먹음. 캐릭터는 방문도 못 함
     // v0.67.0: 물건이 들어 있는 container도 못 먹음
@@ -1805,6 +1807,13 @@ function apply(ev, d, t){
     return true;
   }
   if (ev.act === 'benchput') return benchPut(t, d);
+  if (ev.act === 'millput'){                                    // v0.142.0: 제재소 나무 등록 — 개수만 오름, 계속 추가 가능
+    removeCard(d.id);
+    t.stock = (t.stock || 0) + 1;
+    bumpIds.add(t.id);
+    floatText(t, `${DEFS[d.type].name} +1`, 'work');
+    return true;
+  }
   if (ev.act === 'strike'){
     if (ev.low){
       toast(`${ic(d.type)} 무기의 공격력 낮음 (${si('atk')} ${itemAtk(d.type, d.lv)} < ${si('hp')} ${t.hp})`);
@@ -4494,6 +4503,7 @@ function inspectorHtml(c){
     if (d.defense) st += iRow(`${statImg('def')}방어`, '+' + d.defense);
     if (d.capacity) st += iRow(`${statImg('people')}인원`, `${visitorsOf(c).length}/${d.capacity}`);
     if (d.hold) st += iRow('용량', `${c.count || 0}/${d.hold}`);
+    if (d.mill) st += iRow(`등록된 ${DEFS[d.mill.from].name}`, c.stock || 0);   // v0.142.0
     if (d.devour) st += iRow('기록', `${(c.eaten || []).length}/${d.devour}`) + iRow('흡족', c.satisfied || 0);
     const lv = tagLevel(d, '체력 회복');
     if (lv){
@@ -4636,18 +4646,27 @@ function millTick(){
     if (!mill) continue;
     const workers = visitorsOf(pl).filter(v => !statusOf(v).includes('빈사'));
     if (!visitorsOf(pl).length) pl.millPts = 0;                   // v0.134.0: 모두 떠나면 게이지 초기화
-    else pl.millPts = Math.min(mill.need, (pl.millPts || 0) + workers.length);   // 1초마다 방문 인원만큼 (빈사는 일 안 함)
+    else if ((pl.stock || 0) > 0) pl.millPts = Math.min(mill.need, (pl.millPts || 0) + workers.length);   // 1초마다 방문 인원만큼 (빈사는 일 안 함). v0.142.0: 등록된 나무가 있을 때만
     const el = els.get(pl.id);
     const pie = el && el.querySelector('.pie');
     if (pie) pie.style.setProperty('--p', pieValue(pl));
-    if (!workers.length || pl.millPts < mill.need) continue;
+    if (!workers.length || !(pl.stock > 0) || pl.millPts < mill.need) continue;
     if (!mill.out.some(t => canSpawn(t))) continue;              // v0.136.0: 하나도 못 나오면(월드 5장 상한) 가득 찬 채로 기다림
-    const tree = S.cards.filter(o => o.type === mill.from && o.id !== hid && bodyOf(o) === o && !heldSpawn(o.id))
-      .sort((a, b) => Math.hypot(a.x - pl.x, a.y - pl.y) - Math.hypot(b.x - pl.x, b.y - pl.y))[0];
-    if (!tree) continue;
+    // v0.142.0: 월드의 나무를 끌어오지 않고, 등록된 나무를 하나 써서 배출
     pl.millPts = 0;
-    pullInto(pl, tree, mill.out);
-    return;                                                   // 끌어오는 연출 동안 busy — 한 번에 하나
+    pl.stock--;
+    const omitted = [];
+    for (const t of mill.out){
+      if (!canSpawn(t)){ omitted.push(t); continue; }
+      const p = findSpot(pl.x, pl.y + CH + 12);
+      const nc = addCard(t, p.x, p.y);
+      spawned.delete(nc.id);
+      popFrom.set(nc.id, { x: pl.x, y: pl.y });
+    }
+    omitToast(omitted);
+    bumpIds.add(pl.id);
+    afterChange();
+    return;
   }
 }
 // 카드 하나를 장소로 끌어당겨 없애고, 그 자리에서 결과물이 튀어나옴 (월드 상한은 누락 표시)
