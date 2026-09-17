@@ -13,7 +13,7 @@
   body{background:var(--canvas);color:var(--ink);font-family:var(--font);-webkit-user-select:none;user-select:none;}
   [hidden]{display:none!important;}
   /* 인스펙터 자리: 가로가 긴 화면은 오른쪽 폭, 세로가 긴 화면은 하단 높이 (레거시와 같음) */
-  :root{--insp-w:0px;--insp-h:0px;--top-h:48px;}
+  :root{--insp-w:0px;--insp-h:0px;--top-h:48px;--quest-h:32px;--play-top:calc(var(--top-h) + var(--quest-h));}
   @media (orientation: landscape){ :root{--insp-w:clamp(200px, 22vw, 280px);} }
   @media (orientation: portrait){ :root{--insp-h:clamp(150px, 28vh, 240px);} }
 
@@ -31,15 +31,15 @@
   .tabbtn{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:700;
     padding:6px 12px;border-radius:var(--r-pill);white-space:nowrap;cursor:pointer;}
   .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);border-color:var(--brand-yellow);}
-  .topbar .meta{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .topbar .meta{display:inline-block;font-size:12px;color:var(--muted);white-space:nowrap;}
   .topbar .reset{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:4px 10px;border-radius:var(--r-pill);cursor:pointer;}
   @media (max-width:480px){ .topbar .title{display:none;} }
 
   /* 필드 */
-  .table{position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;touch-action:none;
+  .table{position:fixed;top:var(--play-top);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;touch-action:none;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
   /* 채집 탭 (v0.6.0) — 크래프팅 필드와 같은 자리에 필드 카드 4장 */
-  .gather{position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:auto;box-sizing:border-box;padding:16px;
+  .gather{position:fixed;top:var(--play-top);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:auto;box-sizing:border-box;padding:16px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
     background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
   .gather-hint{color:var(--muted);font-size:13px;text-align:center;}
@@ -54,12 +54,32 @@
   .gather .cw.field.tap{animation:bump .3s ease-out;}
   /* v0.8.2: 필드 고갈 — 위쪽에 남은 횟수 n/10 + 회복 게이지 */
   .gather .cw.field .stock{position:absolute;left:14%;right:14%;top:7%;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
-  .gather .cw.field .stock-n{font-size:calc(var(--cf) * .1);font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.8);}
+  .gather .cw.field .stock-n{display:inline-block;font-size:calc(var(--cf) * .1);font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.8);}
   .gather .cw.field .gauge{width:100%;height:4px;border-radius:2px;background:rgba(0,0,0,.45);overflow:hidden;}
   .gather .cw.field .gauge i{display:block;height:100%;width:0;background:var(--brand-yellow);border-radius:2px;}
   .gather .cw.field.full .gauge{visibility:hidden;}
   .gather .cw.field.depleted .emoji,.gather .cw.field.depleted .yields,.gather .cw.field.depleted .name{filter:brightness(.4) saturate(.3);}
   .gather .cw.field.depleted .stock-n{color:#ff8a8a;}
+  /* v0.9.0: 숫자 톡 튀기 — 숫자가 바뀌는 곳 공통 (setNum) */
+  .num-bump{animation:numBump .32s ease-out;}
+  @keyframes numBump{0%{transform:scale(1);}35%{transform:scale(1.4);}100%{transform:scale(1);}}
+  /* v0.9.0: 퀘스트 줄 — 상단 막대 바로 아래 */
+  .quest{position:fixed;left:0;right:0;top:var(--top-h);height:var(--quest-h);z-index:2147482990;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:0 14px;
+    background:rgba(34,31,20,.96);border-bottom:1px solid var(--hairline);font-size:13px;white-space:nowrap;overflow:hidden;}
+  .quest .q-tag{color:var(--brand-yellow);font-weight:800;}
+  .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
+  .quest .q-n{display:inline-block;margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;}
+  .quest.done .q-n{color:#8fdc8f;}
+  /* v0.9.0: 새 카드 표시 — 카드 왼쪽 위 NEW, 콜렉터북 버튼에 새 카드 수 */
+  .cw .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
+    display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
+  .nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;box-sizing:border-box;border-radius:999px;
+    background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
+  .nbadge[hidden]{display:none;}
+  /* v0.9.0: 잠긴 필드 — 어둡게 + 자물쇠 */
+  .gather .cw.field.field-locked{cursor:default;}
+  .gather .cw.field.field-locked > :not(.lock){filter:brightness(.3) saturate(.15);}
+  .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}
   .tabbtn.catch{animation:tabCatch .35s ease-out;}
   @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
@@ -94,7 +114,6 @@
   .cw .cnt{position:absolute;right:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;min-width:calc(var(--cf) * .2);height:calc(var(--cf) * .2);padding:0 calc(var(--cf) * .05);box-sizing:border-box;
     display:flex;align-items:center;justify-content:center;border-radius:999px;background:var(--brand-yellow);color:var(--on-brand);
     font-size:calc(var(--cf) * .12);font-weight:800;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;font-variant-numeric:tabular-nums;}
-  .cw .cnt.tick{animation:bump .3s ease-out;}
   /* v0.1.1: 끌기 시작하면 조합 안 되는 카드는 흐려짐 (레거시 '흐려짐' = 어둡고 저채도) */
   .cw{transition:filter .2s;}
   .cw.dim{filter:brightness(.42) saturate(.3);}
@@ -116,7 +135,7 @@
   @keyframes gone{to{transform:scale(.3);opacity:0;}}
 
   /* 알림 */
-  .toasts{position:fixed;left:0;right:var(--insp-w);z-index:2147483300;top:calc(var(--top-h) + 8px);
+  .toasts{position:fixed;left:0;right:var(--insp-w);z-index:2147483300;top:calc(var(--play-top) + 8px);
     display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;}
   .toast{background:rgba(28,28,23,.94);border:1px solid var(--hairline);color:var(--ink);
     font-size:13px;font-weight:600;padding:8px 14px;border-radius:var(--r-pill);white-space:nowrap;animation:toast 2.6s forwards;}
@@ -124,7 +143,7 @@
 
   /* 인스펙터 */
   .insp{position:fixed;z-index:2147482900;background:rgba(22,22,18,.97);box-sizing:border-box;overflow-y:auto;padding:12px 14px;font-size:13px;line-height:1.5;}
-  @media (orientation: landscape){ .insp{right:0;top:var(--top-h);bottom:0;width:var(--insp-w);border-left:1px solid var(--hairline);} }
+  @media (orientation: landscape){ .insp{right:0;top:var(--play-top);bottom:0;width:var(--insp-w);border-left:1px solid var(--hairline);} }
   @media (orientation: portrait){ .insp{left:0;right:0;bottom:0;height:var(--insp-h);border-top:1px solid var(--hairline);} }
   .insp .empty{color:var(--muted);}
   .insp .head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
@@ -193,12 +212,13 @@
   <span class="title">🃏 카드 월드 2</span>
   <div class="tabs" id="tabs"><button class="tabbtn" data-tab="gather">🧺 채집</button><button class="tabbtn" data-tab="craft">🔨 크래프팅</button></div>
   <span class="meta" id="seenMeta"></span>
-  <button class="tabbtn" id="bookBtn">📖 콜렉터북</button>
+  <button class="tabbtn" id="bookBtn">📖 콜렉터북<span class="nbadge" id="bookBadge" hidden></span></button>
   <button class="reset" id="reset">처음부터</button>
   <span class="meta" id="ver"></span>
 </div>
+<div class="quest" id="quest"></div>
 <div class="table" id="table">
-  <div class="hint" id="hint">🧺 <b>채집</b> 탭에서 필드를 탭해 원물을 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
+  <div class="hint" id="hint">🧺 <b>채집</b> 탭에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
 </div>
 <div class="book-back" id="bookBack"></div>
 <div class="book" id="book"></div>
@@ -322,19 +342,20 @@ const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt
 const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
 
 // 2장 조합 — 각 쪽은 { card } 또는 { tag, lv }. keep: 'a'/'b' = 남는 쪽
+// v0.9.0: 모든 재료는 조합하면 수량이 줄어듦 → 남는 쪽(keep) 없앰
 // v0.3.0: 레거시 조합식을 비움. v0.5.0: 2티어 추천안 16장 (미확정). 남는 쪽(돌·부싯돌)은 도구 규칙이 정해질 때까지 가안
 const RECIPES = [
-  { id:'blade',      a:{ card:'stone' },  b:{ card:'flint' },     out:['blade'], keep:'a' },   // v0.7.6: 자기+자기 조합 없음
+  { id:'blade',      a:{ card:'stone' },  b:{ card:'flint' },     out:['blade'] },   // v0.7.6: 자기+자기 조합 없음
   { id:'whetstone',  a:{ card:'sand' },   b:{ card:'stone' },     out:['whetstone'] },
-  { id:'ember',      a:{ card:'flint' },  b:{ card:'coal' },      out:['ember'], keep:'a' },
+  { id:'ember',      a:{ card:'flint' },  b:{ card:'coal' },      out:['ember'] },
   { id:'clay',       a:{ card:'water' },  b:{ card:'soil' },      out:['clay'] },
-  { id:'firewood',   a:{ card:'stone' },  b:{ card:'tree' },      out:['firewood'], keep:'a' },
+  { id:'firewood',   a:{ card:'stone' },  b:{ card:'tree' },      out:['firewood'] },
   { id:'cord',       a:{ card:'grass' },  b:{ card:'water' },     out:['cord'] },
-  { id:'honey',      a:{ card:'stone' },  b:{ card:'honeycomb' }, out:['honey', 'wax'], keep:'a' },
-  { id:'crushedore', a:{ card:'stone' },  b:{ card:'ore' },       out:['crushedore'], keep:'a' },
-  { id:'butcher',    a:{ card:'flint' },  b:{ card:'beast' },     out:['hide', 'meat', 'bone'], keep:'a' },
-  { id:'fillet',     a:{ card:'flint' },  b:{ card:'fish' },      out:['fillet'], keep:'a' },
-  { id:'flour',      a:{ card:'stone' },  b:{ card:'seed' },      out:['flour'], keep:'a' },
+  { id:'honey',      a:{ card:'stone' },  b:{ card:'honeycomb' }, out:['honey', 'wax'] },
+  { id:'crushedore', a:{ card:'stone' },  b:{ card:'ore' },       out:['crushedore'] },
+  { id:'butcher',    a:{ card:'flint' },  b:{ card:'beast' },     out:['hide', 'meat', 'bone'] },
+  { id:'fillet',     a:{ card:'flint' },  b:{ card:'fish' },      out:['fillet'] },
+  { id:'flour',      a:{ card:'stone' },  b:{ card:'seed' },      out:['flour'] },
   { id:'juice',      a:{ card:'berry' },  b:{ card:'water' },     out:['juice'] },
   { id:'salve',      a:{ card:'herb' },   b:{ card:'sap' },       out:['salve'] },
 ];
@@ -373,7 +394,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.8.3';
+const VERSION = 'v0.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -391,12 +412,16 @@ let CW = 70, CH = 95;
 // v0.8.2: 필드 고갈 — 필드마다 남은 횟수(left)와 회복 진행(prog, ms). v0.8.3: S를 불러오기 전에 선언
 const FIELD_MAX = 10;                                            // 최대 횟수
 const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
-const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0 }]));
+const START_FIELDS = ['mountain', 'grassland'];                  // v0.9.0: 처음 열린 필드. 나머지는 잠김
+const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0, locked: !START_FIELDS.includes(f.id) }]));
+// v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
+const QUESTS = { gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 } };
+const freshQuest = () => ({ id: 'gather', n: 0, done: false });
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], nextId: 1, tab: 'craft', fields: freshFields() }; }
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quest: freshQuest() }; }
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -412,9 +437,11 @@ function load(){
     const fs = freshFields();                                     // v0.8.2: 필드 고갈 (없으면 가득)
     for (const id in fs){
       const o = s.fields && s.fields[id];
-      if (o) fs[id] = { left: Math.max(0, Math.min(FIELD_MAX, o.left | 0)), prog: Math.max(0, Math.min(FIELD_REGEN_MS, +o.prog || 0)) };
+      if (o) fs[id] = { left: Math.max(0, Math.min(FIELD_MAX, o.left | 0)), prog: Math.max(0, Math.min(FIELD_REGEN_MS, +o.prog || 0)), locked: typeof o.locked === 'boolean' ? o.locked : fs[id].locked };
     }
     s.fields = fs;
+    s.newCards = (s.newCards || []).filter(t => DEFS[t] && s.seen.includes(t));   // v0.9.0: 콜렉터북에 아직 안 끼운 새 카드
+    s.quest = s.quest && QUESTS[s.quest.id] ? s.quest : freshQuest();
     return s;
   } catch (e){ return null; }
 }
@@ -463,11 +490,40 @@ function cardHtml(c){
       + (d.defense ? `<span>${statImg('def')}${d.defense}</span>` : '')
       + '</div>';
   }
-  return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`;
+  return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`
+    + (S.newCards.includes(c.type) ? '<div class="new-b">NEW</div>' : '');
 }
-function setCount(c){
-  const b = els.get(c.id)?.querySelector('.cnt');
-  if (b){ b.textContent = c.n; flash(b, 'tick', 300); }
+// v0.9.0: 숫자 바꾸기 공통 — 글이 실제로 바뀌면 톡 튐 (처음 채울 땐 안 튐). 숫자가 바뀌는 곳은 모두 이걸로
+function setNum(el, text){
+  if (!el) return;
+  text = String(text);
+  if (el.textContent === text) return;
+  const had = el.textContent !== '';
+  el.textContent = text;
+  if (had) flash(el, 'num-bump', 340);
+}
+function setCount(c){ setNum(els.get(c.id)?.querySelector('.cnt'), c.n); }
+// 새 카드 표시 다시 그리기: 필드 카드 NEW 뱃지 · 콜렉터북 버튼 수
+function renderNew(){
+  for (const c of S.cards){
+    const el = els.get(c.id);
+    if (!el) continue;
+    const on = S.newCards.includes(c.type), b = el.querySelector('.new-b');
+    if (on && !b) el.insertAdjacentHTML('beforeend', '<div class="new-b">NEW</div>');
+    if (!on && b) b.remove();
+  }
+  const badge = document.getElementById('bookBadge');
+  badge.hidden = !S.newCards.length;
+  if (S.newCards.length) setNum(badge, S.newCards.length);
+  else badge.textContent = '';
+}
+// 처음 본 카드 — 발견 기록 + NEW (v0.9.0: 콜렉터북 끼우기는 콜렉터북을 열 때 한꺼번에)
+function discover(type){
+  if (S.seen.includes(type)) return;
+  S.seen.push(type);
+  S.newCards.push(type);
+  toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
+  renderMeta(); renderNew();
 }
 function mount(c, anim, from){
   const el = document.createElement('div');
@@ -497,13 +553,15 @@ function renderAll(){
     mount(c);
   }
   renderMeta();
+  renderNew();
+  renderQuest();
   renderInsp();
   renderBook();
   if (typeof renderGather === 'function') renderGather();
 }
 function renderMeta(){
   const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
-  document.getElementById('seenMeta').textContent = `발견 ${found}/${CRAFT_TYPES.length}`;
+  setNum(document.getElementById('seenMeta'), `발견 ${found}/${CRAFT_TYPES.length}`);
   document.getElementById('hint').hidden = S.cards.length > 0;
 }
 
@@ -530,11 +588,7 @@ function addCard(type, x, y, anim, from, made){
     S.cards.push(c);
     mount(c, anim, from);
   }
-  if (!S.seen.includes(type)){
-    S.seen.push(type);
-    toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
-    queueInsert(type, anim ? INSERT_AFTER_SPAWN : 0);              // v0.4.0: 콜렉터북 슬리브에 끼우기 (게임 일시정지). v0.7.5: 조합 결과가 필드에 튀어나온 게 보인 뒤에
-  }
+  discover(type);
   return c;
 }
 function removeCard(id){
@@ -570,8 +624,7 @@ function craft(drag, tgt, m){
   const r = m.r;
   const a = m.aIsX ? drag : tgt, b = m.aIsX ? tgt : drag;
   const outs = r.cook ? [DEFS[b.type].cooked] : r.out.slice();
-  const eaten = r.keep === 'a' ? [b] : r.keep === 'b' ? [a] : [a, b];
-  // v0.8.0: 재료는 한 장씩만 씀 (수량 -1). 상한 없음
+  const eaten = [a, b];                                          // v0.9.0: 두 재료 모두 한 장씩 줄어듦 (남는 쪽 없음)
   const from = { x: tgt.x, y: tgt.y };
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
@@ -689,7 +742,7 @@ function renderInsp(){
   const t = c ? c.type : inspType;
   if (!t){
     inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
-      + `크래프팅 탭 — 1티어 원물 16장 · 2티어 16장 (추천안). 카드를 끌어 다른 카드에 놓으면 조합.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>`;
+      + `크래프팅 탭 — 1티어 재료 16장 · 2티어 16장 (추천안). 카드를 끌어 다른 카드에 놓으면 조합.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>`;
     return;
   }
   const d = DEFS[t];
@@ -742,8 +795,7 @@ const BOOK_ALL_KEY = 'card-world2.bookAll';                       // v0.7.3: 따
 let bookAll = false;                                              // '모든 카드 보기' (v0.7.1): 미발견도 보여 줌. 발견 기록은 안 바뀜
 try { bookAll = localStorage.getItem(BOOK_ALL_KEY) === '1'; } catch (e) {}
 let paused = false;
-const pendingInsert = [];                                         // 끼우기를 기다리는 카드 (발견은 됐지만 아직 슬리브엔 실루엣)
-const shownSeen = t => S.seen.includes(t) && !pendingInsert.includes(t);
+const shownSeen = t => S.seen.includes(t) && !S.newCards.includes(t);   // v0.9.0: 새 카드는 끼우기 전까지 실루엣
 const shownOpen = t => bookAll || shownSeen(t);
 function slotHtml(t){
   const on = shownOpen(t);
@@ -795,27 +847,22 @@ function setPaused(on){
   if (all) all.disabled = on;
 }
 let inserting = false;
-const INSERT_AFTER_SPAWN = 800;                                   // v0.7.5: 결과 카드 등장(0.5초)을 보고 난 뒤 콜렉터북
-function queueInsert(t, delay){
-  pendingInsert.push(t);                                          // 슬리브는 바로 실루엣으로 (끼우기 대기)
-  if (inserting) return;
-  if (delay) setTimeout(() => { if (!inserting && pendingInsert.length) runInserts(); }, delay);
-  else runInserts();
-}
+// v0.9.0: 콜렉터북을 열면 새 카드를 티어 순으로 한꺼번에 끼움. 끼울 때마다 NEW 뱃지·버튼 수가 하나씩 줄어듦
 async function runInserts(){
+  if (inserting || !S.newCards.length) return;
   inserting = true;
   setPaused(true);
   if (drag) endDrag({ type: 'pointercancel' });                  // 끌던 카드는 그 자리에 놓음
-  const wasOpen = bookOpen;
-  if (!bookOpen){ openBook(true); await wait(420); }            // 올라오는 시간
-  while (pendingInsert.length){
-    const t = pendingInsert[0];
+  await wait(420);                                                // 올라오는 시간
+  const order = S.newCards.slice().sort((x, y) => DEFS[x].tier - DEFS[y].tier || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
+  for (const t of order){
     if (bookTier !== DEFS[t].tier){ bookTier = DEFS[t].tier; renderBook(); }
     const slot = bookEl.querySelector(`[data-book="${t}"]`);
     if (slot){
       slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       await wait(125);
-      pendingInsert.shift();
+      S.newCards = S.newCards.filter(x => x !== t);
+      renderNew();
       const ghost = slot.querySelector('.cw');
       ghost.classList.add('ghost');                               // 실루엣은 흐려지며 빠지고
       const card = document.createElement('div');                 // 진짜 카드가 위에서 끼워짐
@@ -824,16 +871,19 @@ async function runInserts(){
       slot.appendChild(card);
       slot.classList.add('glow');
       await wait(500);
-    } else pendingInsert.shift();
+    } else { S.newCards = S.newCards.filter(x => x !== t); renderNew(); }
     renderBook();
   }
   await wait(125);
   setPaused(false);
   inserting = false;
-  if (!wasOpen) openBook(false);
-  else renderBook();
+  renderBook(); save();
 }
-document.getElementById('bookBtn').addEventListener('click', () => { if (!paused) openBook(!bookOpen); });
+document.getElementById('bookBtn').addEventListener('click', () => {
+  if (paused) return;
+  openBook(!bookOpen);
+  if (bookOpen) runInserts();
+});
 bookBack.addEventListener('click', () => { if (!paused) openBook(false); });
 bookEl.addEventListener('click', e => {
   if (paused) return;
@@ -858,11 +908,12 @@ function renderGather(){
   if (S.tab !== 'gather') return;
   gatherEl.innerHTML = '<div class="gather-row">' + FIELDS.map(f => {
     const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
-    return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}" data-field="${f.id}">`
-      + '<div class="stock"><span class="stock-n"></span><div class="gauge"><i></i></div></div>'
+    const locked = S.fields[f.id].locked;
+    return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
+      + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '<div class="stock"><span class="stock-n"></span><div class="gauge"><i></i></div></div>')
       + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
       + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div></div>`;
-  }).join('') + '</div><div class="gather-hint">필드를 탭하면 정보가 나와요</div>';
+  }).join('') + '</div><div class="gather-hint">필드를 탭해서 재료를 모으세요</div>';
   renderStock();
 }
 // 필드 카드의 남은 횟수 · 게이지만 고침 (카드를 다시 그리지 않아 톡 튀는 연출이 안 끊김)
@@ -870,7 +921,8 @@ function renderStock(){
   if (S.tab !== 'gather') return;
   for (const el of gatherEl.querySelectorAll('[data-field]')){
     const st = S.fields[el.dataset.field];
-    el.querySelector('.stock-n').textContent = st.left ? `${st.left}/${FIELD_MAX}` : `고갈 0/${FIELD_MAX}`;
+    if (st.locked) continue;
+    setNum(el.querySelector('.stock-n'), st.left ? `${st.left}/${FIELD_MAX}` : `고갈 0/${FIELD_MAX}`);
     el.querySelector('.gauge i').style.width = (st.left < FIELD_MAX ? st.prog / FIELD_REGEN_MS * 100 : 0) + '%';
     el.classList.toggle('full', st.left >= FIELD_MAX);
     el.classList.toggle('depleted', st.left <= 0);
@@ -885,7 +937,7 @@ function regenTick(){
   let changed = false;
   for (const f of FIELDS){
     const st = S.fields[f.id];
-    if (st.left >= FIELD_MAX){ st.prog = 0; continue; }
+    if (st.locked || st.left >= FIELD_MAX){ st.prog = 0; continue; }
     st.prog += dt;
     while (st.prog >= FIELD_REGEN_MS && st.left < FIELD_MAX){ st.prog -= FIELD_REGEN_MS; st.left++; changed = true; }
     if (st.left >= FIELD_MAX) st.prog = 0;
@@ -896,14 +948,20 @@ function regenTick(){
 function renderFieldInsp(){
   const f = fieldPick && FIELD_BY_ID[fieldPick];
   if (!f){
-    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 1티어 원물이 나오는 필드 4곳.</div>';
+    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 재료가 나오는 필드 4곳.</div>';
     return;
   }
   const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
+  const st = S.fields[f.id];
+  if (st.locked){
+    inspEl.innerHTML = `<div class="head"><div class="pic locked">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드 · 🔒 잠김</div></div></div>`
+      + '<div class="desc">아직 들어갈 수 없는 필드.</div>';
+    return;
+  }
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
     + `<div class="sub">남은 횟수</div><div class="row">${S.fields[f.id].left ? '' : '<b>고갈</b> · '}${S.fields[f.id].left}/${FIELD_MAX} <span class="i-muted">(10초에 +1)</span></div>`
-    + '<div class="sub">나오는 원물 (1티어)</div>'
+    + '<div class="sub">나오는 재료</div>'
     + ys.map(t => S.seen.includes(t)
       ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)}</div>`
       : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span></div>`).join('');
@@ -944,6 +1002,11 @@ gatherEl.addEventListener('click', e => {
 //   v0.8.0: 수량 제한 없음 — 그 필드의 1티어 4종 중 하나
 function harvest(fieldId, cardEl){
   const st = S.fields[fieldId];
+  if (st.locked){                                                 // v0.9.0: 잠긴 필드
+    flash(cardEl, 'fail', 600);
+    toast(`🔒 ${FIELD_BY_ID[fieldId].emoji} ${FIELD_BY_ID[fieldId].name} — 아직 잠겨 있음`);
+    return;
+  }
   if (st.left <= 0){                                              // v0.8.2: 고갈 — 채집 안 됨
     flash(cardEl, 'fail', 600);
     toast(`${FIELD_BY_ID[fieldId].emoji} ${FIELD_BY_ID[fieldId].name} 고갈 — 10초마다 1회 회복`);
@@ -951,6 +1014,7 @@ function harvest(fieldId, cardEl){
   }
   if (st.left >= FIELD_MAX) st.prog = 0;                          // 가득일 때 쓰면 게이지는 0부터
   st.left--;
+  questStep('gather');
   renderStock(); renderInsp(); save();
   const pool = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === fieldId);
   flash(cardEl, 'tap', 300);
@@ -967,7 +1031,7 @@ function harvest(fieldId, cardEl){
   const tab = document.querySelector('#tabs [data-tab="craft"]').getBoundingClientRect();
   const tx = tab.left + tab.width / 2 - CW / 2, ty = tab.top + tab.height / 2 - CH / 2;  // 크래프팅 탭
   const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
-  // v0.7.4: 순서 — ① 필드에서 튀어나옴 → ② (새 카드면) 콜렉터북 끼우기 → ③ 크래프팅 탭으로 날아감
+  // v0.7.4: 순서 — ① 필드에서 튀어나옴 → ② (새 카드면) 발견 → ③ 크래프팅 탭으로 날아감. v0.9.0: 콜렉터북 끼우기는 기다리지 않음
   (async () => {
     // ① 튀어나와 잠시 머묾
     await fly.animate([
@@ -976,14 +1040,11 @@ function harvest(fieldId, cardEl){
       { offset: 0.7,  transform: at(ux, uy, 1, 0), opacity: 1 },
       { offset: 1,    transform: at(ux, uy, 1, 0), opacity: 1 },
     ], { duration: 680, fill: 'forwards' }).finished;
-    // ② 새 카드면 여기서 발견 → 콜렉터북 끼우기가 끝날 때까지 떠 있는 채로 기다림
+    // ② 새 카드면 여기서 발견 (NEW 뱃지 · 콜렉터북 버튼 수)
     if (!S.seen.includes(t)){
-      S.seen.push(t);
-      toast(`✨ 새 카드: ${ic(t)} ${DEFS[t].name}`);
-      queueInsert(t);
-      renderMeta(); renderGather(); save();                        // 필드 카드 아래 실루엣 → 그림
+      discover(t);
+      renderGather(); save();                                     // 필드 카드 아래 실루엣 → 그림
     }
-    while (inserting || pendingInsert.length) await wait(60);     // 다른 카드 끼우기 중이어도 끝난 뒤에 날아감
     // ③ 작아지며 크래프팅 탭으로
     await fly.animate([
       { transform: at(ux, uy, 1, 0), opacity: 1 },
@@ -998,13 +1059,29 @@ function harvest(fieldId, cardEl){
   })();
 }
 
+// ── 퀘스트 (v0.9.0) ─────────────────────────────────
+function renderQuest(){
+  const q = S.quest, def = QUESTS[q.id], el = document.getElementById('quest');
+  el.classList.toggle('done', q.done);
+  if (!el.firstChild) el.innerHTML = '<span class="q-tag">📜</span><b class="q-name"></b><span class="q-text"></span><span class="q-n"></span>';
+  el.querySelector('.q-name').textContent = def.name;
+  el.querySelector('.q-text').textContent = q.done ? '완료' : def.text;
+  setNum(el.querySelector('.q-n'), `${Math.min(q.n, def.goal)}/${def.goal}${q.done ? ' ✓' : ''}`);
+}
+function questStep(id){
+  const q = S.quest, def = QUESTS[q.id];
+  if (q.done || q.id !== id) return;
+  q.n++;
+  if (q.n >= def.goal){ q.done = true; toast(`📜 퀘스트 완료: ${def.name}`); }
+  renderQuest();
+}
+
 // ── 시작 ────────────────────────────────────────────
 document.getElementById('ver').textContent = VERSION;
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
   if (paused) return;
-  const tab = S.tab;                                              // v0.6.0: 보던 탭은 그대로
-  S = fresh(); S.tab = tab; selected = null; renderAll(); save();
+  S = fresh(); selected = null; fieldPick = null; renderAll(); setTab(S.tab); save();   // v0.9.0: 처음부터는 채집 탭에서
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
