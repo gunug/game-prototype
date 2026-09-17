@@ -161,7 +161,8 @@
   /* 신의 입: 버린 카드 기록 칸 (최근 것이 왼쪽). 잡아끌면 꺼냄 */
   .cw.has-eaten{padding-bottom:calc(var(--ch) * .25);}
   .cw .eaten{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:2px;}
-  .cw .eaten .mini[data-eat]{cursor:pointer;}   /* v0.141.0: 탭해서 되돌리기 */
+  .cw .eaten .mini[data-eat]{cursor:pointer;}
+  .cw [data-stock]{pointer-events:auto;cursor:pointer;touch-action:none;}   /* v0.142.1: 제재소 등록 나무 탭 = 배출 */   /* v0.141.0: 탭해서 되돌리기 */
   .cw .eaten .mini{width:calc(var(--cw) * .27);height:calc(var(--cw) * .32);margin:0;border-radius:4px;font-size:calc(var(--cw) * .17);}
   .cw .eaten .mini.empty{background:rgba(0,0,0,.3);border:1px dashed rgba(255,255,255,.2);box-shadow:none;cursor:default;pointer-events:none;}
   /* v0.65.0: 새 기록이 들어오면 기록 칸이 한 칸씩 밀림 / 밀려난 카드는 입 그림 쪽으로 돌며 작아짐 (삼킴) */
@@ -484,7 +485,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.142.0';
+const VERSION = 'v0.142.1';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -1107,7 +1108,7 @@ function paint(el, c){
     // 장소 위쪽 가운데 한 줄: 방문 인원 + 게이지
     let top = '';
     if (d.capacity) top += `<div class="cap">${statImg('people')}${visitorsOf(c).length}/${d.capacity}</div>`;   // 장소 방문 인원
-    if (d.mill) top += `<div class="cap" title="등록된 ${esc(DEFS[d.mill.from].name)}">${iconHtml(d.mill.from, true)}${c.stock || 0}</div>`;   // v0.142.0: 제재소에 등록된 나무 수
+    if (d.mill) top += `<div class="cap"${c.stock ? ' data-stock' : ''} title="등록된 ${esc(DEFS[d.mill.from].name)} — 탭해서 한 개 빼기">${iconHtml(d.mill.from, true)}${c.stock || 0}</div>`;   // v0.142.0: 제재소에 등록된 나무 수. v0.142.1: 탭하면 하나 배출
     // v0.72.0: 게이지가 쓰는 자원 아이콘을 파이 한가운데에 (v0.71.0 파이 옆 아이콘 → 안으로)
     const gk = d.gauge || (tagLevel(d, '체력 회복') ? 'hp' : null);
     if ((tagLevel(d, '체력 회복') && visitorsOf(c).length) || d.yields || d.mill) top += `<div class="pie" style="--p:${pieValue(c)}"${gk ? ` title="게이지: ${STAT_NAME[gk]}"` : ''}>${gk ? statImg(gk) : ''}</div>`;
@@ -2760,6 +2761,17 @@ function purgeWorld(id){
 // v0.134.0: 탭으로 한 장 빼기 — 자루는 담긴 카드 1장, 캐릭터는 탭한 장비 칸. 끌면 카드째 움직임 (끌어서 빼지 않음)
 //   이미 있던 카드가 나오는 것이라 월드 5장 상한과 무관
 function tapTakeOut(c, part){
+  if (part.kind === 'stock'){                                 // v0.142.1: 제재소에 등록된 나무 하나 배출 (이미 있던 카드라 5장 상한과 무관)
+    const mill = DEFS[c.type].mill;
+    if (!mill || !(c.stock > 0)) return false;
+    c.stock--;
+    const p = findSpot(c.x, c.y + CH + 12);
+    const nc = addCard(mill.from, p.x, p.y, null, true);
+    spawned.delete(nc.id);
+    popFrom.set(nc.id, { x: c.x, y: c.y });
+    bumpIds.add(c.id);
+    return true;
+  }
   if (part.kind === 'eat'){                                   // v0.141.0: 신의 입 기록에서 한 장 되돌리기 (카드 상태 그대로)
     const rec = (c.eaten || []).splice(part.idx, 1)[0];
     if (!rec || !DEFS[rec.type]) return false;
@@ -2982,7 +2994,8 @@ function onDown(e){
   const eqEl = e.target.closest('.equip span[data-eq]');
   const tapPart = heldEl && c.fill && c.count > 0 ? { kind: 'held' }
     : eqEl && c.equip && c.equip[eqEl.dataset.eq] ? { kind: 'equip', slot: eqEl.dataset.eq }
-    : e.target.closest('[data-eat]') && c.eaten ? { kind: 'eat', idx: +e.target.closest('[data-eat]').dataset.eat } : null;   // v0.141.0: 신의 입 기록
+    : e.target.closest('[data-eat]') && c.eaten ? { kind: 'eat', idx: +e.target.closest('[data-eat]').dataset.eat }
+    : e.target.closest('[data-stock]') && c.stock > 0 ? { kind: 'stock' } : null;   // v0.142.1: 제재소 등록 나무   // v0.141.0: 신의 입 기록
 
   // v0.141.0: 신의 입 기록에서 되돌리기 복구 — 기록 칸을 탭 (위 tapPart)
 
