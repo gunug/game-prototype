@@ -32,6 +32,16 @@
   /* 필드 */
   .table{position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:hidden;touch-action:none;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
+  /* 채집 탭 (v0.6.0) — 크래프팅 필드와 같은 자리에 필드 카드 4장 */
+  .gather{position:fixed;top:var(--top-h);left:0;right:var(--insp-w);bottom:var(--insp-h);overflow:auto;box-sizing:border-box;padding:16px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
+  .gather-hint{color:var(--muted);font-size:13px;text-align:center;}
+  .gather-row{display:flex;flex-wrap:wrap;justify-content:center;gap:calc(var(--cw) * .35);max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);}
+  .gather .cw.field{position:relative;width:calc(var(--cw) * 1.6);height:calc(var(--ch) * 1.6);cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.6);}
+  .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.6 * .42);}
+  .gather .cw.field .yields{display:flex;gap:2px;justify-content:center;font-size:calc(var(--cw) * .2);margin-top:2px;pointer-events:none;}
+  .gather .cw.field .yields .locked .icon,.gather .cw.field .yields .icon.locked{filter:brightness(0) opacity(.45);}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
 
   /* 필드 아래 조작: 신의 선물 / 버리기 */
@@ -164,7 +174,7 @@
 <body>
 <div class="topbar">
   <span class="title">🃏 카드 월드 2</span>
-  <div class="tabs" id="tabs"><button class="tabbtn on" data-tab="craft">🔨 크래프팅</button></div>
+  <div class="tabs" id="tabs"><button class="tabbtn" data-tab="gather">🧺 채집</button><button class="tabbtn" data-tab="craft">🔨 크래프팅</button></div>
   <span class="meta" id="seenMeta"></span>
   <button class="tabbtn" id="bookBtn">📖 콜렉터북</button>
   <button class="reset" id="reset">처음부터</button>
@@ -178,16 +188,17 @@
 <div class="book-back" id="bookBack"></div>
 <div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
+<div class="gather" id="gather" hidden></div>
 <div class="insp" id="insp"></div>
 <script>
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
 // 레거시 조합식·재료는 쓰지 않음. 1티어만 있고, 2티어가 정해질 때까지 조합식 없음
 // 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
 const FIELDS = [
-  { id:'mountain',  name:'산',   emoji:'⛰️' },
-  { id:'forest',    name:'숲',   emoji:'🌲' },
-  { id:'river',     name:'강가', emoji:'🏞️' },
-  { id:'grassland', name:'초원', emoji:'🌾' },
+  { id:'mountain',  name:'산',   emoji:'⛰️', desc:'올라갈수록 돌이 많아지고, 캘수록 반짝이는 게 나온다.' },
+  { id:'forest',    name:'숲',   emoji:'🌲', desc:'그늘, 열매, 끈적한 것, 쓴 풀. 길을 잃기 딱 좋다.' },
+  { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.' },
+  { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // 2티어 묶음 (v0.5.0) — 2티어는 필드가 없어 쓰임별로 콜렉터북에 묶음
@@ -346,7 +357,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.5.1';
+const VERSION = 'v0.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -377,7 +388,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], nextId: 1 }; }
+function fresh(){ return { cards: [], seen: [], nextId: 1, tab: 'craft' }; }
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -455,12 +466,13 @@ function renderAll(){
   for (const el of els.values()) el.remove();
   els.clear();
   for (const c of S.cards){
-    const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y;
+    if (!table.hidden){ const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y; }   // v0.6.0: 숨은 필드에선 당기지 않음
     mount(c);
   }
   renderMeta();
   renderInsp();
   renderBook();
+  if (typeof renderGather === 'function') renderGather();
 }
 function renderMeta(){
   const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
@@ -556,7 +568,7 @@ const PUSH_GAP = 4;                                              // 카드 사�
 const PUSH_RATE = 0.3;                                           // 한 프레임에 겹친 만큼의 몇 배를 풀지
 let pushSaveTimer = 0;
 function pushStep(){
-  if (paused){ requestAnimationFrame(pushStep); return; }        // v0.4.0: 콜렉터북에 끼우는 동안 멈춤
+  if (paused || table.hidden){ requestAnimationFrame(pushStep); return; }   // v0.6.0: 크래프팅 탭이 숨으면 필드 크기가 0이라 멈춤        // v0.4.0: 콜렉터북에 끼우는 동안 멈춤
   const list = S.cards.filter(c => !(drag && drag.moved && drag.c === c));
   const sx = CW + PUSH_GAP, sy = CH + PUSH_GAP;
   const move = new Map();
@@ -665,6 +677,7 @@ function outHtml(r, t){
   return r.out.every(o => S.seen.includes(o)) ? rich(outText(r)) : UNK;
 }
 function renderInsp(){
+  if (S.tab === 'gather') return renderFieldInsp();
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -814,16 +827,68 @@ bookEl.addEventListener('click', e => {
   if (slot){ bookPick = slot.dataset.book; renderBook(); }
 });
 
+// ── 탭 · 채집 (v0.6.0) ───────────────────────────────
+// 채집 탭: 필드 4곳(산·숲·강가·초원)을 큰 카드로 늘어놓음. 탭하면 인스펙터에 필드 정보 · 나오는 1티어
+// 판단: 아직 채집 동작은 없음 (카드 배치만)
+const gatherEl = document.getElementById('gather');
+let fieldPick = null;
+function renderGather(){
+  if (S.tab !== 'gather') return;
+  gatherEl.innerHTML = '<div class="gather-row">' + FIELDS.map(f => {
+    const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
+    return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}" data-field="${f.id}">`
+      + `<div class="emoji">${f.emoji}</div><div class="name">${f.name}</div>`
+      + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div></div>`;
+  }).join('') + '</div><div class="gather-hint">필드를 탭하면 정보가 나와요</div>';
+}
+function renderFieldInsp(){
+  const f = fieldPick && FIELD_BY_ID[fieldPick];
+  if (!f){
+    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 1티어 원물이 나오는 필드 4곳.</div>';
+    return;
+  }
+  const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
+  inspEl.innerHTML = `<div class="head"><div class="pic">${f.emoji}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
+    + `<div class="desc">${esc(f.desc)}</div>`
+    + '<div class="sub">나오는 원물 (1티어)</div>'
+    + ys.map(t => S.seen.includes(t)
+      ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)}</div>`
+      : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span></div>`).join('');
+}
+function setTab(tab){
+  if (paused) return;
+  if (drag) endDrag({ type: 'pointercancel' });
+  S.tab = tab;
+  for (const b of document.querySelectorAll('#tabs [data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
+  table.hidden = tab !== 'craft';
+  gatherEl.hidden = tab !== 'gather';
+  renderGather(); renderInsp(); save();
+}
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (b) setTab(b.dataset.tab);
+});
+gatherEl.addEventListener('click', e => {
+  if (paused) return;
+  const card = e.target.closest('[data-field]');
+  if (!card) return;
+  fieldPick = card.dataset.field;
+  renderGather(); renderInsp();
+});
+
 // ── 시작 ────────────────────────────────────────────
 document.getElementById('ver').textContent = VERSION;
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
   if (paused) return;
-  S = fresh(); selected = null; renderAll(); save();
+  const tab = S.tab;                                              // v0.6.0: 보던 탭은 그대로
+  S = fresh(); S.tab = tab; selected = null; renderAll(); save();
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
+if (!S.tab) S.tab = 'craft';
 renderAll();
+setTab(S.tab);
 requestAnimationFrame(pushStep);
 </script>
 </body>
