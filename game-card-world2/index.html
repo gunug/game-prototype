@@ -42,13 +42,15 @@
   .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.6 * .42);}
   .gather .cw.field .yields{display:flex;gap:2px;justify-content:center;font-size:calc(var(--cw) * .2);margin-top:2px;pointer-events:none;}
   .gather .cw.field .yields .locked .icon,.gather .cw.field .yields .icon.locked{filter:brightness(0) opacity(.45);}
+  /* 채집한 카드 (v0.7.0): 필드 카드 위로 튀어나왔다가 작아지며 크래프팅 탭으로 날아감 */
+  .fly{position:fixed;left:0;top:0;z-index:2147483050;pointer-events:none;margin:0;will-change:transform,opacity;}
+  .gather .cw.field:active{transform:scale(.97);}
+  .gather .cw.field.tap{animation:bump .3s ease-out;}
+  .tabbtn.catch{animation:tabCatch .35s ease-out;}
+  @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
 
-  /* 필드 아래 조작: 신의 선물 / 버리기 */
-  .gift{position:absolute;left:12px;bottom:12px;z-index:2147482000;display:flex;align-items:center;gap:6px;
-    background:var(--brand-yellow);color:var(--on-brand);border:0;font:inherit;font-weight:800;font-size:14px;padding:10px 14px;border-radius:var(--r-pill);box-shadow:var(--sh-md);cursor:pointer;}
-  .gift .icon{width:24px;height:24px;margin:0;}
-  .gift:active{transform:scale(.96);}
+  /* 필드 아래 조작: 버리기 */
   .trash{position:absolute;right:12px;bottom:12px;z-index:1;width:calc(var(--cw) * 1.2);height:calc(var(--ch) * .9);
     border:2px dashed var(--hairline);border-radius:var(--r-md);display:flex;flex-direction:column;align-items:center;justify-content:center;
     color:var(--muted);font-size:12px;font-weight:700;gap:2px;pointer-events:none;transition:background .15s,border-color .15s;}
@@ -181,8 +183,7 @@
   <span class="meta" id="ver"></span>
 </div>
 <div class="table" id="table">
-  <div class="hint" id="hint">🎁 <b>신의 선물</b>을 눌러 1티어 원물을 받고<br>📖 <b>콜렉터북</b>에서 모은 카드를 확인해 보세요</div>
-  <button class="gift" id="gift"></button>
+  <div class="hint" id="hint">🧺 <b>채집</b> 탭에서 필드를 탭해 원물을 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   <div class="trash" id="trash"><span class="big">🗑️</span>버리기</div>
 </div>
 <div class="book-back" id="bookBack"></div>
@@ -213,7 +214,6 @@ const GROUP_BY_ID = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 const placeOf = t => FIELD_BY_ID[DEFS[t].field] || GROUP_BY_ID[DEFS[t].group] || null;
 const groupsOfTier = n => n === 1 ? FIELDS : GROUPS;
 const DEFS = {
-  package: { name:'신의 선물', kind:'package' },                // 신의 선물 버튼 그림만 (카드로는 안 나옴)
   // ⛰️ 산
   stone:   { name:'돌',     kind:'material', tier:1, field:'mountain' },
   flint:   { name:'부싯돌', kind:'material', tier:1, field:'mountain' },
@@ -357,7 +357,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.6.0';
+const VERSION = 'v0.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -366,18 +366,6 @@ const TIERS = [...new Set(CRAFT_TYPES.map(t => DEFS[t].tier))].sort((x, y) => x 
 // 크래프팅 탭에서 쓸 수 있는 조합식: 양쪽 다 크래프팅 카드로 채울 수 있고, 결과도 크래프팅 카드
 const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.some(t => sideMatch(sd, t)))
   && (r.out || []).every(craftable));
-// 신의 선물 풀 — v0.3.0: 1티어만, 모두 같은 확률
-const GIFT_DRAW = 5;
-const GIFT_POOL = CRAFT_TYPES.filter(t => DEFS[t].tier === 1).map(t => [t, 1]);
-function drawGift(n){
-  const total = GIFT_POOL.reduce((s, [, w]) => s + w, 0);
-  const out = [];
-  for (let i = 0; i < n; i++){
-    let r = Math.random() * total;
-    for (const [t, w] of GIFT_POOL){ r -= w; if (r < 0){ out.push(t); break; } }
-  }
-  return out;
-}
 const SPAWN_CAP = 2;                                            // 월드 최대 생성 개수. v0.5.1: 3 → 2
 const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}` : ''; };
 
@@ -411,7 +399,9 @@ function measure(){
   root.setProperty('--cf', (CW / 0.7 * 0.8) + 'px');
   root.setProperty('--ch', CH + 'px');
 }
-const bounds = () => ({ w: table.clientWidth, h: table.clientHeight });
+// v0.7.0: 채집 탭에 있을 땐 크래프팅 필드가 숨어 크기가 0 → 같은 자리를 차지하는 채집 화면 크기로
+const bounds = () => table.hidden ? { w: gatherEl.clientWidth, h: gatherEl.clientHeight } : { w: table.clientWidth, h: table.clientHeight };
+const gatherEl = document.getElementById('gather');
 function clampPos(x, y){
   const { w, h } = bounds();
   return { x: Math.max(4, Math.min(w - CW - 4, x)), y: Math.max(4, Math.min(h - CH - 4, y)) };
@@ -525,17 +515,6 @@ function spawnMany(types, x, y, from, made3s){
   }
   return made;
 }
-
-// ── 신의 선물 ───────────────────────────────────────
-const giftBtn = document.getElementById('gift');
-giftBtn.innerHTML = `${iconHtml('package')}신의 선물`;
-giftBtn.addEventListener('click', () => {
-  const r = giftBtn.getBoundingClientRect(), tr = table.getBoundingClientRect();
-  const from = { x: r.left - tr.left, y: r.top - tr.top - CH };
-  const { w, h } = bounds();
-  spawnMany(drawGift(GIFT_DRAW), w * 0.5 - CW / 2, h * 0.45 - CH / 2, from);
-  renderMeta(); renderInsp(); save();
-});
 
 // ── 조합 ────────────────────────────────────────────
 // 크래프팅 탭에서 되는 조합 (첫 번째)
@@ -830,7 +809,6 @@ bookEl.addEventListener('click', e => {
 // ── 탭 · 채집 (v0.6.0) ───────────────────────────────
 // 채집 탭: 필드 4곳(산·숲·강가·초원)을 큰 카드로 늘어놓음. 탭하면 인스펙터에 필드 정보 · 나오는 1티어
 // 판단: 아직 채집 동작은 없음 (카드 배치만)
-const gatherEl = document.getElementById('gather');
 let fieldPick = null;
 function renderGather(){
   if (S.tab !== 'gather') return;
@@ -872,9 +850,59 @@ gatherEl.addEventListener('click', e => {
   if (paused) return;
   const card = e.target.closest('[data-field]');
   if (!card) return;
-  fieldPick = card.dataset.field;
-  renderGather(); renderInsp();
+  if (fieldPick !== card.dataset.field){
+    for (const el of gatherEl.querySelectorAll('[data-field]')) el.classList.toggle('sel', el === card);
+    fieldPick = card.dataset.field;
+    renderInsp();
+  }
+  harvest(card.dataset.field, card);
 });
+
+// 채집 (v0.7.0): 필드 카드를 탭하면 그 필드의 1티어 하나가 나옴 → 필드 카드 위로 튀어나왔다 작아지며 크래프팅 탭으로 날아감 → 크래프팅 필드에 놓임
+//   같은 카드가 크래프팅 필드에 SPAWN_CAP장(날아가는 중 포함)이면 그 카드는 안 나옴 — 나머지 중에서 고름
+const inFlight = new Map();                                       // 날아가는 중인 카드 수 (상한 계산에 포함)
+const flightCount = t => inFlight.get(t) || 0;
+function harvest(fieldId, cardEl){
+  const pool = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === fieldId && looseCount(t) + flightCount(t) < SPAWN_CAP);
+  flash(cardEl, 'tap', 300);
+  if (!pool.length){
+    toast(`${FIELD_BY_ID[fieldId].emoji} ${FIELD_BY_ID[fieldId].name} — 나오는 원물이 크래프팅 필드에 전부 ${SPAWN_CAP}장씩 있음`);
+    return;
+  }
+  const t = pick(pool);
+  inFlight.set(t, flightCount(t) + 1);
+  // 날아가는 카드: 크래프팅 카드와 같은 모양
+  const fly = document.createElement('div');
+  fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
+  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+  fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
+  document.body.appendChild(fly);
+  const r = cardEl.getBoundingClientRect();
+  const sx = r.left + r.width / 2 - CW / 2, sy = r.top + r.height / 2 - CH / 2;         // 필드 카드 가운데
+  const ux = sx + (Math.random() - 0.5) * CW * 0.8, uy = r.top - CH * 0.55;               // 위로 튀어나온 자리
+  const tab = document.querySelector('#tabs [data-tab="craft"]').getBoundingClientRect();
+  const tx = tab.left + tab.width / 2 - CW / 2, ty = tab.top + tab.height / 2 - CH / 2;  // 크래프팅 탭
+  const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
+  const anim = fly.animate([
+    { offset: 0,    transform: at(sx, sy, 0.3, 0), opacity: 0 },
+    { offset: 0.2,  transform: at(ux, uy - 14, 1.12, -6), opacity: 1, easing: 'ease-out' },
+    { offset: 0.3,  transform: at(ux, uy, 1, 0), opacity: 1 },
+    { offset: 0.52, transform: at(ux, uy, 1, 0), opacity: 1, easing: 'cubic-bezier(.5,0,.75,.3)' },   // 잠시 머묾
+    { offset: 1,    transform: at(tx, ty, 0.18, 20), opacity: 0.4 },
+  ], { duration: 1300, fill: 'forwards' });
+  anim.onfinish = () => {
+    fly.remove();
+    inFlight.set(t, flightCount(t) - 1);
+    const tb = document.querySelector('#tabs [data-tab="craft"]');
+    flash(tb, 'catch', 350);
+    if (looseCount(t) >= SPAWN_CAP){ toast(`누락: ${ic(t)} ${DEFS[t].name} — 월드에 ${SPAWN_CAP}장`); return; }
+    const { w, h } = bounds();
+    const isNew = !S.seen.includes(t);
+    addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === 'craft' ? 'spawn' : null);
+    renderMeta(); save();
+    if (isNew) renderGather();                                     // 필드 카드 아래 실루엣 → 그림 (연타 중 다시 그리지 않게 새 발견 때만)
+  };
+}
 
 // ── 시작 ────────────────────────────────────────────
 document.getElementById('ver').textContent = VERSION;
