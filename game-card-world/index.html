@@ -483,7 +483,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.134.0';
+const VERSION = 'v0.135.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -981,7 +981,8 @@ function load(){
       if (c.equip && c.equip['칼'] != null){ c.equip['무기'] = c.equip['무기'] || c.equip['칼']; delete c.equip['칼']; }
       if (c.type === 'quest' && c.slot === '칼') c.slot = '무기';
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal === 'fullHp'){ c.goal = 'hpMin'; c.min = 5; }
-      if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상: 허기짐 해결'; }
+      if (c.type === 'quest' && c.quest === 'foodmedicine'){ delete c.reward; c.rewardText = '보상 없음'; }
+      if (Array.isArray(c.status)) c.status = c.status.filter(t => t !== '허기짐');   // v0.135.0: 허기짐 없앰
       if (c.type === 'quest' && c.quest === 'sleepmedicine' && c.goal === 'fullHp'){ c.goal = 'sleep'; c.place = 'bedding'; c.rewards = ['hilt', 'plank']; delete c.rewardText; }
       if (c.type === 'quest' && c.quest === 'firstcombo' && c.wants){ delete c.wants; delete c.reward; c.goal = 'make'; c.make = 'marrow'; c.need = 0; c.stack = []; c.title = '골수 만들기'; c.rewardText = '보상 없음'; c.target = c.giver; }
       if (c.type === 'quest' && c.quest === 'foodmedicine' && c.goal){ delete c.goal; delete c.min; delete c.target; c.wantsList = ['roastclam', 'roastmeat', 'roastberry']; c.need = 3; c.stack = []; }
@@ -1440,7 +1441,7 @@ function reqReward(rq){
   if (rq.rewards) return '보상 ' + rq.rewards.map(r => DEFS[r] ? ic(r) : '').join(' ');
   if (rq.rewardText) return rq.rewardText === '보상 없음' ? '' : rq.rewardText;
   if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
-  if (rq.goal === 'fullHp') return '보상: 허기짐 해결';
+  if (rq.goal === 'fullHp') return '';
   if (rq.goal === 'equip') return '';
   if (rq.reward && DEFS[rq.reward]) return `보상 ${ic(rq.reward)} ${DEFS[rq.reward].name}`;
   return `보상 ${ic('package')}`;
@@ -1448,7 +1449,7 @@ function reqReward(rq){
 
 // ── 기사의 퀘스트 ─────────────────────────────────────
 //   stage 0: 시작 (빈사) → 갓의 "골수를 만들어 와" 완료 뒤 "..." → 뼛가루의 치유력 → 갓 "이런 우연이"
-//   stage 2: 뼛가루 완료 (허기짐) → "배고파" → 밥이 보약
+//   stage 2: 뼛가루 완료 (빈사 해결) → "배고파" → 밥이 보약
 //   stage 3: 밥이 보약 완료 (빈사 해결) → "졸려" → 잠이 보약
 //   stage 4: 잠이 보약 완료 → 부러진 중검·나무판 → "고맙다" → 무기를 들어라
 //   stage 5: 무기를 들어라 완료
@@ -1469,7 +1470,6 @@ function knightSay(text, done, pri){
 function knightLine(k){
   const st = statusOf(k);
   if (st.includes('빈사')) return '...';
-  if (st.includes('허기짐')) return '배고파';
   return null;
 }
 // 이 quest가 이 카드를 아직 원하나 (wants: 한 종류 N개 / wantsList: 여러 종류 1개씩)
@@ -1571,8 +1571,8 @@ function giveKnightQuest(kind){
   if (!k) return;
   const p = findSpot(k.x - CW * 1.1, k.y);
   const spec = {
-    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 1, stack: [], rewardText: '보상: 빈사 → 허기짐' },
-    food:  { quest: 'foodmedicine', title: '밥이 보약', wantsList: ['roastclam', 'roastmeat', 'roastberry'], need: 3, stack: [], rewardText: '보상: 허기짐 해결' },
+    bone:  { quest: 'bonepowder', title: '뼛가루의 치유력', wants: 'marrow', need: 1, stack: [], rewardText: '보상: 빈사 해결' },
+    food:  { quest: 'foodmedicine', title: '밥이 보약', wantsList: ['roastclam', 'roastmeat', 'roastberry'], need: 3, stack: [], rewardText: '보상 없음' },
     sleep: { quest: 'sleepmedicine', title: '잠이 보약', goal: 'sleep', place: 'bedding', target: k.id, need: 0, stack: [], rewards: ['hilt', 'plank'] },
     sword: { quest: 'takesword', title: '무기를 들어라', goal: 'equip', slot: '무기', target: k.id, need: 0, stack: [] },
     shield: { quest: 'takeshield', title: '방패를 들어라', goal: 'equip', slot: '방패', target: k.id, need: 0, stack: [] },
@@ -1795,10 +1795,6 @@ function apply(ev, d, t){
         g.hp = Math.min(max, g.hp + heal);
         floatText(g, `${si('hp')} +${g.hp - before}`);
         bumpIds.add(g.id);
-        if (g.hp >= max && statusOf(g).includes('허기짐')){
-          setStatus(g, ['허기짐'], []);
-          toast(`🍽️ ${DEFS[g.type].name}: 허기짐 해결`);
-        }
       }
     }
     return true;
@@ -1896,12 +1892,12 @@ function apply(ev, d, t){
     const max = DEFS[t.type].hp;
     const talk = () => { if (t.type === 'knight' && knightLine(t)) knightSay(knightLine(t)); };   // 반응 대사 (중복은 speak가 거름)
     if (statusOf(t).includes('빈사')){
-      // 빈사는 빈사 치유 아이템으로만 해결 → 허기짐
+      // 빈사는 빈사 치유 아이템으로만 해결
       if (!tagLevel(dd, '빈사 치유')){ toast('빈사 상태 — 빈사 치유가 필요함'); talk(); return false; }
-      setStatus(t, ['빈사'], ['허기짐']);
+      setStatus(t, ['빈사'], []);                             // v0.135.0: 허기짐 없앰
       removeCard(d.id);
       bumpIds.add(t.id);
-      toast(`💊 ${DEFS[t.type].name}: 빈사 → 허기짐`);
+      toast(`💊 ${DEFS[t.type].name}: 빈사 해결`);
       return true;
     }
     const heal = healOf(dd);
@@ -1912,13 +1908,7 @@ function apply(ev, d, t){
     floatText(t, `${si('hp')} +${t.hp - before}`);   // 먹어서 오른 체력
     removeCard(d.id);
     bumpIds.add(t.id);
-    // 허기짐은 체력을 최대치까지 채우면 해결
-    if (t.hp >= max && statusOf(t).includes('허기짐')){
-      setStatus(t, ['허기짐'], []);
-      toast(`🍽️ ${DEFS[t.type].name}: 허기짐 해결`);
-    } else {
-      talk();
-    }
+    talk();
     return true;
   }
   if (ev.act === 'recipe'){
@@ -2044,14 +2034,14 @@ function knightReady(){
 function rewardFor(rq, x, y){
   if (rq.quest === 'bonepowder'){
     const k = byId(rq.giver);
-    if (k && statusOf(k).includes('빈사')) setStatus(k, ['빈사'], ['허기짐']);
+    if (k && statusOf(k).includes('빈사')) setStatus(k, ['빈사'], []);
     S.flags.knightStage = 2;
     knightSay('배고파', knightCheck);                      // 대사 끝나고 다음 quest
     return;
   }
   if (rq.quest === 'foodmedicine'){
     const k = byId(rq.target);
-    if (k) setStatus(k, ['빈사', '허기짐'], []);
+    if (k) setStatus(k, ['빈사'], []);
     S.flags.knightStage = 3;
     toast('🩹 빈사 해결');
     knightSay('졸려', knightCheck);                          // "졸려" 뒤에 잠이 보약
@@ -3406,7 +3396,7 @@ function duelTick(){
       if (crDown && chDown) toast(`💀 ${DEFS[ch.type].name} · ${DEFS[cr.type].name} 서로 쓰러짐`);
       else if (crDown) toast(`🏆 ${DEFS[ch.type].name} 승리`);
       else toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
-      if (chDown) setStatus(ch, ['허기짐'], ['빈사']);          // 패배: 캐릭터 빈사, 크리처는 체력 회복 안 함
+      if (chDown) setStatus(ch, [], ['빈사']);          // 패배: 캐릭터 빈사, 크리처는 체력 회복 안 함
       if (crDown) killCreature(cr);                            // 승리: 전리품 (둘 다 쓰러져도 전리품은 나옴)
     }
     changed = true;
@@ -3444,10 +3434,6 @@ function restTick(){
       v.hp = Math.min(DEFS[v.type].hp, v.hp + 1);
       floatText(v, `${si('hp')} +1`);                       // 쉬어서 오른 체력
       bumpIds.add(v.id);
-      if (v.hp >= DEFS[v.type].hp && statusOf(v).includes('허기짐')){
-        setStatus(v, ['허기짐'], []);
-        toast(`🍽️ ${DEFS[v.type].name}: 허기짐 해결`);
-      }
     }
     bumpIds.add(pl.id);
     hpChanged = true;
@@ -3821,7 +3807,7 @@ function stepDungeon(){
         changed = true;
         if (near.hp <= 0){
           if (near.id === ch.id){                              // 캐릭터 패배 → 빈사로 탈락
-            setStatus(ch, ['허기짐'], ['빈사']);
+            setStatus(ch, [], ['빈사']);
             delete ch.visit; delete ch.visitSeq; delete ch.dunP; delete ch.atkT;
             clearDungeon(pl);
             toast(`💀 ${DEFS[ch.type].name} 패배 — 빈사`);
@@ -4912,7 +4898,7 @@ const CHAPTERS = [
     flags: CH_COMBO, seen: ['quest', 'marrow'], found: ['marrow'],
     cards: ['stone', 'bone', 'bone', 'bone', 'berry'] },
   { title: '기사: 밥이 보약 + 갓: 사냥 quest',
-    flags: Object.assign({}, CH_COMBO, { knightStage: 2 }), knight: { hp: 0, status: ['허기짐'] },
+    flags: Object.assign({}, CH_COMBO, { knightStage: 2 }), knight: { hp: 0, status: [] },
     seen: ['quest', 'marrow'], found: ['marrow'],
     cards: ['stone', 'stone', 'stone', 'animal', 'flint', 'grass', 'twig', 'shell', 'berry'] },
   { title: '기사: 잠이 보약 + 갓: 신의 품에서',
