@@ -485,7 +485,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.144.0';
+const VERSION = 'v0.145.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -4958,6 +4958,19 @@ const CH_COMBO = Object.assign({}, CH_REQ, { comboGiven: true, comboDone: true, 
 const CH_SEEN_FOOD = ['quest', 'marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'roastclam', 'carcass', 'meat', 'hide', 'roastmeat', 'roastberry'];
 const CH_FOUND_FOOD = ['marrow', 'handaxe', 'ember', 'tinder', 'campfire', 'clam', 'butcher', 'cook'];
 const CH_PEACE = Object.assign({}, CH_COMBO, { knightStage: 5, huntGiven: true, hunted: true, fireGiven: true, bedGiven: true, swordDone: true, shieldDone: true, readySaid: true });
+// v0.145.0: 다시 생성할 수 없는 카드 — 챕터의 진행 flag가 켜져 있는데 테이블(장비 칸 포함)에 없으면 자동으로 깔아 줌
+//   [flag, 카드] — 새 일회성 보상이 생기면 여기에 한 줄 추가
+const CH_ONE_TIME = [
+  [f => (f.knightStage || 0) >= 4, 'hilt'],             // 잠이 보약 보상 (조합식 없음)
+  [f => f.mountainGiven, 'mountain'],                   // 갓 파워!
+  [f => f.mouthGiven, 'godmouth'],                      // 신의 입
+  [f => f.riverGiven, 'river'],                         // 산 채집 보상
+  [f => f.explorerGiven, 'explorer'],                   // 강 채집 보상
+  [f => f.dungeonGiven, 'dungeon'],                     // 장소를 등록하자 보상
+  [f => f.archFreed, 'architect'],                      // 인질을 풀어 줌
+  [f => f.millDone, 'sawmill'],                         // 제재소를 짓겠어 보상
+  [f => f.benchDone, 'workbench'],                      // 조합소를 짓겠어 보상
+];
 const CHAPTERS = [
   { title: '처음 — 첫 package', start: true },
   { title: '갓: 아무거나 3개만 줘봐',
@@ -5033,6 +5046,14 @@ function startChapter(ch){
     const [t, extra] = Array.isArray(e) ? e : [e];   // 'stone' 또는 ['sack', { fill, count }]
     const p = findSpot(w * 0.55, h * 0.5);
     addCard(t, p.x, p.y, extra ? JSON.parse(JSON.stringify(extra)) : null, true);                  // 조용히 (콜렉터북 등록 연출 없이)
+  }
+  // v0.145.0: 앞 챕터에서 받은, 다시 생성할 수 없는 카드를 빠짐없이 (장비 칸에 끼워져 있으면 있는 것으로 봄)
+  const owned = t => S.cards.some(c => c.type === t || Object.values(c.equip || {}).includes(t));
+  for (const [has, t] of CH_ONE_TIME){
+    if (!has(S.flags) || owned(t)) continue;
+    const p = findSpot(w * 0.55, h * 0.5);
+    addCard(t, p.x, p.y, null, true);
+    if (!S.seen.includes(t)) S.seen.push(t);
   }
   save();
   renderAll();
