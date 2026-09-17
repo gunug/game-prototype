@@ -485,7 +485,7 @@
 (() => {
 'use strict';
 
-const VERSION = 'v0.143.2';
+const VERSION = 'v0.144.0';
 const STORE = 'card-world-rpg.v2';   // v0.7.0: 기사 상태 추가로 저장 초기화
 
 // ── 카드 정의 ─────────────────────────────────────────
@@ -925,10 +925,10 @@ function markSeen(type, quiet){
   S.seen.push(type);
   if (!quiet) newSeen.push(type);
 }
-// 전체 규칙: 월드(테이블)에 같은 카드가 5장 있으면 그 카드는 더 생성되지 않음
+// 전체 규칙: 월드(테이블)에 같은 카드가 SPAWN_CAP장 있으면 그 카드는 더 생성되지 않음 (주석의 '5장'은 예전 값 — 기준은 이 변수 하나)
 //   container·quest 위·장비 칸에 들어간 카드는 세지 않음 — 테이블에 원래 모습으로 나와 있는 카드만
 //   꺼내기·장비 방출처럼 이미 있던 카드가 나오는 건 생성이 아니라 막지 않음. quest 카드는 진행 로직이 내므로 제외
-const SPAWN_CAP = 5;
+const SPAWN_CAP = 3;                                            // v0.144.0: 5 → 3. 월드 최대 생성 개수는 이 값 하나로 통제
 const looseCount = type => S.cards.filter(c => c.type === type).length;
 const canSpawn = type => type === 'quest' || looseCount(type) < SPAWN_CAP;
 const capToast = type => toast(`${ic(type)} ${DEFS[type].name} — 월드에 ${SPAWN_CAP}장 있어서 더 생성되지 않음`);
