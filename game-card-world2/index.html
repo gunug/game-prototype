@@ -59,12 +59,15 @@
   .num-bump{animation:numBump .32s ease-out;}
   @keyframes numBump{0%{transform:scale(1);}35%{transform:scale(1.4);}100%{transform:scale(1);}}
   /* v0.9.0: 퀘스트 줄 — 상단 막대 바로 아래 */
-  .quest{flex:none;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:34px;
-    background:rgba(34,31,20,.96);border-bottom:1px solid var(--hairline);font-size:13px;white-space:nowrap;overflow:hidden;}
-  .quest .q-tag{color:var(--brand-yellow);font-weight:800;}
+  /* v0.16.1: 퀘스트 — 여러 개, 없으면 자리도 차지하지 않음 (hidden) */
+  .quest{flex:0 1 auto;min-height:0;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;padding:6px 12px;overflow-y:auto;max-height:40%;
+    background:rgba(34,31,20,.96);border-bottom:1px solid var(--hairline);font-size:13px;}
+  .q-row{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:26px;}
+  .quest .q-tag{color:var(--brand-yellow);font-weight:800;flex:none;}
+  .quest .q-name{flex:none;}
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
-  .quest .q-n{display:inline-block;margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;}
-  .quest.done .q-n{color:#8fdc8f;}
+  .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
+  .q-row.done .q-n{color:#8fdc8f;}
   /* v0.9.0: 새 카드 표시 — 카드 왼쪽 위 NEW, 콜렉터북 버튼에 새 카드 수 */
   .cw .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
     display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
@@ -490,7 +493,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.16.0';
+const VERSION = 'v0.16.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -515,14 +518,14 @@ const QUESTS = {
   gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
 };
-const freshQuest = () => ({ id: 'gather', n: 0, done: false });
+const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quest: null, intro: 'done',
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quests: [], intro: 'done',
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -544,7 +547,9 @@ function load(){
     s.fields = fs;
     s.newCards = (s.newCards || []).filter(t => DEFS[t] && s.seen.includes(t));   // v0.9.0: 콜렉터북에 아직 안 끼운 새 카드
     s.intro = s.intro === 'start' ? 'start' : 'done';              // v0.10.0: 예전 저장은 갓 등장을 본 것으로
-    s.quest = s.quest && QUESTS[s.quest.id] ? s.quest : null;     // v0.13.0: 갓을 뺌 — 퀘스트를 주는 캐릭터가 없음
+    // v0.16.1: 예전 저장의 퀘스트 한 개(s.quest)를 목록으로 옮김
+    s.quests = (Array.isArray(s.quests) ? s.quests : s.quest ? [s.quest] : []).filter(q => q && QUESTS[q.id]);
+    delete s.quest;
     s.intro = 'done';
     s.knight = { hp: Math.max(0, Math.min(KNIGHT.hp, (s.knight && s.knight.hp) ?? KNIGHT.hp)) };   // v0.13.0: 기사
     return s;
@@ -1423,27 +1428,44 @@ function healTick(dt){
 }
 
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
+// v0.16.1: 퀘스트가 없으면 줄 자체를 숨겨 자리를 차지하지 않음. 여러 개면 한 줄씩 쌓이고, 많으면 UI 높이의 40%까지만 쓰고 스크롤
 function renderQuest(){
-  const q = S.quest, el = document.getElementById('quest');
-  if (!q){ el.innerHTML = ''; el.classList.remove('done'); return; }   // v0.10.0: 갓이 주기 전엔 빈 줄
-  const def = QUESTS[q.id];
-  el.classList.toggle('done', q.done);
-  if (!el.firstChild) el.innerHTML = '<span class="q-tag">📜</span><b class="q-name"></b><span class="q-text"></span><span class="q-n"></span>';
-  el.querySelector('.q-name').textContent = def.name;
-  el.querySelector('.q-text').textContent = q.done ? '완료' : def.text;
-  setNum(el.querySelector('.q-n'), `${Math.min(q.n, def.goal)}/${def.goal}${q.done ? ' ✓' : ''}`);
+  const el = document.getElementById('quest');
+  const list = S.quests || [];
+  el.hidden = !list.length;
+  if (!list.length){ el.innerHTML = ''; return; }
+  const rows = [...el.querySelectorAll('.q-row')];
+  if (rows.length !== list.length){
+    el.innerHTML = list.map(() => '<div class="q-row"><span class="q-tag">📜</span><b class="q-name"></b><span class="q-text"></span><span class="q-n"></span></div>').join('');
+  }
+  list.forEach((q, i) => {
+    const row = el.children[i], def = QUESTS[q.id];
+    row.classList.toggle('done', q.done);
+    row.querySelector('.q-name').textContent = def.name;
+    row.querySelector('.q-text').textContent = q.done ? '완료' : def.text;
+    setNum(row.querySelector('.q-n'), `${Math.min(q.n, def.goal)}/${def.goal}${q.done ? ' ✓' : ''}`);
+  });
 }
 function questStep(id){
-  const q = S.quest;
-  if (!q || q.done || q.id !== id) return;
+  const q = (S.quests || []).find(q => q.id === id && !q.done);
+  if (!q) return;
   const def = QUESTS[q.id];
   q.n++;
   if (q.n >= def.goal){
     q.done = true;
     toast(`📜 퀘스트 완료: ${def.name}`);
-    questNext();
   }
   renderQuest();
+  save();
+}
+// 퀘스트 주기 — 같은 퀘스트가 이미 있으면 그대로 (주는 캐릭터는 아직 없음)
+function giveQuest(id){
+  if (!QUESTS[id] || (S.quests || []).some(q => q.id === id)) return;
+  S.quests.push(newQuest(id));
+  const el = document.getElementById('quest');
+  renderQuest();
+  flash(el, 'q-new', 520);
+  toast(`📜 새 퀘스트: ${QUESTS[id].name}`);
   save();
 }
 
