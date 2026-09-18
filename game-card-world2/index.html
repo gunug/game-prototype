@@ -34,27 +34,19 @@
   .table{position:absolute;inset:0;overflow:hidden;touch-action:none;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
   /* 채집 탭 (v0.6.0) — 크래프팅 필드와 같은 자리에 필드 카드 4장 */
-  .gather{position:absolute;inset:0;overflow:auto;box-sizing:border-box;padding:12px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  .gather{position:absolute;inset:0;overflow:hidden;box-sizing:border-box;padding:calc(var(--cw) * .12);   /* v0.17.0: 필드엔 스크롤이 없음 */
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--cw) * .12);
     background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
-  .gather-hint{color:var(--muted);font-size:13px;text-align:center;}
-  .gather-row{display:flex;flex-wrap:wrap;justify-content:center;gap:calc(var(--cw) * .35);max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);}
-  .gather .cw.field{position:relative;width:calc(var(--cw) * 1.6);height:calc(var(--ch) * 1.6);cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.6);}
-  .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.6 * .42);}
+  .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
+  .gather-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}   /* v0.17.0: 네 칸 한 줄 고정 */
+  .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
+  .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
   .gather .cw.field .yields{display:flex;gap:2px;justify-content:center;font-size:calc(var(--cw) * .2);margin-top:2px;pointer-events:none;}
   .gather .cw.field .yields .locked .icon,.gather .cw.field .yields .icon.locked{filter:brightness(0) opacity(.45);}
   /* 채집한 카드 (v0.7.0): 필드 카드 위로 튀어나왔다가 작아지며 크래프팅 탭으로 날아감 */
   .fly{position:fixed;left:0;top:0;z-index:2147483050;pointer-events:none;margin:0;will-change:transform,opacity;}
   .gather .cw.field:active{transform:scale(.97);}
   .gather .cw.field.tap{animation:bump .3s ease-out;}
-  /* v0.8.2: 필드 고갈 — 위쪽에 남은 횟수 n/10 + 회복 게이지 */
-  .gather .cw.field .stock{position:absolute;left:14%;right:14%;top:7%;display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;}
-  .gather .cw.field .stock-n{display:inline-block;font-size:calc(var(--cf) * .1);font-weight:800;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(0,0,0,.8);}
-  .gather .cw.field .gauge{width:100%;height:4px;border-radius:2px;background:rgba(0,0,0,.45);overflow:hidden;}
-  .gather .cw.field .gauge i{display:block;height:100%;width:0;background:var(--brand-yellow);border-radius:2px;}
-  .gather .cw.field.full .gauge{visibility:hidden;}
-  .gather .cw.field.depleted .emoji,.gather .cw.field.depleted .yields,.gather .cw.field.depleted .name{filter:brightness(.4) saturate(.3);}
-  .gather .cw.field.depleted .stock-n{color:#ff8a8a;}
   /* v0.9.0: 숫자 톡 튀기 — 숫자가 바뀌는 곳 공통 (setNum) */
   .num-bump{animation:numBump .32s ease-out;}
   @keyframes numBump{0%{transform:scale(1);}35%{transform:scale(1.4);}100%{transform:scale(1);}}
@@ -80,14 +72,14 @@
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
   /* 기사 줄 · 원정 트랙 (v0.13.0) */
-  .knight-row{display:flex;align-items:center;gap:14px;width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);min-height:var(--ch);}
+  .knight-row{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--ch);}
   .knight-row .cw.knight{position:relative;flex:none;cursor:pointer;}
   .kstat{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;}
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
   .kstat .khp.down{color:#ff8a8a;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
   .kstat .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
-  .exp{width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);}
+  .exp{width:100%;}
   .exp[hidden]{display:none;}
   .exp-lane{position:relative;height:calc(var(--ch) * .95);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
@@ -493,7 +485,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.16.1';
+const VERSION = 'v0.17.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -508,11 +500,9 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 const table = document.getElementById('table');
 const inspEl = document.getElementById('insp');
 let CW = 70, CH = 95;
-// v0.8.2: 필드 고갈 — 필드마다 남은 횟수(left)와 회복 진행(prog, ms). v0.8.3: S를 불러오기 전에 선언
-const FIELD_MAX = 10;                                            // 최대 횟수
-const FIELD_REGEN_MS = 10000;                                    // 10초에 +1
+// v0.17.0: 필드 고갈 없앰 — 몇 번이든 원정을 보낼 수 있음 (잠금만 남음)
 const START_FIELDS = ['mountain'];                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
-const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { left: FIELD_MAX, prog: 0, locked: !START_FIELDS.includes(f.id) }]));
+const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !START_FIELDS.includes(f.id) }]));
 // v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
 const QUESTS = {
   gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
@@ -539,10 +529,10 @@ function load(){
     }
     s.cards = [...merged.values()];
     s.seen = (s.seen || []).filter(t => DEFS[t]);
-    const fs = freshFields();                                     // v0.8.2: 필드 고갈 (없으면 가득)
+    const fs = freshFields();                                     // 필드 잠금 상태
     for (const id in fs){
       const o = s.fields && s.fields[id];
-      if (o) fs[id] = { left: Math.max(0, Math.min(FIELD_MAX, o.left | 0)), prog: Math.max(0, Math.min(FIELD_REGEN_MS, +o.prog || 0)), locked: typeof o.locked === 'boolean' ? o.locked : !START_FIELDS.includes(id) };
+      if (o) fs[id] = { locked: typeof o.locked === 'boolean' ? o.locked : !START_FIELDS.includes(id) };   // v0.17.0: 남은 횟수는 버림
     }
     s.fields = fs;
     s.newCards = (s.newCards || []).filter(t => DEFS[t] && s.seen.includes(t));   // v0.9.0: 콜렉터북에 아직 안 끼운 새 카드
@@ -1051,41 +1041,18 @@ function renderGather(){
     const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
     const locked = S.fields[f.id].locked;
     return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
-      + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '<div class="stock"><span class="stock-n"></span><div class="gauge"><i></i></div></div>')
+      + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
       + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
       + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div></div>`;
   }).join('') + '</div><div class="gather-hint">필드를 탭하면 기사가 원정을 떠납니다</div>';
-  renderStock();
   expBuild();
 }
-// 필드 카드의 남은 횟수 · 게이지만 고침 (카드를 다시 그리지 않아 톡 튀는 연출이 안 끊김)
-function renderStock(){
-  if (S.tab !== 'gather') return;
-  for (const el of gatherEl.querySelectorAll('[data-field]')){
-    const st = S.fields[el.dataset.field];
-    if (st.locked) continue;
-    setNum(el.querySelector('.stock-n'), st.left ? `${st.left}/${FIELD_MAX}` : `고갈 0/${FIELD_MAX}`);
-    el.querySelector('.gauge i').style.width = (st.left < FIELD_MAX ? st.prog / FIELD_REGEN_MS * 100 : 0) + '%';
-    el.classList.toggle('full', st.left >= FIELD_MAX);
-    el.classList.toggle('depleted', st.left <= 0);
-  }
-}
-// 회복: 남은 횟수 < 최대면 게이지가 차고, 10초마다 +1. 일시정지(콜렉터북 끼우기) 중엔 멈춤
-let regenLast = performance.now();
-function regenTick(){
-  const now = performance.now(), dt = Math.min(1000, now - regenLast);
-  regenLast = now;
+// 100ms마다: 원정 진행 · 기사 회복 (v0.17.0: 필드 회복은 없앰)
+let tickLast = performance.now();
+function gameTick(){
+  const now = performance.now(), dt = Math.min(1000, now - tickLast);
+  tickLast = now;
   if (paused) return;
-  let changed = false;
-  for (const f of FIELDS){
-    const st = S.fields[f.id];
-    if (st.locked || st.left >= FIELD_MAX){ st.prog = 0; continue; }
-    st.prog += dt;
-    while (st.prog >= FIELD_REGEN_MS && st.left < FIELD_MAX){ st.prog -= FIELD_REGEN_MS; st.left++; changed = true; }
-    if (st.left >= FIELD_MAX) st.prog = 0;
-  }
-  renderStock();
-  if (changed){ if (S.tab === 'gather' && fieldPick) renderInsp(); save(); }
   expTick(dt);                                                    // v0.13.0: 원정 진행
   healTick(dt);                                                   // v0.13.0: 기사 회복
 }
@@ -1115,7 +1082,6 @@ function renderFieldInsp(){
   }
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
-    + `<div class="sub">남은 원정 횟수</div><div class="row">${S.fields[f.id].left ? '' : '<b>고갈</b> · '}${S.fields[f.id].left}/${FIELD_MAX} <span class="i-muted">(10초에 +1)</span></div>`
     + '<div class="sub">원정</div><div class="row i-muted">기사가 왼쪽에서 오른쪽으로 나아가며 재료를 줍고, 도중에 고블린과 싸운다. 끝에는 보스</div>'
     + '<div class="sub">나오는 재료</div>'
     + ys.map(t => S.seen.includes(t)
@@ -1193,25 +1159,18 @@ function expStart(id, cardEl){
     toast(`🔒 ${FIELD_BY_ID[id].emoji} ${FIELD_BY_ID[id].name} — 아직 잠겨 있음`);
     return;
   }
-  if (st.left <= 0){
-    flash(cardEl, 'fail', 600);
-    toast(`${FIELD_BY_ID[id].emoji} ${FIELD_BY_ID[id].name} 고갈 — 10초마다 1회 회복`);
-    return;
-  }
   if (S.knight.hp <= 0){
     flash(cardEl, 'fail', 600);
     toast('🩸 기사가 빈사 — 회복될 때까지 기다려야 함');
     return;
   }
-  if (st.left >= FIELD_MAX) st.prog = 0;
-  st.left--;
   flash(cardEl, 'tap', 300);
   // v0.13.1: 고블린은 길 위에 미리 서 있음 (도착할 때 생기는 것처럼 보이지 않게)
   const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss }));
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
-  renderStock(); renderGather(); renderInsp(); save();
+  renderGather(); renderInsp(); save();
 }
 function expTick(dt){
   if (!exp || paused) return;
@@ -1495,7 +1454,7 @@ if (!S.tab) S.tab = 'gather';
 renderAll();
 setTab(S.tab);
 requestAnimationFrame(pushStep);
-setInterval(regenTick, 100);
+setInterval(gameTick, 100);
 </script>
 </body>
 </html>
