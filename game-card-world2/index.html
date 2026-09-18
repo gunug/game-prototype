@@ -727,7 +727,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.52.0';
+const VERSION = 'v0.53.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -812,9 +812,11 @@ const PARTY = [true, false, false, false, false];                 // v0.26.0: �
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
   // v0.34.0: 위 절반은 완성품 격자(top), 아래 절반은 재료 카드 자리(bottom)
-  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'], top:'도구', bottom:'도구재료' },
+  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'], top:'도구', tops:['도구'], bottoms:['도구재료'] },
   // v0.51.0: 방어구·방패도 여기서 — 몸을 지키는 장비가 갈 화면이 따로 없어 무기 화면이 맡음
-  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기', '방어구재료', '방어구', '방패'], top:'무기', bottom:'무기재료', needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
+  // v0.53.0: 위 격자엔 완성 장비(무기·방어구·방패), 아래엔 그 재료들
+  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기', '방어구재료', '방어구', '방패'],
+    top:'무기', tops:['무기', '방어구', '방패'], bottoms:['무기재료', '방어구재료'], needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음. v0.33.0: 모닥불 그림
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
@@ -845,9 +847,11 @@ const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
 // 아래 절반(카드 자리)에 보이는 카드 — 재료 태그가 있는 보드는 재료만
-const onBoard = (type, id) => { const b = boardOf(id); return b.bottom ? useOf(type).includes(b.bottom) : useOf(type).some(u => b.tags.includes(u)); };
+// v0.53.0: 아래 재료 자리 — bottoms 중 하나라도 맞으면
+const onBoard = (type, id) => { const b = boardOf(id); return b.bottoms ? useOf(type).some(u => b.bottoms.includes(u)) : useOf(type).some(u => b.tags.includes(u)); };
 // 위 절반 격자에 보이는 카드 (완성품)
-const onTopGrid = (type, id) => { const b = boardOf(id); return !!b.top && useOf(type).includes(b.top); };
+// v0.53.0: 위 격자 — tops 중 하나라도 맞으면 (무기 화면은 무기·방어구·방패)
+const onTopGrid = (type, id) => { const b = boardOf(id); return !!b.tops && useOf(type).some(u => b.tops.includes(u)); };
 const boardFor = type => (BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
@@ -1147,7 +1151,8 @@ function spawnMany(types, x, y, from, made3s){
   for (const t of types){
     const c = addCard(t, x, y, 'pop', from, made3s);
     made.push(c);
-    if (!onBoard(t, S.tab)) showAway(t, c.x, c.y);                 // v0.22.1: 이 화면 카드가 아니면 잠깐 보였다 공중으로
+    if (onTopGrid(t, S.tab)) flyToTop(t, c.x, c.y);                // v0.53.0: 완성품은 위 격자로 날아가 박힘
+    else if (!onBoard(t, S.tab)) showAway(t, c.x, c.y);            // v0.22.1: 이 화면 카드가 아니면 잠깐 보였다 공중으로
     if (made3s){ const el = els.get(c.id); if (el){ el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); } }   // v0.2.2   // v0.21.0: 다른 화면 카드면 el이 없음
   }
   return made;
@@ -1660,7 +1665,7 @@ function knightCardHtml(drag){
 const topGridEl = document.getElementById('topgrid');
 function renderTopGrid(){
   const b = boardOf(S.tab);
-  const on = !isRowScreen(S.tab) && S.tab !== 'facility' && !!b.top;
+  const on = !isRowScreen(S.tab) && S.tab !== 'facility' && !!(b.tops || b.top);
   topGridEl.hidden = !on;
   table.classList.toggle('half', on);
   if (!on) return;
@@ -1669,7 +1674,7 @@ function renderTopGrid(){
     ? list.map(c => `<div class="cw framed f-${frameOf(DEFS[c.type])}${inspType === c.type ? ' sel' : ''}" data-topcard="${c.type}">`
         + ((sl => sl ? silHtml(sl, 'corner') : '')(slotOfType(c.type)))
         + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
-    : `<div class="empty-lab">아직 만든 ${esc(b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
+    : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
 }
 gatherEl.addEventListener('click', e => {                         // v0.36.0: 말풍선을 탭하면 바로 다음으로
   if (e.target.closest('[data-knightsay]')) endKnightSay();
@@ -2158,6 +2163,33 @@ function expLoot(){
   expPaint();
 }
 // v0.22.1: 지금 화면에 안 올라오는 카드가 만들어졌을 때 — 그 자리에 잠깐 떠 있다가 위로 사라짐
+// v0.53.0: 아래에서 만든 완성품(도구·무기·방어구·방패)이 위 격자 제자리로 날아가 박힘
+function flyToTop(t, fx, fy){
+  const tr = table.getBoundingClientRect();
+  const fly = document.createElement('div');
+  fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
+  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+  fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
+  document.body.appendChild(fly);
+  renderTopGrid();                                                // 자리를 먼저 만들고 그 자리로
+  const slot = topGridEl.querySelector(`[data-topcard="${t}"]`);
+  const sx = tr.left + fx, sy = tr.top + fy;
+  const r = slot ? slot.getBoundingClientRect() : { left: sx, top: sy - CH, width: CW, height: CH };
+  const ex = r.left + (r.width - CW) / 2, ey = r.top + (r.height - CH) / 2;
+  if (slot) slot.style.visibility = 'hidden';                     // 도착할 때까지 자리는 비워 둠
+  const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
+  fly.animate([
+    { offset: 0,    transform: at(sx, sy, 0.4, 0), opacity: 0 },
+    { offset: 0.2,  transform: at(sx, sy - 10, 1.1, -4), opacity: 1, easing: 'ease-out' },
+    { offset: 0.42, transform: at(sx, sy, 1, 0), opacity: 1 },      // 만든 자리에서 잠깐
+    { offset: 1,    transform: at(ex, ey, 1, 0), opacity: 1, easing: 'cubic-bezier(.3,.9,.3,1)' },
+  ], { duration: 900, fill: 'forwards' }).finished.then(() => {
+    fly.remove();
+    renderTopGrid();
+    const el = topGridEl.querySelector(`[data-topcard="${t}"]`);
+    if (el) flash(el, 'bump', 300);                                // 박히며 톡
+  });
+}
 function showAway(t, fx, fy){
   const tr = table.getBoundingClientRect();
   const fly = document.createElement('div');
