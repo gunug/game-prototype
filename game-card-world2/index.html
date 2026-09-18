@@ -656,7 +656,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.36.1';
+const VERSION = 'v0.37.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1274,6 +1274,7 @@ function setPaused(on){
   if (all) all.disabled = on;
 }
 let inserting = false;
+function pendingInsertReset(){ inserting = false; setPaused(false); }   // v0.37.0: 끼우던 것 멈춤
 // v0.9.0: 콜렉터북을 열면 새 카드를 티어 순으로 한꺼번에 끼움. 끼울 때마다 NEW 뱃지·버튼 수가 하나씩 줄어듦
 async function runInserts(){
   if (inserting || !S.newCards.length) return;
@@ -2169,11 +2170,29 @@ document.addEventListener('click', e => {
   setPan.hidden = true;
   document.getElementById('setBtn').classList.remove('on');
 });
+// v0.37.0: 처음부터 — 저장뿐 아니라 화면·연출·고른 것까지 모두 처음 상태로
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
   if (paused) return;
-  exp = null; knightPick = false;                                 // v0.13.0: 하던 원정도 끊음
-  S = fresh(); selected = null; fieldPick = null; renderAll(); setTab(S.tab); save();   // v0.9.0: 처음부터는 채집 탭에서
+  // 하던 것 끊기
+  if (drag) endDrag({ type: 'pointercancel' });
+  if (tokenDrag){ if (tokenDrag.moved) tokenDrag.el.remove(); tokenDrag = null; }
+  exp = null; healProg = 0;                                       // 원정 · 회복
+  clearTimeout(knightSayT); knightLine = null; knightSayDone = null;   // 기사 대사
+  clearTimeout(lockPopT); document.querySelector('.lockpop')?.remove();
+  clearTimeout(pushSaveTimer);
+  openBook(false); bookTier = TIERS[0]; bookPick = null;          // 콜렉터북
+  pendingInsertReset();
+  // 고른 것 · 화면 상태
+  selected = null; inspType = null; fieldPick = null; knightPick = false; slotPick = null; facPick = null;
+  // 저장 상태 (에디터 모드면 진짜 저장도 함께)
+  S = fresh();
+  if (editMode && realS) realS = fresh();
+  setTab(S.tab);
+  renderTabs(); renderAll(); renderFacility(); renderBook(); renderInsp();
+  save();
+  if (editMode){ setEditMode(false, true); document.getElementById('editMode').checked = false; }   // 에디터 모드는 끔
+  knightIntro();                                                  // 첫 대사부터 다시
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
