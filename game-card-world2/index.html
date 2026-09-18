@@ -81,7 +81,7 @@
   .kstat .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
   .exp{width:100%;}
   .exp[hidden]{display:none;}
-  .exp-lane{position:relative;height:calc(var(--ch) * .95);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
+  .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
   .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;}
   /* v0.13.4: 채집 포인트 — 길 위에 미리 놓이고, 기사가 뒤지면 흔들리다 다 털리면 흐려짐 */
@@ -92,9 +92,9 @@
   .exp-lane .spot.done{opacity:.35;filter:grayscale(.8);}
   @keyframes spotShake{0%,100%{transform:translateX(0) rotate(0);}30%{transform:translateX(-4%) rotate(-2deg);}70%{transform:translateX(4%) rotate(2deg);}}
   /* v0.15.1: 보스도 기사와 같은 크기 — 크게 그리면 트랙 위아래에 닿음 */
-  .exp-lane .tok.boss::before{content:'👑';position:absolute;left:0;right:0;top:-2px;text-align:center;font-size:calc(var(--cw) * .28);}
+  .exp-lane .tok.boss::before{content:'👑';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .26);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
-  .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .74);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
+  .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
     display:flex;align-items:flex-end;justify-content:center;transition:left .12s linear;}
   .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
   .exp-lane .tok.walk{animation:dunBob .5s ease-in-out infinite;}
@@ -108,15 +108,23 @@
   @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
   @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
   .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  .exp-lane .dmg{position:absolute;z-index:3;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
+  .exp-lane .dmg{position:absolute;z-index:5;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
     color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1s ease-out forwards;}
-  .exp-lane .tok .hp{position:absolute;left:-50%;right:-50%;top:0;text-align:center;font-size:11px;font-weight:800;text-shadow:0 1px 2px #000;}
+  /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
+  .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:3px;transform:translateX(-50%);z-index:4;
+    padding:1px 6px;border-radius:999px;background:rgba(10,10,7,.85);border:1px solid rgba(255,255,255,.2);
+    font-size:calc(var(--cf) * .095);font-weight:800;line-height:1.35;white-space:nowrap;font-variant-numeric:tabular-nums;color:#c9f2c9;}
   .exp-lane .tok.enemy{transition:opacity .3s,transform .3s;}
-  .exp-lane .tok.enemy .hp{color:#ff9d9d;}
+  .exp-lane .tok.enemy .hp{color:#ffb3b3;border-color:rgba(255,140,140,.45);}
   .exp-lane .tok.enemy:not(.now):not(.dead){opacity:.75;}          /* 아직 만나지 않은 고블린 */
   .exp-lane .tok.enemy.dead{opacity:0;transform:translateY(8px) scale(.6);}
   .exp-lane .tok.enemy.now{filter:drop-shadow(0 0 4px rgba(255,120,120,.8));}
-  .exp-line{font-size:12px;color:var(--muted);text-align:center;min-height:1.3em;}
+  /* v0.17.2: 진행 글도 둥근 상자 안에 */
+  .exp-line{align-self:center;max-width:100%;box-sizing:border-box;padding:3px 10px;border-radius:999px;
+    background:rgba(10,10,7,.7);border:1px solid var(--hairline);color:var(--ink);
+    font-size:calc(var(--cf) * .1);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .exp-line:empty{display:none;}
+  .exp{display:flex;flex-direction:column;align-items:stretch;}
 
   .god-row{display:flex;align-items:center;gap:14px;width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);min-height:var(--ch);}
   .god-row .cw.god{position:relative;flex:none;cursor:pointer;}
@@ -485,7 +493,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.17.1';
+const VERSION = 'v0.17.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
