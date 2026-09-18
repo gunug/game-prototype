@@ -73,7 +73,8 @@
   .chars .cw.knight{position:relative;flex:none;cursor:grab;}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
-  .pslot.hot{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.16);}
+  .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
+  .pslot.hot{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.22);box-shadow:0 0 8px rgba(255,212,0,.45);}
   .pslot.locked{border-style:solid;opacity:.45;background:transparent;}
   .pslot .lock{width:55%;image-rendering:pixelated;}
   .pslot > .icon{width:70%;height:auto;}                           /* v0.29.2: 칸에 바로 놓인 그림만 (카드 안 그림은 건드리지 않음) */
@@ -645,7 +646,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.31.0';
+const VERSION = 'v0.32.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1480,6 +1481,9 @@ addEventListener('pointermove', e => {
   if (!d.moved){
     if (Math.hypot(dx, dy) < 6) return;
     d.moved = true;
+    for (const b of gatherEl.querySelectorAll('[data-slot-id]')){   // v0.32.0: 놓을 수 있는 칸은 모두 노란 테두리
+      b.classList.toggle('can', !b.classList.contains('locked') && slotTakes(b.dataset.slotId, d.token));
+    }
     d.el.classList.add('lift');                                   // 원본을 그대로 들어 올림
     d.el.style.width = d.el.offsetWidth + 'px';
     d.el.style.height = d.el.offsetHeight + 'px';
@@ -1503,7 +1507,7 @@ addEventListener('pointerup', e => {
   if (!d) return;
   tokenDrag = null;
   if (d.moved) d.el.remove();                                     // v0.29.1: 들어 올린 원본은 지우고 화면을 다시 그림
-  for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot');
+  for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can');
   if (!d.moved){                                                  // 탭 — 정보만
     if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
     else if (d.token === 'knight'){ knightPick = true; fieldPick = null; slotPick = null; renderScreen(); renderInsp(); }
@@ -1519,7 +1523,13 @@ addEventListener('pointerup', e => {
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
 });
-addEventListener('pointercancel', () => { if (tokenDrag){ if (tokenDrag.moved) tokenDrag.el.remove(); tokenDrag = null; renderScreen(); } });
+addEventListener('pointercancel', () => {
+  if (!tokenDrag) return;
+  if (tokenDrag.moved) tokenDrag.el.remove();
+  tokenDrag = null;
+  for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can');
+  renderScreen();
+});
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
   const sl = SLOTS.find(x => x.key === String(slotPick || '').split(':')[1]);
