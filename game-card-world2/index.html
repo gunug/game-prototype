@@ -42,6 +42,8 @@
   .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
   .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
   .gather .cw.field .yields{display:flex;gap:2px;justify-content:center;font-size:calc(var(--cw) * .2);margin-top:2px;pointer-events:none;}
+  /* v0.18.3: 두 번째 줄 — 크리처 전리품 */
+  .gather .cw.field .yields.loot{margin-top:1px;padding-top:2px;border-top:1px solid rgba(255,255,255,.14);font-size:calc(var(--cw) * .17);}
   .gather .cw.field .yields .locked .icon,.gather .cw.field .yields .icon.locked{filter:brightness(0) opacity(.45);}
   /* 채집한 카드 (v0.7.0): 필드 카드 위로 튀어나왔다가 작아지며 크래프팅 탭으로 날아감 */
   .fly{position:fixed;left:0;top:0;z-index:2147483050;pointer-events:none;margin:0;will-change:transform,opacity;}
@@ -504,7 +506,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.18.2';
+const VERSION = 'v0.18.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1049,6 +1051,14 @@ bookEl.addEventListener('change', e => {
 // 판단: 아직 채집 동작은 없음 (카드 배치만)
 let fieldPick = null;
 let knightPick = false;                                           // v0.13.0: 인스펙터에 기사
+// v0.18.3: 그 필드 원정에 나오는 크리처의 전리품 종류 · 받아 봤는지
+function foesOf(id){ return [...new Set(planOf(id).filter(e => e.fight).map(e => e.fight))]; }
+function lootTypes(id){
+  const out = [];
+  for (const k of foesOf(id)) for (const l of (ENEMIES[k].loot || [])) if (!out.includes(l[0])) out.push(l[0]);
+  return out;
+}
+const lootKnown = (id, t) => foesOf(id).some(k => (S.lootSeen[k] || []).includes(t));
 function renderGather(){
   if (S.tab !== 'gather') return;
   const k = S.knight;
@@ -1064,7 +1074,11 @@ function renderGather(){
     return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
       + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
       + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
-      + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div></div>`;
+      + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
+      // v0.18.3: 크리처 전리품도 한 줄 더 (그 크리처에게서 받아 본 것만 그림, 나머지는 실루엣)
+      + (lootTypes(f.id).length
+        ? `<div class="yields loot">${lootTypes(f.id).map(t => `<span class="${lootKnown(f.id, t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
+        : '') + '</div>';
   }).join('') + '</div><div class="gather-hint">필드를 탭하면 기사가 원정을 떠납니다</div>';
   expBuild();
 }
