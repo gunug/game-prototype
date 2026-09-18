@@ -645,7 +645,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.30.0';
+const VERSION = 'v0.31.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -902,6 +902,24 @@ function renderAll(){
   renderInsp();
   renderBook();
   renderScreen();
+}
+// v0.31.0: 도구 · 무기 화면으로 넘어오면 카드가 가운데에서 제자리로 흩어짐
+function spreadCards(){
+  const { w, h } = bounds();
+  const cx = w / 2 - CW / 2, cy = h / 2 - CH / 2;
+  const list = [...els.entries()];
+  for (const [id, el] of list){
+    const c = byId(id);
+    if (!c) continue;
+    const dx = cx - c.x, dy = cy - c.y;
+    const ang = Math.atan2(c.y + CH / 2 - h / 2, c.x + CW / 2 - w / 2);   // 가운데에서 그 카드 쪽으로
+    const rot = (Math.random() * 2 - 1) * 22;
+    el.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(.35) rotate(${rot}deg)`, opacity: 0, offset: 0 },
+      { transform: `translate(${dx * -0.06 + Math.cos(ang) * 6}px, ${dy * -0.06 + Math.sin(ang) * 6}px) scale(1.06) rotate(${rot * 0.15}deg)`, opacity: 1, offset: 0.72 },
+      { transform: 'none', opacity: 1, offset: 1 },
+    ], { duration: 420 + Math.random() * 160, delay: Math.random() * 90, easing: 'cubic-bezier(.2,.85,.3,1)', fill: 'backwards' });
+  }
 }
 function renderMeta(){
   const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
@@ -1625,6 +1643,7 @@ function setTab(tab){
   facilityEl.hidden = tab !== 'facility';
   renderFacility(); renderScreen();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
+  if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
   renderGather(); renderInsp(); save();
 }
 document.getElementById('tabs').addEventListener('click', e => {
