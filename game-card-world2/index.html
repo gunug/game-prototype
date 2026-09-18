@@ -665,7 +665,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.38.0';
+const VERSION = 'v0.38.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1889,9 +1889,9 @@ function expBeat(){
   const ed = Math.max(1, def.atk - knightDef());
   k.hp = Math.max(0, k.hp - ed);
   expSwing(exp.foe, 'knight', ed);
+  if (k.hp <= 0) expEnd('down');                                  // v0.38.1: 빈사 판정을 그리기보다 먼저
   renderKnight();
   save();
-  if (k.hp <= 0) expEnd('down');
 }
 function expEnd(kind){
   const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
@@ -2060,13 +2060,18 @@ function expSwing(from, to, dmg){
   }
 }
 // 기사 줄의 체력만 고침
+// v0.38.1: 능력치가 카드 안으로 들어간 뒤(v0.29.0) 체력 막대를 못 찾아 여기서 오류가 났음 → 카드 기준으로 찾음
 function renderKnight(){
   if (S.tab !== 'battle') return;
-  const k = S.knight, row = gatherEl.querySelector('.kstat');
-  if (!row) return;
-  row.querySelector('.khp').innerHTML = `${statImg('hp')}${k.hp}/${KNIGHT.hp}`;
-  row.querySelector('.khp').classList.toggle('down', k.hp <= 0);
-  row.querySelector('.hpbar i').style.width = (k.hp / KNIGHT.hp * 100) + '%';
+  const k = S.knight, card = gatherEl.querySelector('.chars .cw.knight');
+  if (!card) return;
+  const khp = card.querySelector('.khp');
+  if (khp){
+    khp.innerHTML = `${statImg('hp')}${k.hp}/${KNIGHT.hp}`;
+    khp.classList.toggle('down', k.hp <= 0);
+  }
+  const bar = card.querySelector('.hpbar i');
+  if (bar) bar.style.width = (k.hp / KNIGHT.hp * 100) + '%';
   if (knightPick) renderInsp();
 }
 // 쉬는 동안 회복 (원정 중엔 안 됨)
