@@ -106,6 +106,7 @@
   .lockpop::after{content:'';position:absolute;top:100%;left:50%;margin-left:-5px;border:5px solid transparent;border-top-color:var(--ink);}
   .lockpop.out{opacity:0;transition:opacity .25s;}
   .tabbtn .lockm{margin-right:3px;}
+  .tabbtn .tabic{width:1.35em;height:1.35em;margin-right:3px;vertical-align:-.35em;}   /* v0.33.0: 탭 그림 */
   .gather-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}   /* v0.17.0: 네 칸 한 줄 고정 */
   .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
   .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
@@ -493,7 +494,7 @@ const DEFS = {
   pouch:     { name:'가죽 주머니', kind:'material', tier:3, group:'gear',  emoji:'🎒' },
   fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
   roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
-  workbench: { name:'작업대',      kind:'material', tier:3, group:'gear',  emoji:'🛠️' },   // v0.20.0: 만들면 무기 화면이 열림
+  workbench: { name:'작업대',      kind:'material', tier:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
   campfire:  { name:'모닥불',      kind:'material', tier:3, group:'gear' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
@@ -646,7 +647,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.32.1';
+const VERSION = 'v0.33.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -685,8 +686,8 @@ const PARTY = [true, false, false, false, false];                 // v0.26.0: �
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
   { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'] },     // v0.22.0: 재료 + 완성품
-  { id:'weapon', name:'⚔️ 무기', tags:['무기재료', '무기'], needs:'workbench' },
-  { id:'gearup', name:'🔧 정비', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음
+  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'], needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
+  { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음. v0.33.0: 모닥불 그림
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
 // 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
@@ -1332,10 +1333,11 @@ function lockPop(btn, text){
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
+  const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   const html = ['<button class="tabbtn" data-tab="battle">🗡️ 전투</button>']
     .concat(BOARDS.map(b => boardOpen(b)
-      ? `<button class="tabbtn" data-tab="${b.id}">${b.name}</button>`
-      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${b.name}</button>`)).join('');
+      ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
+      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}</button>`)).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
