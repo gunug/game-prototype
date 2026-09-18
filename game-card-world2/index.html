@@ -137,6 +137,15 @@
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
   .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
   .q-row.done .q-n{color:#8fdc8f;}
+  /* v0.41.0: 블록형 퀘스트 — 중제목 · 소제목 */
+  .q-mid{display:flex;gap:6px;align-items:center;padding-left:14px;font-size:12px;color:var(--muted);min-height:20px;white-space:nowrap;}
+  .q-mid.now{color:var(--ink);font-weight:700;}
+  .q-mid.done{color:#8fdc8f;}
+  .q-sub{display:flex;gap:6px;align-items:center;padding-left:30px;font-size:12px;color:var(--muted);min-height:20px;white-space:nowrap;}
+  .q-sub.done{color:#8fdc8f;}
+  .q-sub .icon.inline{width:1.2em;height:1.2em;}
+  .q-sub-t{color:var(--muted);opacity:.85;overflow:hidden;text-overflow:ellipsis;}
+  .q-sub-n{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;}
   /* v0.9.0: 새 카드 표시 — 카드 왼쪽 위 NEW, 콜렉터북 버튼에 새 카드 수 */
   .cw .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
     display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
@@ -672,7 +681,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.40.0';
+const VERSION = 'v0.41.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -699,9 +708,26 @@ const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24
 const QUESTS = {
   gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
-  // v0.39.0: 단계가 있는 퀘스트 — 한 줄에 `이름 (n/4)`, 단계마다 기사 대사
+  // v0.41.0: 블록형 퀘스트 — 대제목 + 중제목(모두 보임) + 지금 덩어리의 소제목만.
+  //   판정은 늘 '지금 보유 수'. 재료를 써 버리면 그 줄은 다시 비어 보이지만, 더 뒤 덩어리가 채워져 있으면 그 앞은 끝난 것으로 침
+  workbenchq: { name: '작업대를 세우자', groups: [
+    { title: '1. 재료 모으기', items: [
+      { card:'stone', n:2, text:'⛰️ 산으로 출전해 돌 모으기' },
+      { card:'flint', n:2, text:'같은 곳에서 부싯돌 모으기' },
+      { card:'tree',  n:1, text:'같은 곳에서 나무 모으기' },
+    ] },
+    { title: '2. 뗀석기 2개 만들기', items: [
+      { card:'blade', n:2, text:'🔨 도구에서 돌을 부싯돌 위로 끌기 (돌 + 부싯돌)' },
+    ] },
+    { title: '3. 나무판자 만들기', items: [
+      { card:'plank', n:1, text:'🔨 나무 + 뗀석기' },
+    ] },
+    { title: '4. 작업대 만들기', items: [
+      { card:'workbench', n:1, text:'🔨 나무판자 + 뗀석기 → ⚔️ 무기 화면이 열림' },
+    ] },
+  ] },
+  // v0.39.0: 단계가 있는 퀘스트 — 한 줄에 `이름 (n/3)`, 단계마다 기사 대사
   stronger: { name: '강해져야 겠어', steps: [
-    { key:'workbench',   text:'작업대 만들기',                   say:'이제 무기를 만들 수 있겠군' },
     { key:'toothdagger', text:'이빨 단검 만들기',                 say:'무기는 어떻게 장착하는 거지?' },
     { key:'campfire',    text:'모닥불 만들기',                    say:'이제 장비만 하면' },
     { key:'equip',       text:'정비에서 이빨 단검 장착하기',        say:'이제 곰 정도는 잡을 수 있겠군.' },
@@ -711,6 +737,14 @@ const QUESTS = {
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
 const questText = (def, q) => def.steps ? (def.steps[Math.min(q.n, def.steps.length - 1)] || {}).text : def.text;
+// v0.41.0: 블록형 — 지금 보유 수로 덩어리마다 채워졌는지 셈. 뒤 덩어리가 채워졌으면 앞은 끝난 것으로 침
+function groupFilled(g){ return g.items.every(it => have(it.card) >= it.n); }
+function questGroupState(def){
+  const filled = def.groups.map(groupFilled);
+  const done = filled.map((f, i) => f || filled.slice(i + 1).some(Boolean));   // 뒤가 됐으면 앞도 끝
+  const now = done.findIndex(d => !d);
+  return { filled, done, now: now < 0 ? def.groups.length : now, all: done.every(Boolean) };
+}
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 const PARTY = [true, false, false, false, false];                 // v0.26.0: 출전 칸 5개 — 지금은 첫 칸만 열림
@@ -1013,6 +1047,8 @@ function addCard(type, x, y, anim, from, made){
   noteFacility(type);                                             // v0.21.0: 만든 설비 기록
   // v0.23.0: 첫 무기를 만들면 '정비가 필요해'
   questEvent(type);                                               // v0.39.0: 이빨 단검 만들기 단계
+  questCheckBlocks();                                             // v0.41.0: 보유로 판정하는 블록 퀘스트
+  renderQuest();
   unlockBoards();                                                 // v0.20.0: 작업대를 만들면 무기 화면이 열림
   return c;
 }
@@ -1028,6 +1064,7 @@ function useOne(c){
   c.n--;
   if (c.n <= 0) removeCard(c.id);
   else setCount(c);
+  questCheckBlocks(); renderQuest();                               // v0.41.0: 보유가 줄어도 퀘스트 줄 갱신
 }
 // 여러 장 생성. v0.8.0: 상한 없음 — 있는 종류는 수량 +1
 function spawnMany(types, x, y, from, made3s){
@@ -1917,9 +1954,9 @@ function expEnd(kind){
   exp.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   expPaint();
   // v0.21.1: 첫 보스(곰)를 만나고 쓰러지면, 실패 문구 뒤에 '무기 화면 열기' 퀘스트
-  if (exp.fail && S.metBoss && !(S.quests || []).some(q => q.id === 'stronger') && !S.said.includes('stronger')){
+  if (exp.fail && S.metBoss && !S.said.includes('stronger')){
     S.said.push('stronger');
-    setTimeout(() => giveQuest('stronger'), 1400);
+    setTimeout(() => { knightSay('맨손으론 안 되겠어. 뭐라도 만들어야지'); giveQuest('workbenchq'); }, 1400);
   }
   setTimeout(() => {
     exp = null;
@@ -2106,18 +2143,33 @@ function renderQuest(){
   const list = S.quests || [];
   el.hidden = !list.length;
   if (!list.length){ el.innerHTML = ''; return; }
-  const rows = [...el.querySelectorAll('.q-row')];
-  if (rows.length !== list.length){
-    el.innerHTML = list.map(() => '<div class="q-row"><span class="q-tag">📜</span><b class="q-name"></b><span class="q-text"></span><span class="q-n"></span></div>').join('');
-  }
-  list.forEach((q, i) => {
-    const row = el.children[i], def = QUESTS[q.id];
-    row.classList.toggle('done', q.done);
-    row.querySelector('.q-name').textContent = def.name;
-    row.querySelector('.q-text').textContent = q.done ? '완료' : questText(def, q);
-    const goal = questGoal(def);
-    setNum(row.querySelector('.q-n'), `${Math.min(q.n, goal)}/${goal}${q.done ? ' ✓' : ''}`);
+  el.innerHTML = list.map(q => {
+    const def = QUESTS[q.id];
+    return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
+  }).join('');
+}
+function questRowHtml(q, def){
+  const goal = questGoal(def);
+  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
+    + `<span class="q-text">${esc(q.done ? '완료' : questText(def, q))}</span>`
+    + `<span class="q-n">${Math.min(q.n, goal)}/${goal}${q.done ? ' ✓' : ''}</span></div>`;
+}
+// v0.41.0: 블록형 — 대제목 · 중제목은 모두 보이고, 소제목(완료 조건)은 지금 덩어리 것만
+function questBlockHtml(q, def){
+  const st = questGroupState(def);
+  let h = `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
+    + `<span class="q-n">${Math.min(st.done.filter(Boolean).length, def.groups.length)}/${def.groups.length}${q.done ? ' ✓' : ''}</span></div>`;
+  def.groups.forEach((g, i) => {
+    const done = st.done[i], now = i === st.now;
+    h += `<div class="q-mid${done ? ' done' : ''}${now ? ' now' : ''}">${done ? '✔' : now ? '▸' : '·'} ${esc(g.title)}</div>`;
+    if (!now || q.done) return;
+    for (const it of g.items){
+      const n = have(it.card), ok = n >= it.n;
+      h += `<div class="q-sub${ok ? ' done' : ''}">${ok ? '☑' : '☐'} ${iconHtml(it.card, true)} ${esc(DEFS[it.card].name)}`
+        + `<span class="q-sub-t">${esc(it.text)}</span><span class="q-sub-n">${Math.min(n, it.n)}/${it.n}</span></div>`;
+    }
   });
+  return h;
 }
 function questStep(id){
   const q = (S.quests || []).find(q => q.id === id && !q.done);
@@ -2136,6 +2188,25 @@ function questStep(id){
   save();
 }
 // v0.39.0: 단계가 있는 퀘스트 — 지금 단계의 열쇠와 맞을 때만 한 칸 나아가고, 기사가 한마디
+// v0.41.0: 블록형 퀘스트는 보유 수로 판정 — 카드가 늘거나 줄 때마다 확인
+function questCheckBlocks(){
+  for (const q of (S.quests || [])){
+    const def = QUESTS[q.id];
+    if (q.done || !def.groups) continue;
+    const st = questGroupState(def);
+    if (!st.all) continue;
+    q.done = true;
+    toast(`📜 퀘스트 완료: ${def.name}`);
+    renderQuest();
+    questFade(q);
+    if (q.id === 'workbenchq'){                                   // 작업대를 세웠으면 다음 퀘스트로
+      knightSay('이제 무기를 만들 수 있겠군');
+      setTimeout(() => giveQuest('stronger'), 900);
+    }
+    save();
+    return;
+  }
+}
 function questEvent(key){
   for (const q of (S.quests || [])){
     const def = QUESTS[q.id];
