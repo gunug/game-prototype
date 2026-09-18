@@ -40,16 +40,23 @@
   .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
   /* v0.25.0: 정비 화면 — 필드 위쪽에 장비 칸 줄. 카드를 끌어다 놓음 */
   /* v0.27.0: 화면을 위아래로 — 위는 줄 목록(넘치면 세로 스크롤), 아래는 카드를 놓는 자리 */
-  .toplist{position:absolute;left:0;right:0;top:0;height:50%;z-index:4;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;
-    display:flex;flex-direction:column;gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
+  .toplist{position:absolute;left:0;right:0;top:0;height:50%;z-index:4;box-sizing:border-box;overflow-y:auto;overflow-x:auto;
+    display:flex;flex-direction:column;align-items:center;gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
     background:rgba(10,10,7,.55);border-bottom:1px solid var(--hairline);
     scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
   .toplist[hidden]{display:none;}
   .toplist::-webkit-scrollbar{width:4px;}
   .toplist::-webkit-scrollbar-thumb{background:rgba(255,212,0,.35);border-radius:4px;}
   .lrow{flex:none;display:flex;align-items:center;gap:calc(var(--cw) * .1);}
-  .lrow > .cw{position:relative;flex:none;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);--cf:calc(var(--cw) / .7 * .8 * .8);cursor:pointer;}
+  .lrow > .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);cursor:pointer;}
+  /* 줄 안의 필드 카드는 줄 높이에 맞춤 (채집 격자용 크기 규칙을 덮어씀) */
+  .gather .lrow > .cw.field{width:var(--cw);height:var(--ch);aspect-ratio:auto;}
+  .gather .lrow > .cw.field .emoji{font-size:calc(var(--cw) * .38);}
+  .gather .lrow .yields{font-size:calc(var(--cw) * .13);}
+  .lrow .pslot{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
+  .lrow .slotbox .box{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
+  .lhint{flex:none;font-size:calc(var(--cf) * .1);color:var(--muted);text-align:center;}
   .table.half{top:50%;}                                            /* 카드는 아래 절반에만 */
   .slotbar[hidden]{display:none;}
   .slotbox{display:flex;flex-direction:column;align-items:center;gap:3px;}
@@ -70,6 +77,7 @@
   .pslot.locked{border-style:solid;opacity:.45;background:transparent;}
   .pslot .lock{width:55%;image-rendering:pixelated;}
   .pslot .icon{width:70%;height:70%;}
+  .pslot-lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   .knight-drag{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;opacity:.9;}
   /* 기사 카드의 작은 장비 칸 (전투 화면) */
   .knight .gearline{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:calc(var(--cw) * .04);pointer-events:none;}
@@ -348,8 +356,8 @@
 <body>
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
+  <div class="toplist" id="slotbar" hidden></div>
   <div class="table" id="table">
-    <div class="toplist" id="slotbar" hidden></div>
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
   <div class="gather" id="gather" hidden></div>
@@ -620,7 +628,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.27.0';
+const VERSION = 'v0.27.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1295,7 +1303,7 @@ function renderSlots(){
         + `<div class="box">${t ? `<div class="cw framed f-${frameOf(DEFS[t])}" data-slotcard="${sl.key}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div></div>` : ''}</div>`
         + `<div class="lab">${sl.name}${t ? ` ${statImg(sl.stat)}${DEFS[t][sl.stat] || 0}` : ''}</div></div>`;
     }).join('') + '</div></div>'
-    + `<div class="lrow"><span class="gather-hint">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()} — 아래 카드를 칸에 끌어다 놓으세요</span></div>`;
+    + `<div class="lhint">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()} — 아래 카드를 칸에 끌어다 놓으세요</div>`;
 }
 // 끄는 중에 칸 위에 있나 — 그 칸에 넣을 수 있는 카드일 때만
 function slotAt(px, py, type){
@@ -1450,7 +1458,7 @@ function renderGather(){
       // v0.27.0: 그 필드로 나가는 출전 칸 (지금은 첫 칸만 열림)
       + '<div class="rowslots">' + PARTY.map((open, i) => `<div class="pslot${open ? '' : ' locked'}" data-party="${f.id}:${i}">`
         + (open
-          ? (exp && exp.id === f.id ? '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">' : '')
+          ? (exp && exp.id === f.id ? '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">' : '<span class="pslot-lab">출전</span>')
           : '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">') + '</div>').join('')
       + '</div></div>';
   }).join('') + '</div>'
