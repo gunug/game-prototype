@@ -56,6 +56,10 @@
   .lrow .pslot{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .lrow .slotbox .box{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
+  /* v0.34.0: 위 절반 격자형 — 완성품 카드를 줄지어 (넘치면 세로 스크롤) */
+  .toplist.grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(var(--cw), 1fr));align-content:start;gap:calc(var(--cw) * .12);}
+  .toplist.grid .cw{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;}
+  .toplist.grid .empty-lab{grid-column:1 / -1;color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;padding:calc(var(--cw) * .2) 0;}
   .lhint{flex:none;font-size:calc(var(--cf) * .1);color:var(--muted);text-align:center;}
   .table.half{top:50%;}                                            /* 카드는 아래 절반에만 */
   .slotbar[hidden]{display:none;}
@@ -379,6 +383,7 @@
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
+  <div class="toplist grid" id="topgrid" hidden></div>
   <div class="gather" id="gather" hidden></div>
   <div class="facility" id="facility" hidden></div>
 </div>
@@ -508,7 +513,7 @@ const USE = {
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
-  blade:['도구'], whetstone:['도구'],                             // v0.22.1: 완성 도구 ember:['요리재료', '생산재료'], firewood:['무기재료', '건축재료', '생산재료'],
+  blade:['도구', '도구재료'], whetstone:['도구'],   // v0.34.0: 뗀석기는 재료로도 쓰여 상·하단 모두                             // v0.22.1: 완성 도구 ember:['요리재료', '생산재료'], firewood:['무기재료', '건축재료', '생산재료'],
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
@@ -647,7 +652,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.33.0';
+const VERSION = 'v0.34.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -685,8 +690,9 @@ const PARTY = [true, false, false, false, false];                 // v0.26.0: �
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
-  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'] },     // v0.22.0: 재료 + 완성품
-  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'], needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
+  // v0.34.0: 위 절반은 완성품 격자(top), 아래 절반은 재료 카드 자리(bottom)
+  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'], top:'도구', bottom:'도구재료' },
+  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'], top:'무기', bottom:'무기재료', needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음. v0.33.0: 모닥불 그림
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
@@ -715,7 +721,11 @@ function facBlock(f){
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
-const onBoard = (type, id) => useOf(type).some(u => boardTags(id).includes(u));
+const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
+// 아래 절반(카드 자리)에 보이는 카드 — 재료 태그가 있는 보드는 재료만
+const onBoard = (type, id) => { const b = boardOf(id); return b.bottom ? useOf(type).includes(b.bottom) : useOf(type).some(u => b.tags.includes(u)); };
+// 위 절반 격자에 보이는 카드 (완성품)
+const onTopGrid = (type, id) => { const b = boardOf(id); return !!b.top && useOf(type).includes(b.top); };
 const boardFor = type => (BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
@@ -898,6 +908,7 @@ function renderAll(){
     if (!table.hidden){ const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y; }   // v0.6.0: 숨은 필드에선 당기지 않음
     mount(c);
   }
+  renderTopGrid();                                                 // v0.34.0
   renderMeta();
   renderNew();
   renderQuest();
@@ -1407,6 +1418,27 @@ function knightCardHtml(drag){
     + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span></div>`
     + `<div class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></div></div>`;
 }
+// v0.34.0: 도구 · 무기 화면의 위 절반 — 완성품 카드 격자
+const topGridEl = document.getElementById('topgrid');
+function renderTopGrid(){
+  const b = boardOf(S.tab);
+  const on = !isRowScreen(S.tab) && S.tab !== 'facility' && !!b.top;
+  topGridEl.hidden = !on;
+  table.classList.toggle('half', on);
+  if (!on) return;
+  const list = S.cards.filter(c => onTopGrid(c.type, S.tab) && c.n > 0);
+  topGridEl.innerHTML = list.length
+    ? list.map(c => `<div class="cw framed f-${frameOf(DEFS[c.type])}${inspType === c.type ? ' sel' : ''}" data-topcard="${c.type}">`
+        + ((sl => sl ? silHtml(sl, 'corner') : '')(slotOfType(c.type)))
+        + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
+    : `<div class="empty-lab">아직 만든 ${esc(b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
+}
+topGridEl.addEventListener('click', e => {
+  const el = e.target.closest('[data-topcard]');
+  if (!el) return;
+  inspType = el.dataset.topcard; selected = null;                 // 탭하면 정보만
+  renderTopGrid(); renderInsp();
+});
 function renderScreen(){
   gatherEl.hidden = !isRowScreen(S.tab);
   if (gatherEl.hidden) return;
@@ -1653,7 +1685,7 @@ function setTab(tab){
   renderTabs();
   table.hidden = isRowScreen(tab) || tab === 'facility';          // v0.29.0: 전투·정비는 줄 화면
   facilityEl.hidden = tab !== 'facility';
-  renderFacility(); renderScreen();
+  renderFacility(); renderScreen(); renderTopGrid();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
   renderGather(); renderInsp(); save();
