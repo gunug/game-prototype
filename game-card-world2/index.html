@@ -685,7 +685,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.42.1';
+const VERSION = 'v0.42.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -717,10 +717,10 @@ const QUESTS = {
   // v0.42.0: 한 덩어리 안에서 '만들다가 재료가 줄어 앞 단계로 되돌아가는' 일이 없게 순서를 바꿈.
   //   재료는 한 번에 한 개분씩만 모으고, 만들면 바로 다음 덩어리가 채워지도록 (모으기 → 만들기 → 모으기 → 만들기)
   workbenchq: { name: '작업대를 세우자', groups: [
-    { title: '1. 재료 모으기', items: [
-      { card:'stone', n:1, text:'⛰️ 산으로 출전해 돌 모으기' },
-      { card:'flint', n:1, text:'같은 곳에서 부싯돌 모으기' },
-      { card:'tree',  n:1, text:'같은 곳에서 나무 모으기' },
+    { title: '1. 재료 모으기 — ⛰️ 산으로 출전해 재료 모으기', items: [
+      { card:'stone', n:1 },
+      { card:'flint', n:1 },
+      { card:'tree',  n:1 },
     ] },
     { title: '2. 뗀석기 만들기', items: [
       { card:'blade', n:1, text:'🔨 도구에서 돌을 부싯돌 위로 끌기 (돌 + 부싯돌)' },
@@ -728,10 +728,10 @@ const QUESTS = {
     { title: '3. 나무판자 만들기', items: [
       { card:'plank', n:1, text:'🔨 나무 + 뗀석기' },
     ] },
-    { title: '4. 뗀석기 재료 다시 모으기', items: [
+    { title: '4. 뗀석기 재료 다시 모으기 — ⛰️ 산으로 다시 출전', items: [
       { card:'plank', n:1, text:'나무판자는 쓰지 말고 그대로 두기' },
-      { card:'stone', n:1, text:'⛰️ 산으로 다시 출전해 돌 모으기' },
-      { card:'flint', n:1, text:'같은 곳에서 부싯돌 모으기' },
+      { card:'stone', n:1 },
+      { card:'flint', n:1 },
     ] },
     { title: '5. 뗀석기 다시 만들기', items: [
       { card:'plank', n:1, text:'나무판자는 그대로' },
@@ -747,7 +747,7 @@ const QUESTS = {
     { key:'campfire',    text:'모닥불 만들기',                    say:'이제 장비만 하면' },
     { key:'equip',       text:'정비에서 이빨 단검 장착하기',        say:'이제 곰 정도는 잡을 수 있겠군.' },
   ] },
-  gomountain:  { name: '산으로 가자', text: '산으로 출전하기', goal: 1 },   // v0.36.0: 맨 처음 퀘스트
+  gomountain:  { name: '산으로 가자', text: '기사를 끌어 ⛰️ 산 줄의 출전 칸에 놓기', goal: 1 },   // v0.36.0: 맨 처음 퀘스트
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
@@ -2189,7 +2189,8 @@ function questBlockHtml(q, def){
     for (const it of g.items){
       const n = have(it.card), ok = n >= it.n;
       h += `<div class="q-sub${ok ? ' done' : ''}">${ok ? '☑' : '☐'} ${iconHtml(it.card, true)} ${esc(DEFS[it.card].name)}`
-        + `<span class="q-sub-t">${esc(it.text)}</span><span class="q-sub-n">${Math.min(n, it.n)}/${it.n}</span></div>`;
+        + (it.text ? `<span class="q-sub-t">${esc(it.text)}</span>` : '')
+        + `<span class="q-sub-n">${Math.min(n, it.n)}/${it.n}</span></div>`;
     }
   });
   return h;
