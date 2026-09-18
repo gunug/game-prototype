@@ -21,8 +21,8 @@
   .ui.bottom{border-top:1px solid var(--hairline);}
   /* UI 아래쪽 버튼 줄 — 채집 · 크래프팅 · 콜렉터북 · 설정 */
   .uibar{flex:none;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--hairline);}
-  .tabbtn{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:700;
-    padding:6px 12px;border-radius:var(--r-pill);white-space:nowrap;cursor:pointer;}
+  .tabbtn{border:1px solid var(--hairline);background:rgba(255,255,255,.08);color:var(--ink);font:inherit;font-size:13px;font-weight:700;
+    padding:6px 12px;border-radius:var(--r-pill);white-space:nowrap;cursor:pointer;}   /* v0.21.3: 쓸 수 있는 버튼은 배경이 있음 */
   .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);border-color:var(--brand-yellow);}
   .meta{display:inline-block;font-size:12px;color:var(--muted);white-space:nowrap;}
   .reset{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:4px 10px;border-radius:var(--r-pill);cursor:pointer;}
@@ -46,7 +46,12 @@
   .facility .cw.fac .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
   .facility .cw.fac.off{filter:brightness(.4) saturate(.25);}      /* 아직 안 만든 설비 — 자물쇠 없이 비활성 */
   /* v0.21.0: 잠긴 화면 버튼 — 버튼은 보이고 자물쇠가 붙음 */
-  .tabbtn.locked{opacity:.55;}
+  .tabbtn.locked{background:transparent;border-style:dashed;color:var(--muted);opacity:.5;}   /* v0.21.3: 잠김 — 배경 없음 · 점선 */
+  /* v0.21.3: 잠긴 버튼을 누르면 그 버튼 바로 위에 뜨는 말풍선 */
+  .lockpop{position:absolute;bottom:calc(100% + 8px);z-index:6;transform:translateX(-50%);white-space:nowrap;pointer-events:none;
+    background:var(--ink);color:#1a1a17;font-size:12px;font-weight:800;padding:6px 10px;border-radius:10px;box-shadow:var(--sh-md);animation:speechIn .16s ease-out;}
+  .lockpop::after{content:'';position:absolute;top:100%;left:50%;margin-left:-5px;border:5px solid transparent;border-top-color:var(--ink);}
+  .lockpop.out{opacity:0;transition:opacity .25s;}
   .tabbtn .lockm{margin-right:3px;}
   .gather-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}   /* v0.17.0: 네 칸 한 줄 고정 */
   .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
@@ -558,7 +563,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.21.2';
+const VERSION = 'v0.21.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1168,6 +1173,19 @@ function lootTypes(id){
   return out;
 }
 const lootKnown = (id, t) => foesOf(id).some(k => (S.lootSeen[k] || []).includes(t));
+// v0.21.3: 잠긴 버튼 바로 위 말풍선 (2초 뒤 사라짐)
+let lockPopT = 0;
+function lockPop(btn, text){
+  const wrap = document.getElementById('tabs');
+  wrap.querySelector('.lockpop')?.remove();
+  clearTimeout(lockPopT);
+  const el = document.createElement('div');
+  el.className = 'lockpop';
+  el.textContent = text;
+  el.style.left = (btn.offsetLeft + btn.offsetWidth / 2) + 'px';
+  wrap.appendChild(el);
+  lockPopT = setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 260); }, 1800);
+}
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
@@ -1303,7 +1321,7 @@ document.getElementById('tabs').addEventListener('click', e => {
   const b = BOARD_BY_ID[btn.dataset.tab];
   if (b && !boardOpen(b)){                                        // v0.21.0: 잠긴 화면 — 무엇이 있어야 열리는지
     flash(btn, 'fail', 600);
-    toast(`🔒 ${b.name} — ${ic(b.needs)} ${DEFS[b.needs].name}가 있어야 열림`);
+    lockPop(btn, `🔒 ${DEFS[b.needs].name} 필요`);                 // v0.21.3: 버튼 바로 위 말풍선
     return;
   }
   setTab(btn.dataset.tab);
