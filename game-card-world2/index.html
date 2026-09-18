@@ -436,7 +436,7 @@ const USE = {
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
-  blade:['무기재료', '도구재료'], whetstone:['도구재료', '무기재료'], ember:['요리재료', '생산재료'], firewood:['무기재료', '건축재료', '생산재료'],
+  blade:['도구'], whetstone:['도구'],                             // v0.22.1: 완성 도구 ember:['요리재료', '생산재료'], firewood:['무기재료', '건축재료', '생산재료'],
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
@@ -571,7 +571,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.22.0';
+const VERSION = 'v0.22.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -875,6 +875,7 @@ function spawnMany(types, x, y, from, made3s){
   for (const t of types){
     const c = addCard(t, x, y, 'pop', from, made3s);
     made.push(c);
+    if (!onBoard(t, S.tab)) showAway(t, c.x, c.y);                 // v0.22.1: 이 화면 카드가 아니면 잠깐 보였다 공중으로
     if (made3s){ const el = els.get(c.id); if (el){ el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); } }   // v0.2.2   // v0.21.0: 다른 화면 카드면 el이 없음
   }
   return made;
@@ -1537,6 +1538,25 @@ function expLoot(){
   exp.line = `${DEFS[t].name}을(를) 주웠다`;
   flyToCraft(t, tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect());
   expPaint();
+}
+// v0.22.1: 지금 화면에 안 올라오는 카드가 만들어졌을 때 — 그 자리에 잠깐 떠 있다가 위로 사라짐
+function showAway(t, fx, fy){
+  const tr = table.getBoundingClientRect();
+  const fly = document.createElement('div');
+  fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
+  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${have(t)}</div>`;
+  fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
+  document.body.appendChild(fly);
+  const x = tr.left + fx, y = tr.top + fy;
+  const at = (dy, sc, op) => `translate(${x}px, ${y + dy}px) scale(${sc})`;
+  fly.animate([
+    { offset: 0,    transform: at(0, 0.3, 0), opacity: 0 },
+    { offset: 0.18, transform: at(-6, 1.08, 1), opacity: 1, easing: 'ease-out' },
+    { offset: 0.3,  transform: at(0, 1, 1), opacity: 1 },
+    { offset: 0.62, transform: at(0, 1, 1), opacity: 1 },          // 잠깐 머묾
+    { offset: 0.8,  transform: at(-CH * 0.3, 1.02, 1), opacity: 1 },
+    { offset: 1,    transform: at(-CH * 0.9, 0.9, 0), opacity: 0 },
+  ], { duration: 1200, easing: 'ease-out', fill: 'forwards' }).finished.then(() => fly.remove());
 }
 function flyToCraft(t, r){
   const fly = document.createElement('div');
