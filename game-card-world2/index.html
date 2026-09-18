@@ -161,6 +161,12 @@
     font-size:calc(var(--cf) * .1);font-weight:900;line-height:1.2;box-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;
     animation:findPop .32s cubic-bezier(.2,1.4,.4,1);}
   @keyframes findPop{from{opacity:0;transform:translate(-50%,6px) scale(.8);}to{opacity:1;transform:translateX(-50%) scale(1);}}
+  /* v0.46.0: 콜렉터북 조합 탭 */
+  .combo-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;}
+  .combo-row.locked{color:var(--muted);}
+  .combo-card{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);white-space:nowrap;}
+  .combo-card.locked .icon{filter:brightness(0) opacity(.45);}
+  .combo-op{color:var(--muted);font-weight:800;}
   .nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;box-sizing:border-box;border-radius:999px;
     background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
   .nbadge[hidden]{display:none;}
@@ -693,7 +699,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.45.0';
+const VERSION = 'v0.46.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1105,9 +1111,19 @@ function spawnMany(types, x, y, from, made3s){
 
 // ── 조합 ────────────────────────────────────────────
 // 크래프팅 탭에서 되는 조합 (첫 번째)
+// v0.46.0: 화면마다 만들 수 있는 유형이 정해져 있음 — 도구 화면에선 도구 계열만, 무기 화면에선 무기 계열만.
+//   조합식에는 있어도 유형이 다르면 그 화면에선 '안 되는 조합'으로 친다 (끌면 흐려짐). 설비는 어느 화면에서나 가능
+function boardMakes(r, id){
+  const b = boardOf(id);
+  if (!b || !b.tags) return true;
+  const outs = r.cook ? [] : (r.out || []);
+  return outs.some(o => useOf(o).some(u => u === '설비' || b.tags.includes(u)));
+}
 function craftMatch(x, y){
   // v0.21.0: 이미 만든 설비는 다시 조합되지 않음
-  return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r) && !(m.r.out || []).some(o => isFacility(o) && facMade(o))) || null;
+  return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r)
+    && boardMakes(m.r, S.tab)                                     // v0.46.0
+    && !(m.r.out || []).some(o => isFacility(o) && facMade(o))) || null;
 }
 function craft(drag, tgt, m){
   const r = m.r;
@@ -1316,6 +1332,7 @@ function renderInsp(){
 const bookEl = document.getElementById('book');
 const bookBack = document.getElementById('bookBack');
 let bookTier = TIERS[0];
+const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
 let paused = false;
@@ -1335,15 +1352,38 @@ function detailHtml(){
     ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
     : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
 }
+// v0.46.0: 조합 탭 — 해 본 조합은 재료·결과가 보이고, 아직 안 해 본 조합은 ???
+const comboDone = r => (S.madeRecipes || []).includes(r.id);
+function comboRowHtml(r){
+  const on = comboDone(r);
+  const cardMini = t => `<span class="combo-card${on ? '' : ' locked'}">${iconHtml(t, true)}${on ? ' ' + esc(DEFS[t].name) : ' ???'}</span>`;
+  const outs = r.cook ? [] : (r.out || []);
+  return `<div class="combo-row${on ? '' : ' locked'}">${cardMini(r.a.card)}<span class="combo-op">+</span>${cardMini(r.b.card)}`
+    + `<span class="combo-op">→</span>${outs.map(cardMini).join('')}</div>`;
+}
+function renderCombos(){
+  const list = CRAFT_RECIPES.filter(r => r.a.card && r.b.card);
+  const done = list.filter(comboDone).length;
+  let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}</div>`;
+  h += list.map(comboRowHtml).join('') + '</div>';
+  return { html: h, done, total: list.length };
+}
 function renderBook(){
   if (!bookOpen) return;
-  const inTier = CRAFT_TYPES.filter(t => DEFS[t].tier === bookTier);
-  const found = inTier.filter(shownSeen).length;
+  const isCombo = bookTier === COMBO_TAB;
+  const inTier = isCombo ? [] : CRAFT_TYPES.filter(t => DEFS[t].tier === bookTier);
+  const combos = isCombo ? renderCombos() : null;
+  const found = isCombo ? combos.done : inTier.filter(shownSeen).length;
+  const total = isCombo ? combos.total : inTier.length;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
-    + '<div class="book-tabs">' + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${n}티어</button>`).join('') + '</div>'
-    + `<span class="meta">발견 ${found}/${inTier.length}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
-    + `<div class="book-detail">${detailHtml()}</div><div class="book-body"><div class="book-inner">`;
-  for (const f of groupsOfTier(bookTier)){
+    + '<div class="book-tabs">'
+    + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${n}티어</button>`).join('')
+    + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합</button></div>`
+    + `<span class="meta">발견 ${found}/${total}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
+    + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>' : detailHtml()}</div>`
+    + '<div class="book-body"><div class="book-inner">';
+  if (isCombo) h += combos.html;
+  else for (const f of groupsOfTier(bookTier)){
     const list = inTier.filter(t => placeOf(t) === f);
     if (!list.length) continue;
     h += `<div class="book-field"><div class="book-fname">${f.emoji} ${f.name}</div><div class="book-row">${list.map(slotHtml).join('')}</div></div>`;
@@ -1381,7 +1421,7 @@ async function runInserts(){
   await wait(420);                                                // 올라오는 시간
   const order = S.newCards.slice().sort((x, y) => DEFS[x].tier - DEFS[y].tier || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
   for (const t of order){
-    if (bookTier !== DEFS[t].tier){ bookTier = DEFS[t].tier; renderBook(); }
+    if (bookTier !== DEFS[t].tier){ bookTier = DEFS[t].tier; renderBook(); }   // 끼울 땐 그 티어 탭으로
     const slot = bookEl.querySelector(`[data-book="${t}"]`);
     if (slot){
       slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -1414,7 +1454,7 @@ bookEl.addEventListener('click', e => {
   if (paused) return;
   if (e.target.closest('[data-close]')) return openBook(false);
   const tab = e.target.closest('[data-tier]');
-  if (tab){ bookTier = +tab.dataset.tier; return renderBook(); }
+  if (tab){ bookTier = tab.dataset.tier === COMBO_TAB ? COMBO_TAB : +tab.dataset.tier; return renderBook(); }
   const slot = e.target.closest('[data-book]');
   if (slot){ bookPick = slot.dataset.book; renderBook(); }
 });
