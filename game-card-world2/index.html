@@ -162,6 +162,11 @@
     font-size:calc(var(--cf) * .1);font-weight:900;line-height:1.2;box-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;
     animation:findPop .32s cubic-bezier(.2,1.4,.4,1);}
   @keyframes findPop{from{opacity:0;transform:translate(-50%,6px) scale(.8);}to{opacity:1;transform:translateX(-50%) scale(1);}}
+  /* v0.48.0: 이미 해 본 조합 — 결과 그림 + 이름 + 보유 수 */
+  .cw .find-b.known{background:rgba(12,12,9,.92);color:var(--ink);border:1px solid var(--hairline);font-weight:700;
+    display:flex;align-items:center;gap:3px;}
+  .cw .find-b.known b{color:var(--brand-yellow);font-weight:900;font-variant-numeric:tabular-nums;}
+  .cw .find-b.known .icon.inline{width:1.15em;height:1.15em;margin:0;vertical-align:0;}
   /* v0.46.0: 콜렉터북 조합 탭 */
   .combo-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;}
   .combo-row.locked{color:var(--muted);}
@@ -712,7 +717,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.47.1';
+const VERSION = 'v0.48.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1134,6 +1139,12 @@ function boardMakes(r, id){
   const outs = r.cook ? [] : (r.out || []);
   return outs.some(o => useOf(o).some(u => u === '설비' || b.tags.includes(u)));
 }
+// v0.48.0: 끌 때 보여 줄 결과 — 그림 + 이름 + 지금 보유 수
+function outLabel(m, x, y){
+  const b = m.aIsX ? y : x;
+  const outs = m.r.cook ? [DEFS[b].cooked].filter(Boolean) : (m.r.out || []);
+  return outs.map(t => `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${have(t)}</b>`).join(' · ');
+}
 function craftMatch(x, y){
   // v0.21.0: 이미 만든 설비는 다시 조합되지 않음
   return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r)
@@ -1230,9 +1241,13 @@ table.addEventListener('pointermove', e => {
       const el = els.get(o.id);
       if (!el) continue;
       if (!m){ el.classList.add('dim'); continue; }                // v0.1.1: 안 되면 흐려짐
-      if ((S.madeRecipes || []).includes(m.r.id)) continue;        // v0.45.0: 해 본 적 없는 조합이면 알려 줌
-      el.classList.add('new-combo');
-      el.insertAdjacentHTML('beforeend', '<div class="find-b">새로운 발견!</div>');
+      if (!(S.madeRecipes || []).includes(m.r.id)){                // v0.45.0: 해 본 적 없는 조합
+        el.classList.add('new-combo');
+        el.insertAdjacentHTML('beforeend', '<div class="find-b">새로운 발견!</div>');
+        continue;
+      }
+      el.insertAdjacentHTML('beforeend',                           // v0.48.0: 해 본 조합은 결과 카드·이름·보유 수
+        `<div class="find-b known">${outLabel(m, drag.c.type, o.type)}</div>`);
     }
   }
   drag.c.x = drag.ox + dx; drag.c.y = drag.oy + dy;               // v0.28.0: 끄는 동안엔 필드 밖도 허용
