@@ -38,18 +38,17 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--cw) * .12);
     background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
   .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
-  /* v0.23.0: 정비 화면 — 캐릭터마다 무기 · 갑옷 · 방패 칸 */
-  .gearup[hidden]{display:none;}
-  .gearup{background:radial-gradient(ellipse at 50% 40%,#232a2f 0%,var(--canvas) 72%);}
-  .gear-who{display:flex;align-items:center;gap:calc(var(--cw) * .18);width:100%;}
-  .gearup .cw.who{position:relative;width:calc(var(--cw) * 1.2);height:auto;aspect-ratio:1 / 1.36;flex:none;--cf:calc(var(--cw) / .7 * .8 * 1.2);}
-  .gear-slots{display:flex;gap:calc(var(--cw) * .12);flex:1;}
-  .gslotbox{flex:1;max-width:calc(var(--cw) * 1.1);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
-  .gslotbox .box{width:100%;aspect-ratio:1 / 1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;
-    border:1px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.04);font-size:calc(var(--cw) * .42);}
-  .gslotbox.sel .box{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.12);}
-  .gslotbox .lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
-  .gslotbox .box .icon{width:70%;height:70%;}
+  /* v0.25.0: 정비 화면 — 필드 위쪽에 장비 칸 줄. 카드를 끌어다 놓음 */
+  .slotbar{position:absolute;left:0;right:0;top:0;z-index:4;display:flex;justify-content:center;align-items:flex-start;
+    gap:calc(var(--cw) * .2);padding:calc(var(--cw) * .12);background:linear-gradient(180deg,rgba(10,10,7,.75),rgba(10,10,7,0));}
+  .slotbar[hidden]{display:none;}
+  .slotbox{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .slotbox .box{position:relative;width:var(--cw);height:var(--ch);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+    border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
+  .slotbox .box .cw{position:relative;left:auto;top:auto;cursor:grab;}
+  .slotbox.hot .box{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.16);}
+  .slotbox.sel .box{border-color:rgba(255,255,255,.55);}
+  .slotbox .lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* 기사 카드의 작은 장비 칸 (전투 화면) */
   .knight .gearline{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:calc(var(--cw) * .04);pointer-events:none;}
   .knight .gslot{width:calc(var(--cw) * .26);height:calc(var(--cw) * .26);display:flex;align-items:center;justify-content:center;
@@ -328,11 +327,11 @@
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
   <div class="table" id="table">
+    <div class="slotbar" id="slotbar" hidden></div>
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
   <div class="gather" id="gather" hidden></div>
   <div class="facility" id="facility" hidden></div>
-  <div class="gearup" id="gearup" hidden></div>
 </div>
 <div class="ui side" id="ui">
   <div class="quest" id="quest"></div>
@@ -599,7 +598,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.24.1';
+const VERSION = 'v0.25.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -637,7 +636,7 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 const BOARDS = [
   { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'] },     // v0.22.0: 재료 + 완성품
   { id:'weapon', name:'⚔️ 무기', tags:['무기재료', '무기'], needs:'workbench' },
-  { id:'gearup', name:'🔧 정비', tags:['정비'], fixed:true, needs:'campfire' },   // v0.23.0: 장비를 바꾸는 화면
+  { id:'gearup', name:'🔧 정비', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
 // 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
@@ -665,7 +664,8 @@ const boardTag = () => boardTags(S.tab)[0];
 const onBoard = (type, id) => useOf(type).some(u => boardTags(id).includes(u));
 const boardFor = type => (BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
-const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
+const equippedTypes = () => SLOTS.map(sl => (S.equip || {})[sl.key]).filter(Boolean);
+const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab) && !equippedTypes().includes(c.type));   // v0.25.0: 장착한 카드는 칸에 있음
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
@@ -843,6 +843,7 @@ function renderAll(){
     if (!table.hidden){ const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y; }   // v0.6.0: 숨은 필드에선 당기지 않음
     mount(c);
   }
+  renderSlots();                                                   // v0.25.0
   renderMeta();
   renderNew();
   renderQuest();
@@ -1019,6 +1020,10 @@ table.addEventListener('pointermove', e => {
   const p = clampPos(drag.ox + dx, drag.oy + dy);
   drag.c.x = p.x; drag.c.y = p.y;
   place(drag.el, drag.c);
+  if (S.tab === 'gearup'){                                        // v0.25.0: 넣을 수 있는 칸을 노랗게
+    const sl = slotAt(e.clientX, e.clientY, drag.c.type);
+    for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.toggle('hot', !!sl && box.dataset.slot === sl.key);
+  }
 });
 function endDrag(e){
   if (!drag) return;
@@ -1026,7 +1031,10 @@ function endDrag(e){
   drag = null;
   d.el.classList.remove('dragging');
   for (const el of els.values()) el.classList.remove('dim');
+  for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
+  const sl = e.type === 'pointercancel' ? null : slotAt(e.clientX, e.clientY, d.c.type);   // v0.25.0: 장비 칸에 놓기
+  if (sl){ equipCard(sl, d.c.type); renderMeta(); renderInsp(); save(); return; }
   const tgt = e.type === 'pointercancel' ? null : cardAt(e.clientX, e.clientY, d.c.id);   // v0.8.1: 버리기 칸 없앰
   const m = tgt && craftMatch(d.c.type, tgt.type);
   if (m && !craft(d.c, tgt, m)) flash(d.el, 'fail', 1500);     // 겹친 채 놓인 카드는 밀어내기가 벌려 줌
@@ -1039,6 +1047,7 @@ table.addEventListener('pointercancel', endDrag);
 const UNK = '<span class="i-muted">???</span>';
 let inspType = null;                                             // v0.3.0: 콜렉터북에서 고른 카드 종류
 function select(id){
+  slotPick = null;                                                 // v0.25.0: 카드를 고르면 칸 선택은 풀림
   if (selected != null) els.get(selected)?.classList.remove('sel');
   selected = id;
   inspType = null;
@@ -1056,7 +1065,7 @@ function outHtml(r, t){
 function renderInsp(){
   if (S.tab === 'battle') return renderFieldInsp();
   if (S.tab === 'facility') return renderFacInsp();               // v0.21.0
-  if (S.tab === 'gearup') return renderGearInsp();                // v0.23.0
+  if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -1246,58 +1255,103 @@ function renderTabs(){                                            // v0.21.0: �
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
-// ── 정비 화면 (v0.23.0) ─────────────────────────────
-// 캐릭터를 늘어놓고 무기 · 갑옷 · 방패를 바꿔 끼움. 칸을 탭하면 인스펙터에 후보가 나옴
-const gearupEl = document.getElementById('gearup');
+// ── 정비 화면 (v0.25.0) ─────────────────────────────
+// 필드에 장비 카드(무기 · 방어구 · 방패)가 놓이고, 위쪽 칸으로 끌어다 놓으면 장착.
+// 칸에 있던 장비는 필드로 튀어나옴. 인스펙터는 정보만 보여 줌 (조작 없음)
+const slotBar = document.getElementById('slotbar');
 let slotPick = null;
-function renderGearup(){
-  if (S.tab !== 'gearup') return;
-  gearupEl.innerHTML = '<div class="gear-who">'
-    + '<div class="cw framed f-gold who"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>'
-    + '<div class="gear-slots">' + SLOTS.map(sl => {
-      const t = equipped(sl.key);
-      return `<div class="gslotbox${slotPick === sl.key ? ' sel' : ''}" data-slot="${sl.key}">`
-        + `<div class="box">${t ? iconHtml(t) : ''}</div><div class="lab">${sl.name}</div></div>`;
-    }).join('') + '</div></div>'
-    + `<div class="gather-hint">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()} — 칸을 탭해 바꿔 끼우세요</div>`;
+function renderSlots(){
+  slotBar.hidden = S.tab !== 'gearup';
+  if (slotBar.hidden) return;
+  slotBar.innerHTML = SLOTS.map(sl => {
+    const t = equipped(sl.key);
+    return `<div class="slotbox${slotPick === sl.key ? ' sel' : ''}" data-slot="${sl.key}">`
+      + `<div class="box">${t ? `<div class="cw framed f-${frameOf(DEFS[t])}" data-slotcard="${sl.key}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${have(t)}</div></div>` : ''}</div>`
+      + `<div class="lab">${sl.name}${t ? ` ${statImg(sl.stat)}${DEFS[t][sl.stat] || 0}` : ''}</div></div>`;
+  }).join('');
 }
-function gearCandidates(sl){
-  return CRAFT_TYPES.filter(t => useOf(t).includes(sl.tag) && have(t) > 0);
-}
-function renderGearInsp(){
-  const sl = SLOTS.find(x => x.key === slotPick);
-  if (!sl){
-    inspEl.innerHTML = '<div class="empty">장비 칸을 탭하면 바꿀 수 있어요.<br><br>정비 화면 — 기사의 무기 · 갑옷 · 방패.</div>';
-    return;
+// 끄는 중에 칸 위에 있나 — 그 칸에 넣을 수 있는 카드일 때만
+function slotAt(px, py, type){
+  if (S.tab !== 'gearup') return null;
+  for (const box of slotBar.querySelectorAll('[data-slot]')){
+    const sl = SLOTS.find(x => x.key === box.dataset.slot);
+    if (!useOf(type).includes(sl.tag)) continue;
+    const r = box.querySelector('.box').getBoundingClientRect();
+    if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return sl;
   }
-  const now = equipped(sl.key), list = gearCandidates(sl);
-  let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
-    + `<div><div class="nm">${sl.name}</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
-  h += '<div class="sub">가진 것</div>';
-  if (!list.length) h += '<div class="row i-muted">아직 없음.</div>';
-  for (const t of list){
-    const on = now === t, st = DEFS[t][sl.stat] || 0;
-    h += `<div class="row gpick${on ? ' on' : ''}" data-equip="${t}">${iconHtml(t, true)} ${esc(DEFS[t].name)}`
-      + ` <span class="i-muted">${statImg(sl.stat)} ${st} · 보유 ${have(t)}</span>${on ? ' <b>장착 중</b>' : ''}</div>`;
-  }
-  if (now) h += '<div class="row gpick" data-equip="">빼기</div>';
-  inspEl.innerHTML = h;
+  return null;
 }
-gearupEl.addEventListener('click', e => {
+// 장착 — 칸에 있던 장비는 칸 아래로 튀어나옴
+function equipCard(sl, type){
+  const old = equipped(sl.key);
+  if (old === type) return;
+  S.equip[sl.key] = type;
+  if (old){
+    const c = cardOf(old);
+    if (c){
+      const box = slotBar.querySelector(`[data-slot="${sl.key}"] .box`);
+      const tr = table.getBoundingClientRect(), br = box ? box.getBoundingClientRect() : tr;
+      const p = findSpot(br.left - tr.left, br.bottom - tr.top + CH * 0.3, c.id);
+      c.x = p.x; c.y = p.y;
+    }
+  }
+  checkGearQuest();                                               // v0.23.2: 이빨 단검을 끼우면 '강해진 기사' 완료
+  renderAll();
+  const nel = slotBar.querySelector(`[data-slot="${sl.key}"] .cw`);
+  if (nel) flash(nel, 'bump', 300);
+  if (old){ const oel = els.get(cardOf(old)?.id); if (oel) flash(oel, 'pop', 500); }
+  save();
+}
+// 칸에서 빼기 — 칸의 카드를 끌면 필드로 나옴 (탭은 정보만)
+slotBar.addEventListener('pointerdown', e => {
   if (paused) return;
   const box = e.target.closest('[data-slot]');
   if (!box) return;
-  slotPick = box.dataset.slot;
-  renderGearup(); renderInsp();
+  const sl = SLOTS.find(x => x.key === box.dataset.slot);
+  const card = e.target.closest('[data-slotcard]');
+  const sx = e.clientX, sy = e.clientY;
+  const move = ev => {
+    if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+    cleanup();
+    if (!card) return;
+    const old = equipped(sl.key);
+    S.equip[sl.key] = null;                                       // 끌어내면 빼기
+    const c = old && cardOf(old);
+    if (c){                                                       // 칸 아래 빈자리로 나옴
+      const tr = table.getBoundingClientRect(), br = box.getBoundingClientRect();
+      const p = findSpot(br.left - tr.left, br.bottom - tr.top + CH * 0.3, c.id);
+      c.x = p.x; c.y = p.y;
+    }
+    renderAll(); renderInsp(); save();
+    if (c){ const el = els.get(c.id); if (el) flash(el, 'pop', 500); }
+  };
+  const up = () => {
+    cleanup();
+    slotPick = sl.key;
+    renderSlots(); renderInsp();                                  // 탭 = 정보만
+  };
+  const cleanup = () => {
+    slotBar.removeEventListener('pointermove', move);
+    slotBar.removeEventListener('pointerup', up);
+    slotBar.removeEventListener('pointercancel', cleanup);
+  };
+  slotBar.addEventListener('pointermove', move);
+  slotBar.addEventListener('pointerup', up);
+  slotBar.addEventListener('pointercancel', cleanup);
 });
-inspEl.addEventListener('click', e => {                           // 인스펙터에서 장착 · 빼기
-  const row = e.target.closest('[data-equip]');
-  if (!row || S.tab !== 'gearup' || !slotPick) return;
-  const t = row.dataset.equip;
-  S.equip[slotPick] = t || null;
-  checkGearQuest();                                               // v0.23.2: 이빨 단검을 끼우면 '강해진 기사' 완료
-  renderGearup(); renderInsp(); save();
-});
+// 인스펙터: 칸 정보 (조작 없음)
+function renderGearInsp(){
+  const sl = SLOTS.find(x => x.key === slotPick);
+  if (!sl) return null;
+  const now = equipped(sl.key);
+  let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
+    + `<div><div class="nm">${sl.name} 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
+  h += `<div class="desc">${now ? esc(DESC[now] || '') : '카드를 끌어다 놓으면 장착된다.'}</div>`;
+  if (now) h += `<div class="row">${statImg(sl.stat)} ${DEFS[now][sl.stat] || 0} <span class="i-muted">· 보유 ${have(now)}</span></div>`;
+  h += `<div class="sub">기사</div><div class="row">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()}</div>`;
+  inspEl.innerHTML = h;
+  return true;
+}
 
 // ── 설비 화면 (v0.21.0) ─────────────────────────────
 // 만든 설비와 아직 안 만든 설비가 함께 보임. 아직 안 만든 것은 자물쇠 없이 흐리게 (조합식은 안 알려 줌)
@@ -1428,11 +1482,10 @@ function setTab(tab){
   if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
   S.tab = tab;
   renderTabs();
-  table.hidden = tab === 'battle' || tab === 'facility' || tab === 'gearup';   // v0.21.0: 설비 · v0.23.0: 정비는 고정 화면
+  table.hidden = tab === 'battle' || tab === 'facility';          // v0.25.0: 정비도 카드 필드
   gatherEl.hidden = tab !== 'battle';
   facilityEl.hidden = tab !== 'facility';
-  gearupEl.hidden = tab !== 'gearup';
-  renderFacility(); renderGearup();
+  renderFacility(); renderSlots();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   renderGather(); renderInsp(); save();
 }
@@ -1861,7 +1914,7 @@ document.getElementById('editMode').addEventListener('change', e => {
   renderTabs();
   if (S.tab !== 'battle' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';
   setTab(S.tab);
-  renderAll(); renderGather(); renderFacility(); renderGearup(); renderBook(); renderInsp();
+  renderAll(); renderGather(); renderFacility(); renderBook(); renderInsp();
   toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 });
 document.getElementById('setBtn').addEventListener('click', e => {
