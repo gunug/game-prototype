@@ -504,7 +504,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.18.0';
+const VERSION = 'v0.18.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1171,6 +1171,9 @@ const EXP_PLAN = {
   ],
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
+// v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
+const LANE_PAD = 10;                                             // 트랙 좌우 여백 (%)
+const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 const SPOT_ICON = { mountain: 'mountain' };                      // v0.13.4: 필드별 채집 포인트 그림 (없으면 산 것)
 let exp = null;                                                   // 진행 중 원정 (저장 안 함 — 새로 열면 없음)
 let healProg = 0;
@@ -1337,11 +1340,11 @@ function expBuild(){
   el.hidden = !exp;
   if (!exp){ el.innerHTML = ''; return; }
   el.innerHTML = '<div class="exp-lane">'
-    + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}" style="left:${sp.at * 100}%">`
+    + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}" style="left:${laneX(sp.at)}%">`
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
     + '<div class="bar"></div>'
     // v0.13.1: 고블린은 처음부터 제자리에 서 있음
-    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${f.at * 100}%">`
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${laneX(f.at)}%">`
         + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + '<div class="tok knight walk"><div class="hp"></div><img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
@@ -1359,8 +1362,8 @@ function expPaint(){
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
   const kt = lane.querySelector('.tok.knight');
   // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
-  const stop = exp.foe >= 0 ? 7 : exp.phase === 'search' ? 6 : 3;
-  kt.style.left = Math.max(2, exp.t * 100 - stop) + '%';
+  const stop = exp.foe >= 0 ? 6 : exp.phase === 'search' ? 5 : 2.5;
+  kt.style.left = Math.max(3, laneX(exp.t) - stop) + '%';         // v0.18.1: 여백 안쪽에서만 움직임
   kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
   kt.classList.toggle('dig', exp.phase === 'search');              // v0.13.4: 뒤지는 중
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
