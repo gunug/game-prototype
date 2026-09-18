@@ -267,6 +267,18 @@
   .god-speech[hidden]{display:none;}
   @keyframes speechIn{from{opacity:0;transform:translateY(4px) scale(.96);}to{opacity:1;transform:none;}}
   /* 갓 파워로 풀리는 자물쇠 */
+  /* v0.47.0: 필드가 열리는 연출 — 떨림 → 열린 자물쇠 → 떨어짐 → 색 → 이름 */
+  .gather .cw.field.unlocking{cursor:default;}
+  .gather .cw.field.unlocking > :not(.lock){filter:brightness(.3) saturate(.15);transition:filter .7s ease-out;}
+  .gather .cw.field.unlocking.color-in > :not(.lock){filter:none;}
+  .gather .cw.field.unlocking .name{opacity:0;transition:opacity .35s ease-out,transform .35s ease-out;transform:translateY(4px);}
+  .gather .cw.field.unlocking.name-in .name{opacity:1;transform:none;}
+  .gather .cw.field .lock.shake{animation:lockShake .12s linear infinite;}
+  @keyframes lockShake{0%,100%{transform:translate(-50%,-50%) rotate(-3deg);}50%{transform:translate(-50%,-50%) rotate(3deg);}}
+  .gather .cw.field .lock.opened{animation:lockPop .3s cubic-bezier(.2,1.5,.4,1);}
+  @keyframes lockPop{0%{transform:translate(-50%,-50%) scale(1);}45%{transform:translate(-50%,-56%) scale(1.22) rotate(6deg);}100%{transform:translate(-50%,-50%) scale(1);}}
+  .gather .cw.field .lock.drop{animation:lockDrop .55s cubic-bezier(.4,0,.8,.4) forwards;}
+  @keyframes lockDrop{0%{transform:translate(-50%,-50%) rotate(0);opacity:1;}100%{transform:translate(-50%,120%) rotate(28deg);opacity:0;}}
   .gather .cw.field.unlock-bump{animation:unlockBump .3s ease-out;}   /* v0.10.1: 채집 튐(1.12배)의 절반 */
   @keyframes unlockBump{0%{transform:scale(1);}40%{transform:scale(1.06);}100%{transform:scale(1);}}
   .gather .cw.field .lock.unlocking{animation:unlockOut .6s ease-in forwards;}
@@ -699,7 +711,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.46.1';
+const VERSION = 'v0.47.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -761,6 +773,8 @@ const QUESTS = {
     { key:'campfire',    text:'모닥불 만들기',                    say:'이제 장비만 하면' },
     { key:'equip',       text:'정비에서 이빨 단검 장착하기',        say:'이제 곰 정도는 잡을 수 있겠군.' },
   ] },
+  // v0.47.0: 이빨 단검 장착 뒤 — 산의 보스(곰) 잡기. 끝내면 다음 필드가 열림
+  conquer: { name: '산을 정복하자', text: '⛰️ 산의 주인 곰 쓰러뜨리기', goal: 1 },
   gomountain:  { name: '산으로 가자', text: '기사를 끌어 ⛰️ 산 줄의 출전 칸에 놓기', goal: 1 },   // v0.36.0: 맨 처음 퀘스트
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
@@ -2018,6 +2032,8 @@ function expBeat(){
     exp.line = `${def.name}을 쓰러뜨렸다`;
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     if (e.boss){                                                  // v0.14.0: 보스를 잡으면 원정 끝
+      questStep('conquer');                                       // v0.47.0: 산을 정복하자
+      unlockNextField(exp.id);                                    // v0.47.0: 다음 필드가 열림
       expEnd('boss');
     }
     return;
@@ -2286,6 +2302,41 @@ function questStep(id){
   renderQuest();
   save();
 }
+// v0.47.0: 보스를 잡으면 그다음 잠긴 필드가 열림
+//   자물쇠가 바들바들 떨리다 → 열린 자물쇠로 바뀌고 → 아래로 내려가며 사라짐 → 흐리던 색이 돌아오고 → 마지막에 이름이 나타남
+function unlockNextField(afterId){
+  const i = FIELDS.findIndex(f => f.id === afterId);
+  const next = FIELDS.slice(i + 1).find(f => fieldLocked(f.id)) || FIELDS.find(f => fieldLocked(f.id));
+  if (!next) return;
+  S.fields[next.id].locked = false;
+  save();
+  playUnlock(next);
+}
+function playUnlock(f){
+  const card = gatherEl.querySelector(`[data-field="${f.id}"]`);
+  if (!card){ renderScreen(); return; }
+  const lock = card.querySelector('.lock');
+  card.classList.add('unlocking');                                // 색은 아직 흐린 채로 (field-locked 를 대신함)
+  card.classList.remove('field-locked');
+  if (!lock){ card.classList.remove('unlocking'); renderScreen(); return; }
+  lock.classList.add('shake');                                    // ① 바들바들
+  setTimeout(() => {                                              // ② 열린 자물쇠로
+    lock.src = 'images/icon/ui_lock-open.png';
+    lock.classList.remove('shake');
+    lock.classList.add('opened');
+  }, 700);
+  setTimeout(() => {                                              // ③ 내려가며 사라짐
+    lock.classList.add('drop');
+  }, 1050);
+  setTimeout(() => {                                              // ④ 색이 돌아옴
+    card.classList.add('color-in');
+  }, 1500);
+  setTimeout(() => {                                              // ⑤ 마지막에 이름
+    card.classList.add('name-in');
+    toast(`🔓 ${f.emoji} ${f.name} — 새 필드가 열렸다`);
+  }, 2050);
+  setTimeout(() => { renderScreen(); renderInsp(); }, 2900);      // 원래 모습으로 정리
+}
 // v0.39.0: 단계가 있는 퀘스트 — 지금 단계의 열쇠와 맞을 때만 한 칸 나아가고, 기사가 한마디
 // v0.41.0: 블록형 퀘스트는 보유 수로 판정 — 카드가 늘거나 줄 때마다 확인
 function questCheckBlocks(){
@@ -2314,6 +2365,7 @@ function questEvent(key){
     if (!step || step.key !== key) continue;
     questStep(q.id);
     if (step.say) knightSay(step.say);
+    if (q.done && q.id === 'stronger') setTimeout(() => giveQuest('conquer'), 1200);   // v0.47.0: 다음은 산 정복
     return;
   }
 }
