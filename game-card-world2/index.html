@@ -685,7 +685,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.41.1';
+const VERSION = 'v0.42.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -714,20 +714,29 @@ const QUESTS = {
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
   // v0.41.0: 블록형 퀘스트 — 대제목 + 중제목(모두 보임) + 지금 덩어리의 소제목만.
   //   판정은 늘 '지금 보유 수'. 재료를 써 버리면 그 줄은 다시 비어 보이지만, 더 뒤 덩어리가 채워져 있으면 그 앞은 끝난 것으로 침
+  // v0.42.0: 한 덩어리 안에서 '만들다가 재료가 줄어 앞 단계로 되돌아가는' 일이 없게 순서를 바꿈.
+  //   재료는 한 번에 한 개분씩만 모으고, 만들면 바로 다음 덩어리가 채워지도록 (모으기 → 만들기 → 모으기 → 만들기)
   workbenchq: { name: '작업대를 세우자', groups: [
     { title: '1. 재료 모으기', items: [
-      { card:'stone', n:2, text:'⛰️ 산으로 출전해 돌 모으기' },
-      { card:'flint', n:2, text:'같은 곳에서 부싯돌 모으기' },
+      { card:'stone', n:1, text:'⛰️ 산으로 출전해 돌 모으기' },
+      { card:'flint', n:1, text:'같은 곳에서 부싯돌 모으기' },
       { card:'tree',  n:1, text:'같은 곳에서 나무 모으기' },
     ] },
-    { title: '2. 뗀석기 2개 만들기', items: [
-      { card:'blade', n:2, text:'🔨 도구에서 돌을 부싯돌 위로 끌기 (돌 + 부싯돌)' },
+    { title: '2. 뗀석기 만들기', items: [
+      { card:'blade', n:1, text:'🔨 도구에서 돌을 부싯돌 위로 끌기 (돌 + 부싯돌)' },
     ] },
     { title: '3. 나무판자 만들기', items: [
       { card:'plank', n:1, text:'🔨 나무 + 뗀석기' },
     ] },
-    { title: '4. 작업대 만들기', items: [
-      { card:'workbench', n:1, text:'🔨 나무판자 + 뗀석기 → ⚔️ 무기 화면이 열림' },
+    { title: '4. 뗀석기 재료 다시 모으기', items: [
+      { card:'stone', n:1, text:'⛰️ 산으로 다시 출전해 돌 모으기' },
+      { card:'flint', n:1, text:'같은 곳에서 부싯돌 모으기' },
+    ] },
+    { title: '5. 뗀석기 다시 만들기', items: [
+      { card:'blade', n:1, text:'🔨 돌 + 부싯돌' },
+    ] },
+    { title: '6. 작업대 만들기', items: [
+      { card:'workbench', n:1, text:'🔨 나무판자 + 뗀석기 → 무기 화면이 열림' },
     ] },
   ] },
   // v0.39.0: 단계가 있는 퀘스트 — 한 줄에 `이름 (n/3)`, 단계마다 기사 대사
@@ -741,14 +750,27 @@ const QUESTS = {
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
 const questText = (def, q) => def.steps ? (def.steps[Math.min(q.n, def.steps.length - 1)] || {}).text : def.text;
-// v0.41.0: 블록형 — 지금 보유 수로 덩어리마다 채워졌는지 셈. 뒤 덩어리가 채워졌으면 앞은 끝난 것으로 침
-function groupFilled(g){ return g.items.every(it => have(it.card) >= it.n); }
+// v0.42.0: 블록형 판정은 **누적 획득 수**로. 재료를 써서 보유 수가 줄어도 앞 단계로 되돌아가지 않음
+//   같은 카드가 여러 덩어리에 나오면 앞 덩어리 몫까지 더한 누계로 셈 (1번에서 돌 1, 4번에서 또 돌 1 → 4번은 누적 2)
+const got = t => (S.totals || {})[t] || 0;
+function questCum(def){
+  const cum = {}, out = [];
+  for (const g of def.groups){
+    const need = {};
+    for (const it of g.items) cum[it.card] = (cum[it.card] || 0) + it.n;
+    for (const it of g.items) need[it.card] = cum[it.card];
+    out.push(need);
+  }
+  return out;
+}
 function questGroupState(def){
-  const filled = def.groups.map(groupFilled);
+  const cums = questCum(def);
+  const filled = def.groups.map((g, i) => g.items.every(it => got(it.card) >= cums[i][it.card]));
   const done = filled.map((f, i) => f || filled.slice(i + 1).some(Boolean));   // 뒤가 됐으면 앞도 끝
   const now = done.findIndex(d => !d);
-  return { filled, done, now: now < 0 ? def.groups.length : now, all: done.every(Boolean) };
+  return { filled, done, now: now < 0 ? def.groups.length : now, all: done.every(Boolean), cums };
 }
+function groupFilled(g){ return g.items.every(it => got(it.card) >= it.n); }
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 const PARTY = [true, false, false, false, false];                 // v0.26.0: 출전 칸 5개 — 지금은 첫 칸만 열림
@@ -1035,6 +1057,8 @@ function unlockBoards(){
   }
 }
 function addCard(type, x, y, anim, from, made){
+  S.totals = S.totals || {};                                      // v0.42.0: 지금까지 손에 들어온 누적 수 (퀘스트 판정용 — 써서 줄어도 안 깎임)
+  S.totals[type] = (S.totals[type] || 0) + 1;
   let c = cardOf(type);
   if (c){
     c.n++;
@@ -2174,10 +2198,11 @@ function questBlockHtml(q, def){
     const done = st.done[i], now = i === st.now;
     h += `<div class="q-mid${done ? ' done' : ''}${now ? ' now' : ''}">${done ? '✔' : now ? '▸' : '·'} ${esc(g.title)}</div>`;
     if (!now || q.done) return;
-    for (const it of g.items){
-      const n = have(it.card), ok = n >= it.n;
+    for (const it of g.items){                                    // v0.42.0: 누적 획득 수로 셈 (이 덩어리까지의 누계 기준)
+      const need = st.cums[i][it.card], base = need - it.n;
+      const n = Math.max(0, Math.min(it.n, got(it.card) - base)), ok = n >= it.n;
       h += `<div class="q-sub${ok ? ' done' : ''}">${ok ? '☑' : '☐'} ${iconHtml(it.card, true)} ${esc(DEFS[it.card].name)}`
-        + `<span class="q-sub-t">${esc(it.text)}</span><span class="q-sub-n">${Math.min(n, it.n)}/${it.n}</span></div>`;
+        + `<span class="q-sub-t">${esc(it.text)}</span><span class="q-sub-n">${n}/${it.n}</span></div>`;
     }
   });
   return h;
