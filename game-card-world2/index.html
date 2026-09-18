@@ -136,6 +136,17 @@
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
   /* 기사 줄 · 원정 트랙 (v0.13.0) */
+  /* v0.29.0: 기사 능력치는 카드 안에 */
+  .cw.knight .kstat{display:flex;gap:calc(var(--cf) * .05);font-size:calc(var(--cf) * .1);font-weight:800;line-height:1;}
+  .cw.knight .kstat .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
+  .cw.knight .kstat .khp.down{color:#ff8a8a;}
+  .cw.knight .hpbar{width:70%;height:calc(var(--cf) * .05);margin-top:2px;border-radius:3px;background:rgba(0,0,0,.5);overflow:hidden;}
+  .cw.knight .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
+  .cw.lift{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;box-shadow:var(--sh-lg);cursor:grabbing;}
+  .pslot.filled{border-style:solid;border-color:var(--hairline);padding:0;}
+  .pslot .cw{position:relative;width:100%;height:100%;}
+  .pslot.sel{border-color:rgba(255,255,255,.55);}
+  .chars .cw{position:relative;flex:none;cursor:grab;}
   .knight-row{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--ch);}
   .knight-row .cw.knight{position:relative;flex:none;cursor:pointer;}
   .kstat{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;}
@@ -357,7 +368,6 @@
 <body>
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
-  <div class="toplist" id="slotbar" hidden></div>
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
@@ -629,7 +639,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.28.2';
+const VERSION = 'v0.29.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -875,13 +885,12 @@ function renderAll(){
     if (!table.hidden){ const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y; }   // v0.6.0: 숨은 필드에선 당기지 않음
     mount(c);
   }
-  renderSlots();                                                   // v0.25.0
   renderMeta();
   renderNew();
   renderQuest();
   renderInsp();
   renderBook();
-  if (typeof renderGather === 'function') renderGather();
+  renderScreen();
 }
 function renderMeta(){
   const found = CRAFT_TYPES.filter(t => S.seen.includes(t)).length;
@@ -1056,10 +1065,6 @@ table.addEventListener('pointermove', e => {
   drag.c.x = drag.ox + dx; drag.c.y = drag.oy + dy;               // v0.28.0: 끄는 동안엔 필드 밖도 허용
   drag.el.style.left = (drag.c.x + drag.off.x) + 'px';            // v0.28.1: 필드 기준 좌표
   drag.el.style.top = (drag.c.y + drag.off.y) + 'px';
-  if (S.tab === 'gearup'){                                        // v0.25.0: 넣을 수 있는 칸을 노랗게
-    const sl = slotAt(e.clientX, e.clientY, drag.c.type);
-    for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.toggle('hot', !!sl && box.dataset.slot === sl.key);
-  }
 });
 function endDrag(e){
   if (!drag) return;
@@ -1069,10 +1074,7 @@ function endDrag(e){
   fieldEl.classList.remove('dragging');
   if (d.el.parentElement === fieldEl){ table.appendChild(d.el); place(d.el, d.c); }   // v0.28.1: 카드 자리로 되돌림
   for (const el of els.values()) el.classList.remove('dim');
-  for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
-  const sl = e.type === 'pointercancel' ? null : slotAt(e.clientX, e.clientY, d.c.type);   // v0.25.0: 장비 칸에 놓기
-  if (sl){ equipCard(sl, d.c.type); renderMeta(); renderInsp(); save(); return; }
   // v0.28.0: 필드 밖(위 줄 목록 등)에 놓으면 제자리로 돌아감
   const tr = table.getBoundingClientRect();
   const inField = e.type !== 'pointercancel' && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom;
@@ -1117,6 +1119,7 @@ function renderInsp(){
   if (S.tab === 'battle') return renderFieldInsp();
   if (S.tab === 'facility') return renderFacInsp();               // v0.21.0
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
+  if (S.tab === 'gearup' && knightPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -1306,44 +1309,106 @@ function renderTabs(){                                            // v0.21.0: �
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
-// ── 정비 화면 (v0.25.0) ─────────────────────────────
-// 필드에 장비 카드(무기 · 방어구 · 방패)가 놓이고, 위쪽 칸으로 끌어다 놓으면 장착.
-// 칸에 있던 장비는 필드로 튀어나옴. 인스펙터는 정보만 보여 줌 (조작 없음)
-const slotBar = document.getElementById('slotbar');
+// ── 줄 화면 (v0.29.0) ───────────────────────────────
+// 전투와 정비가 같은 UI를 씀: 위 절반은 `주체 카드 + 칸들` 줄 목록(넘치면 세로 스크롤),
+// 아래 절반은 끌어 올릴 카드들. 아래 카드를 칸에 끌어다 놓으면 그 화면의 일이 일어난다
+//   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
+//   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-// v0.27.0: 위 절반 = 캐릭터마다 한 줄 (캐릭터 카드 + 장비 칸). 아래 절반 = 장비 카드를 놓는 자리
-function renderSlots(){
-  slotBar.hidden = S.tab !== 'gearup';
-  table.classList.toggle('half', S.tab === 'gearup');
-  if (slotBar.hidden) return;
-  slotBar.innerHTML = '<div class="lrow">'
-    + `<div class="cw framed f-gold"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>`
-    + '<div class="rowslots">' + SLOTS.map(sl => {
-      const t = equipped(sl.key);
-      return `<div class="slotbox${slotPick === sl.key ? ' sel' : ''}" data-slot="${sl.key}">`
-        + `<div class="box">${t ? `<div class="cw framed f-${frameOf(DEFS[t])}" data-slotcard="${sl.key}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div></div>` : ''}</div>`
-        + `<div class="lab">${sl.name}${t ? ` ${statImg(sl.stat)}${DEFS[t][sl.stat] || 0}` : ''}</div></div>`;
-    }).join('') + '</div></div>'
-    + `<div class="lhint">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()} — 아래 카드를 칸에 끌어다 놓으세요</div>`;
+const isRowScreen = tab => tab === 'battle' || tab === 'gearup';
+// 칸 하나 그리기 — id는 `<줄>:<칸>`
+function slotHtmlOf(sl){
+  const inner = sl.card
+    ? `<div class="cw framed f-${sl.frame || 'wood'}"><div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
+    : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
+    : '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">';
+  return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
 }
-// 끄는 중에 칸 위에 있나 — 그 칸에 넣을 수 있는 카드일 때만
-function slotAt(px, py, type){
-  if (S.tab !== 'gearup') return null;
-  for (const box of slotBar.querySelectorAll('[data-slot]')){
-    const sl = SLOTS.find(x => x.key === box.dataset.slot);
-    if (!useOf(type).includes(sl.tag)) continue;
-    const r = box.querySelector('.box').getBoundingClientRect();
-    if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return sl;
+// 이 화면의 줄 목록
+function screenRows(){
+  if (S.tab === 'battle'){
+    return FIELDS.map(f => {
+      const locked = fieldLocked(f.id), ys = yieldsOf(f.id);
+      const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
+        + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
+        + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
+        + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
+        + (lootTypes(f.id).length
+          ? `<div class="yields loot">${lootTypes(f.id).map(t => `<span class="${lootKnown(f.id, t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
+          : '') + '</div>';
+      const slots = PARTY.map((open, i) => ({
+        id: `${f.id}:${i}`, open,
+        card: open && exp && exp.id === f.id && i === 0,
+        icon: '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">',
+        cardName: '기사', frame: 'gold', lab: '출전',
+      }));
+      return { card, slots };
+    });
   }
-  return null;
+  // 정비 — 캐릭터마다 한 줄
+  return [{
+    card: knightCardHtml(),
+    slots: SLOTS.map(sl => {
+      const t = equipped(sl.key);
+      return { id: `knight:${sl.key}`, open: true, card: !!t, icon: t ? iconHtml(t) : '',
+        cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: sl.name };
+    }),
+  }];
 }
-// 장착 — 칸에 있던 장비는 칸 아래로 튀어나옴
-// v0.26.0: 칸에는 한 장만 들어감 — 넣으면 보유 -1, 빼면 +1. 칸에 있던 것은 그 자리로 튀어나옴
-function slotSpot(key){
-  const box = slotBar.querySelector(`[data-slot="${key}"] .box`);
-  const tr = table.getBoundingClientRect(), br = box ? box.getBoundingClientRect() : tr;
-  return { x: br.left - tr.left - CW * 1.2, y: br.top - tr.top };
+// 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
+function screenTokens(){
+  if (S.tab === 'battle') return [{ token: 'knight', html: knightCardHtml(true) }];
+  return S.cards.filter(c => onBoard(c.type, 'gearup') && c.n > 0).map(c => ({
+    token: c.type,
+    html: `<div class="cw framed f-${frameOf(DEFS[c.type])}"><div class="emoji">${iconHtml(c.type)}</div>`
+      + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`,
+  }));
 }
+// 기사 카드 — 능력치는 카드 안에 (v0.29.0)
+function knightCardHtml(drag){
+  const k = S.knight;
+  return `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"${drag ? ' data-token="knight"' : ''}>`
+    + '<div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
+    + '<div class="name">기사</div>'
+    + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
+    + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span></div>`
+    + `<div class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></div></div>`;
+}
+function renderScreen(){
+  gatherEl.hidden = !isRowScreen(S.tab);
+  if (gatherEl.hidden) return;
+  const rows = screenRows(), toks = screenTokens();
+  gatherEl.innerHTML = '<div class="toplist">'
+    + rows.map(row => `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
+    + '</div>'
+    + '<div class="botarea">' + (S.tab === 'battle' ? '<div class="exp" id="exp" hidden></div>' : '')
+    + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('') + '</div>'
+    + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+  if (S.tab === 'battle') expBuild();
+}
+const renderGather = renderScreen;                                // 옛 이름
+const renderSlots = () => {};                                     // v0.29.0: 줄 목록이 화면에 들어옴
+// 칸에 놓았을 때
+function dropOnSlot(id, token){
+  const [rowKey, slotKey] = id.split(':');
+  if (S.tab === 'battle'){
+    if (token !== 'knight') return;
+    const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
+    expStart(rowKey, fel);
+    return;
+  }
+  const sl = SLOTS.find(x => x.key === slotKey);
+  if (!sl || !useOf(token).includes(sl.tag)){ toast(`${sl ? sl.name : '이 칸'} 칸에 넣을 수 없음`); return; }
+  equipCard(sl, token);
+}
+// 그 칸에 이 카드를 넣을 수 있나
+function slotTakes(id, token){
+  const [, slotKey] = id.split(':');
+  if (S.tab === 'battle') return token === 'knight';
+  const sl = SLOTS.find(x => x.key === slotKey);
+  return !!sl && useOf(token).includes(sl.tag);
+}
+// 장착 — 칸에 있던 장비는 아래로 돌아옴 (v0.26.0: 한 장만)
 function equipCard(sl, type){
   const old = equipped(sl.key);
   if (old === type) return;
@@ -1351,55 +1416,83 @@ function equipCard(sl, type){
   if (!c || c.n <= 0) return;
   S.equip[sl.key] = type;
   useOne(c);                                                      // 한 장만 칸으로
-  if (old){                                                       // 있던 장비는 칸 옆으로 튀어나옴
-    const p = slotSpot(sl.key);
-    addCard(old, p.x, p.y, 'pop');
-  }
+  if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
   checkGearQuest();                                               // v0.23.2: 이빨 단검을 끼우면 '강해진 기사' 완료
-  renderAll();
-  const nel = slotBar.querySelector(`[data-slot="${sl.key}"] .cw`);
-  if (nel) flash(nel, 'bump', 300);
-  save();
+  renderAll(); renderInsp(); save();
 }
 function unequipSlot(sl){
   const t = equipped(sl.key);
   if (!t) return;
   S.equip[sl.key] = null;
-  const p = slotSpot(sl.key);
-  addCard(t, p.x, p.y, 'pop');
+  addCard(t, 0, 0);
   renderAll(); renderInsp(); save();
 }
-// 칸에서 빼기 — 칸의 카드를 끌면 필드로 나옴 (탭은 정보만)
-slotBar.addEventListener('pointerdown', e => {
+// ── 끌기 (v0.29.0) — 아래 카드를 원본 그대로 들어 올려 칸에 놓음. 칸의 카드를 끌어내면 빼기
+let tokenDrag = null;
+gatherEl.addEventListener('pointerdown', e => {
   if (paused) return;
-  const box = e.target.closest('[data-slot]');
-  if (!box) return;
-  const sl = SLOTS.find(x => x.key === box.dataset.slot);
-  const card = e.target.closest('[data-slotcard]');
-  const sx = e.clientX, sy = e.clientY;
-  const move = ev => {
-    if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
-    cleanup();
-    if (!card) return;
-    unequipSlot(sl);                                              // 끌어내면 빼기 (한 장 돌아옴)
-  };
-  const up = () => {
-    cleanup();
-    slotPick = sl.key;
-    renderSlots(); renderInsp();                                  // 탭 = 정보만
-  };
-  const cleanup = () => {
-    slotBar.removeEventListener('pointermove', move);
-    slotBar.removeEventListener('pointerup', up);
-    slotBar.removeEventListener('pointercancel', cleanup);
-  };
-  slotBar.addEventListener('pointermove', move);
-  slotBar.addEventListener('pointerup', up);
-  slotBar.addEventListener('pointercancel', cleanup);
+  const slotEl = e.target.closest('[data-slot-id]');
+  const tokEl = e.target.closest('[data-token]');
+  const el = tokEl || (slotEl && slotEl.querySelector('.cw'));
+  if (!el) return;
+  const fromSlot = !tokEl && slotEl ? slotEl.dataset.slotId : null;
+  if (fromSlot && !slotEl.classList.contains('filled')) return;    // 빈 칸은 끌 것이 없음
+  const token = tokEl ? tokEl.dataset.token : equipped((fromSlot || '').split(':')[1]);
+  if (!token) return;
+  const r0 = el.getBoundingClientRect();
+  tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false };
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
 });
+addEventListener('pointermove', e => {
+  const d = tokenDrag;
+  if (!d) return;
+  const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+  if (!d.moved){
+    if (Math.hypot(dx, dy) < 6) return;
+    d.moved = true;
+    d.el.classList.add('lift');                                   // 원본을 그대로 들어 올림
+    d.el.style.width = d.el.offsetWidth + 'px';
+    d.el.style.height = d.el.offsetHeight + 'px';
+    document.body.appendChild(d.el);
+  }
+  d.el.style.transform = `translate(${d.ox + dx}px, ${d.oy + dy}px)`;
+  const hit = slotUnder(e.clientX, e.clientY, d.token);
+  for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
+});
+function slotUnder(px, py, token){
+  for (const b of gatherEl.querySelectorAll('[data-slot-id]')){
+    if (!b.classList.contains('locked') && slotTakes(b.dataset.slotId, token)){
+      const r = b.getBoundingClientRect();
+      if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return b.dataset.slotId;
+    }
+  }
+  return null;
+}
+addEventListener('pointerup', e => {
+  const d = tokenDrag;
+  if (!d) return;
+  tokenDrag = null;
+  if (d.moved) d.el.remove();                                     // v0.29.1: 들어 올린 원본은 지우고 화면을 다시 그림
+  for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot');
+  if (!d.moved){                                                  // 탭 — 정보만
+    if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
+    else if (d.token === 'knight'){ knightPick = true; fieldPick = null; slotPick = null; renderScreen(); renderInsp(); }
+    else { inspType = d.token; selected = null; knightPick = false; renderInsp(); }
+    return;
+  }
+  const hit = slotUnder(e.clientX, e.clientY, d.token);
+  if (hit && hit !== d.fromSlot){
+    if (d.fromSlot) unequipSlot(SLOTS.find(x => x.key === d.fromSlot.split(':')[1]));
+    dropOnSlot(hit, d.token);
+  } else if (d.fromSlot && !hit){
+    unequipSlot(SLOTS.find(x => x.key === d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
+  }
+  renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
+});
+addEventListener('pointercancel', () => { if (tokenDrag){ if (tokenDrag.moved) tokenDrag.el.remove(); tokenDrag = null; renderScreen(); } });
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
-  const sl = SLOTS.find(x => x.key === slotPick);
+  const sl = SLOTS.find(x => x.key === String(slotPick || '').split(':')[1]);
   if (!sl) return null;
   const now = equipped(sl.key);
   let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
@@ -1461,38 +1554,6 @@ facilityEl.addEventListener('click', e => {
   renderFacility(); renderInsp();
 });
 
-function renderGather(){
-  if (S.tab !== 'battle') return;
-  const k = S.knight;
-  gatherEl.innerHTML = '<div class="toplist">' + FIELDS.map(f => {
-    const ys = yieldsOf(f.id);
-    const locked = fieldLocked(f.id);
-    return '<div class="lrow">'
-      + `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
-      + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
-      + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
-      + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
-      // v0.18.3: 크리처 전리품도 한 줄 더 (그 크리처에게서 받아 본 것만 그림, 나머지는 실루엣)
-      + (lootTypes(f.id).length
-        ? `<div class="yields loot">${lootTypes(f.id).map(t => `<span class="${lootKnown(f.id, t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
-        : '') + '</div>'
-      // v0.27.0: 그 필드로 나가는 출전 칸 (지금은 첫 칸만 열림)
-      + '<div class="rowslots">' + PARTY.map((open, i) => `<div class="pslot${open ? '' : ' locked'}" data-party="${f.id}:${i}">`
-        + (open
-          ? (exp && exp.id === f.id ? '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">' : '<span class="pslot-lab">출전</span>')
-          : '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">') + '</div>').join('')
-      + '</div></div>';
-  }).join('') + '</div>'
-    + '<div class="botarea"><div class="exp" id="exp" hidden></div>'
-    + '<div class="chars">'
-    + `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div>`
-    + `<div class="gearline">${SLOTS.map(sl => { const t = equipped(sl.key); return `<span class="gslot${t ? '' : ' empty'}">${t ? iconHtml(t, true) : ''}</span>`; }).join('')}</div></div>`
-    + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
-    + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span>`
-    + `<span class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></span></div></div>`
-    + '<div class="gather-hint">캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요</div></div>';
-  expBuild();
-}
 // 100ms마다: 원정 진행 · 기사 회복 (v0.17.0: 필드 회복은 없앰)
 let tickLast = performance.now();
 function gameTick(){
@@ -1548,10 +1609,9 @@ function setTab(tab){
   if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
   S.tab = tab;
   renderTabs();
-  table.hidden = tab === 'battle' || tab === 'facility';          // v0.25.0: 정비도 카드 필드
-  gatherEl.hidden = tab !== 'battle';
+  table.hidden = isRowScreen(tab) || tab === 'facility';          // v0.29.0: 전투·정비는 줄 화면
   facilityEl.hidden = tab !== 'facility';
-  renderFacility(); renderSlots();
+  renderFacility(); renderScreen();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   renderGather(); renderInsp(); save();
 }
@@ -1565,49 +1625,6 @@ document.getElementById('tabs').addEventListener('click', e => {
     return;
   }
   setTab(btn.dataset.tab);
-});
-// v0.26.0: 기사 카드를 끌어 출전 칸에 놓으면 원정 시작 (탭하면 인스펙터)
-gatherEl.addEventListener('pointerdown', e => {
-  if (paused) return;
-  const kel = e.target.closest('[data-knight]');
-  if (!kel) return;
-  const sx = e.clientX, sy = e.clientY;
-  let ghost = null;
-  const partyAt = (px, py) => [...gatherEl.querySelectorAll('.pslot:not(.locked)')].find(b => {
-    const r = b.getBoundingClientRect();
-    return px >= r.left && px <= r.right && py >= r.top && py <= r.bottom;
-  });
-  const move = ev => {
-    if (!ghost){
-      if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
-      ghost = kel.cloneNode(true);
-      ghost.className = 'cw framed f-gold knight-drag';
-      ghost.style.width = CW + 'px'; ghost.style.height = CH + 'px';
-      document.body.appendChild(ghost);
-    }
-    ghost.style.transform = `translate(${ev.clientX - CW / 2}px, ${ev.clientY - CH / 2}px)`;
-    const hit = partyAt(ev.clientX, ev.clientY);
-    for (const b of gatherEl.querySelectorAll('.pslot')) b.classList.toggle('hot', b === hit);
-  };
-  const up = ev => {
-    cleanup();
-    if (!ghost) return;                                           // 움직이지 않았으면 탭 (click 에서 처리)
-    ghost.remove();
-    for (const b of gatherEl.querySelectorAll('.pslot')) b.classList.remove('hot');
-    const hit = partyAt(ev.clientX, ev.clientY);
-    if (!hit) return;
-    const fid = (hit.dataset.party || '').split(':')[0];           // v0.27.0: 그 줄의 필드로 출전
-    const fel = gatherEl.querySelector(`[data-field="${fid}"]`);
-    expStart(fid, fel);
-  };
-  const cleanup = () => {
-    removeEventListener('pointermove', move);
-    removeEventListener('pointerup', up);
-    removeEventListener('pointercancel', cleanup);
-  };
-  addEventListener('pointermove', move);
-  addEventListener('pointerup', up);
-  addEventListener('pointercancel', cleanup);
 });
 gatherEl.addEventListener('click', e => {
   if (paused) return;
@@ -2022,7 +2039,7 @@ document.getElementById('editMode').addEventListener('change', e => {
   renderTabs();
   if (S.tab !== 'battle' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';
   setTab(S.tab);
-  renderAll(); renderGather(); renderFacility(); renderBook(); renderInsp();
+  renderAll(); renderFacility(); renderBook(); renderInsp();
   toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 });
 document.getElementById('setBtn').addEventListener('click', e => {
