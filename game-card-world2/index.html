@@ -558,7 +558,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.21.0';
+const VERSION = 'v0.21.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -580,6 +580,7 @@ const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !S
 const QUESTS = {
   gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
+  weaponboard: { name: '무기 화면 열기', text: '작업대 만들기', goal: 1 },   // v0.21.1: 첫 곰에게 지면 받음
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
@@ -613,7 +614,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], metBoss: false, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -641,6 +642,7 @@ function load(){
     for (const k in (s.lootSeen || {})) ls[k] = (s.lootSeen[k] || []).filter(t => DEFS[t]);
     s.lootSeen = ls;
     s.facilities = Array.isArray(s.facilities) ? s.facilities.filter(isFacility) : [];   // v0.21.0: 만든 설비
+    s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
     if (!s.boards.includes('tool')) s.boards.unshift('tool');
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
@@ -810,6 +812,7 @@ function noteFacility(type){                                      // v0.21.0: �
   if (!isFacility(type) || (S.facilities || []).includes(type)) return;
   S.facilities.push(type);
   renderFacility();
+  if (type === 'workbench') questStep('weaponboard');             // v0.21.1: 무기 화면 열기 퀘스트
 }
 function unlockBoards(){
   for (const b of BOARDS){
@@ -1199,7 +1202,7 @@ function renderFacInsp(){
     + `<div class="desc">${esc(DESC[t] || '')}</div>`
     + (made ? '<div class="row">만들어 둔 설비.</div>'
       : block ? `<div class="row"><b>${esc(block)}</b></div>`
-      : '<div class="row i-muted">지금 만들 수 있다.</div>');
+      : '<div class="row i-muted">필요한 지역은 열려 있다 — 재료와 만드는 법은 직접 찾아야 한다.</div>');   // v0.21.1: '지금 만들 수 있다'는 오해를 줌
 }
 facilityEl.addEventListener('click', e => {
   if (paused) return;
@@ -1397,7 +1400,7 @@ function expTick(dt){
         exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
         exp.line = ev.boss ? `👑 ${ENEMIES[ev.fight].name}이 길을 막았다` : `${ENEMIES[ev.fight].name}과 마주쳤다`;
-        if (ev.boss) toast(`👑 보스 — ${ENEMIES[ev.fight].name}`);
+        if (ev.boss){ toast(`👑 보스 — ${ENEMIES[ev.fight].name}`); S.metBoss = true; }   // v0.21.1: 보스를 만나 봤음
       }
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
@@ -1454,6 +1457,10 @@ function expEnd(kind){
   exp.line = line;
   exp.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   expPaint();
+  // v0.21.1: 첫 보스(곰)를 만나고 쓰러지면, 실패 문구 뒤에 '무기 화면 열기' 퀘스트
+  if (exp.fail && S.metBoss && !boardOpen(BOARD_BY_ID.weapon) && !(S.quests || []).some(q => q.id === 'weaponboard')){
+    setTimeout(() => giveQuest('weaponboard'), 1400);
+  }
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
