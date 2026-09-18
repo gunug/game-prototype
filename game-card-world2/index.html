@@ -112,11 +112,12 @@
     color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1s ease-out forwards;}
   /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
   .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:3px;transform:translateX(-50%);z-index:4;
-    display:flex;align-items:center;gap:calc(var(--cf) * .04);
-    padding:1px 6px;border-radius:999px;background:rgba(10,10,7,.85);border:1px solid rgba(255,255,255,.2);
+    display:flex;flex-direction:column;align-items:center;gap:0;
+    padding:2px 7px;border-radius:calc(var(--cf) * .12);background:rgba(10,10,7,.85);border:1px solid rgba(255,255,255,.2);
     font-size:calc(var(--cf) * .095);font-weight:800;line-height:1.35;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink);}
   .exp-lane .tok .hp:empty{display:none;}
   .exp-lane .tok .hp .icon.inline{width:1.05em;height:1.05em;margin:0 1px 0 0;vertical-align:0;}
+  .exp-lane .tok .hp .ln{display:flex;align-items:center;gap:calc(var(--cf) * .05);}
   .exp-lane .tok .hp .hp-n{color:#c9f2c9;}
   .exp-lane .tok.enemy{transition:opacity .3s,transform .3s;}
   .exp-lane .tok.enemy .hp{border-color:rgba(255,140,140,.45);}
@@ -498,7 +499,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.17.3';
+const VERSION = 'v0.17.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1336,8 +1337,10 @@ function expBuild(){
   expPaint();
 }
 // v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
+// v0.17.4: 두 줄 — 윗줄 공격·방어, 아랫줄 체력
 const statBox = (atk, def, hp, max) =>
-  `<span>${statImg('atk')}${atk}</span><span>${statImg('def')}${def}</span><span class="hp-n">${statImg('hp')}${hp}/${max}</span>`;
+  `<span class="ln"><span>${statImg('atk')}${atk}</span><span>${statImg('def')}${def}</span></span>`
+  + `<span class="ln hp-n">${statImg('hp')}${hp}/${max}</span>`;
 function expPaint(){
   const el = document.getElementById('exp');
   if (!el || !exp || !el.firstChild) return;
