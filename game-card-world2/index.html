@@ -685,7 +685,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.43.0';
+const VERSION = 'v0.43.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2181,9 +2181,11 @@ function renderQuest(){
 }
 function questRowHtml(q, def){
   const goal = questGoal(def);
+  // v0.43.1: 단계형 퀘스트(steps)는 n/3 을 안 보여 줌 — '이빨 단검 만들기 0/3'이 3개를 만들라는 말로 읽혔음
+  const num = def.steps ? (q.done ? '✓' : '') : `${Math.min(q.n, goal)}/${goal}${q.done ? ' ✓' : ''}`;
   return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
     + `<span class="q-text">${esc(q.done ? '완료' : questText(def, q))}</span>`
-    + `<span class="q-n">${Math.min(q.n, goal)}/${goal}${q.done ? ' ✓' : ''}</span></div>`;
+    + `<span class="q-n">${num}</span></div>`;
 }
 // v0.41.0: 블록형 — 대제목 · 중제목은 모두 보이고, 소제목(완료 조건)은 지금 덩어리 것만
 function questBlockHtml(q, def){
