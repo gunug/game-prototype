@@ -101,7 +101,8 @@
   .exp-lane .spot.searching{animation:spotShake .22s ease-in-out infinite;}
   .exp-lane .spot.done{opacity:.35;filter:grayscale(.8);}
   @keyframes spotShake{0%,100%{transform:translateX(0) rotate(0);}30%{transform:translateX(-4%) rotate(-2deg);}70%{transform:translateX(4%) rotate(2deg);}}
-  .exp-lane .boss{position:absolute;right:8px;bottom:12px;font-size:calc(var(--cw) * .5);opacity:.55;}
+  .exp-lane .tok.boss{height:calc(var(--ch) * .95);width:calc(var(--cw) * .62);margin-left:calc(var(--cw) * -.31);}
+  .exp-lane .tok.boss::before{content:'👑';position:absolute;left:0;right:0;top:-2px;text-align:center;font-size:calc(var(--cw) * .28);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .74);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
     display:flex;align-items:flex-end;justify-content:center;transition:left .12s linear;}
@@ -457,7 +458,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.13.5';
+const VERSION = 'v0.14.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1102,7 +1103,11 @@ gatherEl.addEventListener('click', e => {
 // 필드 카드를 탭하면 기사가 원정을 떠난다. 가로로 긴 진행 막대 위를 왼쪽 → 오른쪽으로 걸으며
 //   도중에 재료를 줍고(크래프팅 탭으로 날아감), 고블린과 싸우고, 끝에는 보스 (보스는 아직 디자인 전)
 // 기사는 공 1 · 방 0 · 체 10. 체력이 0이 되면 빈사로 돌아오고, 쉬는 동안 회복된다
-const ENEMIES = { goblin: { name:'고블린', portrait:'portrait_goblin', atk:1, def:0, hp:3 } };   // v0.13.2: 포트레이트
+// v0.14.0: 고블린 대신 토끼, 보스는 곰 (레거시 world 수치 그대로 — 토끼 체2 공1, 곰 체10 공3)
+const ENEMIES = {
+  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2 },
+  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10 },
+};
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
@@ -1110,8 +1115,8 @@ const HEAL_MS = 3000;                                            // 원정 밖�
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 const EXP_PLAN = {
   mountain: [
-    { at: 0.16, loot: 1 }, { at: 0.32, fight: 'goblin' }, { at: 0.5, loot: 1 },
-    { at: 0.66, fight: 'goblin' }, { at: 0.84, loot: 1 }, { at: 1, boss: true },
+    { at: 0.16, loot: 1 }, { at: 0.32, fight: 'animal' }, { at: 0.5, loot: 1 },
+    { at: 0.66, fight: 'animal' }, { at: 0.84, loot: 1 }, { at: 0.97, fight: 'bear', boss: true },
   ],
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
@@ -1141,7 +1146,7 @@ function expStart(id, cardEl){
   st.left--;
   flash(cardEl, 'tap', 300);
   // v0.13.1: 고블린은 길 위에 미리 서 있음 (도착할 때 생기는 것처럼 보이지 않게)
-  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false }));
+  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss }));
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
@@ -1164,8 +1169,9 @@ function expTick(dt){
       else if (ev.fight){
         exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
-        exp.line = `${ENEMIES[ev.fight].name}과 마주쳤다`;
-      } else if (ev.boss){ expEnd('boss'); return; }
+        exp.line = ev.boss ? `👑 ${ENEMIES[ev.fight].name}이 길을 막았다` : `${ENEMIES[ev.fight].name}과 마주쳤다`;
+        if (ev.boss) toast(`👑 보스 — ${ENEMIES[ev.fight].name}`);
+      }
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
   } else if (exp.phase === 'search'){
@@ -1197,6 +1203,10 @@ function expBeat(){
     exp.foe = -1;
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
+    if (e.boss){                                                  // v0.14.0: 보스를 잡으면 원정 끝
+      toast(`👑 ${def.name}을 쓰러뜨렸다 — 전리품은 아직 준비 중`);
+      expEnd('boss');
+    }
     return;
   }
   const ed = Math.max(1, def.atk - KNIGHT.def);
@@ -1208,10 +1218,9 @@ function expBeat(){
 }
 function expEnd(kind){
   const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
-    : kind === 'boss' ? '길 끝에서 보스와 마주쳤다 — 아직 준비 중'
+    : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : '원정을 마쳤다';
   if (kind === 'down') toast('🩸 기사 빈사 — 원정 중단');
-  if (kind === 'boss') toast('👑 보스는 아직 준비 중');
   exp.phase = 'end';
   exp.foe = -1;
   exp.spot = -1;
@@ -1274,9 +1283,9 @@ function expBuild(){
   el.innerHTML = '<div class="exp-lane">'
     + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}" style="left:${sp.at * 100}%">`
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
-    + '<div class="bar"></div><div class="boss">👑</div>'
+    + '<div class="bar"></div>'
     // v0.13.1: 고블린은 처음부터 제자리에 서 있음
-    + exp.foes.map((f, i) => `<div class="tok enemy${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${f.at * 100}%">`
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${f.at * 100}%">`
         + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + '<div class="tok knight walk"><div class="hp"></div><img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
