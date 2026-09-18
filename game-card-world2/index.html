@@ -489,7 +489,7 @@ const fieldIcon = f => `<img class="icon" src="images/icon/card_${f.id}.png" alt
 //   산은 샘물 대신 나무가 나옴 — 샘물은 카드로 남지만 지금은 나오는 곳이 없음
 const FIELD_YIELDS = {
   mountain:  ['stone', 'flint', 'coal', 'tree'],
-  grassland: ['grass', 'beast', 'seed', 'honeycomb'],
+  grassland: ['grass', 'seed', 'honeycomb', 'feather'],        // v0.52.0: 짐승은 뺌 — 들개·들소를 잡으면 같은 재료가 나옴
   forest:    ['tree', 'berry', 'sap', 'herb'],
   river:     ['water', 'soil', 'sand', 'fish'],
 };
@@ -528,6 +528,7 @@ const DEFS = {
   grass:   { name:'풀',     kind:'material', tier:1, field:'grassland' },
   beast:   { name:'짐승',   kind:'material', tier:1, field:'grassland' },
   seed:    { name:'씨앗',   kind:'material', tier:1, field:'grassland' },
+  feather: { name:'깃털',   kind:'material', tier:1, field:'grassland' },   // v0.52.0: 초원 채집 — 짐승 자리
   honeycomb:{ name:'벌집',  kind:'material', tier:1, field:'grassland' },
   // ── 2티어 (v0.5.0, 추천안 그대로 — 미확정). 그림 없음: emoji 로 대신 ──
   // 🛠️ 도구 · 불
@@ -576,7 +577,7 @@ const USE = {
   tree:['무기재료', '건축재료', '생산재료', '도구재료', '연료'],   // v0.20.0: 산에서도 나옴
   berry:['요리재료'], sap:['약품재료', '건축재료', '연료'], herb:['약품재료'],   // v0.49.0: 줄 끝 주석에 묻혀 태그가 없던 것 되살림
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
-  grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
+  grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
   blade:['도구', '도구재료'], whetstone:['도구'],                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
@@ -605,6 +606,7 @@ const DESC = {
   grass: '뽑아도 뽑아도 또 난다. 재료로선 최고의 성격.',
   beast: '털, 고기, 그리고 성질머리. 전부 한 몸에.',
   seed:  '작다. 그런데 안에 나무가 들어 있다고 한다.',
+  feather:'풀숲에 떨어져 있다. 주인은 벌써 날아갔다.',
   coal:  '만지면 손이 까매진다. 태우면 기분이 좋아진다.',
   herb:  '쓴맛이 날수록 잘 듣는다고들 한다. 증명한 사람은 없다.',
   fish:  '물 밖에선 할 말이 없어 보인다.',
@@ -725,7 +727,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.51.2';
+const VERSION = 'v0.52.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
