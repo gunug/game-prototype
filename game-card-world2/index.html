@@ -646,7 +646,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.32.0';
+const VERSION = 'v0.32.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2053,8 +2053,9 @@ const setPan = document.getElementById('setpan');
 // v0.24.1: 켜면 진짜 저장 상태는 따로 두고, 모든 카드를 1개씩 가진 시험용 상태로 논다.
 //   끄면 그대로 돌아옴. 에디터 모드 동안은 저장하지 않음
 let realS = null;
-document.getElementById('editMode').addEventListener('change', e => {
-  const on = e.target.checked;
+const EDIT_KEY = 'card-world2.edit';                              // v0.32.1: 켜 둔 상태를 새로 고쳐도 유지 (게임 저장과 별개)
+function setEditMode(on, quiet){
+  if (on === editMode) return;
   if (on){
     realS = S;
     editMode = true;
@@ -2076,13 +2077,15 @@ document.getElementById('editMode').addEventListener('change', e => {
     realS = null;
     editMode = false;
   }
+  try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; facPick = null; slotPick = null; knightPick = false;
   renderTabs();
   if (S.tab !== 'battle' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';
   setTab(S.tab);
   renderAll(); renderFacility(); renderBook(); renderInsp();
-  toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
-});
+  if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
+}
+document.getElementById('editMode').addEventListener('change', e => setEditMode(e.target.checked));
 document.getElementById('setBtn').addEventListener('click', e => {
   e.stopPropagation();
   setPan.hidden = !setPan.hidden;
@@ -2104,6 +2107,12 @@ measure();
 if (!S.tab) S.tab = 'battle';
 renderAll();
 setTab(S.tab);
+try {                                                             // v0.32.1: 지난번에 켜 뒀으면 그대로 에디터 모드로
+  if (localStorage.getItem(EDIT_KEY) === '1'){
+    document.getElementById('editMode').checked = true;
+    setEditMode(true, true);
+  }
+} catch (e) {}
 requestAnimationFrame(pushStep);
 setInterval(gameTick, 100);
 </script>
