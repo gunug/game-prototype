@@ -140,6 +140,7 @@
   .quest .q-name{flex:none;}
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
   .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
+  .quest .q-prog{color:var(--brand-yellow);font-weight:800;font-variant-numeric:tabular-nums;}   /* v0.44.0: 진행 수는 글 뒤에 작게 */
   .q-row.done .q-n{color:#8fdc8f;}
   /* v0.41.0: 블록형 퀘스트 — 중제목 · 소제목 */
   .q-mid{display:flex;gap:6px;align-items:center;padding-left:14px;font-size:12px;color:var(--muted);min-height:20px;white-space:nowrap;}
@@ -685,7 +686,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.43.1';
+const VERSION = 'v0.44.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2179,19 +2180,21 @@ function renderQuest(){
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
   }).join('');
 }
+// v0.44.0: 퀘스트 줄 표시 통일 — 오른쪽 끝은 **끝났을 때 ✓** 만.
+//   진행 수는 할 일 글 뒤에 작게 (3/5). 단계형은 수를 아예 안 보여 줌 (몇 개를 만들라는 말로 읽혀서)
 function questRowHtml(q, def){
   const goal = questGoal(def);
-  // v0.43.1: 단계형 퀘스트(steps)는 n/3 을 안 보여 줌 — '이빨 단검 만들기 0/3'이 3개를 만들라는 말로 읽혔음
-  const num = def.steps ? (q.done ? '✓' : '') : `${Math.min(q.n, goal)}/${goal}${q.done ? ' ✓' : ''}`;
+  const prog = def.steps || q.done || goal <= 1 ? '' : ` <span class="q-prog">${Math.min(q.n, goal)}/${goal}</span>`;
   return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
-    + `<span class="q-text">${esc(q.done ? '완료' : questText(def, q))}</span>`
-    + `<span class="q-n">${num}</span></div>`;
+    + `<span class="q-text">${esc(q.done ? '완료' : questText(def, q))}${prog}</span>`
+    + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
 }
 // v0.41.0: 블록형 — 대제목 · 중제목은 모두 보이고, 소제목(완료 조건)은 지금 덩어리 것만
 function questBlockHtml(q, def){
   const st = questGroupState(def);
   let h = `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
-    + `<span class="q-n">${Math.min(st.done.filter(Boolean).length, def.groups.length)}/${def.groups.length}${q.done ? ' ✓' : ''}</span></div>`;
+    + `<span class="q-text">${q.done ? '완료' : `<span class="q-prog">${Math.min(st.done.filter(Boolean).length, def.groups.length)}/${def.groups.length}</span>`}</span>`
+    + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
   def.groups.forEach((g, i) => {
     const done = st.done[i], now = i === st.now;
     h += `<div class="q-mid${done ? ' done' : ''}${now ? ' now' : ''}">${done ? '✔' : now ? '▸' : '·'} ${esc(g.title)}</div>`;
