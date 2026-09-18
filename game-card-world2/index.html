@@ -306,6 +306,8 @@ const GROUPS = [
   { id:'build', name:'건축 재료',  emoji:'🧱' },
   { id:'food',  name:'음식',       emoji:'🍖' },
   { id:'body',  name:'몸 · 약',    emoji:'🧪' },
+  { id:'loot',  name:'전리품',     emoji:'🐾' },   // v0.15.0: 크리처에게서 나오는 부위 — 생물 이름 대신 성질 이름
+  { id:'gear',  name:'장비 · 도구', emoji:'🗡️' },   // v0.15.0: 3티어
 ];
 const GROUP_BY_ID = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 // 카드가 속한 필드(1티어) 또는 묶음(2티어)
@@ -350,10 +352,21 @@ const DEFS = {
   honey:     { name:'꿀',         kind:'material', tier:2, group:'food',  emoji:'🍯' },
   flour:     { name:'곡물 가루',  kind:'material', tier:2, group:'food',  emoji:'🥣' },
   // 🧪 몸 · 약
-  hide:      { name:'가죽',       kind:'material', tier:2, group:'body',  emoji:'🧤' },
+  // 🐾 전리품 (v0.15.0) — 토끼·곰이 함께 쓰는 부위. 생물이 늘어도 카드는 안 늘어남
+  hide:      { name:'부드러운 가죽', kind:'material', tier:2, group:'loot', emoji:'🟤' },   // v0.15.0: '가죽'을 흡수
+  toughhide: { name:'억센 가죽',   kind:'material', tier:2, group:'loot',  emoji:'🟫' },
+  smalltooth:{ name:'작은 이빨',   kind:'material', tier:2, group:'loot',  emoji:'🦷' },
+  fang:      { name:'날카로운 송곳니', kind:'material', tier:2, group:'loot', emoji:'🔻' },
   bone:      { name:'뼈',         kind:'material', tier:2, group:'body',  emoji:'🦴' },
   juice:     { name:'열매즙',     kind:'material', tier:2, group:'body',  emoji:'🧃' },
   salve:     { name:'약초 연고',  kind:'material', tier:2, group:'body',  emoji:'🧴' },
+  // ── 3티어 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
+  toothdagger:{ name:'이빨 단검',  kind:'material', tier:3, group:'gear',  emoji:'🗡️', atk:2 },
+  fangspear: { name:'송곳니 창',   kind:'material', tier:3, group:'gear',  emoji:'🔱', atk:4 },
+  leatherarmor:{ name:'가죽 갑옷', kind:'material', tier:3, group:'gear',  emoji:'🛡️', def:1 },
+  pouch:     { name:'가죽 주머니', kind:'material', tier:3, group:'gear',  emoji:'🎒' },
+  fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
+  roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
@@ -386,7 +399,16 @@ const DESC = {
   fillet:    '뼈를 발라냈더니 표정이 사라졌다.',
   honey:     '끈적한 행복. 손가락이 먼저 찾아간다.',
   flour:     '빻아서 고와졌다. 재채기 조심.',
-  hide:      '털은 짐승에게, 가죽은 우리에게.',
+  hide:      '얇고 부드럽다. 몸을 지키기보단 몸에 걸치는 쪽.',
+  toughhide: '두껍고 뻣뻣하다. 접히지 않는 대신 잘 안 뚫린다.',
+  smalltooth:'작고 뾰족하다. 바늘로 쓰기 딱 좋은 크기.',
+  fang:      '한때 누군가의 자랑이었다. 지금은 창 끝이 될 참.',
+  toothdagger:'이빨을 나무에 끼웠다. 짐승이 하던 일을 사람이 한다.',
+  fangspear: '송곳니가 길어지니 곰도 멀리서 상대할 수 있다.',
+  leatherarmor:'억센 가죽을 덧대 만든 옷. 무겁지만 살아 돌아온다.',
+  pouch:     '넣을 게 생기기 전에 만들어 두는 게 순서다.',
+  fishhook:  '작은 이빨은 여전히 무언가를 문다. 이번엔 물고기를.',
+  roastmeat: '불 위에서 기다리는 시간만큼 맛있어진다.',
   bone:      '짐승의 뼈대 있는 유산.',
   juice:     '열매를 물에 설득했더니 색이 우러났다.',
   salve:     '쓴 약초를 끈적한 수액이 달래 준다. 바르면 좀 낫다.',
@@ -422,6 +444,13 @@ const RECIPES = [
   { id:'flour',      a:{ card:'stone' },  b:{ card:'seed' },      out:['flour'] },
   { id:'juice',      a:{ card:'berry' },  b:{ card:'water' },     out:['juice'] },
   { id:'salve',      a:{ card:'herb' },   b:{ card:'sap' },       out:['salve'] },
+  // 3티어 (v0.15.0): 전리품으로 만드는 장비·도구·음식
+  { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
+  { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
+  { id:'leatherarmor', a:{ card:'toughhide' },  b:{ card:'blade' },    out:['leatherarmor'] },
+  { id:'pouch',        a:{ card:'hide' },       b:{ card:'cord' },     out:['pouch'] },
+  { id:'fishhook',     a:{ card:'smalltooth' }, b:{ card:'cord' },     out:['fishhook'] },
+  { id:'roastmeat',    a:{ card:'meat' },       b:{ card:'ember' },    out:['roastmeat'] },
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -458,7 +487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.14.0';
+const VERSION = 'v0.15.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -557,10 +586,10 @@ function findSpot(x, y, skip){
 function cardHtml(c){
   const d = DEFS[c.type];
   let html = '';
-  if (d.atk || d.defense){
+  if (d.atk || d.def){
     html += '<div class="stats">'
       + (d.atk ? `<span>${statImg('atk')}${d.atk}</span>` : '')
-      + (d.defense ? `<span>${statImg('def')}${d.defense}</span>` : '')
+      + (d.def ? `<span>${statImg('def')}${d.def}</span>` : '')
       + '</div>';
   }
   return html + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`
@@ -828,7 +857,7 @@ function renderInsp(){
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
   const tags = (d.tags || []).slice();
   if (d.atk) tags.push(`공격력 ${d.atk}`);
-  if (d.defense) tags.push(`방어 ${d.defense}`);
+  if (d.def) tags.push(`방어 ${d.def}`);
   if (tags.length) h += '<div class="chips">' + tags.map(x => `<span class="chip">${esc(x)}</span>`).join('') + '</div>';
   // 쓰이는 조합 — 이 카드가 들어가는 쪽의 반대편 + 결과
   const uses = [];
@@ -983,7 +1012,7 @@ function renderGather(){
   const k = S.knight;
   gatherEl.innerHTML = '<div class="knight-row">'
     + `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>`
-    + `<div class="kstat"><span>${statImg('atk')}${KNIGHT.atk}</span><span>${statImg('def')}${KNIGHT.def}</span>`
+    + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
     + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span>`
     + `<span class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></span></div></div>`
     + '<div class="exp" id="exp" hidden></div>'
@@ -1035,8 +1064,8 @@ function renderFieldInsp(){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
       + `<div><div class="nm">기사</div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
-      + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${KNIGHT.atk}</div>`
-      + `<div class="row">${statImg('def')} 방어 ${KNIGHT.def}</div>`
+      + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${knightAtk()}${bestOf('atk') ? ` <span class="i-muted">(맨손 ${KNIGHT.atk} + 무기 ${bestOf('atk')})</span>` : ''}</div>`
+      + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
       + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${KNIGHT.hp}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
       + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${HEAL_MS / 1000}초에 체력 +1`}</div>`;
     return;
@@ -1104,10 +1133,17 @@ gatherEl.addEventListener('click', e => {
 //   도중에 재료를 줍고(크래프팅 탭으로 날아감), 고블린과 싸우고, 끝에는 보스 (보스는 아직 디자인 전)
 // 기사는 공 1 · 방 0 · 체 10. 체력이 0이 되면 빈사로 돌아오고, 쉬는 동안 회복된다
 // v0.14.0: 고블린 대신 토끼, 보스는 곰 (레거시 world 수치 그대로 — 토끼 체2 공1, 곰 체10 공3)
+// loot: [카드, 나올 확률, 장수] — v0.15.0: 확률 드롭. 송곳니는 보스를 여러 번 잡게 하는 목적(약 10번에 1번)
 const ENEMIES = {
-  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2 },
-  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10 },
+  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2,
+    loot: [['meat', 0.6, 1], ['hide', 0.4, 1], ['smalltooth', 0.25, 1]] },
+  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10,
+    loot: [['meat', 0.8, 2], ['toughhide', 0.5, 1], ['smalltooth', 0.2, 1], ['fang', 0.1, 1]] },
 };
+// 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
+const bestOf = key => Math.max(0, ...CRAFT_TYPES.filter(t => DEFS[t][key] && have(t) > 0).map(t => DEFS[t][key]));
+const knightAtk = () => KNIGHT.atk + bestOf('atk');
+const knightDef = () => KNIGHT.def + bestOf('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
@@ -1195,7 +1231,7 @@ function expTick(dt){
 // 한 번 주고받기 — 기사가 먼저 친다
 function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
-  const kd = Math.max(1, KNIGHT.atk - def.def);
+  const kd = Math.max(1, knightAtk() - def.def);
   e.hp -= kd;
   expSwing('knight', exp.foe, kd);
   if (e.hp <= 0){
@@ -1203,13 +1239,13 @@ function expBeat(){
     exp.foe = -1;
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
+    dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     if (e.boss){                                                  // v0.14.0: 보스를 잡으면 원정 끝
-      toast(`👑 ${def.name}을 쓰러뜨렸다 — 전리품은 아직 준비 중`);
       expEnd('boss');
     }
     return;
   }
-  const ed = Math.max(1, def.atk - KNIGHT.def);
+  const ed = Math.max(1, def.atk - knightDef());
   k.hp = Math.max(0, k.hp - ed);
   expSwing(exp.foe, 'knight', ed);
   renderKnight();
@@ -1230,6 +1266,22 @@ function expEnd(kind){
     exp = null;
     renderGather(); renderInsp(); save();
   }, 1600);
+}
+// 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
+function dropLoot(def, foeIdx){
+  const from = tokOf(foeIdx) || document.querySelector('#exp .tok.knight');
+  const r = from ? from.getBoundingClientRect() : gatherEl.getBoundingClientRect();
+  const got = [];
+  for (const [t, chance, n] of (def.loot || [])){
+    if (Math.random() >= chance) continue;
+    for (let i = 0; i < n; i++) got.push(t);
+  }
+  if (!got.length){
+    exp.line = `${def.name}에게서 건진 게 없다`;
+    return;
+  }
+  exp.line = `${def.name} — ${got.map(t => DEFS[t].name).join(' · ')}`;
+  got.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 260));   // 여러 장이면 차례로
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
