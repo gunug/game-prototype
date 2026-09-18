@@ -654,7 +654,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.35.0';
+const VERSION = 'v0.36.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -684,6 +684,7 @@ const QUESTS = {
   weaponboard: { name: '무기가 필요해', text: '작업대 만들기', goal: 1 },   // v0.21.1: 첫 곰에게 지면 받음
   gearboard:   { name: '정비가 필요해', text: '모닥불 만들기', goal: 1 },   // v0.23.0: 첫 무기를 만들면 받음
   strongknight:{ name: '강해진 기사', text: '이빨 단검 장착하기', goal: 1 },   // v0.23.2: '무기가 필요해' 다음
+  gomountain:  { name: '산으로 가자', text: '산으로 출전하기', goal: 1 },   // v0.36.0: 맨 처음 퀘스트
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
@@ -735,7 +736,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], equip: {}, metBoss: false, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -764,6 +765,7 @@ function load(){
     s.lootSeen = ls;
     s.facilities = Array.isArray(s.facilities) ? s.facilities.filter(isFacility) : [];   // v0.21.0: 만든 설비
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
+    s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
     const eq = {};                                                // v0.23.0: 장착한 장비
     for (const sl of SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
     s.equip = eq;
@@ -1411,6 +1413,34 @@ function screenTokens(){
   }));
 }
 // 기사 카드 — 능력치는 카드 안에 (v0.29.0)
+// ── 기사 대사 (v0.36.0) ─────────────────────────────
+// 기사 카드 옆 말풍선. 한 줄씩, 글자 수에 따라 머물다 사라짐. 탭하면 바로 넘어감
+const KNIGHT_LINES = { start: '할 수 있는 게 없네… 일단 산으로 가볼까' };
+let knightLine = null, knightSayT = 0, knightSayDone = null;
+function knightSay(text, done){
+  knightLine = text;
+  knightSayDone = done || null;
+  clearTimeout(knightSayT);
+  renderScreen();
+  knightSayT = setTimeout(endKnightSay, Math.max(1800, text.length * 110));
+}
+function endKnightSay(){
+  if (!knightLine) return;
+  const done = knightSayDone;
+  clearTimeout(knightSayT);
+  knightLine = null;
+  knightSayDone = null;
+  renderScreen();
+  if (done) done();
+}
+const knightSayHtml = () => knightLine ? `<div class="god-speech" data-knightsay="1">${esc(knightLine)}</div>` : '';
+// 처음 켰을 때 — 할 게 없으니 산으로
+function knightIntro(){
+  if (S.said.includes('start') || (S.quests || []).length) return;
+  S.said.push('start');
+  save();
+  knightSay(KNIGHT_LINES.start, () => giveQuest('gomountain'));
+}
 function knightCardHtml(drag){
   const k = S.knight;
   return `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"${drag ? ' data-token="knight"' : ''}>`
@@ -1435,6 +1465,9 @@ function renderTopGrid(){
         + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
     : `<div class="empty-lab">아직 만든 ${esc(b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
 }
+gatherEl.addEventListener('click', e => {                         // v0.36.0: 말풍선을 탭하면 바로 다음으로
+  if (e.target.closest('[data-knightsay]')) endKnightSay();
+});
 topGridEl.addEventListener('click', e => {
   const el = e.target.closest('[data-topcard]');
   if (!el) return;
@@ -1449,7 +1482,8 @@ function renderScreen(){
     + rows.map(row => `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
     + '<div class="botarea">' + (S.tab === 'battle' ? '<div class="exp" id="exp" hidden></div>' : '')
-    + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('') + '</div>'
+    + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
+    + (S.tab === 'battle' ? knightSayHtml() : '') + '</div>'
     + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   if (S.tab === 'battle') expBuild();
 }
@@ -1780,6 +1814,7 @@ function expStart(id, cardEl){
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  if (id === 'mountain') questStep('gomountain');                 // v0.36.0: 산으로 가자
   renderGather(); renderInsp(); save();
 }
 function expTick(dt){
@@ -2150,6 +2185,7 @@ try {                                                             // v0.32.1: �
   }
 } catch (e) {}
 requestAnimationFrame(pushStep);
+knightIntro();                                                    // v0.36.0: 첫 대사 → 첫 퀘스트
 setInterval(gameTick, 100);
 </script>
 </body>
