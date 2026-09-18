@@ -725,7 +725,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.51.0';
+const VERSION = 'v0.51.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -853,7 +853,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool'], facilities: [], equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -886,6 +886,17 @@ function load(){
     const eq = {};                                                // v0.23.0: 장착한 장비
     for (const sl of SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
     s.equip = eq;
+    // v0.51.1: 보스를 잡은 필드. 예전 저장(기록 없음)은 곰을 다시 잡을 때마다 필드가 열리던 버그가 있어
+    //   산 다음 한 곳(초원)까지만 남기고 나머지는 다시 잠금
+    const hadCleared = Array.isArray(s.cleared);
+    s.cleared = hadCleared ? s.cleared.filter(id => FIELD_BY_ID[id]) : [];
+    if (!hadCleared){
+      const opened = FIELDS.filter(f => fs[f.id] && !fs[f.id].locked).map(f => f.id);
+      if (opened.length > 2){
+        for (const f of FIELDS.slice(2)) if (fs[f.id]) fs[f.id].locked = true;
+        s.cleared = ['mountain'];
+      } else if (opened.length === 2) s.cleared = ['mountain'];
+    }
     s.madeRecipes = Array.isArray(s.madeRecipes) ? s.madeRecipes.filter(id => RECIPES.some(r => r.id === id)) : [];   // v0.45.0
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
     if (!s.boards.includes('tool')) s.boards.unshift('tool');
@@ -2076,7 +2087,13 @@ function expBeat(){
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     if (e.boss){                                                  // v0.14.0: 보스를 잡으면 원정 끝
       questStep('conquer');                                       // v0.47.0: 산을 정복하자
-      unlockNextField(exp.id);                                    // v0.47.0: 다음 필드가 열림
+      // v0.51.1: 그 필드를 **처음** 정복했을 때만 다음 필드가 열림
+      //   (보스를 다시 잡을 때마다 열려 산 하나로 초원·숲·강가가 다 열리던 것)
+      S.cleared = S.cleared || [];
+      if (!S.cleared.includes(exp.id)){
+        S.cleared.push(exp.id);
+        unlockNextField(exp.id);
+      }
       expEnd('boss');
     }
     return;
