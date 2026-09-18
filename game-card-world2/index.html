@@ -584,7 +584,9 @@ function recipesFor(x, y){
 }
 const usableRecipes = (x, y) => recipesFor(x, y);
 // v0.21.5: 인스펙터에 나오는 카드에는 보유 수량을 함께
-const sideText = sd => sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+// v0.23.1: 인스펙터에 카드가 나오면 늘 보유 수량을 함께. 가려진 카드(???)는 보유도 ??
+const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
+const sideText = sd => sd.card ? (S.seen.includes(sd.card) ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `${ic(sd.card)} ??? ×??`) : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 function outText(r){
   const counts = new Map();
   for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
@@ -596,7 +598,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.23.0';
+const VERSION = 'v0.23.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1057,7 +1059,7 @@ function renderInsp(){
   }
   const d = DEFS[t];
   if (!S.seen.includes(t)){                                      // 콜렉터북의 미발견 칸
-    inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${d.tier}티어 · ${fieldText(t)}</div></div></div>`
+    inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 보유 ??</div></div></div>`
       + '<div class="desc">아직 발견하지 못한 카드.</div>';
     return;
   }
@@ -1085,7 +1087,7 @@ function renderInsp(){
     h += '<div class="sub">만드는 법</div>' + makes.map(r => {
       if (r.cook){
         const raw = CRAFT_TYPES.find(x => DEFS[x].cooked === t);
-        return `<div class="row">${rich(sideText(r.a))} + ${rich(`${ic(raw)} ${DEFS[raw].name} ×${have(raw)}`)}</div>`;
+        return `<div class="row">${rich(sideText(r.a))} + ${rich(S.seen.includes(raw) ? `${ic(raw)} ${DEFS[raw].name} ×${have(raw)}` : `${ic(raw)} ??? ×??`)}</div>`;
       }
       return `<div class="row">${rich(sideText(r.a))} + ${rich(sideText(r.b))}</div>`;
     }).join('');
@@ -1336,7 +1338,7 @@ function rcpTree(t, depth = 0, seen = new Set()){
   for (const m of sides){
     h += `<div class="rcp" style="padding-left:${depth * 14}px">`
       + `<span class="plus">${depth ? '└' : '+'}</span>${iconHtml(m, true)}`
-      + `<span class="nm">???</span><span class="hv">보유 ${have(m)}</span></div>`
+      + `<span class="nm">???</span><span class="hv">보유 ??</span></div>`
       + rcpTree(m, depth + 1, seen);
   }
   return h;
@@ -1410,8 +1412,8 @@ function renderFieldInsp(){
   const foes = [...new Set(planOf(f.id).filter(e => e.fight).map(e => e.fight))];
   // v0.18.2: 전리품은 **그 크리처에게서 직접 받아 본 것**만 공개 (카드를 다른 데서 봤어도 여기선 ???)
   const rowOf = (t, known) => known
-    ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)}</div>`
-    : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span></div>`;
+    ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)} ${haveText(t, true)}</div>`
+    : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span> ${haveText(t, false)}</div>`;
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
     + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
