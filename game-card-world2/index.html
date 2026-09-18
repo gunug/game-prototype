@@ -457,7 +457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.13.4';
+const VERSION = 'v0.13.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1288,7 +1288,9 @@ function expPaint(){
   const lane = el.querySelector('.exp-lane');
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
   const kt = lane.querySelector('.tok.knight');
-  kt.style.left = (5 + exp.t * 88 - (exp.foe >= 0 ? 6 : 0)) + '%';   // v0.13.1: 전투 중엔 고블린 앞에
+  // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
+  const stop = exp.foe >= 0 ? 7 : exp.phase === 'search' ? 6 : 3;
+  kt.style.left = Math.max(2, exp.t * 100 - stop) + '%';
   kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
   kt.classList.toggle('dig', exp.phase === 'search');              // v0.13.4: 뒤지는 중
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
