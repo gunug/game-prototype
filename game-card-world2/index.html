@@ -34,10 +34,20 @@
   .table{position:absolute;inset:0;overflow:hidden;touch-action:none;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
   /* 채집 탭 (v0.6.0) — 크래프팅 필드와 같은 자리에 필드 카드 4장 */
-  .gather{position:absolute;inset:0;overflow:hidden;box-sizing:border-box;padding:calc(var(--cw) * .12);   /* v0.17.0: 필드엔 스크롤이 없음 */
+  .gather,.facility{position:absolute;inset:0;overflow:hidden;box-sizing:border-box;padding:calc(var(--cw) * .12);   /* v0.17.0: 필드엔 스크롤이 없음 */
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--cw) * .12);
     background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
   .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
+  /* v0.21.0: 설비 화면 — 만든 것과 아직 안 만든 것이 함께 보임 */
+  .facility[hidden]{display:none;}
+  .facility{background:radial-gradient(ellipse at 50% 40%,#2a241d 0%,var(--canvas) 72%);}
+  .fac-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}
+  .facility .cw.fac{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
+  .facility .cw.fac .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
+  .facility .cw.fac.off{filter:brightness(.4) saturate(.25);}      /* 아직 안 만든 설비 — 자물쇠 없이 비활성 */
+  /* v0.21.0: 잠긴 화면 버튼 — 버튼은 보이고 자물쇠가 붙음 */
+  .tabbtn.locked{opacity:.55;}
+  .tabbtn .lockm{margin-right:3px;}
   .gather-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}   /* v0.17.0: 네 칸 한 줄 고정 */
   .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
   .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
@@ -132,6 +142,11 @@
     background:rgba(10,10,7,.7);border:1px solid var(--hairline);color:var(--ink);
     font-size:calc(var(--cf) * .1);text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .exp-line:empty{display:none;}
+  /* v0.21.0: 원정 실패 — 큰 글씨 + 한 줄 팁 */
+  .exp-fail{align-self:center;text-align:center;margin:2px 0 4px;animation:failIn .3s ease-out;}
+  .exp-fail .big{font-size:calc(var(--cf) * .34);font-weight:900;color:#ff6b6b;letter-spacing:.08em;text-shadow:0 2px 6px rgba(0,0,0,.7);}
+  .exp-fail .tip{font-size:calc(var(--cf) * .12);color:var(--ink);margin-top:2px;}
+  @keyframes failIn{0%{opacity:0;transform:scale(1.5);}60%{opacity:1;transform:scale(.96);}100%{transform:scale(1);}}
   .exp{display:flex;flex-direction:column;align-items:stretch;}
 
   .god-row{display:flex;align-items:center;gap:14px;width:100%;max-width:calc(var(--cw) * 1.6 * 4 + var(--cw) * .35 * 3);min-height:var(--ch);}
@@ -284,6 +299,7 @@
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
   <div class="gather" id="gather" hidden></div>
+  <div class="facility" id="facility" hidden></div>
 </div>
 <div class="ui side" id="ui">
   <div class="quest" id="quest"></div>
@@ -400,7 +416,7 @@ const DEFS = {
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
-const USES = ['무기재료', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '생산재료'];
+const USES = ['무기재료', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '생산재료', '설비'];   // v0.21.0: 설비
 const USE = {
   // 1티어
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료'], spring:['약품재료', '요리재료'],
@@ -415,7 +431,7 @@ const USE = {
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
   toothdagger:['무기재료'], fangspear:['무기재료'], leatherarmor:['방어구재료'], pouch:['도구재료'],
-  fishhook:['도구재료', '생산재료'], roastmeat:['요리재료'], workbench:['도구재료', '생산재료'],
+  fishhook:['도구재료', '생산재료'], roastmeat:['요리재료'], workbench:['설비'],                          // v0.21.0: 설비 — 재료로는 안 쓰임
 };
 const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
@@ -542,7 +558,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.20.0';
+const VERSION = 'v0.21.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -573,7 +589,20 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 const BOARDS = [
   { id:'tool',   name:'🔨 도구', tag:'도구재료' },
   { id:'weapon', name:'⚔️ 무기', tag:'무기재료', needs:'workbench' },
+  { id:'facility', name:'🏭 설비', tag:'설비', fixed:true },      // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
+// 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
+const FACILITIES = [
+  { id:'workbench' },
+];
+const FAC_IDS = FACILITIES.map(f => f.id);
+const isFacility = t => FAC_IDS.includes(t);
+const facMade = t => have(t) > 0 || (S.facilities || []).includes(t);
+// 만들 수 있는지 — 필요한 지역이 잠겨 있으면 못 만듦
+function facBlock(f){
+  if (f.field && S.fields[f.field] && S.fields[f.field].locked) return `${FIELD_BY_ID[f.field].emoji} ${FIELD_BY_ID[f.field].name} 지역 필요`;
+  return null;
+}
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
 const boardTag = () => (BOARD_BY_ID[S.tab] || BOARDS[0]).tag;
 const onBoard = (type, id) => useOf(type).includes((BOARD_BY_ID[id] || BOARDS[0]).tag);
@@ -584,7 +613,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -611,6 +640,7 @@ function load(){
     const ls = {};                                                // v0.18.2: 크리처별 전리품 기록
     for (const k in (s.lootSeen || {})) ls[k] = (s.lootSeen[k] || []).filter(t => DEFS[t]);
     s.lootSeen = ls;
+    s.facilities = Array.isArray(s.facilities) ? s.facilities.filter(isFacility) : [];   // v0.21.0: 만든 설비
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
     if (!s.boards.includes('tool')) s.boards.unshift('tool');
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
@@ -776,6 +806,11 @@ function toast(s){
 // ── 카드 추가 / 제거 ─────────────────────────────────
 // v0.8.0: 이미 있는 종류면 수량만 +1 (카드는 그 자리에서 톡 튐), 없으면 새 카드
 // v0.20.0: 어떤 카드를 처음 만들면 화면이 열림 (작업대 → 무기)
+function noteFacility(type){                                      // v0.21.0: 만든 설비 기록 (카드를 써도 다시 안 나오게)
+  if (!isFacility(type) || (S.facilities || []).includes(type)) return;
+  S.facilities.push(type);
+  renderFacility();
+}
 function unlockBoards(){
   for (const b of BOARDS){
     if (!b.needs || (S.boards || []).includes(b.id)) continue;
@@ -800,6 +835,7 @@ function addCard(type, x, y, anim, from, made){
     if (onBoard(type, S.tab)) mount(c, anim, from);                // v0.20.0: 다른 화면 카드면 상태만 만들어 둠
   }
   discover(type);
+  noteFacility(type);                                             // v0.21.0: 만든 설비 기록
   unlockBoards();                                                 // v0.20.0: 작업대를 만들면 무기 화면이 열림
   return c;
 }
@@ -822,7 +858,7 @@ function spawnMany(types, x, y, from, made3s){
   for (const t of types){
     const c = addCard(t, x, y, 'pop', from, made3s);
     made.push(c);
-    if (made3s){ const el = els.get(c.id); el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); }   // v0.2.2
+    if (made3s){ const el = els.get(c.id); if (el){ el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); } }   // v0.2.2   // v0.21.0: 다른 화면 카드면 el이 없음
   }
   return made;
 }
@@ -830,7 +866,8 @@ function spawnMany(types, x, y, from, made3s){
 // ── 조합 ────────────────────────────────────────────
 // 크래프팅 탭에서 되는 조합 (첫 번째)
 function craftMatch(x, y){
-  return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r)) || null;
+  // v0.21.0: 이미 만든 설비는 다시 조합되지 않음
+  return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r) && !(m.r.out || []).some(o => isFacility(o) && facMade(o))) || null;
 }
 function craft(drag, tgt, m){
   const r = m.r;
@@ -951,6 +988,7 @@ function outHtml(r, t){
 }
 function renderInsp(){
   if (S.tab === 'battle') return renderFieldInsp();
+  if (S.tab === 'facility') return renderFacInsp();               // v0.21.0
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -1127,14 +1165,50 @@ function lootTypes(id){
   return out;
 }
 const lootKnown = (id, t) => foesOf(id).some(k => (S.lootSeen[k] || []).includes(t));
-function renderTabs(){                                            // v0.20.0: 잠긴 화면은 버튼도 없음
+function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
   const html = ['<button class="tabbtn" data-tab="battle">🗡️ 전투</button>']
-    .concat(BOARDS.filter(boardOpen).map(b => `<button class="tabbtn" data-tab="${b.id}">${b.name}</button>`)).join('');
+    .concat(BOARDS.map(b => boardOpen(b)
+      ? `<button class="tabbtn" data-tab="${b.id}">${b.name}</button>`
+      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${b.name}</button>`)).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
+// ── 설비 화면 (v0.21.0) ─────────────────────────────
+// 만든 설비와 아직 안 만든 설비가 함께 보임. 아직 안 만든 것은 자물쇠 없이 흐리게 (조합식은 안 알려 줌)
+const facilityEl = document.getElementById('facility');
+let facPick = null;
+function renderFacility(){
+  if (S.tab !== 'facility') return;
+  facilityEl.innerHTML = '<div class="fac-row">' + FACILITIES.map(f => {
+    const made = facMade(f.id);
+    return `<div class="cw framed f-stone fac${made ? '' : ' off'}${facPick === f.id ? ' sel' : ''}" data-fac="${f.id}">`
+      + `<div class="emoji">${iconHtml(f.id)}</div><div class="name">${esc(DEFS[f.id].name)}</div></div>`;
+  }).join('') + '</div><div class="gather-hint">설비는 한 번 만들면 그대로 남는다</div>';
+}
+function renderFacInsp(){
+  const f = FACILITIES.find(x => x.id === facPick);
+  if (!f){
+    inspEl.innerHTML = '<div class="empty">설비를 탭하면 정보가 나와요.<br><br>설비 화면 — 만들면 새 화면이나 기능이 열린다.</div>';
+    return;
+  }
+  const t = f.id, made = facMade(t), block = facBlock(f);
+  inspEl.innerHTML = `<div class="head"><div class="pic${made ? '' : ' locked'}">${iconHtml(t)}</div>`
+    + `<div><div class="nm">${esc(DEFS[t].name)}</div><div class="kd">설비${made ? '' : ' · 아직 만들지 않음'}</div></div></div>`
+    + `<div class="desc">${esc(DESC[t] || '')}</div>`
+    + (made ? '<div class="row">만들어 둔 설비.</div>'
+      : block ? `<div class="row"><b>${esc(block)}</b></div>`
+      : '<div class="row i-muted">지금 만들 수 있다.</div>');
+}
+facilityEl.addEventListener('click', e => {
+  if (paused) return;
+  const card = e.target.closest('[data-fac]');
+  if (!card || facPick === card.dataset.fac) return;
+  facPick = card.dataset.fac;
+  renderFacility(); renderInsp();
+});
+
 function renderGather(){
   if (S.tab !== 'battle') return;
   const k = S.knight;
@@ -1213,14 +1287,23 @@ function setTab(tab){
   if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
   S.tab = tab;
   renderTabs();
-  table.hidden = tab === 'battle';
+  table.hidden = tab === 'battle' || tab === 'facility';          // v0.21.0: 설비는 고정 목록 화면
   gatherEl.hidden = tab !== 'battle';
+  facilityEl.hidden = tab !== 'facility';
+  renderFacility();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   renderGather(); renderInsp(); save();
 }
 document.getElementById('tabs').addEventListener('click', e => {
-  const b = e.target.closest('[data-tab]');
-  if (b) setTab(b.dataset.tab);
+  const btn = e.target.closest('[data-tab]');
+  if (!btn) return;
+  const b = BOARD_BY_ID[btn.dataset.tab];
+  if (b && !boardOpen(b)){                                        // v0.21.0: 잠긴 화면 — 무엇이 있어야 열리는지
+    flash(btn, 'fail', 600);
+    toast(`🔒 ${b.name} — ${ic(b.needs)} ${DEFS[b.needs].name}가 있어야 열림`);
+    return;
+  }
+  setTab(btn.dataset.tab);
 });
 gatherEl.addEventListener('click', e => {
   if (paused) return;
@@ -1369,11 +1452,12 @@ function expEnd(kind){
   exp.foe = -1;
   exp.spot = -1;
   exp.line = line;
+  exp.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   expPaint();
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
-  }, 1600);
+  }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
 function dropLoot(def, foeIdx){
@@ -1485,6 +1569,9 @@ function expPaint(){
     et.querySelector('.hp').innerHTML = f.dead ? '' : statBox(ed.atk, ed.def, Math.max(0, f.hp), ed.hp);
   }
   el.querySelector('.exp-line').textContent = exp.line || '';
+  if (exp.fail && !el.querySelector('.exp-fail')){                // v0.21.0: 실패
+    el.insertAdjacentHTML('afterbegin', '<div class="exp-fail"><div class="big">실패</div><div class="tip">강해질 방법을 찾아야겠어</div></div>');
+  }
 }
 // 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
 const tokOf = who => document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
