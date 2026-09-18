@@ -304,10 +304,15 @@
 // 레거시 조합식·재료는 쓰지 않음. 1티어만 있고, 2티어가 정해질 때까지 조합식 없음
 // 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
 const FIELDS = [                                                  // v0.9.1: 순서 산 · 초원 · 숲 · 강가 (열린 필드 먼저)
-  { id:'mountain',  name:'산',   emoji:'⛰️', desc:'올라갈수록 돌이 많아지고, 캘수록 반짝이는 게 나온다.' },
-  { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.' },
-  { id:'forest',    name:'숲',   emoji:'🌲', desc:'그늘, 열매, 끈적한 것, 쓴 풀. 길을 잃기 딱 좋다.' },
-  { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.' },
+  // v0.18.0: exp — 기사가 그곳에서 무엇을 하는지 (시스템 설명이 아니라 세계관 안의 말)
+  { id:'mountain',  name:'산',   emoji:'⛰️', desc:'올라갈수록 돌이 많아지고, 캘수록 반짝이는 게 나온다.',
+    exp:'기사는 비탈을 따라 올라가며 무너진 돌더미를 뒤진다. 인기척에 놀란 토끼가 바위 틈에서 튀어나오고, 더 깊은 굴에는 곰이 산다.' },
+  { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.',
+    exp:'기사는 허리까지 오는 풀을 헤치며 씨앗과 벌집을 챙긴다. 풀이 흔들리면 그건 바람이 아닐 때가 있다.' },
+  { id:'forest',    name:'숲',   emoji:'🌲', desc:'그늘, 열매, 끈적한 것, 쓴 풀. 길을 잃기 딱 좋다.',
+    exp:'기사는 나무 사이를 돌며 열매를 따고 흘러내린 수액을 긁어모은다. 발밑의 쓴 풀도 그냥 두지 않는다.' },
+  { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
+    exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
@@ -499,7 +504,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.17.4';
+const VERSION = 'v0.18.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -659,7 +664,7 @@ function discover(type){
   S.seen.push(type);
   S.newCards.push(type);
   toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
-  renderMeta(); renderNew();
+  renderMeta(); renderNew(); renderInsp();                        // v0.18.0: 인스펙터의 ??? 도 바로 풀림
 }
 function mount(c, anim, from){
   const el = document.createElement('div');
@@ -1093,13 +1098,19 @@ function renderFieldInsp(){
       + '<div class="desc">아직 들어갈 수 없는 필드.</div>';
     return;
   }
+  // v0.18.0: 그 필드에 나오는 크리처 (원정 일정에서) — 전리품도 '나오는 재료'에 함께
+  const foes = [...new Set(planOf(f.id).filter(e => e.fight).map(e => e.fight))];
+  const rowOf = t => S.seen.includes(t)
+    ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)}</div>`
+    : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span></div>`;
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
-    + '<div class="sub">원정</div><div class="row i-muted">기사가 왼쪽에서 오른쪽으로 나아가며 재료를 줍고, 도중에 고블린과 싸운다. 끝에는 보스</div>'
-    + '<div class="sub">나오는 재료</div>'
-    + ys.map(t => S.seen.includes(t)
-      ? `<div class="row">${iconHtml(t, true)} ${esc(DEFS[t].name)}</div>`
-      : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span></div>`).join('');
+    + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
+    + '<div class="sub">주워 오는 것</div>' + ys.map(rowOf).join('')
+    + foes.map(k => {
+        const e = ENEMIES[k];
+        return `<div class="sub">${esc(e.name)}에게서</div>` + (e.loot || []).map(l => rowOf(l[0])).join('');
+      }).join('');
 }
 function setTab(tab){
   if (paused) return;
