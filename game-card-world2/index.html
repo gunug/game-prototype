@@ -244,11 +244,18 @@
   @keyframes unlockBump{0%{transform:scale(1);}40%{transform:scale(1.06);}100%{transform:scale(1);}}
   .gather .cw.field .lock.unlocking{animation:unlockOut .6s ease-in forwards;}
   @keyframes unlockOut{0%{transform:translate(-50%,-50%) scale(1);}30%{transform:translate(-50%,-50%) scale(1.25) rotate(-12deg);opacity:1;}100%{transform:translate(-50%,-110%) scale(.6) rotate(8deg);opacity:0;}}
-  .quest.q-new{animation:questIn .5s ease-out;}
-  @keyframes questIn{0%{background:rgba(255,212,0,.35);}100%{background:rgba(34,31,20,.96);}}
+  /* v0.40.0: 새 퀘스트는 길고 또렷하게 (1.4초) — 노란 빛이 천천히 가라앉고 줄이 살짝 내려앉음 */
+  .quest.q-new{animation:questIn 1.4s cubic-bezier(.2,.8,.3,1);}
+  @keyframes questIn{
+    0%{background:rgba(255,212,0,.5);box-shadow:inset 0 0 0 1px rgba(255,212,0,.9);transform:translateY(-6px);}
+    18%{background:rgba(255,212,0,.5);box-shadow:inset 0 0 0 1px rgba(255,212,0,.9);transform:translateY(0);}
+    55%{background:rgba(255,212,0,.22);box-shadow:inset 0 0 0 1px rgba(255,212,0,.35);}
+    100%{background:rgba(34,31,20,.96);box-shadow:none;transform:translateY(0);}
+  }
   /* v0.38.0: 끝낸 퀘스트 — 노랗게 두 번 반짝인 뒤 사라짐 */
-  .q-row.q-done-flash{animation:questDone .9s ease-out forwards;}
-  @keyframes questDone{0%{background:rgba(255,212,0,.35);}25%{background:transparent;}50%{background:rgba(255,212,0,.35);}75%{background:transparent;opacity:1;}100%{opacity:0;transform:translateY(-4px);}}
+  /* v0.40.0: 끝낸 퀘스트는 조용히 — 색 없이 흐려지며 사라짐 (0.5초) */
+  .q-row.q-done-flash{animation:questDone .5s ease-in forwards;}
+  @keyframes questDone{0%{opacity:1;}100%{opacity:0;transform:translateY(-2px);}}
   .tabbtn.catch{animation:tabCatch .35s ease-out;}
   @keyframes tabCatch{0%{transform:scale(1);}40%{transform:scale(1.18);}100%{transform:scale(1);}}
   .hint{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);color:var(--muted);font-size:14px;text-align:center;pointer-events:none;line-height:1.6;}
@@ -665,7 +672,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.39.0';
+const VERSION = 'v0.40.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2144,13 +2151,13 @@ function questEvent(key){
 function questFade(q){
   const i = (S.quests || []).indexOf(q);
   const row = document.getElementById('quest').children[i];
-  if (row) flash(row, 'q-done-flash', 900);
+  if (row) flash(row, 'q-done-flash', 520);
   setTimeout(() => {
     S.quests = (S.quests || []).filter(x => x !== q);
     document.getElementById('quest').innerHTML = '';               // 줄 수가 줄었으니 다시 그림
     renderQuest();
     save();
-  }, 1100);
+  }, 560);
 }
 // v0.23.2: 장착으로 끝나는 퀘스트
 function checkGearQuest(){
@@ -2162,7 +2169,7 @@ function giveQuest(id){
   S.quests.push(newQuest(id));
   const el = document.getElementById('quest');
   renderQuest();
-  flash(el, 'q-new', 520);
+  flash(el, 'q-new', 1450);
   toast(`📜 새 퀘스트: ${QUESTS[id].name}`);
   save();
 }
