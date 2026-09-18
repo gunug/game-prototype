@@ -558,11 +558,12 @@ const DEFS = {
   // ── 3티어 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
   toothdagger:{ name:'이빨 단검',  kind:'material', tier:3, group:'gear',  emoji:'🗡️', atk:2 },
   fangspear: { name:'송곳니 창',   kind:'material', tier:3, group:'gear',  emoji:'🔱', atk:4 },
-  leatherarmor:{ name:'가죽 갑옷', kind:'material', tier:3, group:'gear',  emoji:'🛡️', def:1 },
+  leatherarmor:{ name:'가죽 갑옷', kind:'material', tier:3, group:'gear',  emoji:'🧥', def:1 },
   pouch:     { name:'가죽 주머니', kind:'material', tier:3, group:'gear',  emoji:'🎒' },
   fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
   roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
   workbench: { name:'작업대',      kind:'material', tier:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
+  woodshield:{ name:'나무 방패',  kind:'material', tier:3, group:'gear',  emoji:'🛡️', def:1 },   // v0.51.0: 방패 칸
   campfire:  { name:'모닥불',      kind:'material', tier:3, group:'gear' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
@@ -585,7 +586,7 @@ const USE = {
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
-  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
+  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'], campfire:['설비'],                              // v0.21.0: 설비 — 재료로는 안 쓰임
 };
 const useOf = t => USE[t] || [];
@@ -616,6 +617,7 @@ const DESC = {
   cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
   plank:     '나무를 쪼개 판판하게 골랐다. 이제 뭘 올려도 흔들리지 않는다.',
   workbench: '올려놓고 두드릴 자리가 생겼다. 손이 하던 일을 판이 거든다.',
+  woodshield:'널빤지에 가죽을 덧댔다. 맞을 땐 이 뒤에 숨는다.',
   campfire:  '불을 가둬 두는 법을 배웠다. 이제 앉아서 손볼 시간이 생긴다.',
   wax:       '벌들이 공들여 지은 집의 벽. 미안하게 됐다.',
   copperore: '광석 더미에서 구릿빛 덩이만 골라냈다. 녹이는 건 다음 일.',
@@ -678,6 +680,7 @@ const RECIPES = [
   // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
   { id:'plank',        a:{ card:'tree' },       b:{ card:'blade' },    out:['plank'] },
   { id:'workbench',    a:{ card:'plank' },      b:{ card:'blade' },    out:['workbench'] },
+  { id:'woodshield',   a:{ card:'firewood' },   b:{ card:'toughhide' }, out:['woodshield'] },   // v0.51.0: 나무 방패
   { id:'campfire',     a:{ card:'ember' },      b:{ use:'연료' },      out:['campfire'] },   // v0.23.0: 모닥불. v0.49.0: 연료 아무거나
 ];
 function tagLevel(def, name){
@@ -722,7 +725,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.50.0';
+const VERSION = 'v0.51.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -808,7 +811,8 @@ const PARTY = [true, false, false, false, false];                 // v0.26.0: �
 const BOARDS = [
   // v0.34.0: 위 절반은 완성품 격자(top), 아래 절반은 재료 카드 자리(bottom)
   { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'], top:'도구', bottom:'도구재료' },
-  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'], top:'무기', bottom:'무기재료', needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
+  // v0.51.0: 방어구·방패도 여기서 — 몸을 지키는 장비가 갈 화면이 따로 없어 무기 화면이 맡음
+  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기', '방어구재료', '방어구', '방패'], top:'무기', bottom:'무기재료', needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음. v0.33.0: 모닥불 그림
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
@@ -1954,6 +1958,12 @@ const ENEMIES = {
     loot: [['meat', 50, 1], ['hide', 30, 1], ['smalltooth', 20, 1]] },
   bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10,
     loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 20, 1], ['fang', 10, 1]] },
+  // v0.51.0: 🌾 초원 — 들개(기본) · 들소(보스)
+  //   맞춰 놓은 세기: 이빨 단검만으로는 들개 둘을 못 넘기고, 들소는 송곳니 창 + 방패가 있어야 이김
+  wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:3, def:0, hp:7,
+    loot: [['meat', 40, 1], ['hide', 30, 1], ['smalltooth', 30, 1]] },
+  bison:  { name:'들소', portrait:'portrait_bison',  atk:3, def:1, hp:12,
+    loot: [['toughhide', 40, 1], ['meat', 30, 2], ['fang', 20, 1], ['smalltooth', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
@@ -1974,6 +1984,10 @@ const EXP_PLAN = {
   mountain: [
     { at: 0.16, loot: 1 }, { at: 0.32, fight: 'animal' }, { at: 0.5, loot: 1 },
     { at: 0.66, fight: 'animal' }, { at: 0.84, loot: 1 }, { at: 0.97, fight: 'bear', boss: true },
+  ],
+  grassland: [                                                    // v0.51.0
+    { at: 0.16, loot: 1 }, { at: 0.34, fight: 'wilddog' }, { at: 0.52, loot: 1 },
+    { at: 0.68, fight: 'wilddog' }, { at: 0.84, loot: 1 }, { at: 0.97, fight: 'bison', boss: true },
   ],
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;

@@ -1,0 +1,253 @@
+{
+  "unet": {
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "FLUX.2 Klein 9B"
+    },
+    "inputs": {
+      "unet_name": "flux-2-klein-9b-int8-ConvRot.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "lora": {
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Pixel Surgeon LoRA"
+    },
+    "inputs": {
+      "model": [
+        "unet",
+        0
+      ],
+      "lora_name": "pixel-surgeon-klein-9b.safetensors",
+      "strength_model": 1
+    }
+  },
+  "clip": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    }
+  },
+  "vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "pos": {
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "프롬프트 (make_portrait.py 가 채움)"
+    },
+    "inputs": {
+      "clip": [
+        "clip",
+        0
+      ],
+      "text": "full body standing pose of a silent weary knight, simple solid #ffffff white background, no text"
+    }
+  },
+  "neg": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "pos",
+        0
+      ]
+    }
+  },
+  "latent": {
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "768x1024 (3:4 세로)"
+    },
+    "inputs": {
+      "width": 768,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "sampler": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "lora",
+        0
+      ],
+      "positive": [
+        "pos",
+        0
+      ],
+      "negative": [
+        "neg",
+        0
+      ],
+      "latent_image": [
+        "latent",
+        0
+      ],
+      "seed": 0,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "sampler",
+        0
+      ],
+      "vae": [
+        "vae",
+        0
+      ]
+    }
+  },
+  "bg_model": {
+    "class_type": "LoadBackgroundRemovalModel",
+    "inputs": {
+      "bg_removal_name": "birefnet.safetensors"
+    }
+  },
+  "bg": {
+    "class_type": "RemoveBackground",
+    "_meta": {
+      "title": "배경 제거"
+    },
+    "inputs": {
+      "bg_removal_model": [
+        "bg_model",
+        0
+      ],
+      "image": [
+        "decode",
+        0
+      ]
+    }
+  },
+  "inv": {
+    "class_type": "InvertMask",
+    "inputs": {
+      "mask": [
+        "bg",
+        0
+      ]
+    }
+  },
+  "alpha": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "decode",
+        0
+      ],
+      "alpha": [
+        "inv",
+        0
+      ]
+    }
+  },
+  "crop": {
+    "class_type": "ImageCropByMask",
+    "_meta": {
+      "title": "대상 크기로 자르기"
+    },
+    "inputs": {
+      "image": [
+        "alpha",
+        0
+      ],
+      "mask": [
+        "bg",
+        0
+      ]
+    }
+  },
+  "resize": {
+    "class_type": "ImageResize+",
+    "_meta": {
+      "title": "포트레이트 크기 192x256 (3:4)"
+    },
+    "inputs": {
+      "image": [
+        "crop",
+        0
+      ],
+      "width": 192,
+      "height": 256,
+      "interpolation": "area",
+      "method": "pad",
+      "condition": "always",
+      "multiple_of": 0
+    }
+  },
+  "split": {
+    "class_type": "SplitImageWithAlpha",
+    "inputs": {
+      "image": [
+        "resize",
+        0
+      ]
+    }
+  },
+  "quant": {
+    "class_type": "ImageQuantize",
+    "_meta": {
+      "title": "팔레트 축소"
+    },
+    "inputs": {
+      "image": [
+        "split",
+        0
+      ],
+      "colors": 64,
+      "dither": "none"
+    }
+  },
+  "join": {
+    "class_type": "JoinImageWithAlpha",
+    "inputs": {
+      "image": [
+        "quant",
+        0
+      ],
+      "alpha": [
+        "split",
+        1
+      ]
+    }
+  },
+  "save_full": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "원본 768x1024"
+    },
+    "inputs": {
+      "images": [
+        "decode",
+        0
+      ],
+      "filename_prefix": "game-card-world/portrait_full"
+    }
+  },
+  "save_portrait": {
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "포트레이트 192x256 투명"
+    },
+    "inputs": {
+      "images": [
+        "join",
+        0
+      ],
+      "filename_prefix": "game-card-world/portrait"
+    }
+  }
+}
