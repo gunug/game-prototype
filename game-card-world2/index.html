@@ -38,6 +38,24 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--cw) * .12);
     background:radial-gradient(ellipse at 50% 40%,#1f2a1d 0%,var(--canvas) 72%);}
   .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
+  /* v0.23.0: 정비 화면 — 캐릭터마다 무기 · 갑옷 · 방패 칸 */
+  .gearup[hidden]{display:none;}
+  .gearup{background:radial-gradient(ellipse at 50% 40%,#232a2f 0%,var(--canvas) 72%);}
+  .gear-who{display:flex;align-items:center;gap:calc(var(--cw) * .18);width:100%;}
+  .gearup .cw.who{position:relative;width:calc(var(--cw) * 1.2);height:auto;aspect-ratio:1 / 1.36;flex:none;--cf:calc(var(--cw) / .7 * .8 * 1.2);}
+  .gear-slots{display:flex;gap:calc(var(--cw) * .12);flex:1;}
+  .gslotbox{flex:1;max-width:calc(var(--cw) * 1.1);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;}
+  .gslotbox .box{width:100%;aspect-ratio:1 / 1;display:flex;align-items:center;justify-content:center;box-sizing:border-box;
+    border:1px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.04);font-size:calc(var(--cw) * .42);}
+  .gslotbox.sel .box{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.12);}
+  .gslotbox .lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
+  .gslotbox .box .icon{width:70%;height:70%;}
+  /* 기사 카드의 작은 장비 칸 (전투 화면) */
+  .knight .gearline{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:calc(var(--cw) * .04);pointer-events:none;}
+  .knight .gslot{width:calc(var(--cw) * .26);height:calc(var(--cw) * .26);display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--hairline);border-radius:3px;background:rgba(0,0,0,.45);}
+  .knight .gslot.empty{border-style:dashed;opacity:.5;}
+  .knight .gslot .icon{width:88%;height:88%;margin:0;}
   /* v0.21.0: 설비 화면 — 만든 것과 아직 안 만든 것이 함께 보임 */
   .facility[hidden]{display:none;}
   .facility{background:radial-gradient(ellipse at 50% 40%,#2a241d 0%,var(--canvas) 72%);}
@@ -243,6 +261,9 @@
   .insp .chip .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
   .insp .sub{font-size:11px;font-weight:800;color:var(--brand-yellow);margin:8px 0 4px;letter-spacing:.02em;}
   .insp .row{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .insp .row.gpick{cursor:pointer;}
+  .insp .row.gpick:hover{background:rgba(255,255,255,.06);}
+  .insp .row.gpick.on{color:var(--brand-yellow);}
   .insp .i-muted{color:var(--muted);}
   .locked .icon{filter:brightness(0) opacity(.45);}                 /* 미발견: 검은 실루엣 */
   /* v0.21.4: 설비 조합법 — 1티어까지 모두, 모두 실루엣 */
@@ -311,6 +332,7 @@
   </div>
   <div class="gather" id="gather" hidden></div>
   <div class="facility" id="facility" hidden></div>
+  <div class="gearup" id="gearup" hidden></div>
 </div>
 <div class="ui side" id="ui">
   <div class="quest" id="quest"></div>
@@ -424,11 +446,12 @@ const DEFS = {
   fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
   roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
   workbench: { name:'작업대',      kind:'material', tier:3, group:'gear',  emoji:'🛠️' },   // v0.20.0: 만들면 무기 화면이 열림
+  campfire:  { name:'모닥불',      kind:'material', tier:3, group:'gear' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
-const USES = ['무기재료', '무기', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '설비'];
+const USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '설비'];
 const USE = {
   // 1티어
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료'], spring:['약품재료', '요리재료'],
@@ -442,8 +465,8 @@ const USE = {
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
-  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구재료'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
-  fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'],                              // v0.21.0: 설비 — 재료로는 안 쓰임
+  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
+  fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'], campfire:['설비'],                              // v0.21.0: 설비 — 재료로는 안 쓰임
 };
 const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
@@ -473,6 +496,7 @@ const DESC = {
   cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
   plank:     '나무를 쪼개 판판하게 골랐다. 이제 뭘 올려도 흔들리지 않는다.',
   workbench: '올려놓고 두드릴 자리가 생겼다. 손이 하던 일을 판이 거든다.',
+  campfire:  '불을 가둬 두는 법을 배웠다. 이제 앉아서 손볼 시간이 생긴다.',
   wax:       '벌들이 공들여 지은 집의 벽. 미안하게 됐다.',
   copperore: '광석 더미에서 구릿빛 덩이만 골라냈다. 녹이는 건 다음 일.',
   meat:      '아직은 짐승이었던 기억이 남아 있다.',
@@ -534,6 +558,7 @@ const RECIPES = [
   // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
   { id:'plank',        a:{ card:'tree' },       b:{ card:'blade' },    out:['plank'] },
   { id:'workbench',    a:{ card:'plank' },      b:{ card:'blade' },    out:['workbench'] },
+  { id:'campfire',     a:{ card:'ember' },      b:{ card:'firewood' }, out:['campfire'] },   // v0.23.0: 모닥불
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -571,7 +596,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.22.1';
+const VERSION = 'v0.23.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -593,7 +618,8 @@ const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !S
 const QUESTS = {
   gather: { name: '채집', text: '필드를 탭해 채집하기', goal: 5 },
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
-  weaponboard: { name: '무기 화면 열기', text: '작업대 만들기', goal: 1 },   // v0.21.1: 첫 곰에게 지면 받음
+  weaponboard: { name: '무기가 필요해', text: '작업대 만들기', goal: 1 },   // v0.21.1: 첫 곰에게 지면 받음
+  gearboard:   { name: '정비가 필요해', text: '모닥불 만들기', goal: 1 },   // v0.23.0: 첫 무기를 만들면 받음
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
@@ -603,11 +629,19 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 const BOARDS = [
   { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'] },     // v0.22.0: 재료 + 완성품
   { id:'weapon', name:'⚔️ 무기', tags:['무기재료', '무기'], needs:'workbench' },
+  { id:'gearup', name:'🔧 정비', tags:['정비'], fixed:true, needs:'campfire' },   // v0.23.0: 장비를 바꾸는 화면
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
 // 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
 const FACILITIES = [
   { id:'workbench' },
+  { id:'campfire' },                                              // v0.23.0
+];
+// v0.23.0: 장비 칸 — 무기 · 갑옷 · 방패. 각 칸에 올릴 수 있는 태그
+const SLOTS = [
+  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk' },
+  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def' },
+  { key:'shield', name:'방패',  tag:'방패',   stat:'def' },
 ];
 const FAC_IDS = FACILITIES.map(f => f.id);
 const isFacility = t => FAC_IDS.includes(t);
@@ -628,7 +662,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], metBoss: false, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], facilities: [], equip: {}, metBoss: false, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -657,6 +691,9 @@ function load(){
     s.lootSeen = ls;
     s.facilities = Array.isArray(s.facilities) ? s.facilities.filter(isFacility) : [];   // v0.21.0: 만든 설비
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
+    const eq = {};                                                // v0.23.0: 장착한 장비
+    for (const sl of SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
+    s.equip = eq;
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
     if (!s.boards.includes('tool')) s.boards.unshift('tool');
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
@@ -827,6 +864,7 @@ function noteFacility(type){                                      // v0.21.0: �
   S.facilities.push(type);
   renderFacility();
   if (type === 'workbench') questStep('weaponboard');             // v0.21.1: 무기 화면 열기 퀘스트
+  if (type === 'campfire') questStep('gearboard');                // v0.23.0: 정비 화면 열기 퀘스트
 }
 function unlockBoards(){
   for (const b of BOARDS){
@@ -853,6 +891,8 @@ function addCard(type, x, y, anim, from, made){
   }
   discover(type);
   noteFacility(type);                                             // v0.21.0: 만든 설비 기록
+  // v0.23.0: 첫 무기를 만들면 '정비가 필요해'
+  if (useOf(type).includes('무기') && !boardOpen(BOARD_BY_ID.gearup) && !(S.quests || []).some(q => q.id === 'gearboard')) giveQuest('gearboard');
   unlockBoards();                                                 // v0.20.0: 작업대를 만들면 무기 화면이 열림
   return c;
 }
@@ -1007,6 +1047,7 @@ function outHtml(r, t){
 function renderInsp(){
   if (S.tab === 'battle') return renderFieldInsp();
   if (S.tab === 'facility') return renderFacInsp();               // v0.21.0
+  if (S.tab === 'gearup') return renderGearInsp();                // v0.23.0
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -1206,6 +1247,58 @@ function renderTabs(){                                            // v0.21.0: �
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
+// ── 정비 화면 (v0.23.0) ─────────────────────────────
+// 캐릭터를 늘어놓고 무기 · 갑옷 · 방패를 바꿔 끼움. 칸을 탭하면 인스펙터에 후보가 나옴
+const gearupEl = document.getElementById('gearup');
+let slotPick = null;
+function renderGearup(){
+  if (S.tab !== 'gearup') return;
+  gearupEl.innerHTML = '<div class="gear-who">'
+    + '<div class="cw framed f-gold who"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>'
+    + '<div class="gear-slots">' + SLOTS.map(sl => {
+      const t = equipped(sl.key);
+      return `<div class="gslotbox${slotPick === sl.key ? ' sel' : ''}" data-slot="${sl.key}">`
+        + `<div class="box">${t ? iconHtml(t) : ''}</div><div class="lab">${sl.name}</div></div>`;
+    }).join('') + '</div></div>'
+    + `<div class="gather-hint">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()} — 칸을 탭해 바꿔 끼우세요</div>`;
+}
+function gearCandidates(sl){
+  return CRAFT_TYPES.filter(t => useOf(t).includes(sl.tag) && have(t) > 0);
+}
+function renderGearInsp(){
+  const sl = SLOTS.find(x => x.key === slotPick);
+  if (!sl){
+    inspEl.innerHTML = '<div class="empty">장비 칸을 탭하면 바꿀 수 있어요.<br><br>정비 화면 — 기사의 무기 · 갑옷 · 방패.</div>';
+    return;
+  }
+  const now = equipped(sl.key), list = gearCandidates(sl);
+  let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
+    + `<div><div class="nm">${sl.name}</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
+  h += '<div class="sub">가진 것</div>';
+  if (!list.length) h += '<div class="row i-muted">아직 없음.</div>';
+  for (const t of list){
+    const on = now === t, st = DEFS[t][sl.stat] || 0;
+    h += `<div class="row gpick${on ? ' on' : ''}" data-equip="${t}">${iconHtml(t, true)} ${esc(DEFS[t].name)}`
+      + ` <span class="i-muted">${statImg(sl.stat)} ${st} · 보유 ${have(t)}</span>${on ? ' <b>장착 중</b>' : ''}</div>`;
+  }
+  if (now) h += '<div class="row gpick" data-equip="">빼기</div>';
+  inspEl.innerHTML = h;
+}
+gearupEl.addEventListener('click', e => {
+  if (paused) return;
+  const box = e.target.closest('[data-slot]');
+  if (!box) return;
+  slotPick = box.dataset.slot;
+  renderGearup(); renderInsp();
+});
+inspEl.addEventListener('click', e => {                           // 인스펙터에서 장착 · 빼기
+  const row = e.target.closest('[data-equip]');
+  if (!row || S.tab !== 'gearup' || !slotPick) return;
+  const t = row.dataset.equip;
+  S.equip[slotPick] = t || null;
+  renderGearup(); renderInsp(); save();
+});
+
 // ── 설비 화면 (v0.21.0) ─────────────────────────────
 // 만든 설비와 아직 안 만든 설비가 함께 보임. 아직 안 만든 것은 자물쇠 없이 흐리게 (조합식은 안 알려 줌)
 const facilityEl = document.getElementById('facility');
@@ -1260,7 +1353,8 @@ function renderGather(){
   if (S.tab !== 'battle') return;
   const k = S.knight;
   gatherEl.innerHTML = '<div class="knight-row">'
-    + `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>`
+    + `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div>`
+    + `<div class="gearline">${SLOTS.map(sl => { const t = equipped(sl.key); return `<span class="gslot${t ? '' : ' empty'}">${t ? iconHtml(t, true) : ''}</span>`; }).join('')}</div></div>`   // v0.23.0: 장비 칸 (없으면 빈칸)
     + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
     + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span>`
     + `<span class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></span></div></div>`
@@ -1334,10 +1428,11 @@ function setTab(tab){
   if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
   S.tab = tab;
   renderTabs();
-  table.hidden = tab === 'battle' || tab === 'facility';          // v0.21.0: 설비는 고정 목록 화면
+  table.hidden = tab === 'battle' || tab === 'facility' || tab === 'gearup';   // v0.21.0: 설비 · v0.23.0: 정비는 고정 화면
   gatherEl.hidden = tab !== 'battle';
   facilityEl.hidden = tab !== 'facility';
-  renderFacility();
+  gearupEl.hidden = tab !== 'gearup';
+  renderFacility(); renderGearup();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   renderGather(); renderInsp(); save();
 }
@@ -1383,9 +1478,15 @@ const ENEMIES = {
     loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 20, 1], ['fang', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
-const bestOf = key => Math.max(0, ...CRAFT_TYPES.filter(t => DEFS[t][key] && have(t) > 0).map(t => DEFS[t][key]));
-const knightAtk = () => KNIGHT.atk + bestOf('atk');
-const knightDef = () => KNIGHT.def + bestOf('def');
+// v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
+const equipped = key => { const t = (S.equip || {})[key]; return t && have(t) > 0 ? t : null; };
+const gearStat = key => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => {
+  const t = equipped(sl.key);
+  return sum + (t ? (DEFS[t][key] || 0) : 0);
+}, 0);
+const bestOf = key => gearStat(key);                              // 옛 이름 (인스펙터에서 씀)
+const knightAtk = () => KNIGHT.atk + gearStat('atk');
+const knightDef = () => KNIGHT.def + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
