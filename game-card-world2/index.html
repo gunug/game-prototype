@@ -219,6 +219,8 @@
   .insp .desc{color:var(--muted);font-style:italic;margin:2px 0 8px;}
   .insp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
   .insp .chip{font-size:11px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--ink);}
+  .insp .chip.use{border-color:rgba(255,212,0,.45);color:#ffe08a;}   /* v0.19.0: 용도 태그 */
+  .insp .chip .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
   .insp .sub{font-size:11px;font-weight:800;color:var(--brand-yellow);margin:8px 0 4px;letter-spacing:.02em;}
   .insp .row{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
   .insp .i-muted{color:var(--muted);}
@@ -387,6 +389,25 @@ const DEFS = {
   fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
   roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
 };
+// 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
+const USES = ['무기용', '방어구용', '약품용', '요리용', '건축용', '도구용'];
+const USE = {
+  // 1티어
+  stone:['무기용', '건축용'], flint:['무기용', '요리용'], coal:['요리용'], spring:['약품용', '요리용'],
+  tree:['무기용', '건축용'], berry:['요리용'], sap:['약품용', '건축용'], herb:['약품용'],
+  water:['요리용', '건축용'], soil:['건축용'], sand:['건축용', '도구용'], fish:['요리용'],
+  grass:['건축용', '도구용'], beast:['요리용', '방어구용'], seed:['요리용'], honeycomb:['요리용', '약품용'],
+  // 2티어
+  blade:['무기용', '도구용'], whetstone:['도구용', '무기용'], ember:['요리용'], firewood:['무기용', '건축용'],
+  clay:['건축용'], cord:['건축용', '도구용'], wax:['건축용', '약품용'], copperore:['무기용', '건축용'],
+  meat:['요리용'], fillet:['요리용'], honey:['요리용', '약품용'], flour:['요리용'],
+  hide:['방어구용', '도구용'], toughhide:['방어구용'], smalltooth:['무기용', '도구용'], fang:['무기용'],
+  bone:['무기용', '약품용'], juice:['요리용', '약품용'], salve:['약품용'],
+  // 3티어
+  toothdagger:['무기용'], fangspear:['무기용'], leatherarmor:['방어구용'], pouch:['도구용'],
+  fishhook:['도구용'], roastmeat:['요리용'],
+};
+const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
   stone: '어디에나 있다. 그래서 아무도 고마워하지 않는다.',
@@ -506,7 +527,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.18.3';
+const VERSION = 'v0.19.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -899,10 +920,10 @@ function renderInsp(){
   }
   let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 보유 ${have(t)}</div></div></div>`;
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
-  const tags = (d.tags || []).slice();
-  if (d.atk) tags.push(`공격력 ${d.atk}`);
-  if (d.def) tags.push(`방어 ${d.def}`);
-  if (tags.length) h += '<div class="chips">' + tags.map(x => `<span class="chip">${esc(x)}</span>`).join('') + '</div>';
+  const chips = useOf(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그
+  if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
+  if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
+  if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // 쓰이는 조합 — 이 카드가 들어가는 쪽의 반대편 + 결과
   const uses = [];
   for (const r of CRAFT_RECIPES){
@@ -952,8 +973,9 @@ function detailHtml(){
   if (!bookPick) return '<span class="i-muted">슬리브를 탭하면 카드 정보가 나와요.</span>';
   const t = bookPick, d = DEFS[t];
   const where = `${d.tier}티어 · ${fieldText(t)}`;
+  const use = useOf(t).length ? ` <span class="i-muted">· ${useOf(t).join(' · ')}</span>` : '';   // v0.19.0: 용도 태그
   return shownOpen(t)
-    ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span><br>${esc(DESC[t] || '')}`
+    ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
     : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
 }
 function renderBook(){
