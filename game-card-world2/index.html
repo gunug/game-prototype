@@ -154,6 +154,13 @@
   /* v0.9.0: 새 카드 표시 — 카드 왼쪽 위 NEW, 콜렉터북 버튼에 새 카드 수 */
   .cw .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
     display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
+  /* v0.45.0: 아직 해 본 적 없는 조합 상대 — 끄는 동안 '새로운 발견!' */
+  .cw.new-combo{border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.55),var(--sh-md);}
+  .cw .find-b{position:absolute;left:50%;bottom:calc(100% + 4px);transform:translateX(-50%);z-index:6;white-space:nowrap;
+    padding:2px 7px;border-radius:999px;background:var(--brand-yellow);color:var(--on-brand);
+    font-size:calc(var(--cf) * .1);font-weight:900;line-height:1.2;box-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;
+    animation:findPop .32s cubic-bezier(.2,1.4,.4,1);}
+  @keyframes findPop{from{opacity:0;transform:translate(-50%,6px) scale(.8);}to{opacity:1;transform:translateX(-50%) scale(1);}}
   .nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;box-sizing:border-box;border-radius:999px;
     background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
   .nbadge[hidden]{display:none;}
@@ -686,7 +693,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.44.0';
+const VERSION = 'v0.45.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -844,6 +851,7 @@ function load(){
     const eq = {};                                                // v0.23.0: 장착한 장비
     for (const sl of SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
     s.equip = eq;
+    s.madeRecipes = Array.isArray(s.madeRecipes) ? s.madeRecipes.filter(id => RECIPES.some(r => r.id === id)) : [];   // v0.45.0
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
     if (!s.boards.includes('tool')) s.boards.unshift('tool');
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
@@ -1107,6 +1115,8 @@ function craft(drag, tgt, m){
   const outs = r.cook ? [DEFS[b.type].cooked] : r.out.slice();
   const eaten = [a, b];                                          // v0.9.0: 두 재료 모두 한 장씩 줄어듦 (남는 쪽 없음)
   const from = { x: tgt.x, y: tgt.y };
+  S.madeRecipes = S.madeRecipes || [];                            // v0.45.0: 해 본 조합 기록
+  if (!S.madeRecipes.includes(r.id)) S.madeRecipes.push(r.id);
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
   if (byId(tgt.id) && els.get(tgt.id)) flash(els.get(tgt.id), 'bump', 300);
@@ -1183,7 +1193,16 @@ table.addEventListener('pointermove', e => {
     fieldEl.classList.add('dragging');
     fieldEl.appendChild(drag.el);
     S.cards = S.cards.filter(c => c !== drag.c).concat(drag.c);
-    for (const o of S.cards) if (o !== drag.c && !craftMatch(drag.c.type, o.type)) els.get(o.id)?.classList.add('dim');   // v0.1.1: 안 되면 흐려짐. v0.2.0: 되는 카드는 하이라이트 없음
+    for (const o of S.cards){
+      if (o === drag.c) continue;
+      const m = craftMatch(drag.c.type, o.type);
+      const el = els.get(o.id);
+      if (!el) continue;
+      if (!m){ el.classList.add('dim'); continue; }                // v0.1.1: 안 되면 흐려짐
+      if ((S.madeRecipes || []).includes(m.r.id)) continue;        // v0.45.0: 해 본 적 없는 조합이면 알려 줌
+      el.classList.add('new-combo');
+      el.insertAdjacentHTML('beforeend', '<div class="find-b">새로운 발견!</div>');
+    }
   }
   drag.c.x = drag.ox + dx; drag.c.y = drag.oy + dy;               // v0.28.0: 끄는 동안엔 필드 밖도 허용
   drag.el.style.left = (drag.c.x + drag.off.x) + 'px';            // v0.28.1: 필드 기준 좌표
@@ -1196,7 +1215,10 @@ function endDrag(e){
   d.el.classList.remove('dragging');
   fieldEl.classList.remove('dragging');
   if (d.el.parentElement === fieldEl){ table.appendChild(d.el); place(d.el, d.c); }   // v0.28.1: 카드 자리로 되돌림
-  for (const el of els.values()) el.classList.remove('dim');
+  for (const el of els.values()){
+    el.classList.remove('dim', 'new-combo');
+    el.querySelector('.find-b')?.remove();                         // v0.45.0
+  }
   if (!d.moved){ select(d.c.id); return; }
   // v0.28.0: 필드 밖(위 줄 목록 등)에 놓으면 제자리로 돌아감
   const tr = table.getBoundingClientRect();
