@@ -487,7 +487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.15.1';
+const VERSION = 'v0.15.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1133,12 +1133,13 @@ gatherEl.addEventListener('click', e => {
 //   도중에 재료를 줍고(크래프팅 탭으로 날아감), 고블린과 싸우고, 끝에는 보스 (보스는 아직 디자인 전)
 // 기사는 공 1 · 방 0 · 체 10. 체력이 0이 되면 빈사로 돌아오고, 쉬는 동안 회복된다
 // v0.14.0: 고블린 대신 토끼, 보스는 곰 (레거시 world 수치 그대로 — 토끼 체2 공1, 곰 체10 공3)
-// loot: [카드, 나올 확률, 장수] — v0.15.0: 확률 드롭. 송곳니는 보스를 여러 번 잡게 하는 목적(약 10번에 1번)
+// loot: [카드, 확률(%), 장수] — v0.15.2: 한 마리에서 **반드시 하나**가 나옴. 확률을 합치면 100
+//   송곳니 10% = 보스를 열 번쯤 잡으면 한 번 (보스를 반복해서 잡게 하는 목적)
 const ENEMIES = {
   animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2,
-    loot: [['meat', 0.6, 1], ['hide', 0.4, 1], ['smalltooth', 0.25, 1]] },
+    loot: [['meat', 50, 1], ['hide', 30, 1], ['smalltooth', 20, 1]] },
   bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10,
-    loot: [['meat', 0.8, 2], ['toughhide', 0.5, 1], ['smalltooth', 0.2, 1], ['fang', 0.1, 1]] },
+    loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 20, 1], ['fang', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 const bestOf = key => Math.max(0, ...CRAFT_TYPES.filter(t => DEFS[t][key] && have(t) > 0).map(t => DEFS[t][key]));
@@ -1271,15 +1272,11 @@ function expEnd(kind){
 function dropLoot(def, foeIdx){
   const from = tokOf(foeIdx) || document.querySelector('#exp .tok.knight');
   const r = from ? from.getBoundingClientRect() : gatherEl.getBoundingClientRect();
-  const got = [];
-  for (const [t, chance, n] of (def.loot || [])){
-    if (Math.random() >= chance) continue;
-    for (let i = 0; i < n; i++) got.push(t);
-  }
-  if (!got.length){
-    exp.line = `${def.name}에게서 건진 게 없다`;
-    return;
-  }
+  const table = def.loot || [];
+  if (!table.length) return;
+  let roll = Math.random() * table.reduce((sum, l) => sum + l[1], 0);   // v0.15.2: 확률대로 하나를 뽑음 (빈손 없음)
+  const hit = table.find(l => (roll -= l[1]) < 0) || table[0];
+  const got = Array.from({ length: hit[2] }, () => hit[0]);
   exp.line = `${def.name} — ${got.map(t => DEFS[t].name).join(' · ')}`;
   got.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 260));   // 여러 장이면 차례로
 }
