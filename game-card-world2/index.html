@@ -252,8 +252,8 @@
   /* v0.1.1: 끌기 시작하면 조합 안 되는 카드는 흐려짐 (레거시 '흐려짐' = 어둡고 저채도) */
   .cw{transition:filter .2s;}
   .cw.dim{filter:brightness(.42) saturate(.3);}
-  .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);pointer-events:none;z-index:6;}   /* v0.28.0: 위 줄 목록보다 위로 */
-  .table.dragging{overflow:visible;}                               /* 끌 때만 필드 밖으로 나갈 수 있음 */
+  .cw.dragging{cursor:grabbing;box-shadow:var(--sh-lg);pointer-events:none;z-index:9;}   /* v0.28.1: 끄는 카드는 필드 전체에서 맨 위 */
+  .field.dragging .toplist{pointer-events:none;}                   /* 끌 때 줄 목록이 포인터를 가로채지 않게 */
   /* v0.2.0: 조합되는 카드의 노란 테두리·번쩍임 없앰 — 흐려지지 않은 것만으로 구분 */
   .cw.spawn{animation:spawn .32s ease-out;}
   .cw.pop{animation:pop .5s cubic-bezier(.2,1.3,.4,1);}
@@ -629,7 +629,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.28.0';
+const VERSION = 'v0.28.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -642,6 +642,7 @@ const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.som
 const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}` : ''; };
 
 const table = document.getElementById('table');
+const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
 let CW = 70, CH = 95;
 // v0.17.0: 필드 고갈 없앰 — 몇 번이든 원정을 보낼 수 있음 (잠금만 남음)
@@ -1044,13 +1045,17 @@ table.addEventListener('pointermove', e => {
     if (Math.hypot(dx, dy) < 6) return;
     drag.moved = true;
     drag.el.classList.add('dragging');
-    table.classList.add('dragging');                              // v0.28.0: 위 절반으로 끌어 올릴 수 있게
-    table.appendChild(drag.el);                                   // 맨 위로
+    // v0.28.1: 끄는 동안엔 카드를 필드(1:1 전체)로 옮겨 붙임 — 아래 절반 밖으로 나가도 안 잘리고 줄 목록 위에 보임
+    const fr = fieldEl.getBoundingClientRect(), tr0 = table.getBoundingClientRect();
+    drag.off = { x: tr0.left - fr.left, y: tr0.top - fr.top };
+    fieldEl.classList.add('dragging');
+    fieldEl.appendChild(drag.el);
     S.cards = S.cards.filter(c => c !== drag.c).concat(drag.c);
     for (const o of S.cards) if (o !== drag.c && !craftMatch(drag.c.type, o.type)) els.get(o.id)?.classList.add('dim');   // v0.1.1: 안 되면 흐려짐. v0.2.0: 되는 카드는 하이라이트 없음
   }
   drag.c.x = drag.ox + dx; drag.c.y = drag.oy + dy;               // v0.28.0: 끄는 동안엔 필드 밖도 허용
-  place(drag.el, drag.c);
+  drag.el.style.left = (drag.c.x + drag.off.x) + 'px';            // v0.28.1: 필드 기준 좌표
+  drag.el.style.top = (drag.c.y + drag.off.y) + 'px';
   if (S.tab === 'gearup'){                                        // v0.25.0: 넣을 수 있는 칸을 노랗게
     const sl = slotAt(e.clientX, e.clientY, drag.c.type);
     for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.toggle('hot', !!sl && box.dataset.slot === sl.key);
@@ -1061,7 +1066,8 @@ function endDrag(e){
   const d = drag;
   drag = null;
   d.el.classList.remove('dragging');
-  table.classList.remove('dragging');
+  fieldEl.classList.remove('dragging');
+  if (d.el.parentElement === fieldEl){ table.appendChild(d.el); place(d.el, d.c); }   // v0.28.1: 카드 자리로 되돌림
   for (const el of els.values()) el.classList.remove('dim');
   for (const box of slotBar.querySelectorAll('[data-slot]')) box.classList.remove('hot');
   if (!d.moved){ select(d.c.id); return; }
