@@ -568,18 +568,19 @@ const DEFS = {
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
-const USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '설비'];
+const USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '연료', '설비'];   // v0.49.0: 연료
 const USE = {
   // 1티어
-  stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료'],   // v0.46.1: 도구 화면에서 불씨를 만들 수 있게 spring:['약품재료', '요리재료'],
-  tree:['무기재료', '건축재료', '생산재료', '도구재료'],   // v0.20.0: 산에서도 나옴 berry:['요리재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],
+  stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료', '연료'],   // v0.46.1: 도구 화면에서 불씨를 만들 수 있게 spring:['약품재료', '요리재료'],
+  tree:['무기재료', '건축재료', '생산재료', '도구재료', '연료'],   // v0.20.0: 산에서도 나옴
+  berry:['요리재료'], sap:['약품재료', '건축재료', '연료'], herb:['약품재료'],   // v0.49.0: 줄 끝 주석에 묻혀 태그가 없던 것 되살림
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
-  grass:['건축재료', '도구재료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
+  grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
   blade:['도구', '도구재료'], whetstone:['도구'],                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
-  firewood:['무기재료', '건축재료', '생산재료', '도구재료'],          // v0.34.1: 모닥불 재료
-  clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
+  firewood:['무기재료', '건축재료', '생산재료', '도구재료', '연료'],          // v0.34.1: 모닥불 재료
+  clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료', '연료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료', '연료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
@@ -677,7 +678,7 @@ const RECIPES = [
   // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
   { id:'plank',        a:{ card:'tree' },       b:{ card:'blade' },    out:['plank'] },
   { id:'workbench',    a:{ card:'plank' },      b:{ card:'blade' },    out:['workbench'] },
-  { id:'campfire',     a:{ card:'ember' },      b:{ card:'firewood' }, out:['campfire'] },   // v0.23.0: 모닥불
+  { id:'campfire',     a:{ card:'ember' },      b:{ use:'연료' },      out:['campfire'] },   // v0.23.0: 모닥불. v0.49.0: 연료 아무거나
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -690,9 +691,12 @@ function tagLevel(def, name){
   }
   return lv;
 }
+// v0.49.0: { use:'연료' } — 그 용도 태그가 붙은 카드면 무엇이든
 const sideMatch = (side, type) => side.card ? side.card === type
+  : side.use ? useOf(type).includes(side.use)
   : side.atk ? (DEFS[type].atk || 0) >= side.atk
   : tagLevel(DEFS[type], side.tag) >= (side.lv || 1);
+const sideCards = side => side.card ? [side.card] : side.use ? CRAFT_TYPES.filter(t => useOf(t).includes(side.use)) : [];
 function recipesFor(x, y){
   const out = [];
   for (const r of RECIPES){
@@ -705,7 +709,8 @@ const usableRecipes = (x, y) => recipesFor(x, y);
 // v0.21.5: 인스펙터에 나오는 카드에는 보유 수량을 함께
 // v0.23.1: 인스펙터에 카드가 나오면 늘 보유 수량을 함께. 가려진 카드(???)는 보유도 ??
 const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
-const sideText = sd => sd.card ? (S.seen.includes(sd.card) ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `${ic(sd.card)} ??? ×??`) : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+const sideText = sd => sd.card ? (S.seen.includes(sd.card) ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `${ic(sd.card)} ??? ×??`)
+  : sd.use ? `🏷️ ${sd.use} 아무거나` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;   // v0.49.0
 function outText(r){
   const counts = new Map();
   for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
@@ -717,7 +722,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.48.0';
+const VERSION = 'v0.49.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1387,12 +1392,14 @@ const comboDone = r => (S.madeRecipes || []).includes(r.id);
 function comboRowHtml(r){
   const on = comboDone(r);
   const cardMini = t => `<span class="combo-card${on ? '' : ' locked'}">${iconHtml(t, true)}${on ? ' ' + esc(DEFS[t].name) : ' ???'}</span>`;
+  const sideMini = sd => sd.card ? cardMini(sd.card)              // v0.49.0: 태그 쪽은 '🏷️ 연료'
+    : `<span class="combo-card tagside${on ? '' : ' locked'}">🏷️ ${esc(sd.use || sd.tag || '')}</span>`;
   const outs = r.cook ? [] : (r.out || []);
-  return `<div class="combo-row${on ? '' : ' locked'}">${cardMini(r.a.card)}<span class="combo-op">+</span>${cardMini(r.b.card)}`
+  return `<div class="combo-row${on ? '' : ' locked'}">${sideMini(r.a)}<span class="combo-op">+</span>${sideMini(r.b)}`
     + `<span class="combo-op">→</span>${outs.map(cardMini).join('')}</div>`;
 }
 function renderCombos(){
-  const list = CRAFT_RECIPES.filter(r => r.a.card && r.b.card);
+  const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use));
   const done = list.filter(comboDone).length;
   let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}</div>`;
   h += list.map(comboRowHtml).join('') + '</div>';
@@ -1824,7 +1831,7 @@ function rcpTree(t, depth = 0, seen = new Set()){
   const r = CRAFT_RECIPES.find(x => (x.out || []).includes(t));
   if (!r || seen.has(t) || depth > 5) return '';
   seen.add(t);
-  const sides = [r.a, r.b].map(sd => sd.card).filter(Boolean);
+  const sides = [r.a, r.b].flatMap(sd => sd.card ? [sd.card] : sideCards(sd).slice(0, 1));   // v0.49.0: 태그 쪽은 대표 한 장
   let h = '';
   for (const m of sides){
     h += `<div class="rcp" style="padding-left:${depth * 14}px">`
