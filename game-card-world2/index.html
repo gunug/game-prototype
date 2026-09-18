@@ -249,6 +249,7 @@
   .rcp{display:flex;align-items:center;gap:4px;padding:2px 0;font-size:12px;color:var(--muted);}
   .rcp .icon{filter:brightness(0) opacity(.5);}
   .rcp .nm{color:var(--muted);}
+  .rcp .hv{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums;}
   .rcp .plus{opacity:.5;}
 
   /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
@@ -556,7 +557,8 @@ function recipesFor(x, y){
   return out;
 }
 const usableRecipes = (x, y) => recipesFor(x, y);
-const sideText = sd => sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
+// v0.21.5: 인스펙터에 나오는 카드에는 보유 수량을 함께
+const sideText = sd => sd.card ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;
 function outText(r){
   const counts = new Map();
   for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
@@ -568,7 +570,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.21.4';
+const VERSION = 'v0.21.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1039,7 +1041,7 @@ function renderInsp(){
     h += '<div class="sub">만드는 법</div>' + makes.map(r => {
       if (r.cook){
         const raw = CRAFT_TYPES.find(x => DEFS[x].cooked === t);
-        return `<div class="row">${rich(sideText(r.a))} + ${rich(`${ic(raw)} ${DEFS[raw].name}`)}</div>`;
+        return `<div class="row">${rich(sideText(r.a))} + ${rich(`${ic(raw)} ${DEFS[raw].name} ×${have(raw)}`)}</div>`;
       }
       return `<div class="row">${rich(sideText(r.a))} + ${rich(sideText(r.b))}</div>`;
     }).join('');
@@ -1236,10 +1238,9 @@ function rcpTree(t, depth = 0, seen = new Set()){
   const sides = [r.a, r.b].map(sd => sd.card).filter(Boolean);
   let h = '';
   for (const m of sides){
-    const known = S.seen.includes(m);
     h += `<div class="rcp" style="padding-left:${depth * 14}px">`
       + `<span class="plus">${depth ? '└' : '+'}</span>${iconHtml(m, true)}`
-      + `<span class="nm">${known ? esc(DEFS[m].name) : '???'}</span></div>`
+      + `<span class="nm">???</span><span class="hv">보유 ${have(m)}</span></div>`
       + rcpTree(m, depth + 1, seen);
   }
   return h;
