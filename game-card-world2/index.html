@@ -14,7 +14,7 @@
   [hidden]{display:none!important;}
   /* v0.16.0 화면 구조 (확정 50): 필드 1:1 · UI는 남는 공간 · 팝업은 1:1 레이어.
      크기는 JS layout() 이 잼 — --fs 필드 한 변, --ps 팝업 한 변 */
-  :root{--fs:320px;--ps:320px;}
+  :root{--fs:320px;}
   .field{position:fixed;overflow:hidden;background:#0f0f0a;box-shadow:0 0 0 1px var(--hairline);}
   .ui{position:fixed;z-index:2147482900;display:flex;flex-direction:column;box-sizing:border-box;background:rgba(20,20,16,.96);}
   .ui.side{border-left:1px solid var(--hairline);}
@@ -211,8 +211,8 @@
   /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
   .book-back.open{opacity:1;pointer-events:auto;}
-  /* v0.16.0: 가로세로와 상관없이 1:1 — 화면 한가운데에 레이어로 덮임 */
-  .book{position:fixed;width:var(--ps);height:var(--ps);left:calc(50% - var(--ps) / 2);top:calc(50% - var(--ps) / 2);
+  /* v0.17.1: 팝업은 화면 안에서 가능한 크게 — 가로·세로 비율은 화면 따라 자유롭게 */
+  .book{position:fixed;left:max(12px, 2.5vw);right:max(12px, 2.5vw);top:max(12px, 2.5vh);bottom:max(12px, 2.5vh);
     z-index:2147483210;display:flex;flex-direction:column;box-sizing:border-box;
     background:linear-gradient(180deg,#2a2419,#1b1812);border:1px solid var(--hairline);border-radius:18px;box-shadow:0 10px 50px rgba(0,0,0,.65);
     transform:scale(.88);opacity:0;pointer-events:none;transition:transform .28s cubic-bezier(.2,.85,.25,1),opacity .28s;}
@@ -485,7 +485,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.17.0';
+const VERSION = 'v0.17.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -571,7 +571,6 @@ function layout(){
     { left: fr.left + 'px', width: FS + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
   const root = document.documentElement.style;
   root.setProperty('--fs', FS + 'px');
-  root.setProperty('--ps', Math.round(Math.min(W, H) * 0.92) + 'px');   // 팝업도 1:1
 }
 function measure(){
   layout();
