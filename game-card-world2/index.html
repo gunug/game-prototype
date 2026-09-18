@@ -129,8 +129,12 @@
   @keyframes numBump{0%{transform:scale(1);}35%{transform:scale(1.4);}100%{transform:scale(1);}}
   /* v0.9.0: 퀘스트 줄 — 상단 막대 바로 아래 */
   /* v0.16.1: 퀘스트 — 여러 개, 없으면 자리도 차지하지 않음 (hidden) */
-  .quest{flex:0 1 auto;min-height:0;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;padding:6px 12px;overflow-y:auto;max-height:40%;
-    background:rgba(34,31,20,.96);border-bottom:1px solid var(--hairline);font-size:13px;}
+  /* v0.41.1: 퀘스트 줄이 접혔다 펴지며 여닫힘 (없을 땐 높이 0) */
+  .quest{flex:0 1 auto;min-height:0;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;
+    max-height:0;opacity:0;padding:0 12px;border-bottom:0 solid var(--hairline);overflow:hidden;
+    background:rgba(34,31,20,.96);font-size:13px;
+    transition:max-height .34s cubic-bezier(.2,.85,.25,1),opacity .26s,padding .34s,border-bottom-width .34s;}
+  .quest.show{max-height:40%;opacity:1;padding:6px 12px;border-bottom-width:1px;overflow-y:auto;}
   .q-row{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:26px;}
   .quest .q-tag{color:var(--brand-yellow);font-weight:800;flex:none;}
   .quest .q-name{flex:none;}
@@ -681,7 +685,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.41.0';
+const VERSION = 'v0.41.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2138,11 +2142,18 @@ function healTick(dt){
 
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
 // v0.16.1: 퀘스트가 없으면 줄 자체를 숨겨 자리를 차지하지 않음. 여러 개면 한 줄씩 쌓이고, 많으면 UI 높이의 40%까지만 쓰고 스크롤
+let questClear = 0;                                               // v0.41.1: 다 접힌 뒤에 내용을 비움
 function renderQuest(){
   const el = document.getElementById('quest');
   const list = S.quests || [];
-  el.hidden = !list.length;
-  if (!list.length){ el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.classList.toggle('show', list.length > 0);
+  if (!list.length){
+    clearTimeout(questClear);
+    questClear = setTimeout(() => { if (!(S.quests || []).length) el.innerHTML = ''; }, 360);
+    return;
+  }
+  clearTimeout(questClear);
   el.innerHTML = list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
