@@ -289,8 +289,6 @@
   <div class="quest" id="quest"></div>
   <div class="insp" id="insp"></div>
   <div class="uibar" id="tabs">
-    <button class="tabbtn" data-tab="gather">🧺 채집</button>
-    <button class="tabbtn" data-tab="craft">🔨 크래프팅</button>
     <button class="tabbtn" id="bookBtn">📖<span class="nbadge" id="bookBadge" hidden></span></button>
     <button class="tabbtn" id="setBtn">⚙</button>
     <div class="setpan" id="setpan" hidden>
@@ -321,6 +319,15 @@ const FIELDS = [                                                  // v0.9.1: 순
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
 const fieldIcon = f => `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
+// v0.20.0: 필드에서 나오는 재료는 따로 적음 (카드의 소속 필드 = 콜렉터북 묶음과 별개).
+//   산은 샘물 대신 나무가 나옴 — 샘물은 카드로 남지만 지금은 나오는 곳이 없음
+const FIELD_YIELDS = {
+  mountain:  ['stone', 'flint', 'coal', 'tree'],
+  grassland: ['grass', 'beast', 'seed', 'honeycomb'],
+  forest:    ['tree', 'berry', 'sap', 'herb'],
+  river:     ['water', 'soil', 'sand', 'fish'],
+};
+const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
 // 2티어 묶음 (v0.5.0) — 2티어는 필드가 없어 쓰임별로 콜렉터북에 묶음
 const GROUPS = [
   { id:'tool',  name:'도구 · 불',  emoji:'🛠️' },
@@ -365,6 +372,7 @@ const DEFS = {
   // 🧱 건축 재료
   clay:      { name:'점토',       kind:'material', tier:2, group:'build', emoji:'🟤' },
   cord:      { name:'섬유끈',     kind:'material', tier:2, group:'build', emoji:'🧶' },
+  plank:     { name:'나무판자',   kind:'material', tier:2, group:'tool',  emoji:'🪧' },   // v0.20.0: 도구재료
   wax:       { name:'밀랍',       kind:'material', tier:2, group:'build', emoji:'🕯️' },
   copperore: { name:'구리 원석',  kind:'material', tier:2, group:'build', emoji:'🪙' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
   // 🍖 음식
@@ -388,25 +396,26 @@ const DEFS = {
   pouch:     { name:'가죽 주머니', kind:'material', tier:3, group:'gear',  emoji:'🎒' },
   fishhook:  { name:'낚싯바늘',    kind:'material', tier:3, group:'gear',  emoji:'🪝' },
   roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food',  emoji:'🍗' },
+  workbench: { name:'작업대',      kind:'material', tier:3, group:'gear',  emoji:'🛠️' },   // v0.20.0: 만들면 무기 화면이 열림
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 const USES = ['무기재료', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '생산재료'];
 const USE = {
   // 1티어
-  stone:['무기재료', '건축재료'], flint:['무기재료', '요리재료'], coal:['요리재료', '생산재료'], spring:['약품재료', '요리재료'],
-  tree:['무기재료', '건축재료', '생산재료'], berry:['요리재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],
+  stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료'], spring:['약품재료', '요리재료'],
+  tree:['무기재료', '건축재료', '생산재료', '도구재료'],   // v0.20.0: 산에서도 나옴 berry:['요리재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
   blade:['무기재료', '도구재료'], whetstone:['도구재료', '무기재료'], ember:['요리재료', '생산재료'], firewood:['무기재료', '건축재료', '생산재료'],
-  clay:['건축재료', '생산재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
+  clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
   toothdagger:['무기재료'], fangspear:['무기재료'], leatherarmor:['방어구재료'], pouch:['도구재료'],
-  fishhook:['도구재료', '생산재료'], roastmeat:['요리재료'],
+  fishhook:['도구재료', '생산재료'], roastmeat:['요리재료'], workbench:['도구재료', '생산재료'],
 };
 const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
@@ -434,6 +443,8 @@ const DESC = {
   firewood:  '나무였을 땐 그늘이었고, 이제는 온기가 될 차례.',
   clay:      '물과 흙이 손잡았다. 모양은 네가 정해라.',
   cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
+  plank:     '나무를 쪼개 판판하게 골랐다. 이제 뭘 올려도 흔들리지 않는다.',
+  workbench: '올려놓고 두드릴 자리가 생겼다. 손이 하던 일을 판이 거든다.',
   wax:       '벌들이 공들여 지은 집의 벽. 미안하게 됐다.',
   copperore: '광석 더미에서 구릿빛 덩이만 골라냈다. 녹이는 건 다음 일.',
   meat:      '아직은 짐승이었던 기억이 남아 있다.',
@@ -492,6 +503,9 @@ const RECIPES = [
   { id:'pouch',        a:{ card:'hide' },       b:{ card:'cord' },     out:['pouch'] },
   { id:'fishhook',     a:{ card:'smalltooth' }, b:{ card:'cord' },     out:['fishhook'] },
   { id:'roastmeat',    a:{ card:'meat' },       b:{ card:'ember' },    out:['roastmeat'] },
+  // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
+  { id:'plank',        a:{ card:'tree' },       b:{ card:'blade' },    out:['plank'] },
+  { id:'workbench',    a:{ card:'plank' },      b:{ card:'blade' },    out:['workbench'] },
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -528,7 +542,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.19.1';
+const VERSION = 'v0.20.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -554,11 +568,23 @@ const QUESTS = {
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
+// v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
+//   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
+const BOARDS = [
+  { id:'tool',   name:'🔨 도구', tag:'도구재료' },
+  { id:'weapon', name:'⚔️ 무기', tag:'무기재료', needs:'workbench' },
+];
+const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
+const boardTag = () => (BOARD_BY_ID[S.tab] || BOARDS[0]).tag;
+const onBoard = (type, id) => useOf(type).includes((BOARD_BY_ID[id] || BOARDS[0]).tag);
+const boardFor = type => (BOARDS.find(b => useOf(type).includes(b.tag) && boardOpen(b)) || BOARDS[0]).id;
+const boardOpen = b => !b.needs || (S.boards || []).includes(b.id);
+const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, tab: 'gather', fields: freshFields(), quests: [], lootSeen: {}, intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, boards: ['tool'], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -585,6 +611,11 @@ function load(){
     const ls = {};                                                // v0.18.2: 크리처별 전리품 기록
     for (const k in (s.lootSeen || {})) ls[k] = (s.lootSeen[k] || []).filter(t => DEFS[t]);
     s.lootSeen = ls;
+    s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : ['tool'];
+    if (!s.boards.includes('tool')) s.boards.unshift('tool');
+    s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
+    if (!BOARD_BY_ID[s.tab] && s.tab !== 'battle') s.tab = 'battle';
+    if (s.tab !== 'battle' && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
     delete s.quest;
     s.intro = 'done';
     s.knight = { hp: Math.max(0, Math.min(KNIGHT.hp, (s.knight && s.knight.hp) ?? KNIGHT.hp)) };   // v0.13.0: 기사
@@ -716,7 +747,7 @@ function flash(el, cls, ms){
 function renderAll(){
   for (const el of els.values()) el.remove();
   els.clear();
-  for (const c of S.cards){
+  for (const c of visibleCards()){                                // v0.20.0: 지금 화면(도구·무기)에 맞는 카드만
     if (!table.hidden){ const p = clampPos(c.x, c.y); c.x = p.x; c.y = p.y; }   // v0.6.0: 숨은 필드에선 당기지 않음
     mount(c);
   }
@@ -744,19 +775,32 @@ function toast(s){
 
 // ── 카드 추가 / 제거 ─────────────────────────────────
 // v0.8.0: 이미 있는 종류면 수량만 +1 (카드는 그 자리에서 톡 튐), 없으면 새 카드
+// v0.20.0: 어떤 카드를 처음 만들면 화면이 열림 (작업대 → 무기)
+function unlockBoards(){
+  for (const b of BOARDS){
+    if (!b.needs || (S.boards || []).includes(b.id)) continue;
+    if (have(b.needs) <= 0) continue;
+    S.boards.push(b.id);
+    renderTabs();
+    toast(`🔓 ${b.name} 화면이 열렸다 — ${DEFS[b.needs].name}`);
+    save();
+  }
+}
 function addCard(type, x, y, anim, from, made){
   let c = cardOf(type);
   if (c){
     c.n++;
     setCount(c);
-    if (anim) flash(els.get(c.id), 'bump', 300);
+    const el = els.get(c.id);
+    if (anim && el) flash(el, 'bump', 300);
   } else {
     const p = findSpot(x, y);
     c = { id: S.nextId++, type, x: p.x, y: p.y, n: 1 };
     S.cards.push(c);
-    mount(c, anim, from);
+    if (onBoard(type, S.tab)) mount(c, anim, from);                // v0.20.0: 다른 화면 카드면 상태만 만들어 둠
   }
   discover(type);
+  unlockBoards();                                                 // v0.20.0: 작업대를 만들면 무기 화면이 열림
   return c;
 }
 function removeCard(id){
@@ -807,7 +851,7 @@ const PUSH_RATE = 0.3;                                           // 한 프레�
 let pushSaveTimer = 0;
 function pushStep(){
   if (paused || table.hidden){ requestAnimationFrame(pushStep); return; }   // v0.6.0: 크래프팅 탭이 숨으면 필드 크기가 0이라 멈춤        // v0.4.0: 콜렉터북에 끼우는 동안 멈춤
-  const list = S.cards.filter(c => !(drag && drag.moved && drag.c === c));
+  const list = visibleCards().filter(c => !(drag && drag.moved && drag.c === c));
   const sx = CW + PUSH_GAP, sy = CH + PUSH_GAP;
   const move = new Map();
   const add = (c, x, y) => { const m = move.get(c) || { x: 0, y: 0 }; m.x += x; m.y += y; move.set(c, m); };
@@ -840,8 +884,9 @@ let drag = null;
 function cardAt(px, py, skip){
   const tr = table.getBoundingClientRect();
   const x = px - tr.left, y = py - tr.top;
-  for (let i = S.cards.length - 1; i >= 0; i--){
-    const c = S.cards[i];
+  const vis = visibleCards();
+  for (let i = vis.length - 1; i >= 0; i--){
+    const c = vis[i];
     if (c.id !== skip && x >= c.x && x <= c.x + CW && y >= c.y && y <= c.y + CH) return c;
   }
   return null;
@@ -905,7 +950,7 @@ function outHtml(r, t){
   return r.out.every(o => S.seen.includes(o)) ? rich(outText(r)) : UNK;
 }
 function renderInsp(){
-  if (S.tab === 'gather') return renderFieldInsp();
+  if (S.tab === 'battle') return renderFieldInsp();
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
   if (!t){
@@ -1082,8 +1127,16 @@ function lootTypes(id){
   return out;
 }
 const lootKnown = (id, t) => foesOf(id).some(k => (S.lootSeen[k] || []).includes(t));
+function renderTabs(){                                            // v0.20.0: 잠긴 화면은 버튼도 없음
+  const wrap = document.getElementById('tabs');
+  for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
+  const html = ['<button class="tabbtn" data-tab="battle">🗡️ 전투</button>']
+    .concat(BOARDS.filter(boardOpen).map(b => `<button class="tabbtn" data-tab="${b.id}">${b.name}</button>`)).join('');
+  wrap.insertAdjacentHTML('afterbegin', html);
+  for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
+}
 function renderGather(){
-  if (S.tab !== 'gather') return;
+  if (S.tab !== 'battle') return;
   const k = S.knight;
   gatherEl.innerHTML = '<div class="knight-row">'
     + `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"><div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div><div class="name">기사</div></div>`
@@ -1092,7 +1145,7 @@ function renderGather(){
     + `<span class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></span></div></div>`
     + '<div class="exp" id="exp" hidden></div>'
     + '<div class="gather-row">' + FIELDS.map(f => {
-    const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
+    const ys = yieldsOf(f.id);
     const locked = S.fields[f.id].locked;
     return `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
       + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
@@ -1131,7 +1184,7 @@ function renderFieldInsp(){
     inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 재료가 나오는 필드 4곳.</div>';
     return;
   }
-  const ys = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === f.id);
+  const ys = yieldsOf(f.id);
   const st = S.fields[f.id];
   if (st.locked){
     inspEl.innerHTML = `<div class="head"><div class="pic locked">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드 · 🔒 잠김</div></div></div>`
@@ -1157,10 +1210,12 @@ function renderFieldInsp(){
 function setTab(tab){
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
+  if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
   S.tab = tab;
-  for (const b of document.querySelectorAll('#tabs [data-tab]')) b.classList.toggle('on', b.dataset.tab === tab);
-  table.hidden = tab !== 'craft';
-  gatherEl.hidden = tab !== 'gather';
+  renderTabs();
+  table.hidden = tab === 'battle';
+  gatherEl.hidden = tab !== 'battle';
+  renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   renderGather(); renderInsp(); save();
 }
 document.getElementById('tabs').addEventListener('click', e => {
@@ -1341,7 +1396,7 @@ function dropLoot(def, foeIdx){
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
-  const pool = CRAFT_TYPES.filter(t => DEFS[t].tier === 1 && DEFS[t].field === exp.id);
+  const pool = yieldsOf(exp.id);                                  // v0.20.0
   if (!pool.length) return;
   const t = pick(pool);
   const tok = document.querySelector('#exp .tok.knight');
@@ -1357,7 +1412,8 @@ function flyToCraft(t, r){
   document.body.appendChild(fly);
   const sx = r.left + r.width / 2 - CW / 2, sy = r.top + r.height / 2 - CH / 2;
   const ux = sx + (Math.random() - 0.5) * CW * 0.8, uy = r.top - CH * 0.75;
-  const tab = document.querySelector('#tabs [data-tab="craft"]').getBoundingClientRect();
+  const btn = document.querySelector(`#tabs [data-tab="${boardFor(t)}"]`) || document.querySelector('#tabs [data-tab]');
+  const tab = btn.getBoundingClientRect();
   const tx = tab.left + tab.width / 2 - CW / 2, ty = tab.top + tab.height / 2 - CH / 2;
   const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
   (async () => {
@@ -1376,9 +1432,9 @@ function flyToCraft(t, r){
       { transform: at(tx, ty, 0.18, 20), opacity: 0.4 },
     ], { duration: 620, easing: 'cubic-bezier(.5,0,.75,.3)', fill: 'forwards' }).finished;
     fly.remove();
-    flash(document.querySelector('#tabs [data-tab="craft"]'), 'catch', 350);
+    flash(btn, 'catch', 350);
     const { w, h } = bounds();
-    addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === 'craft' ? 'spawn' : null);
+    addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === boardFor(t) ? 'spawn' : null);
     renderMeta(); save();
   })();
 }
@@ -1448,7 +1504,7 @@ function expSwing(from, to, dmg){
 }
 // 기사 줄의 체력만 고침
 function renderKnight(){
-  if (S.tab !== 'gather') return;
+  if (S.tab !== 'battle') return;
   const k = S.knight, row = gatherEl.querySelector('.kstat');
   if (!row) return;
   row.querySelector('.khp').innerHTML = `${statImg('hp')}${k.hp}/${KNIGHT.hp}`;
@@ -1532,7 +1588,7 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
-if (!S.tab) S.tab = 'gather';
+if (!S.tab) S.tab = 'battle';
 renderAll();
 setTab(S.tab);
 requestAnimationFrame(pushStep);
