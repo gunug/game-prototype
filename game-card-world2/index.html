@@ -727,7 +727,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.53.0';
+const VERSION = 'v0.53.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1151,7 +1151,11 @@ function spawnMany(types, x, y, from, made3s){
   for (const t of types){
     const c = addCard(t, x, y, 'pop', from, made3s);
     made.push(c);
-    if (onTopGrid(t, S.tab)) flyToTop(t, c.x, c.y);                // v0.53.0: 완성품은 위 격자로 날아가 박힘
+    // v0.53.1: 완성품이 아래 재료로도 쓰이는지에 따라 연출이 다름
+    //   ① 도구이기만 한 것 → 위로 사라진 뒤 격자에 박힘 (아래엔 안 남음)
+    //   ② 도구이면서 재료이기도 한 것(뗀석기) → 아래 자리에 남고, 격자에는 박히는 연출만
+    //   ③ 재료이기만 한 것 → 그냥 제자리
+    if (onTopGrid(t, S.tab)) flyToTop(t, c.x, c.y, !onBoard(t, S.tab));
     else if (!onBoard(t, S.tab)) showAway(t, c.x, c.y);            // v0.22.1: 이 화면 카드가 아니면 잠깐 보였다 공중으로
     if (made3s){ const el = els.get(c.id); if (el){ el.classList.add('made'); clearTimeout(el._madeT); el._madeT = setTimeout(() => el.classList.remove('made'), 3000); } }   // v0.2.2   // v0.21.0: 다른 화면 카드면 el이 없음
   }
@@ -2164,31 +2168,48 @@ function expLoot(){
 }
 // v0.22.1: 지금 화면에 안 올라오는 카드가 만들어졌을 때 — 그 자리에 잠깐 떠 있다가 위로 사라짐
 // v0.53.0: 아래에서 만든 완성품(도구·무기·방어구·방패)이 위 격자 제자리로 날아가 박힘
-function flyToTop(t, fx, fy){
+function flyToTop(t, fx, fy, vanish){
   const tr = table.getBoundingClientRect();
-  const fly = document.createElement('div');
-  fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
-  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
-  fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
-  document.body.appendChild(fly);
-  renderTopGrid();                                                // 자리를 먼저 만들고 그 자리로
+  const mk = () => {
+    const el = document.createElement('div');
+    el.className = `cw framed f-${frameOf(DEFS[t])} fly`;
+    el.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+    el.style.setProperty('--cw', CW + 'px'); el.style.setProperty('--ch', CH + 'px');
+    document.body.appendChild(el);
+    return el;
+  };
+  const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
+  renderTopGrid();                                                // 격자 자리를 먼저 만들어 두고
   const slot = topGridEl.querySelector(`[data-topcard="${t}"]`);
   const sx = tr.left + fx, sy = tr.top + fy;
   const r = slot ? slot.getBoundingClientRect() : { left: sx, top: sy - CH, width: CW, height: CH };
   const ex = r.left + (r.width - CW) / 2, ey = r.top + (r.height - CH) / 2;
-  if (slot) slot.style.visibility = 'hidden';                     // 도착할 때까지 자리는 비워 둠
-  const at = (x, y, sc, rot) => `translate(${x}px, ${y}px) scale(${sc}) rotate(${rot}deg)`;
+  if (slot) slot.style.visibility = 'hidden';                     // 박힐 때까지 자리는 비워 둠
+  const land = () => {                                            // 격자 자리에 위에서 내려와 박힘
+    const el = mk();
+    el.animate([
+      { transform: at(ex, ey - CH * 0.75, .92, -3), opacity: 0 },
+      { offset: 0.35, transform: at(ex, ey - CH * 0.12, 1, 0), opacity: 1, easing: 'ease-out' },
+      { transform: at(ex, ey, 1, 0), opacity: 1 },
+    ], { duration: 420, fill: 'forwards' }).finished.then(() => {
+      el.remove();
+      renderTopGrid();
+      const gel = topGridEl.querySelector(`[data-topcard="${t}"]`);
+      if (gel) flash(gel, 'bump', 300);                            // 박히며 톡
+    });
+  };
+  if (!vanish){                                                   // ② 아래에도 남는 것 — 격자에 박히는 연출만
+    land();
+    return;
+  }
+  const fly = mk();                                               // ① 만든 자리에서 잠깐 보였다 위로 사라짐
   fly.animate([
     { offset: 0,    transform: at(sx, sy, 0.4, 0), opacity: 0 },
-    { offset: 0.2,  transform: at(sx, sy - 10, 1.1, -4), opacity: 1, easing: 'ease-out' },
-    { offset: 0.42, transform: at(sx, sy, 1, 0), opacity: 1 },      // 만든 자리에서 잠깐
-    { offset: 1,    transform: at(ex, ey, 1, 0), opacity: 1, easing: 'cubic-bezier(.3,.9,.3,1)' },
-  ], { duration: 900, fill: 'forwards' }).finished.then(() => {
-    fly.remove();
-    renderTopGrid();
-    const el = topGridEl.querySelector(`[data-topcard="${t}"]`);
-    if (el) flash(el, 'bump', 300);                                // 박히며 톡
-  });
+    { offset: 0.22, transform: at(sx, sy - 10, 1.1, -4), opacity: 1, easing: 'ease-out' },
+    { offset: 0.45, transform: at(sx, sy, 1, 0), opacity: 1 },
+    { offset: 0.7,  transform: at(sx, sy, 1, 0), opacity: 1 },
+    { offset: 1,    transform: at(sx, sy - CH * 0.9, 0.85, 0), opacity: 0, easing: 'ease-in' },
+  ], { duration: 820, fill: 'forwards' }).finished.then(() => { fly.remove(); land(); });
 }
 function showAway(t, fx, fy){
   const tr = table.getBoundingClientRect();
