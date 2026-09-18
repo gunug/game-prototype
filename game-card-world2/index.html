@@ -73,7 +73,7 @@
   /* v0.27.0: 전투 화면 — 위에 필드마다 한 줄(필드 카드 + 출전 칸 5개), 아래에 캐릭터 카드 */
   .botarea{position:absolute;left:0;right:0;top:50%;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);box-sizing:border-box;}
-  .chars{display:flex;align-items:center;gap:calc(var(--cw) * .2);}
+  .chars{position:relative;display:flex;align-items:center;gap:calc(var(--cw) * .2);}   /* v0.37.1: 대사 말풍선의 기준 */
   .chars .cw.knight{position:relative;flex:none;cursor:grab;}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
@@ -231,6 +231,11 @@
   .god-speech{position:relative;max-width:min(300px, 62vw);background:var(--ink);color:#1a1a17;font-size:13px;font-weight:600;line-height:1.35;
     padding:8px 12px;border-radius:12px;box-shadow:var(--sh-md);cursor:pointer;animation:speechIn .18s ease-out;}
   .god-speech::after{content:'';position:absolute;right:100%;top:50%;margin-top:-6px;border:6px solid transparent;border-right-color:var(--ink);}
+  /* v0.37.1: 기사 대사는 기사 머리 위 — 자리를 차지하지 않아 기사가 안 밀림 */
+  .god-speech.knight-say{position:absolute;left:50%;bottom:calc(100% + 10px);z-index:6;transform:translateX(-50%);
+    max-width:min(280px, 60vw);white-space:normal;text-align:center;animation:knightSayIn .18s ease-out;}
+  .god-speech.knight-say::after{right:auto;left:50%;top:100%;margin:0 0 0 -6px;border-color:transparent;border-top-color:var(--ink);}
+  @keyframes knightSayIn{from{opacity:0;transform:translateX(-50%) translateY(5px) scale(.96);}to{opacity:1;transform:translateX(-50%);}}
   .god-speech[hidden]{display:none;}
   @keyframes speechIn{from{opacity:0;transform:translateY(4px) scale(.96);}to{opacity:1;transform:none;}}
   /* 갓 파워로 풀리는 자물쇠 */
@@ -656,7 +661,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.37.0';
+const VERSION = 'v0.37.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1436,7 +1441,7 @@ function endKnightSay(){
   renderScreen();
   if (done) done();
 }
-const knightSayHtml = () => knightLine ? `<div class="god-speech" data-knightsay="1">${esc(knightLine)}</div>` : '';
+const knightSayHtml = () => knightLine ? `<div class="god-speech knight-say" data-knightsay="1">${esc(knightLine)}</div>` : '';
 // 처음 켰을 때 — 할 게 없으니 산으로
 function knightIntro(){
   if (S.said.includes('start') || (S.quests || []).length) return;
