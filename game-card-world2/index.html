@@ -598,7 +598,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.23.1';
+const VERSION = 'v0.23.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -622,6 +622,7 @@ const QUESTS = {
   stone:  { name: '재료 모으기', text: '돌 5개 모으기', goal: 5 },   // v0.11.0: 퀘스트를 받은 뒤 크래프팅에 들어온 돌 수
   weaponboard: { name: '무기가 필요해', text: '작업대 만들기', goal: 1 },   // v0.21.1: 첫 곰에게 지면 받음
   gearboard:   { name: '정비가 필요해', text: '모닥불 만들기', goal: 1 },   // v0.23.0: 첫 무기를 만들면 받음
+  strongknight:{ name: '강해진 기사', text: '이빨 단검 장착하기', goal: 1 },   // v0.23.2: '무기가 필요해' 다음
 };
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
@@ -1298,6 +1299,7 @@ inspEl.addEventListener('click', e => {                           // 인스펙�
   if (!row || S.tab !== 'gearup' || !slotPick) return;
   const t = row.dataset.equip;
   S.equip[slotPick] = t || null;
+  checkGearQuest();                                               // v0.23.2: 이빨 단검을 끼우면 '강해진 기사' 완료
   renderGearup(); renderInsp(); save();
 });
 
@@ -1808,9 +1810,14 @@ function questStep(id){
   if (q.n >= def.goal){
     q.done = true;
     toast(`📜 퀘스트 완료: ${def.name}`);
+    if (id === 'weaponboard') giveQuest('strongknight');           // v0.23.2: 다음 퀘스트
   }
   renderQuest();
   save();
+}
+// v0.23.2: 장착으로 끝나는 퀘스트
+function checkGearQuest(){
+  if (equipped('weapon') === 'toothdagger') questStep('strongknight');
 }
 // 퀘스트 주기 — 같은 퀘스트가 이미 있으면 그대로 (주는 캐릭터는 아직 없음)
 function giveQuest(id){
