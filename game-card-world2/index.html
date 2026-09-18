@@ -427,7 +427,8 @@ const DEFS = {
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
-const USES = ['무기재료', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '생산재료', '설비'];   // v0.21.0: 설비
+// v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
+const USES = ['무기재료', '무기', '방어구재료', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '설비'];
 const USE = {
   // 1티어
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료'], spring:['약품재료', '요리재료'],
@@ -441,8 +442,8 @@ const USE = {
   hide:['방어구재료', '도구재료'], toughhide:['방어구재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
-  toothdagger:['무기재료'], fangspear:['무기재료'], leatherarmor:['방어구재료'], pouch:['도구재료'],
-  fishhook:['도구재료', '생산재료'], roastmeat:['요리재료'], workbench:['설비'],                          // v0.21.0: 설비 — 재료로는 안 쓰임
+  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구재료'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
+  fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'],                              // v0.21.0: 설비 — 재료로는 안 쓰임
 };
 const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
@@ -570,7 +571,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.21.5';
+const VERSION = 'v0.22.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -600,9 +601,9 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
-  { id:'tool',   name:'🔨 도구', tag:'도구재료' },
-  { id:'weapon', name:'⚔️ 무기', tag:'무기재료', needs:'workbench' },
-  { id:'facility', name:'🏭 설비', tag:'설비', fixed:true },      // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
+  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'] },     // v0.22.0: 재료 + 완성품
+  { id:'weapon', name:'⚔️ 무기', tags:['무기재료', '무기'], needs:'workbench' },
+  { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
 // 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
 const FACILITIES = [
@@ -617,9 +618,10 @@ function facBlock(f){
   return null;
 }
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const boardTag = () => (BOARD_BY_ID[S.tab] || BOARDS[0]).tag;
-const onBoard = (type, id) => useOf(type).includes((BOARD_BY_ID[id] || BOARDS[0]).tag);
-const boardFor = type => (BOARDS.find(b => useOf(type).includes(b.tag) && boardOpen(b)) || BOARDS[0]).id;
+const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
+const boardTag = () => boardTags(S.tab)[0];
+const onBoard = (type, id) => useOf(type).some(u => boardTags(id).includes(u));
+const boardFor = type => (BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => !b.needs || (S.boards || []).includes(b.id);
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
