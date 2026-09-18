@@ -245,6 +245,11 @@
   .insp .row{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
   .insp .i-muted{color:var(--muted);}
   .locked .icon{filter:brightness(0) opacity(.45);}                 /* 미발견: 검은 실루엣 */
+  /* v0.21.4: 설비 조합법 — 1티어까지 모두, 모두 실루엣 */
+  .rcp{display:flex;align-items:center;gap:4px;padding:2px 0;font-size:12px;color:var(--muted);}
+  .rcp .icon{filter:brightness(0) opacity(.5);}
+  .rcp .nm{color:var(--muted);}
+  .rcp .plus{opacity:.5;}
 
   /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
@@ -563,7 +568,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.21.3';
+const VERSION = 'v0.21.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1220,7 +1225,24 @@ function renderFacInsp(){
     + `<div class="desc">${esc(DESC[t] || '')}</div>`
     + (made ? '<div class="row">만들어 둔 설비.</div>'
       : block ? `<div class="row"><b>${esc(block)}</b></div>`
-      : '<div class="row i-muted">필요한 지역은 열려 있다 — 재료와 만드는 법은 직접 찾아야 한다.</div>');   // v0.21.1: '지금 만들 수 있다'는 오해를 줌
+      : '<div class="row i-muted">필요한 지역은 열려 있다 — 재료와 만드는 법은 직접 찾아야 한다.</div>')   // v0.21.1: '지금 만들 수 있다'는 오해를 줌
+    + `<div class="sub">조합법</div>${rcpTree(t)}`;                 // v0.21.4: 1티어까지 모두, 실루엣으로
+}
+// 설비의 조합법 나무 — 재료를 1티어까지 파고들어 모두 보여 줌. 그림은 전부 실루엣, 이름은 발견한 것만
+function rcpTree(t, depth = 0, seen = new Set()){
+  const r = CRAFT_RECIPES.find(x => (x.out || []).includes(t));
+  if (!r || seen.has(t) || depth > 5) return '';
+  seen.add(t);
+  const sides = [r.a, r.b].map(sd => sd.card).filter(Boolean);
+  let h = '';
+  for (const m of sides){
+    const known = S.seen.includes(m);
+    h += `<div class="rcp" style="padding-left:${depth * 14}px">`
+      + `<span class="plus">${depth ? '└' : '+'}</span>${iconHtml(m, true)}`
+      + `<span class="nm">${known ? esc(DEFS[m].name) : '???'}</span></div>`
+      + rcpTree(m, depth + 1, seen);
+  }
+  return h;
 }
 facilityEl.addEventListener('click', e => {
   if (paused) return;
