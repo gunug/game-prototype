@@ -85,10 +85,8 @@
   .pslot > .icon{width:70%;height:auto;}                           /* v0.29.2: 칸에 바로 놓인 그림만 (카드 안 그림은 건드리지 않음) */
   .pslot-lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* v0.30.0: 장비 실루엣 — 빈 칸 가운데(큰 것), 카드 왼쪽 위(작은 것) */
-  .sil{image-rendering:pixelated;opacity:.5;filter:brightness(0) invert(1);pointer-events:none;}
-  .pslot .sil.big{width:46%;height:auto;margin-bottom:2px;opacity:.35;}
+
   .pslot{flex-direction:column;}
-  .cw .sil.corner{position:absolute;left:calc(var(--cw) * .04);top:calc(var(--cw) * .04);z-index:3;width:calc(var(--cf) * .16);height:auto;opacity:.75;}
   .knight-drag{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;opacity:.9;}
   /* 기사 카드의 작은 장비 칸 (전투 화면) */
   .knight .gearline{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:calc(var(--cw) * .04);pointer-events:none;}
@@ -727,7 +725,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.55.0';
+const VERSION = 'v0.55.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -828,14 +826,14 @@ const FACILITIES = [
 ];
 // v0.23.0: 장비 칸 — 무기 · 갑옷 · 방패. 각 칸에 올릴 수 있는 태그
 const SLOTS = [
-  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk', sil:'ui_weapon' },   // v0.30.0: 실루엣 그림
-  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', sil:'ui_armor' },
-  { key:'shield', name:'방패',  tag:'방패',   stat:'def', sil:'ui_shield' },
+  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk' },                   // v0.55.1: 실루엣 그림 없앰
+  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def' },
+  { key:'shield', name:'방패',  tag:'방패',   stat:'def' },
   { key:'camp',   name:'거점',  tag:'거점' },                    // v0.55.0: 모닥불 같은 쉴 곳 — 비면 회복이 절반
 ];
 // 그 카드가 어느 장비 칸에 들어가는지 (카드 왼쪽 위 실루엣)
 const slotOfType = t => SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
-const silHtml = (sl, cls) => `<img class="sil${cls ? ' ' + cls : ''}" src="images/icon/${sl.sil}.png" alt="${sl.name}" draggable="false">`;
+// v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const FAC_IDS = FACILITIES.map(f => f.id);
 const isFacility = t => FAC_IDS.includes(t);
 const facMade = t => have(t) > 0 || (S.facilities || []).includes(t);
@@ -986,7 +984,7 @@ function cardHtml(c){
       + '</div>';
   }
   const sl = slotOfType(c.type);                                   // v0.30.0: 장비면 왼쪽 위에 실루엣
-  return html + (sl ? silHtml(sl, 'corner') : '')
+  return html
     + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`
     + (S.newCards.includes(c.type) ? '<div class="new-b">NEW</div>' : '');
 }
@@ -1590,7 +1588,7 @@ const isRowScreen = tab => tab === 'battle' || tab === 'gearup';
 function slotHtmlOf(sl){
   const inner = sl.card
     ? `<div class="cw framed f-${sl.frame || 'wood'}"><div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
-    : sl.open ? (sl.sil ? `${silHtml(sl, 'big')}<span class="pslot-lab">${esc(sl.lab || '')}</span>` : `<span class="pslot-lab">${esc(sl.lab || '')}</span>`)
+    : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
     : '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">';
   return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
 }
@@ -1621,7 +1619,7 @@ function screenRows(){
     slots: SLOTS.map(sl => {
       const t = equipped(sl.key);
       return { id: `knight:${sl.key}`, open: true, card: !!t, icon: t ? iconHtml(t) : '',
-        cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: sl.name, sil: sl.sil };
+        cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: sl.name };
     }),
   }];
 }
@@ -1630,7 +1628,7 @@ function screenTokens(){
   if (S.tab === 'battle') return [{ token: 'knight', html: knightCardHtml(true) }];
   return S.cards.filter(c => onBoard(c.type, 'gearup') && c.n > 0).map(c => ({
     token: c.type,
-    html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${(sl => sl ? silHtml(sl, 'corner') : '')(slotOfType(c.type))}`
+    html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">`
       + `<div class="emoji">${iconHtml(c.type)}</div>`
       + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`,
   }));
@@ -1692,7 +1690,6 @@ function renderTopGrid(){
   const list = S.cards.filter(c => onTopGrid(c.type, S.tab) && c.n > 0);
   topGridEl.innerHTML = list.length
     ? list.map(c => `<div class="cw framed f-${frameOf(DEFS[c.type])}${inspType === c.type ? ' sel' : ''}" data-topcard="${c.type}">`
-        + ((sl => sl ? silHtml(sl, 'corner') : '')(slotOfType(c.type)))
         + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
     : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
 }
