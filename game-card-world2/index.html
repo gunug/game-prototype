@@ -570,7 +570,7 @@ const DEFS = {
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
-const USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '연료', '설비'];   // v0.49.0: 연료
+const USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '거점', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '연료', '설비'];   // v0.49.0: 연료
 const USE = {
   // 1티어
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료', '연료'],   // v0.46.1: 도구 화면에서 불씨를 만들 수 있게 spring:['약품재료', '요리재료'],
@@ -588,7 +588,7 @@ const USE = {
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
   toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
-  fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'], campfire:['설비'],                              // v0.21.0: 설비 — 재료로는 안 쓰임
+  fishhook:['도구', '생산재료'], roastmeat:['요리재료'], workbench:['설비'], campfire:['설비', '거점'],   // v0.55.0: 모닥불은 거점 칸에                              // v0.21.0: 설비 — 재료로는 안 쓰임
 };
 const useOf = t => USE[t] || [];
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
@@ -727,7 +727,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.54.0';
+const VERSION = 'v0.55.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -817,7 +817,8 @@ const BOARDS = [
   // v0.53.0: 위 격자엔 완성 장비(무기·방어구·방패), 아래엔 그 재료들
   { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기', '방어구재료', '방어구', '방패'],
     top:'무기', tops:['무기', '방어구', '방패'], bottoms:['무기재료', '방어구재료'], needs:'workbench' },   // v0.33.0: 이모지 대신 작업대 그림
-  { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패'], needs:'campfire' },   // v0.25.0: 장비 카드를 끌어 칸에 넣음. v0.33.0: 모닥불 그림
+  // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
+  { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '거점'] },
   { id:'facility', name:'🏭 설비', tags:['설비'], fixed:true },   // v0.21.0: 만든 설비와 아직 안 만든 설비 목록
 ];
 // 설비 — 한 번 만들면 그것으로 끝 (다시 조합되지 않음). field: 그 지역이 열려야 만들 수 있음
@@ -830,6 +831,7 @@ const SLOTS = [
   { key:'weapon', name:'무기',  tag:'무기',   stat:'atk', sil:'ui_weapon' },   // v0.30.0: 실루엣 그림
   { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', sil:'ui_armor' },
   { key:'shield', name:'방패',  tag:'방패',   stat:'def', sil:'ui_shield' },
+  { key:'camp',   name:'거점',  tag:'거점' },                    // v0.55.0: 모닥불 같은 쉴 곳 — 비면 회복이 절반
 ];
 // 그 카드가 어느 장비 칸에 들어가는지 (카드 왼쪽 위 실루엣)
 const slotOfType = t => SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
@@ -1911,7 +1913,7 @@ function renderFieldInsp(){
       + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${knightAtk()}${bestOf('atk') ? ` <span class="i-muted">(맨손 ${KNIGHT.atk} + 무기 ${bestOf('atk')})</span>` : ''}</div>`
       + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
       + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${KNIGHT.hp}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
-      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${HEAL_MS / 1000}초에 체력 +1`}</div>`;
+      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${healMs() / 1000}초에 체력 +1${equipped('camp') ? '' : ' (거점 칸이 비어 절반 속도)'}`}</div>`;
     return;
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
@@ -2014,7 +2016,9 @@ const knightDef = () => KNIGHT.def + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
-const HEAL_MS = 3000;                                            // 원정 밖에서 체력 +1
+const HEAL_MS = 3000;                                            // 원정 밖에서 체력 +1 (거점이 있을 때)
+// v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
+const healMs = () => equipped('camp') ? HEAL_MS : HEAL_MS * 2;
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 const EXP_PLAN = {
   mountain: [
@@ -2360,8 +2364,9 @@ function renderKnight(){
 function healTick(dt){
   if (exp || paused || S.knight.hp >= KNIGHT.hp){ healProg = 0; return; }
   healProg += dt;
-  while (healProg >= HEAL_MS && S.knight.hp < KNIGHT.hp){
-    healProg -= HEAL_MS;
+  const ms = healMs();
+  while (healProg >= ms && S.knight.hp < KNIGHT.hp){
+    healProg -= ms;
     S.knight.hp++;
     renderKnight();
     save();
