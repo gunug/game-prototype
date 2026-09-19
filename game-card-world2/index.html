@@ -727,7 +727,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.53.1';
+const VERSION = 'v0.54.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -998,6 +998,22 @@ function setNum(el, text){
   if (had) flash(el, 'num-bump', 340);
 }
 function setCount(c){ setNum(els.get(c.id)?.querySelector('.cnt'), c.n); }
+// v0.54.0: 같은 카드가 여러 곳(아래 재료 · 위 격자 · 장비 칸 · 인스펙터 · 퀘스트 · 콜렉터북)에 보이므로
+//   수량이 바뀌면 여기 한 곳에서 전부 다시 그린다. 예전엔 부르는 곳마다 빠뜨려 0이 된 카드가 격자에 남았음
+let syncT = 0;
+function syncCards(){
+  clearTimeout(syncT);
+  syncT = setTimeout(() => {                                      // 같은 틱에 여러 번 바뀌어도 한 번만
+    for (const c of S.cards) setCount(c);
+    renderTopGrid();
+    renderNew();
+    if (isRowScreen(S.tab)) renderScreen();                       // 전투·정비 줄의 카드·장비 칸
+    renderFacility();
+    questCheckBlocks(); renderQuest();
+    renderMeta(); renderInsp(); renderBook();
+    save();
+  }, 0);
+}
 // 새 카드 표시 다시 그리기: 필드 카드 NEW 뱃지 · 콜렉터북 버튼 수
 function renderNew(){
   for (const c of S.cards){
@@ -1124,9 +1140,7 @@ function addCard(type, x, y, anim, from, made){
   noteFacility(type);                                             // v0.21.0: 만든 설비 기록
   // v0.23.0: 첫 무기를 만들면 '정비가 필요해'
   questEvent(type);                                               // v0.39.0: 이빨 단검 만들기 단계
-  questCheckBlocks();                                             // v0.41.0: 보유로 판정하는 블록 퀘스트
-  renderQuest();
-  renderInsp();                                                   // v0.49.1: 인스펙터의 보유 수를 바로 반영
+  syncCards();                                                    // v0.54.0: 보이는 곳 전부 갱신 (수량·격자·퀘스트·인스펙터)
   unlockBoards();                                                 // v0.20.0: 작업대를 만들면 무기 화면이 열림
   return c;
 }
@@ -1136,14 +1150,14 @@ function removeCard(id){
   els.delete(id);
   if (el){ el.classList.add('gone'); setTimeout(() => el.remove(), 300); }
   if (selected === id) selected = null;
+  syncCards();                                                     // v0.54.0
 }
 // 한 장 쓰기 — 수량 -1, 0이면 카드 사라짐
 function useOne(c){
   c.n--;
   if (c.n <= 0) removeCard(c.id);
   else setCount(c);
-  questCheckBlocks(); renderQuest();                               // v0.41.0: 보유가 줄어도 퀘스트 줄 갱신
-  renderInsp();                                                    // v0.49.1: 인스펙터의 보유 수도 바로
+  syncCards();                                                     // v0.54.0: 보이는 곳 전부 갱신
 }
 // 여러 장 생성. v0.8.0: 상한 없음 — 있는 종류는 수량 +1
 function spawnMany(types, x, y, from, made3s){
