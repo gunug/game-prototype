@@ -205,6 +205,7 @@
   .exp-lane .spot.done{opacity:.35;filter:grayscale(.8);}
   @keyframes spotShake{0%,100%{transform:translateX(0) rotate(0);}30%{transform:translateX(-4%) rotate(-2deg);}70%{transform:translateX(4%) rotate(2deg);}}
   /* v0.15.1: 보스도 기사와 같은 크기 — 크게 그리면 트랙 위아래에 닿음 */
+  .exp-lane .tok.mid::before{content:'⚔';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .24);}   /* v0.58.0: 중간보스 */
   .exp-lane .tok.boss::before{content:'👑';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .26);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
@@ -713,7 +714,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.57.0';
+const VERSION = 'v0.58.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1876,7 +1877,11 @@ gatherEl.addEventListener('click', e => {
 const ENEMIES = {
   animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2,
     loot: [['meat', 50, 1], ['hide', 30, 1], ['smalltooth', 20, 1]] },
-  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:10,
+  // v0.58.0: 중간보스 — 잡몹과 필드보스 사이. 뗀석기(공 2)면 잡히고, 맨손(공 1)으론 여기서 막힘
+  wolf:   { name:'늑대', portrait:'portrait_wolf',   atk:2, def:0, hp:6,
+    loot: [['smalltooth', 60, 1], ['meat', 40, 1], ['hide', 30, 1]] },
+  // v0.58.0: 체력 10 → 9. 중간보스에게 깎인 체력으로도 이빨 단검(공 3)이면 이기도록
+  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:9,
     loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 20, 1], ['fang', 10, 1]] },
   // v0.51.0: 🌾 초원 — 들개(기본) · 들소(보스)
   //   맞춰 놓은 세기: 이빨 단검만으로는 들개 둘을 못 넘기고, 들소는 송곳니 창 + 방패가 있어야 이김
@@ -1902,19 +1907,22 @@ const HEAL_MS = 3000;                                            // 원정 밖�
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 const healMs = () => equipped('camp') ? HEAL_MS : HEAL_MS * 2;
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
+// v0.58.0: 원정 순서를 필드마다 똑같은 틀로 맞춤
+//   ① 채집-잡몹-채집-잡몹-채집 ② 중간보스 ③ 채집-잡몹-채집-잡몹-채집 ④ 필드보스
+//   자리는 13개. 트랙 위에 고르게 놓음 (0.06 ~ 0.97)
+function lanePlan(mob, mid, boss){
+  const half = [{ loot: 1 }, { fight: mob }, { loot: 1 }, { fight: mob }, { loot: 1 }];
+  const stops = half.concat([{ fight: mid, mid: true }], half, [{ fight: boss, boss: true }]);
+  const last = stops.length - 1;
+  return stops.map((st, i) => Object.assign({ at: +(0.06 + (0.97 - 0.06) * (i / last)).toFixed(3) }, st));
+}
 const EXP_PLAN = {
-  mountain: [
-    { at: 0.16, loot: 1 }, { at: 0.32, fight: 'animal' }, { at: 0.5, loot: 1 },
-    { at: 0.66, fight: 'animal' }, { at: 0.84, loot: 1 }, { at: 0.97, fight: 'bear', boss: true },
-  ],
-  grassland: [                                                    // v0.51.0
-    { at: 0.16, loot: 1 }, { at: 0.34, fight: 'wilddog' }, { at: 0.52, loot: 1 },
-    { at: 0.68, fight: 'wilddog' }, { at: 0.84, loot: 1 }, { at: 0.97, fight: 'bison', boss: true },
-  ],
+  mountain:  lanePlan('animal', 'wolf', 'bear'),
+  grassland: lanePlan('wilddog', 'wolf', 'bison'),                // v0.51.0. v0.58.0: 초원 중간보스는 아직 미정이라 늑대를 그대로 씀
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
-const LANE_PAD = 10;                                             // 트랙 좌우 여백 (%)
+const LANE_PAD = 5;                                              // 트랙 좌우 여백 (%) — v0.58.0: 자리가 13개라 여백을 줄여 간격을 벌림
 const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 const SPOT_ICON = { mountain: 'mountain' };                      // v0.13.4: 필드별 채집 포인트 그림 (없으면 산 것)
 let exp = null;                                                   // 진행 중 원정 (저장 안 함 — 새로 열면 없음)
@@ -1935,7 +1943,7 @@ function expStart(id, cardEl){
   }
   flash(cardEl, 'tap', 300);
   // v0.13.1: 고블린은 길 위에 미리 서 있음 (도착할 때 생기는 것처럼 보이지 않게)
-  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss }));
+  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
@@ -1960,8 +1968,11 @@ function expTick(dt){
       else if (ev.fight){
         exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
-        exp.line = ev.boss ? `👑 ${ENEMIES[ev.fight].name}이 길을 막았다` : `${ENEMIES[ev.fight].name}과 마주쳤다`;
+        exp.line = ev.boss ? `👑 ${ENEMIES[ev.fight].name}이 길을 막았다`
+          : ev.mid ? `⚔ ${ENEMIES[ev.fight].name}이 앞을 가로막았다`                // v0.58.0: 중간보스
+          : `${ENEMIES[ev.fight].name}과 마주쳤다`;
         if (ev.boss){ toast(`👑 보스 — ${ENEMIES[ev.fight].name}`); S.metBoss = true; }   // v0.21.1: 보스를 만나 봤음
+        else if (ev.mid) toast(`⚔ 중간보스 — ${ENEMIES[ev.fight].name}`);   // v0.58.0
       }
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
@@ -2164,7 +2175,7 @@ function expBuild(){
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
     + '<div class="bar"></div>'
     // v0.13.1: 고블린은 처음부터 제자리에 서 있음
-    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${laneX(f.at)}%">`
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${laneX(f.at)}%">`
         + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + '<div class="tok knight walk"><div class="hp"></div><img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
