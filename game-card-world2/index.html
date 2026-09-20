@@ -394,6 +394,19 @@
   .klv{font-size:calc(var(--cf) * .11);font-weight:800;color:var(--brand-yellow);}
   .xpbar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
   .xpbar i{display:block;height:100%;background:var(--brand-yellow);opacity:.8;}
+  /* v0.68.0: 인스펙터 레벨 표 */
+  .lvtab{margin-top:2px;}
+  .lvr{display:flex;align-items:center;gap:6px;padding:1px 0;font-size:12px;color:var(--muted);}
+  .lvr.cyc{border-top:1px dashed rgba(255,255,255,.12);padding-top:3px;margin-top:2px;}   /* 묶음이 바뀌는 자리 */
+  .lvr.got{color:var(--ink);}
+  .lvr.got .lvn{color:#8fdc8f;}
+  .lvr.next{color:var(--ink);font-weight:800;}
+  .lvr.next .lvn{color:var(--brand-yellow);}
+  .lvr .lvn{width:3.4em;flex:none;font-variant-numeric:tabular-nums;}
+  .lvr .lvw{flex:none;display:flex;align-items:center;gap:3px;}
+  .lvr .lvx{flex:1;color:var(--brand-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lvr .lvq{flex:none;font-variant-numeric:tabular-nums;}
+  .lvr .icon.inline{width:1.05em;height:1.05em;}
   /* v0.66.0: 레벨업 모달 — 원정에서 돌아와 정산할 때 */
   .lv-back{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:60;}
   .lv-back.open{display:flex;}
@@ -761,7 +774,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.67.0';
+const VERSION = 'v0.68.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -863,13 +876,18 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 // v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
 //   보상은 대부분 **최대 체력 +2**, 공격 +1은 6·9레벨처럼 드물게, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
 //   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
-// v0.67.0: 공격 보상을 3레벨 → 6레벨로 미루고 곡선을 가파르게.
-//   레벨만 올려 무기를 건너뛰는 길(노가다)도 열어 두되, **원정 9번쯤** 걸리게 (예전엔 4번)
-const LV_PLAN = {
-  2:{ hp:2 }, 3:{ hp:2 }, 4:{ hp:2 }, 5:{ def:1, slot:'armor' },
-  6:{ atk:1 }, 7:{ hp:2 }, 8:{ hp:2 }, 9:{ atk:1 }, 10:{ def:1, slot:'shield' },
-};
-const lvReward = lv => LV_PLAN[lv] || (lv % 3 === 0 ? { atk:1 } : { hp:2 });   // 10레벨 위로도 같은 결로
+// v0.68.0: **5레벨이 한 묶음**이고 그 묶음이 그대로 되풀이된다 — 표를 보면 다음이 뭔지 바로 알 수 있게
+//   체력 +2 · 체력 +2 · 체력 +2 · 방어 +1 · 공격 +1
+//   방어는 5의 배수(5 · 10 · 15 · 20), 공격은 그 다음 레벨(6 · 11 · 16), 나머지는 최대 체력
+const LV_CYCLE = ['atk', 'hp', 'hp', 'hp', 'def'];                // (레벨−1) % 5 자리
+const LV_SLOT = { 5:'armor', 10:'shield' };                       // 장비 칸이 열리는 레벨
+const LV_MAX_SHOWN = 20;                                          // 인스펙터 표에 보여 주는 데까지
+function lvReward(lv){
+  const key = LV_CYCLE[(lv - 1) % LV_CYCLE.length];
+  const r = key === 'hp' ? { hp:2 } : key === 'def' ? { def:1 } : { atk:1 };
+  if (LV_SLOT[lv]) r.slot = LV_SLOT[lv];
+  return r;
+}
 const xpNeed = lv => 25 + 15 * (lv - 1);                          // 2레벨 25 · 3레벨 40 …
 const enemyXp = d => d.hp + d.atk * 2 + d.def * 2;                // 토끼 4 · 늑대 10 · 곰 15
 const knightLv = () => (S.knight && S.knight.lv) || 1;
@@ -1902,6 +1920,24 @@ addEventListener('pointercancel', () => {
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can');
   renderScreen();
 });
+// v0.68.0: 레벨 표 — 5레벨 한 묶음이 되풀이된다는 걸 눈으로 알 수 있게 20레벨까지
+function lvTableHtml(){
+  const now = knightLv();
+  const icon = { hp:statImg('hp'), atk:statImg('atk'), def:statImg('def') };
+  let h = '<div class="sub">레벨</div>'
+    + `<div class="row i-muted">5레벨이 한 묶음 — ${icon.hp}+2 · ${icon.hp}+2 · ${icon.hp}+2 · ${icon.def}+1 · ${icon.atk}+1 로 되풀이</div>`
+    + '<div class="lvtab">';
+  for (let lv = 2; lv <= LV_MAX_SHOWN; lv++){
+    const r = lvReward(lv);
+    const got = lv <= now, next = lv === now + 1;
+    const rw = [r.hp ? `${icon.hp}+${r.hp}` : '', r.atk ? `${icon.atk}+${r.atk}` : '', r.def ? `${icon.def}+${r.def}` : ''].filter(Boolean).join(' ');
+    h += `<div class="lvr${got ? ' got' : ''}${next ? ' next' : ''}${lv % LV_CYCLE.length === 1 ? ' cyc' : ''}">`
+      + `<span class="lvn">Lv ${lv}</span><span class="lvw">${rw}</span>`
+      + `<span class="lvx">${r.slot ? `🔓 ${esc(slotByKey(r.slot).name)} 칸` : ''}</span>`
+      + `<span class="lvq i-muted">${xpNeed(lv - 1)}</span></div>`;
+  }
+  return h + '</div><div class="row i-muted">오른쪽 수는 그 레벨이 되는 데 드는 경험치</div>';
+}
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
   const sl = slotByKey(String(slotPick || '').split(':')[1]);
@@ -1949,7 +1985,8 @@ function renderFieldInsp(){
       + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
       + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${knightMaxHp()}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
       + `<div class="row">Lv ${knightLv()} <span class="i-muted">· 경험치 ${k.xp || 0}/${xpNeed(knightLv())}</span></div>`   // v0.66.0
-      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — 가득 차기까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (거점 있음)' : ''}`}</div>`;
+      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — 가득 차기까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (거점 있음)' : ''}`}</div>`
+      + lvTableHtml();                                             // v0.68.0: 레벨 표
     return;
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
