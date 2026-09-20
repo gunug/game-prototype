@@ -742,7 +742,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.64.0';
+const VERSION = 'v0.65.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1401,11 +1401,14 @@ function renderInsp(){
   }
   h += '<div class="sub">쓰이는 조합</div>'
     + (uses.length ? uses.join('') : `<div class="i-muted">${here ? '이 화면에서 되는 조합은 없음' : '없음'}</div>`);
-  // 만드는 법 — 발견한 카드만
-  const makes = CRAFT_RECIPES.filter(r => r.cook ? CRAFT_TYPES.some(x => DEFS[x].cooked === t) : (r.out || []).includes(t));
-  if (makes.length){
-    h += '<div class="sub">만드는 법</div>' + makes.map(r =>
-      `<div class="row rcp-line">${rcpLine(r, true)}</div>`).join('');
+  // 만드는 법 — 이 카드를 만드는 조합
+  // v0.65.0: 여기도 **지금 화면에서 되는 것만** (쓰이는 조합과 같은 기준)
+  const all = CRAFT_RECIPES.filter(r => r.cook ? CRAFT_TYPES.some(x => DEFS[x].cooked === t) : (r.out || []).includes(t));
+  const makes = here ? all.filter(r => recipeBoards(r).includes(here)) : all;
+  if (all.length){                                                // 조합으로 안 나오는 카드(채집물)는 이 칸 자체가 없음
+    h += '<div class="sub">만드는 법</div>'
+      + (makes.length ? makes.map(r => `<div class="row rcp-line">${rcpLine(r, true)}</div>`).join('')
+        : '<div class="i-muted">이 화면에서 만들 수는 없음</div>');
   }
   inspEl.innerHTML = h;
 }
