@@ -161,6 +161,10 @@
   /* v0.46.0: 콜렉터북 조합 탭 */
   .combo-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;}
   .combo-row.locked{color:var(--muted);}
+  /* v0.59.0: 재료를 다 알지만 아직 안 만들어 본 조합 — 여기 뭔가 있다 */
+  .combo-row.ready{background:rgba(255,212,0,.07);border-left:2px solid var(--brand-yellow);}
+  .combo-where{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;}
+  .combo-where.none{color:#d98b8b;}
   .combo-card{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);white-space:nowrap;}
   .combo-card.locked .icon{filter:brightness(0) opacity(.45);}
   .combo-op{color:var(--muted);font-weight:800;}
@@ -714,7 +718,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.58.0';
+const VERSION = 'v0.59.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1361,21 +1365,42 @@ function detailHtml(){
     ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
     : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
 }
-// v0.46.0: 조합 탭 — 해 본 조합은 재료·결과가 보이고, 아직 안 해 본 조합은 ???
+// v0.46.0: 조합 탭.
+// v0.59.0: 가리는 단위를 **재료 한 장씩**으로 바꿈 — 발견한 재료는 이름이 보이고 못 찾은 재료만 ???.
+//   결과는 **그 조합을 해 보기 전까지 늘 ???**. 그래서 재료를 다 모으면 `재료 + 재료 = ???`가 되어
+//   "뭐가 나올진 몰라도 아직 안 만들어 본 게 있다"가 보인다.
 const comboDone = r => (S.madeRecipes || []).includes(r.id);
+// 그 조합을 어느 화면에서 만들 수 있나 — 두 재료가 그 화면 아래에 있고, 결과 유형도 그 화면 것이어야 함
+const BOARD_MARK = { tool:'🔨', weapon:'⚔️', gearup:'🔧' };
+const boardLabel = id => `${BOARD_MARK[id] || ''} ${boardOf(id).name.replace(/^\S+\s+/, '')}`.trim();
+const sideOnBoard = (sd, id) => sd.card ? onBoard(sd.card, id)
+  : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && onBoard(t, id));
+const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
-  const cardMini = t => `<span class="combo-card${on ? '' : ' locked'}">${iconHtml(t, true)}${on ? ' ' + esc(DEFS[t].name) : ' ???'}</span>`;
-  const sideMini = sd => sd.card ? cardMini(sd.card)              // v0.49.0: 태그 쪽은 '🏷️ 연료'
-    : `<span class="combo-card tagside${on ? '' : ' locked'}">🏷️ ${esc(sd.use || sd.tag || '')}</span>`;
+  const sideMini = sd => {
+    if (!sd.card) return `<span class="combo-card tagside">🏷️ ${esc(sd.use || sd.tag || '')}</span>`;   // v0.49.0: 태그 쪽
+    const seen = S.seen.includes(sd.card);                        // v0.59.0: 재료마다 따로
+    return `<span class="combo-card${seen ? '' : ' locked'}">${iconHtml(sd.card, true)}${seen ? ' ' + esc(DEFS[sd.card].name) : ' ???'}</span>`;
+  };
+  const outMini = t => `<span class="combo-card${on ? '' : ' locked'}">${iconHtml(t, true)}${on ? ' ' + esc(DEFS[t].name) : ' ???'}</span>`;
   const outs = r.cook ? [] : (r.out || []);
-  return `<div class="combo-row${on ? '' : ' locked'}">${sideMini(r.a)}<span class="combo-op">+</span>${sideMini(r.b)}`
-    + `<span class="combo-op">→</span>${outs.map(cardMini).join('')}</div>`;
+  const bs = recipeBoards(r);
+  const where = bs.length ? `<span class="combo-where">${bs.map(boardLabel).join(' · ')}에서</span>`
+    : '<span class="combo-where none">만들 화면 없음</span>';     // 지금은 만들 수 없는 조합도 있는 그대로 알림
+  return `<div class="combo-row${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
+    + `${sideMini(r.a)}<span class="combo-op">+</span>${sideMini(r.b)}`
+    + `<span class="combo-op">→</span>${outs.map(outMini).join('')}${where}</div>`;
 }
+// 재료를 둘 다 알고 있는데 아직 안 해 본 조합
+const sideKnown = sd => sd.card ? S.seen.includes(sd.card) : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && S.seen.includes(t));
+const comboReady = r => !comboDone(r) && sideKnown(r.a) && sideKnown(r.b);
 function renderCombos(){
   const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use));
   const done = list.filter(comboDone).length;
-  let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}</div>`;
+  const ready = list.filter(comboReady).length;
+  let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}`
+    + (ready ? ` <span class="i-muted">· 재료를 다 아는 조합 ${ready}</span>` : '') + '</div>';
   h += list.map(comboRowHtml).join('') + '</div>';
   return { html: h, done, total: list.length };
 }
@@ -1797,7 +1822,7 @@ function renderFieldInsp(){
       + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${knightAtk()}${bestOf('atk') ? ` <span class="i-muted">(맨손 ${KNIGHT.atk} + 무기 ${bestOf('atk')})</span>` : ''}</div>`
       + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
       + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${KNIGHT.hp}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
-      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${healMs() / 1000}초에 체력 +1${equipped('camp') ? '' : ' (거점 칸이 비어 절반 속도)'}`}</div>`;
+      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${healMs() / 1000}초에 체력 +1${(!slotOpen('camp') || equipped('camp')) ? '' : ' (거점 칸이 비어 절반 속도)'}`}</div>`;
     return;
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
@@ -1905,7 +1930,9 @@ const FIGHT_BEAT_MS = 700;                                       // 한 번 주�
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
 const HEAL_MS = 3000;                                            // 원정 밖에서 체력 +1 (거점이 있을 때)
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
-const healMs = () => equipped('camp') ? HEAL_MS : HEAL_MS * 2;
+// v0.59.0: 거점 칸이 **잠겨 있는 동안은 벌점 없음** — 플레이어가 어떻게 할 수 없는 일로 느려지면 안 됨.
+//   칸이 열린 뒤부터 비어 있으면 절반 속도
+const healMs = () => (!slotOpen('camp') || equipped('camp')) ? HEAL_MS : HEAL_MS * 2;
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 // v0.58.0: 원정 순서를 필드마다 똑같은 틀로 맞춤
 //   ① 채집-잡몹-채집-잡몹-채집 ② 중간보스 ③ 채집-잡몹-채집-잡몹-채집 ④ 필드보스
