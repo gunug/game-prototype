@@ -164,7 +164,6 @@
   /* v0.59.0: 재료를 다 알지만 아직 안 만들어 본 조합 — 여기 뭔가 있다 */
   .combo-row.ready{background:rgba(255,212,0,.07);border-left:2px solid var(--brand-yellow);}
   .combo-where{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;}
-  .combo-where.none{color:#d98b8b;}
   .combo-op{color:var(--muted);font-weight:800;}
   /* v0.63.0: 조합식 표기 — 못 얻어 본 재료는 검은 실루엣 */
   .rcp-ic.unk .icon{filter:brightness(0) opacity(.45);}
@@ -789,7 +788,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.73.0';
+const VERSION = 'v0.74.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -800,6 +799,14 @@ const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.som
   && (r.out || []).every(craftable));
 // v0.8.0: 월드 최대 생성 개수(SPAWN_CAP) 없앰 — 종류마다 카드 한 장 + 보유 수량(n)
 const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}` : ''; };
+// v0.74.0: **인스펙터·콜렉터북에 기획 용어를 쓰지 않는다.**
+//   가리는 것 ① 티어 숫자(1·2·3티어) ② 카드 수·'추천안' 같은 제작 메모
+//   ③ 쓸 화면이 아직 없는 용도 태그 ④ 어느 화면에서도 만들 수 없는 조합
+// 콜렉터북 탭 이름 — '1티어' 같은 제작 용어 대신 플레이어가 아는 말로
+const TIER_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품' };
+const tierName = n => TIER_NAME[n] || `${n}`;
+const SHOWN_USES = ['무기재료', '무기', '방어구재료', '방어구', '방패', '장신구', '거점', '도구재료', '도구', '연료'];
+const shownUses = t => useOf(t).filter(u => SHOWN_USES.includes(u));
 
 const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
@@ -1448,18 +1455,18 @@ function renderInsp(){
   const t = c ? c.type : inspType;
   if (!t){
     inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
-      + `크래프팅 탭 — 1티어 재료 16장 · 2티어 16장 (추천안). 카드를 끌어 다른 카드에 놓으면 조합.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>`;
+      + '카드를 끌어 다른 카드 위에 놓으면 조합됩니다.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>';
     return;
   }
   const d = DEFS[t];
   if (!S.seen.includes(t)){                                      // 콜렉터북의 미발견 칸
-    inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 보유 ??</div></div></div>`
+    inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${fieldText(t)} · 보유 ??</div></div></div>`
       + '<div class="desc">아직 발견하지 못한 카드.</div>';
     return;
   }
-  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${d.tier}티어 · ${fieldText(t)} · 보유 ${have(t)}</div></div></div>`;
+  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${fieldText(t)} · 보유 ${have(t)}</div></div></div>`;
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
-  const chips = useOf(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그
+  const chips = shownUses(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그. v0.74.0: 쓸 화면이 있는 것만
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
@@ -1511,8 +1518,8 @@ function slotHtml(t){
 function detailHtml(){
   if (!bookPick) return '<span class="i-muted">슬리브를 탭하면 카드 정보가 나와요.</span>';
   const t = bookPick, d = DEFS[t];
-  const where = `${d.tier}티어 · ${fieldText(t)}`;
-  const use = useOf(t).length ? ` <span class="i-muted">· ${useOf(t).join(' · ')}</span>` : '';   // v0.19.0: 용도 태그
+  const where = fieldText(t);
+  const use = shownUses(t).length ? ` <span class="i-muted">· ${shownUses(t).join(' · ')}</span>` : '';   // v0.74.0
   return shownOpen(t)
     ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
     : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
@@ -1530,9 +1537,7 @@ const sideOnBoard = (sd, id) => sd.card ? onBoard(sd.card, id)
 const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
-  const bs = recipeBoards(r);
-  const where = bs.length ? `<span class="combo-where">${bs.map(boardLabel).join(' · ')}에서</span>`
-    : '<span class="combo-where none">만들 화면 없음</span>';     // 지금은 만들 수 없는 조합도 있는 그대로 알림
+  const where = `<span class="combo-where">${recipeBoards(r).map(boardLabel).join(' · ')}에서</span>`;
   return `<div class="combo-row${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
     + `${rcpLine(r, false)}${where}</div>`;                       // v0.63.0: 인스펙터와 같은 표기
 }
@@ -1540,7 +1545,8 @@ function comboRowHtml(r){
 const sideKnown = sd => sd.card ? S.seen.includes(sd.card) : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && S.seen.includes(t));
 const comboReady = r => !comboDone(r) && sideKnown(r.a) && sideKnown(r.b);
 function renderCombos(){
-  const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use));
+  // v0.74.0: 어느 화면에서도 만들 수 없는 조합은 아예 안 보여 준다 (만들 화면이 없다는 건 기획 사정)
+  const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use) && recipeBoards(r).length);
   const done = list.filter(comboDone).length;
   const ready = list.filter(comboReady).length;
   let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}`
@@ -1557,7 +1563,7 @@ function renderBook(){
   const total = isCombo ? combos.total : inTier.length;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
-    + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${n}티어</button>`).join('')
+    + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${tierName(n)}</button>`).join('')
     + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합</button></div>`
     + `<span class="meta">발견 ${found}/${total}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
     + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>' : detailHtml()}</div>`
@@ -2016,7 +2022,7 @@ function renderFieldInsp(){
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
   if (!f){
-    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>채집 탭 — 재료가 나오는 필드 4곳.</div>';
+    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>기사를 필드 줄의 출전 칸에 끌어다 놓으면 원정을 떠납니다.</div>';
     return;
   }
   const ys = yieldsOf(f.id);
