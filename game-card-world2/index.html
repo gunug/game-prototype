@@ -165,9 +165,10 @@
   .combo-row.ready{background:rgba(255,212,0,.07);border-left:2px solid var(--brand-yellow);}
   .combo-where{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;}
   .combo-where.none{color:#d98b8b;}
-  .combo-card{display:inline-flex;align-items:center;gap:2px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);white-space:nowrap;}
-  .combo-card.locked .icon{filter:brightness(0) opacity(.45);}
   .combo-op{color:var(--muted);font-weight:800;}
+  /* v0.63.0: 조합식 표기 — 못 얻어 본 재료는 검은 실루엣 */
+  .rcp-ic.unk .icon{filter:brightness(0) opacity(.45);}
+  .rcp-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
   .nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;box-sizing:border-box;border-radius:999px;
     background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
   .nbadge[hidden]{display:none;}
@@ -490,16 +491,6 @@ const FIELD_YIELDS = {
   river:     ['water', 'soil', 'sand', 'fish'],
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
-// v0.62.0: 채집은 **자루에서 뽑기** — 한 바퀴 돌 때까지 같은 것이 다시 안 나온다 (운 나빠 재료가 안 모이는 일을 없앰)
-//   그 필드 **첫 원정**은 순서를 고정해 첫 무기 재료가 반드시 나오게 한다
-const FIRST_YIELDS = { mountain: ['stone', 'flint', 'tree'] };
-function fillBag(id, first){
-  const ys = yieldsOf(id).slice();
-  for (let i = ys.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [ys[i], ys[j]] = [ys[j], ys[i]]; }
-  if (!first) return ys;
-  const head = (FIRST_YIELDS[id] || []).filter(t => ys.includes(t));
-  return head.concat(ys.filter(t => !head.includes(t)));
-}
 // 2티어 묶음 (v0.5.0) — 2티어는 필드가 없어 쓰임별로 콜렉터북에 묶음
 const GROUPS = [
   { id:'tool',  name:'도구 · 불',  emoji:'🛠️' },
@@ -722,20 +713,36 @@ const usableRecipes = (x, y) => recipesFor(x, y);
 // v0.21.5: 인스펙터에 나오는 카드에는 보유 수량을 함께
 // v0.23.1: 인스펙터에 카드가 나오면 늘 보유 수량을 함께. 가려진 카드(???)는 보유도 ??
 const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
-const sideText = sd => sd.card ? (S.seen.includes(sd.card) ? `${ic(sd.card)} ${DEFS[sd.card].name} ×${have(sd.card)}` : `${ic(sd.card)} ??? ×??`)
-  : sd.use ? `🏷️ ${sd.use} 아무거나` : `🏷️ ${sd.tag}${sd.lv ? ' lv' + sd.lv + ' 이상' : ''}`;   // v0.49.0
-function outText(r){
+// ── 조합식 표기 (v0.63.0) — 인스펙터·콜렉터북·끌기 표시가 모두 이 규칙 하나를 쓴다 ──
+//   ① 한 번도 얻어 본 적 없는 재료는 **검은 실루엣 + ???**
+//   ② 한 번이라도 얻었으면 **그림 + 이름**
+//   ③ 조합식은 언제나 `재료1 + 재료2 = 결과`
+//   ④ 보유 수량은 언제나 `보유 N` — 곱하기(×) 기호는 쓰지 않는다
+//   ⑤ 화살표(→)를 쓰지 않고 `=` 로 통일한다
+const rcpIcon = (t, known) => `<span class="rcp-ic${known ? '' : ' unk'}">${iconHtml(t, true)}</span>`;
+const rcpCard = (t, withHave) => {
+  const known = S.seen.includes(t);
+  return rcpIcon(t, known) + ' ' + (known ? esc(DEFS[t].name) : '???')
+    + (withHave ? ` <span class="i-muted">보유 ${known ? have(t) : '??'}</span>` : '');
+};
+const rcpSide = (sd, withHave) => sd.card ? rcpCard(sd.card, withHave)
+  : `🏷️ ${esc(sd.use || sd.tag || '')}`;                          // 용도 태그 쪽은 늘 보임
+// 결과 — 그 조합을 해 보기 전까지 ??? (확정 52). 같은 것이 여러 장이면 `이름 2장`
+function rcpOut(r, known){
+  if (r.cook) return known ? '익힌 것' : UNK;
   const counts = new Map();
-  for (const o of r.out) counts.set(o, (counts.get(o) || 0) + 1);
-  return [...counts].map(([o, n]) => ic(o) + ' ' + DEFS[o].name + (n > 1 ? ` ×${n}` : '')).join(', ');
+  for (const o of (r.out || [])) counts.set(o, (counts.get(o) || 0) + 1);
+  return [...counts].map(([o, n]) => (known ? rcpCard(o) : `${rcpIcon(o, false)} ???`) + (n > 1 ? ` ${n}장` : '')).join(' · ');
 }
+const rcpLine = (r, withHave) => `${rcpSide(r.a, withHave)} <span class="combo-op">+</span> ${rcpSide(r.b, withHave)}`
+  + ` <span class="combo-op">=</span> ${rcpOut(r, comboDone(r))}`;
 
 // ── 공용 도우미 ───────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.62.0';
+const VERSION = 'v0.63.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1201,7 +1208,7 @@ function boardMakes(r, id){
 function outLabel(m, x, y){
   const b = m.aIsX ? y : x;
   const outs = m.r.cook ? [DEFS[b].cooked].filter(Boolean) : (m.r.out || []);
-  return outs.map(t => `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${have(t)}</b>`).join(' · ');
+  return outs.map(t => `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>보유 ${have(t)}</b>`).join(' · ');   // v0.63.0: ×가 아니라 '보유 N'
 }
 function craftMatch(x, y){                                        // v0.57.0: 설비 개념을 없애 '한 번만 만들기' 제한도 없음
   return usableRecipes(x, y).find(m => CRAFT_RECIPES.includes(m.r) && boardMakes(m.r, S.tab)) || null;
@@ -1355,14 +1362,6 @@ function select(id){
   els.get(id)?.classList.add('sel');
   renderInsp();
 }
-// 조합식 한 쪽이 가리키는 결과 — 발견 전이면 ???
-function outHtml(r, t){
-  if (r.cook){
-    if (DEFS[t].cooked) return S.seen.includes(DEFS[t].cooked) ? rich(`${ic(DEFS[t].cooked)} ${DEFS[DEFS[t].cooked].name}`) : UNK;
-    return '익힘 (날것이 익은 것으로)';
-  }
-  return r.out.every(o => S.seen.includes(o)) ? rich(outText(r)) : UNK;
-}
 function renderInsp(){
   if (S.tab === 'battle') return renderFieldInsp();
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
@@ -1393,7 +1392,7 @@ function renderInsp(){
       if (!sideMatch(mine, t)) continue;
       if (r.cook && mine.tag === '날것' && !d.cooked) continue;
       const keep = (r.keep === 'a' && mine === r.a) || (r.keep === 'b' && mine === r.b);
-      uses.push(`<div class="row">+ ${rich(sideText(other))} → ${outHtml(r, t)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
+      uses.push(`<div class="row rcp-line">${rcpLine(r, true)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
       break;
     }
   }
@@ -1401,13 +1400,8 @@ function renderInsp(){
   // 만드는 법 — 발견한 카드만
   const makes = CRAFT_RECIPES.filter(r => r.cook ? CRAFT_TYPES.some(x => DEFS[x].cooked === t) : (r.out || []).includes(t));
   if (makes.length){
-    h += '<div class="sub">만드는 법</div>' + makes.map(r => {
-      if (r.cook){
-        const raw = CRAFT_TYPES.find(x => DEFS[x].cooked === t);
-        return `<div class="row">${rich(sideText(r.a))} + ${rich(S.seen.includes(raw) ? `${ic(raw)} ${DEFS[raw].name} ×${have(raw)}` : `${ic(raw)} ??? ×??`)}</div>`;
-      }
-      return `<div class="row">${rich(sideText(r.a))} + ${rich(sideText(r.b))}</div>`;
-    }).join('');
+    h += '<div class="sub">만드는 법</div>' + makes.map(r =>
+      `<div class="row rcp-line">${rcpLine(r, true)}</div>`).join('');
   }
   inspEl.innerHTML = h;
 }
@@ -1451,19 +1445,11 @@ const sideOnBoard = (sd, id) => sd.card ? onBoard(sd.card, id)
 const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
-  const sideMini = sd => {
-    if (!sd.card) return `<span class="combo-card tagside">🏷️ ${esc(sd.use || sd.tag || '')}</span>`;   // v0.49.0: 태그 쪽
-    const seen = S.seen.includes(sd.card);                        // v0.59.0: 재료마다 따로
-    return `<span class="combo-card${seen ? '' : ' locked'}">${iconHtml(sd.card, true)}${seen ? ' ' + esc(DEFS[sd.card].name) : ' ???'}</span>`;
-  };
-  const outMini = t => `<span class="combo-card${on ? '' : ' locked'}">${iconHtml(t, true)}${on ? ' ' + esc(DEFS[t].name) : ' ???'}</span>`;
-  const outs = r.cook ? [] : (r.out || []);
   const bs = recipeBoards(r);
   const where = bs.length ? `<span class="combo-where">${bs.map(boardLabel).join(' · ')}에서</span>`
     : '<span class="combo-where none">만들 화면 없음</span>';     // 지금은 만들 수 없는 조합도 있는 그대로 알림
   return `<div class="combo-row${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
-    + `${sideMini(r.a)}<span class="combo-op">+</span>${sideMini(r.b)}`
-    + `<span class="combo-op">→</span>${outs.map(outMini).join('')}${where}</div>`;
+    + `${rcpLine(r, false)}${where}</div>`;                       // v0.63.0: 인스펙터와 같은 표기
 }
 // 재료를 둘 다 알고 있는데 아직 안 해 본 조합
 const sideKnown = sd => sd.card ? S.seen.includes(sd.card) : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && S.seen.includes(t));
@@ -2047,9 +2033,7 @@ function expStart(id, cardEl){
   const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
-  const first = !(S.marks || {})[id];                             // v0.62.0: 이 필드에 처음 가는가
-  exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0,
-    bag: fillBag(id, first), line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
   questHit(`exp-start:${id}`);                                    // v0.60.0: 그 필드로 떠나기만 하면 끝나는 퀘스트
@@ -2174,9 +2158,9 @@ function dropLoot(def, foeIdx){
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
-  if (!yieldsOf(exp.id).length) return;
-  if (!exp.bag || !exp.bag.length) exp.bag = fillBag(exp.id, false);   // v0.62.0: 자루가 비면 다시 채움
-  const t = exp.bag.shift();
+  const pool = yieldsOf(exp.id);                                  // v0.20.0
+  if (!pool.length) return;
+  const t = pick(pool);
   const tok = document.querySelector('#exp .tok.knight');
   exp.line = `${DEFS[t].name}을(를) 주웠다`;
   flyToCraft(t, tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect());
