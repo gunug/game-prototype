@@ -786,7 +786,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.71.0';
+const VERSION = 'v0.72.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -828,8 +828,8 @@ const QUESTS = {
                 say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대 쓰러뜨리기',        goal:1, key:'kill:wolf',
                 say:'늑대부터 넘어야 앞으로 가겠군' },
-  better:     { name:'이걸론 부족해', text:'더 센 무기를 장착하기',     goal:1, key:'equip:atk2',
-                say:'돌조각으론 곰을 당해낼 수 없겠어' },
+  // v0.72.0: 이 대사는 퀘스트를 받을 때가 아니라 **곰에게 지고 돌아온 뒤**에 한다 (expEnd)
+  better:     { name:'이걸론 부족해', text:'더 센 무기를 장착하기',     goal:1, key:'equip:atk2' },
   bear:       { name:'산의 주인',     text:'👑 곰 쓰러뜨리기',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 출전하기',      goal:1, key:'exp-start:grassland',
@@ -2255,10 +2255,16 @@ function expEnd(kind){
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
   const ups = exp.ups || [];                                      // v0.71.0: 원정 중 오른 레벨 — 모달은 돌아온 뒤에
+  const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
-    if (ups.length) showLevelUp(ups);
+    if (ups.length){ showLevelUp(ups); return; }
+    if (bearLoss && !S.said.includes('bossloss')){                // v0.72.0: 보스에게 처음 졌을 때 한 번
+      S.said.push('bossloss');
+      knightSay('돌조각으론 곰을 당해낼 수 없겠어');
+      save();
+    }
   }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
