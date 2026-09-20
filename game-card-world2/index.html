@@ -388,6 +388,24 @@
   .locked .icon{filter:brightness(0) opacity(.45);}                 /* 미발견: 검은 실루엣 */
 
   /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
+  /* v0.66.0: 정비 화면의 거점 줄 · 기사 카드의 레벨/경험치 */
+  .cw.camp-lab .sub-lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
+  .lvrow{display:flex;align-items:center;gap:4px;margin-top:2px;}
+  .klv{font-size:calc(var(--cf) * .11);font-weight:800;color:var(--brand-yellow);}
+  .xpbar{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
+  .xpbar i{display:block;height:100%;background:var(--brand-yellow);opacity:.8;}
+  /* v0.66.0: 레벨업 모달 — 원정에서 돌아와 정산할 때 */
+  .lv-back{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:60;}
+  .lv-back.open{display:flex;}
+  .lv-box{background:var(--panel,#1d1a16);border:1px solid var(--hairline);border-radius:14px;padding:18px 22px;
+    min-width:min(74vw, 300px);text-align:center;animation:lvIn .34s cubic-bezier(.2,.9,.3,1);}
+  @keyframes lvIn{0%{transform:scale(.8);opacity:0;}100%{transform:none;opacity:1;}}
+  .lv-box .big{font-size:22px;font-weight:900;color:var(--brand-yellow);letter-spacing:.06em;}
+  .lv-box .step{font-size:16px;font-weight:800;margin:4px 0 10px;}
+  .lv-box .rw{font-size:13px;padding:2px 0;}
+  .lv-box .unlock{font-size:13px;color:var(--brand-yellow);font-weight:800;padding:4px 0;}
+  .lv-box button{margin-top:12px;padding:6px 18px;border-radius:var(--r-pill);border:1px solid var(--hairline);
+    background:rgba(255,255,255,.08);color:var(--ink);font:inherit;font-weight:800;cursor:pointer;}
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
   .book-back.open{opacity:1;pointer-events:auto;}
   /* v0.17.1: 팝업은 화면 안에서 가능한 크게 — 가로·세로 비율은 화면 따라 자유롭게 */
@@ -462,6 +480,7 @@
   </div>
 </div>
 <div class="book-back" id="bookBack"></div>
+<div class="lv-back" id="lvBack"><div class="lv-box" id="lvBox"></div></div>
 <div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
 <script>
@@ -742,7 +761,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.65.0';
+const VERSION = 'v0.66.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -799,6 +818,8 @@ function questSelfCheck(){
   const w = equipped('weapon');
   if (w) questHit('equip:weapon');
   if (w && (DEFS[w].atk || 0) >= 2) questHit('equip:atk2');
+  for (const k of (S.killed || [])) questHit(`kill:${k}`);         // v0.66.0: 퀘스트를 받기 전에 이미 잡았어도 인정
+  for (const id in (S.marks || {})) questHit(`exp-end:${id}`);
 }
 // 사슬이 끊긴 채로 저장됐으면 (끝냈는데 다음을 못 받은 경우) 다시 이어 준다
 function questResume(){
@@ -839,6 +860,21 @@ function questGroupState(def){
 }
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
+// v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
+//   보상은 짝수 레벨 **최대 체력 +2**, 홀수 레벨 **공격 +1**, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
+//   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
+const LV_PLAN = {
+  2:{ hp:2 }, 3:{ atk:1 }, 4:{ hp:2 }, 5:{ def:1, slot:'armor' },
+  6:{ hp:2 }, 7:{ atk:1 }, 8:{ hp:2 }, 9:{ atk:1 }, 10:{ def:1, slot:'shield' },
+};
+const lvReward = lv => LV_PLAN[lv] || (lv % 2 === 0 ? { hp:2 } : { atk:1 });   // 10레벨 위로도 같은 결로
+const xpNeed = lv => 20 + 10 * (lv - 1);                          // 2레벨 20 · 3레벨 30 …
+const enemyXp = d => d.hp + d.atk * 2 + d.def * 2;                // 토끼 4 · 늑대 10 · 곰 15
+const knightLv = () => (S.knight && S.knight.lv) || 1;
+const lvSum = key => { let v = 0; for (let i = 2; i <= knightLv(); i++) v += lvReward(i)[key] || 0; return v; };
+const knightMaxHp = () => KNIGHT.hp + lvSum('hp');
+const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
+  .filter(Boolean).join(' · ');
 const PARTY = [true, false, false, false, false];                 // v0.26.0: 출전 칸 5개 — 지금은 첫 칸만 열림
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
@@ -854,17 +890,20 @@ const BOARDS = [
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '거점'] },
 ];
 // v0.23.0: 장비 칸 — 무기 · 갑옷 · 방패. 각 칸에 올릴 수 있는 태그
-// v0.56.0: 처음엔 **무기 칸만** 열려 있음. 나머지는 자물쇠 — 앞으로 무엇을 갖추는지 이름으로 보여 준다.
-//   여는 시점은 아직 미정 (확정 51). 지금은 S.slots에 key를 넣으면 열림
+// v0.56.0: 처음엔 **무기 칸만** 열려 있음. 나머지는 자물쇠 — 앞으로 무엇을 갖추는지 이름으로 보여 준다
+// v0.66.0: 여는 시점은 **캐릭터 레벨** (갑옷 5 · 방패 10). 칸에 조건을 적어 둔다
 const SLOTS = [
-  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk', open:true },        // v0.55.1: 실루엣 그림 없앰
-  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def' },
-  { key:'shield', name:'방패',  tag:'방패',   stat:'def' },
-  { key:'camp',   name:'거점',  tag:'거점' },                    // v0.55.0: 모닥불 같은 쉴 곳 — 비면 회복이 절반
+  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk' },                   // v0.55.1: 실루엣 그림 없앰
+  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', lv:5 },
+  { key:'shield', name:'방패',  tag:'방패',   stat:'def', lv:10 },
 ];
+// v0.66.0: **거점은 캐릭터 장비가 아니다.** 정비 화면에 하나뿐인 공통 칸이고 모든 캐릭터에게 같이 적용된다
+const CAMP = { key:'camp', name:'거점', tag:'거점' };
+const ALL_SLOTS = SLOTS.concat([CAMP]);
+const slotByKey = key => ALL_SLOTS.find(x => x.key === key) || null;
 // 그 카드가 어느 장비 칸에 들어가는지 (카드 왼쪽 위 실루엣)
-const slotOfType = t => SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
-const slotOpen = key => { const sl = SLOTS.find(x => x.key === key); return !!sl && (sl.open || ((S && S.slots) || []).includes(key)); };
+const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
+const slotOpen = key => { const sl = slotByKey(key); return !!sl && (!sl.lv || knightLv() >= sl.lv); };   // v0.66.0: 레벨로 열림
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
@@ -883,8 +922,8 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon'], slots: [], questDone: [], marks: {}, equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
-  knight: { hp: KNIGHT.hp } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+  knight: { hp: KNIGHT.hp, lv: 1, xp: 0 } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -913,7 +952,7 @@ function load(){
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
     s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
     const eq = {};                                                // v0.23.0: 장착한 장비
-    for (const sl of SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
+    for (const sl of ALL_SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
     s.equip = eq;
     // v0.51.1: 보스를 잡은 필드. 예전 저장(기록 없음)은 곰을 다시 잡을 때마다 필드가 열리던 버그가 있어
     //   산 다음 한 곳(초원)까지만 남기고 나머지는 다시 잠금
@@ -931,14 +970,17 @@ function load(){
     for (const id of ['tool', 'weapon']) if (!s.boards.includes(id)) s.boards.push(id);   // v0.56.0
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     s.marks = s.marks && typeof s.marks === 'object' ? s.marks : {};   // v0.61.0: 필드마다 가장 멀리 간 지점
-    s.slots = Array.isArray(s.slots) ? s.slots.filter(k => SLOTS.some(sl => sl.key === k && !sl.open)) : [];
-    for (const sl of SLOTS) if (!sl.open && !s.slots.includes(sl.key) && s.equip) s.equip[sl.key] = null;   // v0.56.0: 잠긴 칸의 예전 장비는 뺌
+    s.killed = Array.isArray(s.killed) ? s.killed.filter(k => ENEMIES[k]) : [];   // v0.66.0: 잡아 본 적
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
     if (!BOARD_BY_ID[s.tab] && s.tab !== 'battle') s.tab = 'battle';
     if (s.tab !== 'battle' && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
     delete s.quest;
     s.intro = 'done';
-    s.knight = { hp: Math.max(0, Math.min(KNIGHT.hp, (s.knight && s.knight.hp) ?? KNIGHT.hp)) };   // v0.13.0: 기사
+    const ok = s.knight || {};                                    // v0.13.0: 기사. v0.66.0: 레벨·경험치
+    s.knight = { hp: 0, lv: Math.max(1, Math.floor(ok.lv) || 1), xp: Math.max(0, Math.floor(ok.xp) || 0) };
+    S = s;                                                        // knightMaxHp()가 S를 보므로 먼저 꽂아 둠
+    s.knight.hp = Math.max(0, Math.min(knightMaxHp(), ok.hp ?? knightMaxHp()));
+    for (const sl of SLOTS) if (!slotOpen(sl.key) && s.equip) s.equip[sl.key] = null;   // 잠긴 칸의 예전 장비는 뺌
     return s;
   } catch (e){ return null; }
 }
@@ -1634,16 +1676,20 @@ function screenRows(){
       return { card, slots };
     });
   }
-  // 정비 — 캐릭터마다 한 줄
-  return [{
-    card: knightCardHtml(),
-    slots: SLOTS.map(sl => {
-      const open = slotOpen(sl.key);                              // v0.56.0: 잠긴 칸은 자물쇠 + 이름
-      const t = open ? equipped(sl.key) : null;
-      return { id: `knight:${sl.key}`, open, card: !!t, icon: t ? iconHtml(t) : '',
-        cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: sl.name };
-    }),
-  }];
+  // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
+  const slotOf = (row, sl) => {
+    const open = slotOpen(sl.key);                                // v0.56.0: 잠긴 칸은 자물쇠 + 이름
+    const t = open ? equipped(sl.key) : null;
+    return { id: `${row}:${sl.key}`, open, card: !!t, icon: t ? iconHtml(t) : '',
+      cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
+      lab: open || !sl.lv ? sl.name : `${sl.name} (${sl.lv}레벨)` };   // v0.66.0: 여는 조건을 적어 둠
+  };
+  const campCard = '<div class="cw framed f-stone camp-lab"><div class="emoji">🔥</div>'
+    + '<div class="name">거점</div><div class="sub-lab">모두 공통</div></div>';
+  return [
+    { card: knightCardHtml(), slots: SLOTS.map(sl => slotOf('knight', sl)) },
+    { card: campCard, slots: [slotOf('camp', CAMP)] },
+  ];
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
@@ -1698,8 +1744,10 @@ function knightCardHtml(drag){
     + '<div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
     + '<div class="name">기사</div>'
     + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
-    + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${KNIGHT.hp}</span></div>`
-    + `<div class="hpbar"><i style="width:${k.hp / KNIGHT.hp * 100}%"></i></div></div>`;
+    + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${knightMaxHp()}</span></div>`
+    + `<div class="hpbar"><i style="width:${k.hp / knightMaxHp() * 100}%"></i></div>`
+    + `<div class="lvrow"><span class="klv">Lv ${knightLv()}</span>`   // v0.66.0
+    + `<span class="xpbar"><i style="width:${Math.min(100, (k.xp || 0) / xpNeed(knightLv()) * 100)}%"></i></span></div></div>`;
 }
 // v0.34.0: 도구 · 무기 화면의 위 절반 — 완성품 카드 격자
 const topGridEl = document.getElementById('topgrid');
@@ -1748,8 +1796,8 @@ function dropOnSlot(id, token){
     expStart(rowKey, fel);
     return;
   }
-  const sl = SLOTS.find(x => x.key === slotKey);
-  if (sl && !slotOpen(sl.key)){ toast(`${sl.name} 칸은 아직 잠겨 있음`); return; }   // v0.56.0
+  const sl = slotByKey(slotKey);
+  if (sl && !slotOpen(sl.key)){ toast(`${sl.name} 칸은 ${sl.lv}레벨에 열림`); return; }   // v0.56.0 · v0.66.0
   if (!sl || !useOf(token).includes(sl.tag)){ toast(`${sl ? sl.name : '이 칸'} 칸에 넣을 수 없음`); return; }
   equipCard(sl, token);
 }
@@ -1757,7 +1805,7 @@ function dropOnSlot(id, token){
 function slotTakes(id, token){
   const [, slotKey] = id.split(':');
   if (S.tab === 'battle') return token === 'knight';
-  const sl = SLOTS.find(x => x.key === slotKey);
+  const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key) && useOf(token).includes(sl.tag);   // v0.56.0: 잠긴 칸은 안 받음
 }
 // 장착 — 칸에 있던 장비는 아래로 돌아옴 (v0.26.0: 한 장만)
@@ -1838,10 +1886,10 @@ addEventListener('pointerup', e => {
   }
   const hit = slotUnder(e.clientX, e.clientY, d.token);
   if (hit && hit !== d.fromSlot){
-    if (d.fromSlot) unequipSlot(SLOTS.find(x => x.key === d.fromSlot.split(':')[1]));
+    if (d.fromSlot) unequipSlot(slotByKey(d.fromSlot.split(':')[1]));
     dropOnSlot(hit, d.token);
   } else if (d.fromSlot && !hit){
-    unequipSlot(SLOTS.find(x => x.key === d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
+    unequipSlot(slotByKey(d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
 });
@@ -1854,11 +1902,20 @@ addEventListener('pointercancel', () => {
 });
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
-  const sl = SLOTS.find(x => x.key === String(slotPick || '').split(':')[1]);
+  const sl = slotByKey(String(slotPick || '').split(':')[1]);
   if (!sl) return null;
-  if (!slotOpen(sl.key)){                                          // v0.56.0: 잠긴 칸 — 무엇이 올지만 보여 주고 여는 법은 아직 없음
-    inspEl.innerHTML = `<div class="head"><div class="pic locked">🔒</div><div><div class="nm">${esc(sl.name)} 칸</div><div class="kd">아직 잠겨 있음</div></div></div>`
-      + `<div class="desc">언젠가 ${esc(sl.name)}을 갖추게 된다.</div>`;
+  if (!slotOpen(sl.key)){                                          // v0.56.0: 잠긴 칸. v0.66.0: 여는 조건을 적음
+    inspEl.innerHTML = `<div class="head"><div class="pic locked">🔒</div><div><div class="nm">${esc(sl.name)} 칸</div><div class="kd">${sl.lv}레벨에 열림</div></div></div>`
+      + `<div class="desc">기사가 ${sl.lv}레벨이 되면 ${esc(sl.name)}을 갖출 수 있다. 지금은 ${knightLv()}레벨.</div>`;
+    return true;
+  }
+  if (sl.key === 'camp'){                                          // v0.66.0: 거점은 모든 캐릭터에게 같이 적용
+    const now = equipped('camp');
+    inspEl.innerHTML = `<div class="head"><div class="pic">${now ? iconHtml(now) : '🔥'}</div>`
+      + `<div><div class="nm">거점 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`
+      + `<div class="desc">쉴 곳. 캐릭터 장비가 아니라 <b>모두에게 함께 적용</b>된다.</div>`
+      + `<div class="row">쉬는 동안 회복 — 가득 차기까지 <b>${Math.round(healFullMs() / 1000)}초</b>`
+      + `<span class="i-muted"> (거점이 ${now ? '있어 절반' : '없으면 두 배'})</span></div>`;
     return true;
   }
   const now = equipped(sl.key);
@@ -1888,8 +1945,9 @@ function renderFieldInsp(){
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
       + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${knightAtk()}${bestOf('atk') ? ` <span class="i-muted">(맨손 ${KNIGHT.atk} + 무기 ${bestOf('atk')})</span>` : ''}</div>`
       + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
-      + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${KNIGHT.hp}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
-      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${healMs() / 1000}초에 체력 +1${(!slotOpen('camp') || equipped('camp')) ? '' : ' (거점 칸이 비어 절반 속도)'}`}</div>`;
+      + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${knightMaxHp()}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
+      + `<div class="row">Lv ${knightLv()} <span class="i-muted">· 경험치 ${k.xp || 0}/${xpNeed(knightLv())}</span></div>`   // v0.66.0
+      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — 가득 차기까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (거점 있음)' : ''}`}</div>`;
     return;
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
@@ -1990,16 +2048,17 @@ const gearStat = key => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => 
   return sum + (t ? (DEFS[t][key] || 0) : 0);
 }, 0);
 const bestOf = key => gearStat(key);                              // 옛 이름 (인스펙터에서 씀)
-const knightAtk = () => KNIGHT.atk + gearStat('atk');
-const knightDef = () => KNIGHT.def + gearStat('def');
+const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
+const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
 const FIGHT_BEAT_MS = 700;                                       // 한 번 주고받는 간격
 const SEARCH_MS = 1100;                                          // v0.13.4: 채집 포인트를 뒤지는 시간
-const HEAL_MS = 3000;                                            // 원정 밖에서 체력 +1 (거점이 있을 때)
+// v0.66.0: **가득 차기까지 걸리는 시간**을 정해 둔다 — 최대 체력이 올라도 기다림이 길어지지 않게
+const HEAL_FULL_MS = 30000;                                      // 거점이 없을 때 빈사 → 가득
+const HEAL_FULL_CAMP_MS = 15000;                                 // 거점이 있으면 절반
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
-// v0.59.0: 거점 칸이 **잠겨 있는 동안은 벌점 없음** — 플레이어가 어떻게 할 수 없는 일로 느려지면 안 됨.
-//   칸이 열린 뒤부터 비어 있으면 절반 속도
-const healMs = () => (!slotOpen('camp') || equipped('camp')) ? HEAL_MS : HEAL_MS * 2;
+const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
+const healMs = () => Math.max(120, healFullMs() / knightMaxHp());   // 체력 한 칸에 걸리는 시간
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 // v0.58.0: 원정 순서를 필드마다 똑같은 틀로 맞춤
 //   ① 채집-잡몹-채집-잡몹-채집 ② 중간보스 ③ 채집-잡몹-채집-잡몹-채집 ④ 필드보스
@@ -2101,6 +2160,9 @@ function expBeat(){
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
+    exp.xp = (exp.xp || 0) + enemyXp(def);                        // v0.66.0: 경험치는 원정이 끝난 뒤 정산
+    S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
+    if (!S.killed.includes(e.key)) S.killed.push(e.key);
     questHit(`kill:${e.key}`);                                    // v0.60.0
     if (e.boss){                                                  // v0.14.0: 그 필드의 마지막 보스를 잡으면 원정 끝
       // v0.51.1: 그 필드를 **처음** 정복했을 때만 다음 필드가 열림
@@ -2139,9 +2201,11 @@ function expEnd(kind){
   if (exp.t > best) S.marks[exp.id] = exp.t;
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
+  const gotXp = exp.xp || 0;                                      // v0.66.0
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
+    if (gotXp) gainXp(gotXp);                                     // 돌아온 뒤에 정산 — 원정 중엔 세기만 한다
   }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
@@ -2351,19 +2415,56 @@ function renderKnight(){
   if (!card) return;
   const khp = card.querySelector('.khp');
   if (khp){
-    khp.innerHTML = `${statImg('hp')}${k.hp}/${KNIGHT.hp}`;
+    khp.innerHTML = `${statImg('hp')}${k.hp}/${knightMaxHp()}`;
     khp.classList.toggle('down', k.hp <= 0);
   }
   const bar = card.querySelector('.hpbar i');
-  if (bar) bar.style.width = (k.hp / KNIGHT.hp * 100) + '%';
+  if (bar) bar.style.width = (k.hp / knightMaxHp() * 100) + '%';
   if (knightPick) renderInsp();
 }
+// v0.66.0: 경험치 정산 — 원정에서 돌아온 뒤 한 번에. 레벨이 오르면 모달을 띄운다
+//   **레벨업은 최대 체력을 올릴 뿐, 지금 체력을 채우지는 않는다**
+function gainXp(n){
+  const k = S.knight;
+  k.xp = (k.xp || 0) + n;
+  const ups = [];
+  while (k.xp >= xpNeed(k.lv)){
+    k.xp -= xpNeed(k.lv);
+    k.lv++;
+    ups.push(k.lv);
+  }
+  save();
+  renderKnight(); renderScreen(); renderInsp();
+  if (ups.length) showLevelUp(ups);
+  else toast(`✨ 경험치 +${n}`);
+}
+const lvBack = document.getElementById('lvBack');
+function showLevelUp(ups){
+  const k = S.knight;
+  const rows = ups.map(lv => {
+    const r = lvReward(lv);
+    return `<div class="rw">Lv ${lv} — ${esc(LV_REWARD_TEXT(r))}</div>`
+      + (r.slot ? `<div class="unlock">🔓 ${esc(slotByKey(r.slot).name)} 칸이 열렸다</div>` : '');
+  }).join('');
+  document.getElementById('lvBox').innerHTML = '<div class="big">LEVEL UP</div>'
+    + `<div class="step">Lv ${ups[0] - 1} → Lv ${k.lv}</div>${rows}`
+    + `<div class="rw i-muted">체력 ${k.hp}/${knightMaxHp()} · 경험치 ${k.xp}/${xpNeed(k.lv)}</div>`
+    + '<button type="button" data-lvclose="1">확인</button>';
+  lvBack.classList.add('open');
+  setPaused(true);
+}
+lvBack.addEventListener('click', e => {
+  if (e.target !== lvBack && !e.target.closest('[data-lvclose]')) return;
+  lvBack.classList.remove('open');
+  setPaused(false);
+  renderAll(); renderInsp();
+});
 // 쉬는 동안 회복 (원정 중엔 안 됨)
 function healTick(dt){
-  if (exp || paused || S.knight.hp >= KNIGHT.hp){ healProg = 0; return; }
+  if (exp || paused || S.knight.hp >= knightMaxHp()){ healProg = 0; return; }
   healProg += dt;
   const ms = healMs();
-  while (healProg >= ms && S.knight.hp < KNIGHT.hp){
+  while (healProg >= ms && S.knight.hp < knightMaxHp()){
     healProg -= ms;
     S.knight.hp++;
     renderKnight();
