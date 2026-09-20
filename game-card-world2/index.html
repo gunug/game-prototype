@@ -490,6 +490,16 @@ const FIELD_YIELDS = {
   river:     ['water', 'soil', 'sand', 'fish'],
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
+// v0.62.0: 채집은 **자루에서 뽑기** — 한 바퀴 돌 때까지 같은 것이 다시 안 나온다 (운 나빠 재료가 안 모이는 일을 없앰)
+//   그 필드 **첫 원정**은 순서를 고정해 첫 무기 재료가 반드시 나오게 한다
+const FIRST_YIELDS = { mountain: ['stone', 'flint', 'tree'] };
+function fillBag(id, first){
+  const ys = yieldsOf(id).slice();
+  for (let i = ys.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [ys[i], ys[j]] = [ys[j], ys[i]]; }
+  if (!first) return ys;
+  const head = (FIRST_YIELDS[id] || []).filter(t => ys.includes(t));
+  return head.concat(ys.filter(t => !head.includes(t)));
+}
 // 2티어 묶음 (v0.5.0) — 2티어는 필드가 없어 쓰임별로 콜렉터북에 묶음
 const GROUPS = [
   { id:'tool',  name:'도구 · 불',  emoji:'🛠️' },
@@ -725,7 +735,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.61.0';
+const VERSION = 'v0.62.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -759,7 +769,11 @@ const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24
 const QUESTS = {
   gomountain: { name:'산으로',       text:'⛰️ 산에 다녀오기',        goal:1, key:'exp-end:mountain',
                 say:'할 수 있는 게 없네… 일단 산으로 가볼까' },
-  arm:        { name:'맨손으론 무리', text:'무기를 장착하기',          goal:1, key:'equip:weapon',
+  // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
+  //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '무기를 장착하기'
+                  : canMakeWeapon() ? '무기를 만들기' : '⛰️ 산에서 재료를 더 모으기',
+                goal:1, key:'equip:weapon',
                 say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대 쓰러뜨리기',        goal:1, key:'kill:wolf',
                 say:'늑대부터 넘어야 앞으로 가겠군' },
@@ -796,9 +810,17 @@ function questHit(key){
     return;
   }
 }
+// v0.62.0: 지금 무기를 가지고 있나 / 지금 재료로 무기를 만들 수 있나
+const haveWeapon = () => CRAFT_TYPES.some(t => useOf(t).includes('무기') && have(t) > 0);
+const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('무기'))
+  && sideHave(r.a) && sideHave(r.b));
+const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
-const questText = (def, q) => def.steps ? (def.steps[Math.min(q.n, def.steps.length - 1)] || {}).text : def.text;
+const questText = (def, q) => {
+  const t = def.steps ? (def.steps[Math.min(q.n, def.steps.length - 1)] || {}).text : def.text;
+  return typeof t === 'function' ? t() : t;                        // v0.62.0: 상태에 따라 바뀌는 글
+};
 // v0.42.1: 판정은 다시 **지금 보유 수**로 (누적 판정은 뺌 — 재료를 엉뚱한 데 써 버리면 할 일이 사라져 헤매게 됨)
 //   대신 덩어리마다 '그때 손에 있어야 하는 것'을 적어 둬서, 만들어서 재료가 줄어도 바로 다음 덩어리가 채워짐
 function groupFilled(g){ return g.items.every(it => have(it.card) >= it.n); }
@@ -2025,7 +2047,9 @@ function expStart(id, cardEl){
   const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
-  exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  const first = !(S.marks || {})[id];                             // v0.62.0: 이 필드에 처음 가는가
+  exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0,
+    bag: fillBag(id, first), line: `${FIELD_BY_ID[id].name} 원정 시작` };
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
   questHit(`exp-start:${id}`);                                    // v0.60.0: 그 필드로 떠나기만 하면 끝나는 퀘스트
@@ -2150,9 +2174,9 @@ function dropLoot(def, foeIdx){
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
-  const pool = yieldsOf(exp.id);                                  // v0.20.0
-  if (!pool.length) return;
-  const t = pick(pool);
+  if (!yieldsOf(exp.id).length) return;
+  if (!exp.bag || !exp.bag.length) exp.bag = fillBag(exp.id, false);   // v0.62.0: 자루가 비면 다시 채움
+  const t = exp.bag.shift();
   const tok = document.querySelector('#exp .tok.knight');
   exp.line = `${DEFS[t].name}을(를) 주웠다`;
   flyToCraft(t, tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect());
