@@ -742,7 +742,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.63.0';
+const VERSION = 'v0.64.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1385,9 +1385,12 @@ function renderInsp(){
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
-  // 쓰이는 조합 — 이 카드가 들어가는 쪽의 반대편 + 결과
+  // 쓰이는 조합 — 이 카드가 들어가는 조합
+  // v0.64.0: **지금 화면에서 되는 조합만** 보여 준다 (도구 탭에선 도구 조합만, 무기 탭에선 무기 조합만)
+  const here = BOARD_BY_ID[S.tab] && !isRowScreen(S.tab) ? S.tab : null;
   const uses = [];
   for (const r of CRAFT_RECIPES){
+    if (here && !recipeBoards(r).includes(here)) continue;
     for (const [mine, other] of [[r.a, r.b], [r.b, r.a]]){
       if (!sideMatch(mine, t)) continue;
       if (r.cook && mine.tag === '날것' && !d.cooked) continue;
@@ -1396,7 +1399,8 @@ function renderInsp(){
       break;
     }
   }
-  h += '<div class="sub">쓰이는 조합</div>' + (uses.length ? uses.join('') : '<div class="i-muted">없음</div>');
+  h += '<div class="sub">쓰이는 조합</div>'
+    + (uses.length ? uses.join('') : `<div class="i-muted">${here ? '이 화면에서 되는 조합은 없음' : '없음'}</div>`);
   // 만드는 법 — 발견한 카드만
   const makes = CRAFT_RECIPES.filter(r => r.cook ? CRAFT_TYPES.some(x => DEFS[x].cooked === t) : (r.out || []).includes(t));
   if (makes.length){
