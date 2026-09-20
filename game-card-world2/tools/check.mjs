@@ -64,22 +64,35 @@ for (const f of once){
 }
 console.log(`✓ 타이머·rAF 콜백 ${once.length}개 실행`);
 
-// 4) 저장 → **새로 고침** (v0.76.0)
-//   저장을 남긴 뒤 스크립트를 처음부터 다시 돌려 본다. 시작 코드에서 load()가 조용히 실패하면
-//   (예: 아직 선언 전인 전역을 건드려 TDZ 오류 → catch가 삼킴) 진행이 통째로 버려진다
-try {
-  vm.runInContext("S.seen = ['stone','flint']; S.knight.lv = 6; S.knight.xp = 7; S.killed = ['wolf']; save();", ctx);
-  const ctx2 = { ...ctx };                                        // 같은 localStorage(mem)를 쓰는 새 판
-  ctx2.document = fake('document');
-  ctx2.setTimeout = () => 0; ctx2.setInterval = () => 0; ctx2.requestAnimationFrame = () => 0;
-  ctx2.window = ctx2; ctx2.globalThis = ctx2; ctx2.self = ctx2;
-  vm.createContext(ctx2);
-  vm.runInContext(code, ctx2, { filename: 'index.html<script> (새로 고침)' });
-  const got = vm.runInContext('JSON.stringify({ lv: S.knight.lv, xp: S.knight.xp, seen: S.seen.length })', ctx2);
-  const g = JSON.parse(got);
-  if (g.lv !== 6 || g.xp !== 7 || g.seen !== 2){
-    report('새로 고침', new Error('저장이 버려짐 — 새로 고치면 처음부터 시작됨: ' + got));
-  } else console.log('✓ 저장 → 새로 고침');
-} catch (e){ report('새로 고침', e); }
+// 4) 저장 → **새로 고침** (v0.76.0) — 여러 모양의 저장으로 각각 확인
+//   시작 코드에서 load()가 조용히 실패하면(아직 선언 전인 전역을 건드리는 TDZ 등 → catch가 삼킴)
+//   진행이 통째로 버려진다. 첫 실행 때만 나는 오류라 '스크립트를 처음부터 다시 돌리는' 방식으로만 잡힌다
+function refresh(label, setup, expect){
+  try {
+    if (setup) vm.runInContext(setup, ctx);
+    const ctx2 = { ...ctx };                                      // 같은 localStorage(mem)를 쓰는 새 판
+    ctx2.document = fake('document');
+    ctx2.setTimeout = () => 0; ctx2.setInterval = () => 0; ctx2.requestAnimationFrame = () => 0;
+    ctx2.window = ctx2; ctx2.globalThis = ctx2; ctx2.self = ctx2;
+    vm.createContext(ctx2);
+    vm.runInContext(code, ctx2, { filename: `index.html<script> (새로 고침: ${label})` });
+    const got = JSON.parse(vm.runInContext(
+      'JSON.stringify({ lv: S.knight.lv, xp: S.knight.xp, seen: S.seen.length, tab: S.tab, cards: S.cards.length })', ctx2));
+    for (const k in expect){
+      if (got[k] !== expect[k]){ report(`새로 고침(${label})`, new Error(`${k} = ${got[k]}, ${expect[k]} 이어야 함 — 저장이 버려졌을 수 있음: ${JSON.stringify(got)}`)); return; }
+    }
+    console.log(`✓ 저장 → 새로 고침 (${label})`);
+  } catch (e){ report(`새로 고침(${label})`, e); }
+}
+refresh('보통', "S.seen = ['stone','flint']; S.knight.lv = 6; S.knight.xp = 7; S.killed = ['wolf']; S.cards = [{id:1,type:'stone',x:0,y:0,n:3}]; save();",
+  { lv: 6, xp: 7, seen: 2, cards: 1 });
+refresh('예전 저장', `localStorage.setItem(SAVE_KEY, JSON.stringify({
+  cards: [{ id:1, type:'stone', x:0, y:0 }, { id:2, type:'stone', x:0, y:0 }, { id:3, type:'없는카드', x:0, y:0 }],
+  seen: ['stone','없는카드'], tab: 'gather', quest: { id:'gomountain', n:0 },
+  fields: { mountain:{ locked:false, left:3 } }, lootSeen: { animal:['meat'] } }));`,
+  { lv: 1, xp: 0, seen: 1, tab: 'battle', cards: 1 });             // 같은 카드는 한 장으로 합쳐짐
+refresh('에디터 모드', "S.seen = ['stone']; S.knight.lv = 3; save(); localStorage.setItem(EDIT_KEY, '1');",
+  { lv: 3 });
+vm.runInContext("localStorage.removeItem(EDIT_KEY);", ctx);
 
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
