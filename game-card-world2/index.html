@@ -387,6 +387,9 @@
   .insp .chip .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
   .insp .sub{font-size:11px;font-weight:800;color:var(--brand-yellow);margin:8px 0 4px;letter-spacing:.02em;}
   .insp .row{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  /* v0.73.0: 같은 결의 정보는 **가로로 묶고**, 폭이 모자라면 줄내림. 조합식처럼 한 줄이 긴 것은 세로 그대로 */
+  .insp .rows{display:flex;flex-wrap:wrap;gap:2px 14px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);}
+  .insp .rows .row{padding:0;border-bottom:none;white-space:nowrap;}
   .insp .row.gpick{cursor:pointer;}
   .insp .row.gpick:hover{background:rgba(255,255,255,.06);}
   .insp .row.gpick.on{color:var(--brand-yellow);}
@@ -786,7 +789,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.72.0';
+const VERSION = 'v0.73.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1974,8 +1977,12 @@ function renderGearInsp(){
   let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
     + `<div><div class="nm">${sl.name} 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
   h += `<div class="desc">${now ? esc(DESC[now] || '') : '카드를 끌어다 놓으면 장착된다.'}</div>`;
-  if (now) h += `<div class="row">${statImg(sl.stat)} ${DEFS[now][sl.stat] || 0} <span class="i-muted">· 보유 ${have(now)}</span></div>`;
-  h += `<div class="sub">기사</div><div class="row">${statImg('atk')} ${knightAtk()} · ${statImg('def')} ${knightDef()}</div>`;
+  if (now) h += '<div class="rows">'                                // v0.73.0
+    + (sl.stat ? `<div class="row">${statImg(sl.stat)} <b>${DEFS[now][sl.stat] || 0}</b></div>` : '')
+    + `<div class="row i-muted">보유 ${have(now)}</div></div>`;
+  h += '<div class="sub">기사</div><div class="rows">'
+    + `<div class="row">${statImg('atk')} <b>${knightAtk()}</b></div><div class="row">${statImg('def')} <b>${knightDef()}</b></div>`
+    + `<div class="row">${statImg('hp')} <b>${S.knight.hp}/${knightMaxHp()}</b></div></div>`;
   inspEl.innerHTML = h;
   return true;
 }
@@ -1995,10 +2002,14 @@ function renderFieldInsp(){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
       + `<div><div class="nm">기사</div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
-      + `<div class="sub">상태</div><div class="row">${statImg('atk')} 공격 ${knightAtk()}${bestOf('atk') ? ` <span class="i-muted">(맨손 ${KNIGHT.atk} + 무기 ${bestOf('atk')})</span>` : ''}</div>`
-      + `<div class="row">${statImg('def')} 방어 ${knightDef()}${bestOf('def') ? ` <span class="i-muted">(맨손 ${KNIGHT.def} + 방어구 ${bestOf('def')})</span>` : ''}</div>`
-      + `<div class="row">${statImg('hp')} 체력 ${k.hp}/${knightMaxHp()}${k.hp <= 0 ? ' <b class="i-muted">— 빈사</b>' : ''}</div>`
-      + `<div class="row">Lv ${knightLv()} <span class="i-muted">· 경험치 ${k.xp || 0}/${xpNeed(knightLv())}</span></div>`   // v0.66.0
+      + '<div class="sub">상태</div><div class="rows">'                // v0.73.0: 능력치는 한 묶음으로 가로 배치
+      + `<div class="row">${statImg('atk')} 공격 <b>${knightAtk()}</b></div>`
+      + `<div class="row">${statImg('def')} 방어 <b>${knightDef()}</b></div>`
+      + `<div class="row">${statImg('hp')} 체력 <b>${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div>`
+      + `<div class="row">Lv <b>${knightLv()}</b> <span class="i-muted">${k.xp || 0}/${xpNeed(knightLv())}</span></div></div>`
+      + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
+        ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
+          + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
       + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — 가득 차기까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (거점 있음)' : ''}`}</div>`
       + lvTableHtml();                                             // v0.68.0: 레벨 표
     return;
@@ -2024,11 +2035,13 @@ function renderFieldInsp(){
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
     + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
-    + '<div class="sub">주워 오는 것</div>' + ys.map(t => rowOf(t, S.seen.includes(t))).join('')
+    + '<div class="sub">주워 오는 것</div><div class="rows">'          // v0.73.0: 카드 목록은 가로로 묶고 폭이 모자라면 줄내림
+    + ys.map(t => rowOf(t, S.seen.includes(t))).join('') + '</div>'
     + foes.map(k => {
         const e = ENEMIES[k];
         const got = S.lootSeen[k] || [];
-        return `<div class="sub">${esc(e.name)}에게서</div>` + (e.loot || []).map(l => rowOf(l[0], got.includes(l[0]))).join('');
+        return `<div class="sub">${esc(e.name)}에게서</div><div class="rows">`
+          + (e.loot || []).map(l => rowOf(l[0], got.includes(l[0]))).join('') + '</div>';
       }).join('');
 }
 function setTab(tab){
