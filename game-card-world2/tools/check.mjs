@@ -63,4 +63,23 @@ for (const f of once){
   catch (e){ report('타이머', e); }
 }
 console.log(`✓ 타이머·rAF 콜백 ${once.length}개 실행`);
+
+// 4) 저장 → **새로 고침** (v0.76.0)
+//   저장을 남긴 뒤 스크립트를 처음부터 다시 돌려 본다. 시작 코드에서 load()가 조용히 실패하면
+//   (예: 아직 선언 전인 전역을 건드려 TDZ 오류 → catch가 삼킴) 진행이 통째로 버려진다
+try {
+  vm.runInContext("S.seen = ['stone','flint']; S.knight.lv = 6; S.knight.xp = 7; S.killed = ['wolf']; save();", ctx);
+  const ctx2 = { ...ctx };                                        // 같은 localStorage(mem)를 쓰는 새 판
+  ctx2.document = fake('document');
+  ctx2.setTimeout = () => 0; ctx2.setInterval = () => 0; ctx2.requestAnimationFrame = () => 0;
+  ctx2.window = ctx2; ctx2.globalThis = ctx2; ctx2.self = ctx2;
+  vm.createContext(ctx2);
+  vm.runInContext(code, ctx2, { filename: 'index.html<script> (새로 고침)' });
+  const got = vm.runInContext('JSON.stringify({ lv: S.knight.lv, xp: S.knight.xp, seen: S.seen.length })', ctx2);
+  const g = JSON.parse(got);
+  if (g.lv !== 6 || g.xp !== 7 || g.seen !== 2){
+    report('새로 고침', new Error('저장이 버려짐 — 새로 고치면 처음부터 시작됨: ' + got));
+  } else console.log('✓ 저장 → 새로 고침');
+} catch (e){ report('새로 고침', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);

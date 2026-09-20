@@ -788,7 +788,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.75.0';
+const VERSION = 'v0.76.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1013,7 +1013,8 @@ function load(){
     for (const id of ['tool', 'weapon']) if (!s.boards.includes(id)) s.boards.push(id);   // v0.56.0
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     s.marks = s.marks && typeof s.marks === 'object' ? s.marks : {};   // v0.61.0: 필드마다 가장 멀리 간 지점
-    s.killed = Array.isArray(s.killed) ? s.killed.filter(k => ENEMIES[k]) : [];   // v0.66.0: 잡아 본 적
+    // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
+    s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
     if (!BOARD_BY_ID[s.tab] && s.tab !== 'battle') s.tab = 'battle';
     if (s.tab !== 'battle' && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
@@ -1021,11 +1022,16 @@ function load(){
     s.intro = 'done';
     const ok = s.knight || {};                                    // v0.13.0: 기사. v0.66.0: 레벨·경험치
     s.knight = { hp: 0, lv: Math.max(1, Math.floor(ok.lv) || 1), xp: Math.max(0, Math.floor(ok.xp) || 0) };
-    S = s;                                                        // knightMaxHp()가 S를 보므로 먼저 꽂아 둠
-    s.knight.hp = Math.max(0, Math.min(knightMaxHp(), ok.hp ?? knightMaxHp()));
-    for (const sl of SLOTS) if (!slotOpen(sl.key) && s.equip) s.equip[sl.key] = null;   // 잠긴 칸의 예전 장비는 뺌
+    // v0.76.0: 여기서 전역 S에 손대면 안 된다 (아직 `let S` 선언 전이라 오류가 나고,
+    //   그 오류를 아래 catch가 삼켜 **새로 고칠 때마다 저장이 통째로 버려졌다**). 저장본만 보고 계산한다
+    let maxHp = KNIGHT.hp;
+    for (let i = 2; i <= s.knight.lv; i++) maxHp += lvReward(i).hp || 0;
+    s.knight.hp = Math.max(0, Math.min(maxHp, ok.hp ?? maxHp));
+    for (const sl of SLOTS){                                      // 잠긴 칸의 예전 장비는 뺌
+      if (sl.lv && s.knight.lv < sl.lv && s.equip) s.equip[sl.key] = null;
+    }
     return s;
-  } catch (e){ return null; }
+  } catch (e){ console.warn('저장 읽기 실패 — 새 게임으로 시작', e); return null; }
 }
 // v0.24.1: 에디터 모드에서는 저장하지 않음 — 원래 저장 내용을 건드리지 않기 위해
 function save(){ if (editMode) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
