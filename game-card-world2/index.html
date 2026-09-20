@@ -761,7 +761,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.66.0';
+const VERSION = 'v0.67.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -861,14 +861,16 @@ function questGroupState(def){
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
 // v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
-//   보상은 짝수 레벨 **최대 체력 +2**, 홀수 레벨 **공격 +1**, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
+//   보상은 대부분 **최대 체력 +2**, 공격 +1은 6·9레벨처럼 드물게, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
 //   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
+// v0.67.0: 공격 보상을 3레벨 → 6레벨로 미루고 곡선을 가파르게.
+//   레벨만 올려 무기를 건너뛰는 길(노가다)도 열어 두되, **원정 9번쯤** 걸리게 (예전엔 4번)
 const LV_PLAN = {
-  2:{ hp:2 }, 3:{ atk:1 }, 4:{ hp:2 }, 5:{ def:1, slot:'armor' },
-  6:{ hp:2 }, 7:{ atk:1 }, 8:{ hp:2 }, 9:{ atk:1 }, 10:{ def:1, slot:'shield' },
+  2:{ hp:2 }, 3:{ hp:2 }, 4:{ hp:2 }, 5:{ def:1, slot:'armor' },
+  6:{ atk:1 }, 7:{ hp:2 }, 8:{ hp:2 }, 9:{ atk:1 }, 10:{ def:1, slot:'shield' },
 };
-const lvReward = lv => LV_PLAN[lv] || (lv % 2 === 0 ? { hp:2 } : { atk:1 });   // 10레벨 위로도 같은 결로
-const xpNeed = lv => 20 + 10 * (lv - 1);                          // 2레벨 20 · 3레벨 30 …
+const lvReward = lv => LV_PLAN[lv] || (lv % 3 === 0 ? { atk:1 } : { hp:2 });   // 10레벨 위로도 같은 결로
+const xpNeed = lv => 25 + 15 * (lv - 1);                          // 2레벨 25 · 3레벨 40 …
 const enemyXp = d => d.hp + d.atk * 2 + d.def * 2;                // 토끼 4 · 늑대 10 · 곰 15
 const knightLv = () => (S.knight && S.knight.lv) || 1;
 const lvSum = key => { let v = 0; for (let i = 2; i <= knightLv(); i++) v += lvReward(i)[key] || 0; return v; };
