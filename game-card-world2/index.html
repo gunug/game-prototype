@@ -414,6 +414,11 @@
   .lvr .lvx{flex:1;color:var(--brand-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .lvr .lvq{flex:none;font-variant-numeric:tabular-nums;}
   .lvr .icon.inline{width:1.05em;height:1.05em;}
+  /* v0.71.0: 원정 중 레벨업 — 기사 카드가 금빛으로 번쩍 */
+  .cw.knight.lvup{animation:lvFlash .9s ease-out;}
+  @keyframes lvFlash{0%{box-shadow:0 0 0 0 rgba(255,212,0,0);}
+    25%{box-shadow:0 0 14px 4px rgba(255,212,0,.85);filter:brightness(1.35);}
+    100%{box-shadow:0 0 0 0 rgba(255,212,0,0);}}
   /* v0.66.0: 레벨업 모달 — 원정에서 돌아와 정산할 때 */
   .lv-back{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:60;}
   .lv-back.open{display:flex;}
@@ -781,7 +786,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.70.0';
+const VERSION = 'v0.71.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2208,7 +2213,7 @@ function expBeat(){
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
-    exp.xp = (exp.xp || 0) + enemyXp(def);                        // v0.66.0: 경험치는 원정이 끝난 뒤 정산
+    gainXp(enemyXp(def));                                         // v0.71.0: 잡는 즉시 오른다 (카드에 바로 보이게)
     S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
     if (!S.killed.includes(e.key)) S.killed.push(e.key);
     questHit(`kill:${e.key}`);                                    // v0.60.0
@@ -2249,11 +2254,11 @@ function expEnd(kind){
   if (exp.t > best) S.marks[exp.id] = exp.t;
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
-  const gotXp = exp.xp || 0;                                      // v0.66.0
+  const ups = exp.ups || [];                                      // v0.71.0: 원정 중 오른 레벨 — 모달은 돌아온 뒤에
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
-    if (gotXp) gainXp(gotXp);                                     // 돌아온 뒤에 정산 — 원정 중엔 세기만 한다
+    if (ups.length) showLevelUp(ups);
   }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
@@ -2474,8 +2479,9 @@ function renderKnight(){
   }
   if (knightPick) renderInsp();
 }
-// v0.66.0: 경험치 정산 — 원정에서 돌아온 뒤 한 번에. 레벨이 오르면 모달을 띄운다
-//   **레벨업은 최대 체력을 올릴 뿐, 지금 체력을 채우지는 않는다**
+// v0.66.0: 경험치. v0.71.0: **적을 잡는 즉시** 오르고 **보상도 그 자리에서** 붙는다 (카드에 바로 보이게)
+//   **최대 체력·공격·방어만 오르고 지금 체력은 그대로** — 레벨업으로 회복되지 않는다
+//   원정 중이면 모달은 띄우지 않고 카드가 번쩍인다. 모아 뒀다가 돌아온 뒤 한 번에 보여 줌
 function gainXp(n){
   const k = S.knight;
   k.xp = (k.xp || 0) + n;
@@ -2486,9 +2492,18 @@ function gainXp(n){
     ups.push(k.lv);
   }
   save();
-  renderKnight(); renderScreen(); renderInsp();
-  if (ups.length) showLevelUp(ups);
-  else toast(`✨ 경험치 +${n}`);
+  renderKnight();                                                 // 카드의 막대·숫자는 바로 갱신
+  if (!exp) renderScreen();                                       // v0.71.0: 원정 중엔 줄을 다시 그리지 않는다 (트랙이 다시 만들어짐)
+  renderInsp();
+  if (!ups.length){ toast(`✨ 경험치 +${n}`); return; }
+  if (exp){                                                       // 원정 중 — 멈추지 않고 그 자리에서 알림
+    exp.ups = (exp.ups || []).concat(ups);
+    toast(`⬆ 레벨 업! Lv ${k.lv} — ${LV_REWARD_TEXT(lvReward(k.lv))}`);
+    const card = gatherEl.querySelector('.chars .cw.knight');
+    if (card) flash(card, 'lvup', 900);
+    return;
+  }
+  showLevelUp(ups);
 }
 const lvBack = document.getElementById('lvBack');
 function showLevelUp(ups){
