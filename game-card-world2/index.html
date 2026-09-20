@@ -181,9 +181,16 @@
   /* v0.29.0: 기사 능력치는 카드 안에 */
   .cw.knight .kstat{display:flex;gap:calc(var(--cf) * .05);font-size:calc(var(--cf) * .1);font-weight:800;line-height:1;}
   .cw.knight .kstat .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
-  .cw.knight .kstat .khp.down{color:#ff8a8a;}
-  .cw.knight .hpbar{width:70%;height:calc(var(--cf) * .05);margin-top:2px;border-radius:3px;background:rgba(0,0,0,.5);overflow:hidden;}
-  .cw.knight .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
+  /* v0.70.0: 막대 위에 숫자를 겹쳐 올림 — 체력은 체력바에, 레벨·경험치는 경험치바에 */
+  .cw.knight .hpbar,.cw.knight .xpbar{position:relative;width:78%;height:calc(var(--cf) * .13);margin-top:2px;
+    border-radius:calc(var(--cf) * .07);background:rgba(0,0,0,.55);overflow:hidden;}
+  .cw.knight .hpbar i,.cw.knight .xpbar i{display:block;height:100%;transition:width .2s;}
+  .cw.knight .hpbar i{background:#7ad17a;}
+  .cw.knight .xpbar i{background:var(--brand-yellow);opacity:.75;}
+  .cw.knight .barlab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--cf) * .05);
+    font-size:calc(var(--cf) * .092);font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85);}
+  .cw.knight .hpbar.down .barlab{color:#ff8a8a;}
+  .cw.knight .xpn{opacity:.85;font-weight:700;}
   .cw.lift{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;box-shadow:var(--sh-lg);cursor:grabbing;}
   .pslot.filled{border-style:solid;border-color:var(--hairline);padding:0;}
   .pslot .cw{position:relative;width:100%;height:100%;--cf:calc(var(--cw) / .7 * .8 * .8);}   /* 칸에 들어간 카드도 카드 비율 그대로 */
@@ -194,7 +201,6 @@
   .knight-row .cw.knight{position:relative;flex:none;cursor:pointer;}
   .kstat{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;}
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
-  .kstat .khp.down{color:#ff8a8a;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
   .kstat .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
   .exp{width:100%;}
@@ -775,7 +781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.69.0';
+const VERSION = 'v0.70.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1765,11 +1771,12 @@ function knightCardHtml(drag){
   return `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"${drag ? ' data-token="knight"' : ''}>`
     + '<div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
     + '<div class="name">기사</div>'
-    + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
-    + `<span class="khp${k.hp <= 0 ? ' down' : ''}">${statImg('hp')}${k.hp}/${knightMaxHp()}</span></div>`
-    + `<div class="hpbar"><i style="width:${k.hp / knightMaxHp() * 100}%"></i></div>`
-    + `<div class="lvrow"><span class="klv">Lv ${knightLv()}</span>`   // v0.66.0
-    + `<span class="xpbar"><i style="width:${Math.min(100, (k.xp || 0) / xpNeed(knightLv()) * 100)}%"></i></span></div></div>`;
+    // v0.70.0: 카드가 좁으니 줄을 늘리지 않는다 — **숫자를 막대 위에 겹쳐** 올린다
+    + `<div class="kstat"><span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span></div>`
+    + `<div class="hpbar${k.hp <= 0 ? ' down' : ''}"><i style="width:${k.hp / knightMaxHp() * 100}%"></i>`
+    + `<b class="barlab">${k.hp}/${knightMaxHp()}</b></div>`
+    + `<div class="xpbar"><i style="width:${Math.min(100, (k.xp || 0) / xpNeed(knightLv()) * 100)}%"></i>`
+    + `<b class="barlab">Lv ${knightLv()}<span class="xpn">${k.xp || 0}/${xpNeed(knightLv())}</span></b></div></div>`;
 }
 // v0.34.0: 도구 · 무기 화면의 위 절반 — 완성품 카드 격자
 const topGridEl = document.getElementById('topgrid');
@@ -2454,13 +2461,17 @@ function renderKnight(){
   if (S.tab !== 'battle') return;
   const k = S.knight, card = gatherEl.querySelector('.chars .cw.knight');
   if (!card) return;
-  const khp = card.querySelector('.khp');
-  if (khp){
-    khp.innerHTML = `${statImg('hp')}${k.hp}/${knightMaxHp()}`;
-    khp.classList.toggle('down', k.hp <= 0);
+  const hb = card.querySelector('.hpbar');                        // v0.70.0: 숫자가 막대 위에 겹쳐 있음
+  if (hb){
+    hb.classList.toggle('down', k.hp <= 0);
+    hb.querySelector('i').style.width = (k.hp / knightMaxHp() * 100) + '%';
+    hb.querySelector('.barlab').textContent = `${k.hp}/${knightMaxHp()}`;
   }
-  const bar = card.querySelector('.hpbar i');
-  if (bar) bar.style.width = (k.hp / knightMaxHp() * 100) + '%';
+  const xb = card.querySelector('.xpbar');
+  if (xb){
+    xb.querySelector('i').style.width = Math.min(100, (k.xp || 0) / xpNeed(knightLv()) * 100) + '%';
+    xb.querySelector('.barlab').innerHTML = `Lv ${knightLv()}<span class="xpn">${k.xp || 0}/${xpNeed(knightLv())}</span>`;
+  }
   if (knightPick) renderInsp();
 }
 // v0.66.0: 경험치 정산 — 원정에서 돌아온 뒤 한 번에. 레벨이 오르면 모달을 띄운다
