@@ -850,7 +850,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.98.0';
+const VERSION = 'v0.98.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1982,7 +1982,7 @@ function renderTabs(){                                            // v0.21.0: �
     .concat(BOARDS.map(b => boardOpen(b)
       ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
       : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
-        + (b.needs ? ` <span class="i-muted">· 필요 ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>')).join('');   // v0.98.0
+        + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>')).join('');   // v0.98.0 · v0.98.1
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
@@ -2031,7 +2031,7 @@ function screenRows(){
     const t = open ? equipped(sl.key) : null;
     return { id: `${row}:${sl.key}`, open, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
-      lab: sl.name, need: open || !sl.lv ? '' : `필요 ${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에
+      lab: sl.name, need: open || !sl.lv ? '' : `${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에. v0.98.1: '필요' 뺌
   };
   const campCard = '<div class="cw framed f-stone camp-lab"><div class="emoji">🔥</div>'
     + '<div class="name">거점</div><div class="sub-lab">모두 공통</div></div>';
@@ -2942,7 +2942,7 @@ function questStep(id){
 function fieldNeed(id){
   const i = FIELDS.findIndex(f => f.id === id);
   const prev = i > 0 ? FIELDS[i - 1] : null;
-  return prev ? `필요 ${prev.name} 클리어` : '잠김';
+  return prev ? `${prev.name} 클리어` : '잠김';                    // v0.98.1: '필요' 뺌
 }
 function unlockNextField(afterId){
   const i = FIELDS.findIndex(f => f.id === afterId);
