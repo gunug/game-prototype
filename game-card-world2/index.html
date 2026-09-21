@@ -187,8 +187,9 @@
   .cw.knight .hpbar,.cw.knight .xpbar{position:relative;width:78%;height:calc(var(--cf) * .13);margin-top:2px;
     border-radius:calc(var(--cf) * .07);background:rgba(0,0,0,.55);overflow:hidden;}
   .cw.knight .hpbar i,.cw.knight .xpbar i{display:block;height:100%;transition:width .2s;}
-  .cw.knight .hpbar i{background:#7ad17a;}
-  .cw.knight .xpbar i{background:var(--brand-yellow);opacity:.75;}
+  /* v0.89.0: 막대 색을 수치 색과 맞춤 — 체력 빨강 · 경험치 사이안. 막대 위 글씨는 겹치므로 흰색 그대로 */
+  .cw.knight .hpbar i{background:#ff7a7a;}
+  .cw.knight .xpbar i{background:#57d9e0;opacity:.85;}
   .cw.knight .barlab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--cf) * .05);
     font-size:calc(var(--cf) * .092);font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85);}
   .cw.knight .hpbar.down .barlab{color:#ff8a8a;}
@@ -204,7 +205,7 @@
   .kstat{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;}
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
-  .kstat .hpbar i{display:block;height:100%;background:#7ad17a;transition:width .2s;}
+  .kstat .hpbar i{display:block;height:100%;background:#ff7a7a;transition:width .2s;}
   .exp{width:100%;}
   .exp[hidden]{display:none;}
   .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
@@ -252,7 +253,7 @@
   .exp-lane .tok .hp:empty{display:none;}
   .exp-lane .tok .hp .icon.inline{width:1.05em;height:1.05em;margin:0 1px 0 0;vertical-align:0;}
   .exp-lane .tok .hp .ln{display:flex;align-items:center;gap:calc(var(--cf) * .05);}
-  .exp-lane .tok .hp .hp-n{color:#c9f2c9;}
+  .exp-lane .tok .hp .hp-n{color:#ff7a7a;}                         /* v0.89.0: 체력 색 */
   .exp-lane .tok.enemy{transition:opacity .3s,transform .3s;}
   .exp-lane .tok.enemy .hp{border-color:rgba(255,140,140,.45);}
   .exp-lane .tok.enemy .hp .hp-n{color:#ffb3b3;}
@@ -410,6 +411,8 @@
   .insp .row.gpick:hover{background:rgba(255,255,255,.06);}
   .insp .row.gpick.on{color:var(--brand-yellow);}
   .insp .i-muted{color:var(--muted);}
+  /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
+  .v-atk{color:#ffce40;} .v-def{color:#7db0ff;} .v-hp{color:#ff7a7a;} .v-xp{color:#57d9e0;}
   .locked .icon{filter:brightness(0) opacity(.45);}                 /* 미발견: 검은 실루엣 */
 
   /* 콜렉터북 (v0.4.0) — 화면 아래에서 올라오는 모달. 뒤는 어둡게 가림 */
@@ -419,7 +422,7 @@
   .lvrow{position:relative;margin-top:2px;padding-bottom:4px;text-align:center;}
   .klv{position:relative;z-index:1;font-size:calc(var(--cf) * .11);font-weight:800;color:var(--brand-yellow);}
   .xpbar{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
-  .xpbar i{display:block;height:100%;background:var(--brand-yellow);opacity:.8;}
+  .xpbar i{display:block;height:100%;background:#57d9e0;opacity:.85;}
   /* v0.68.0: 인스펙터 레벨 표. v0.85.0: 한 레벨 = 길이가 같은 짧은 바, 가로로 늘어놓다 모자라면 줄내림 */
   .lvtab{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;}
   .lvr{flex:0 0 auto;box-sizing:border-box;width:8.2em;display:flex;align-items:center;gap:4px;
@@ -823,7 +826,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.88.0';
+const VERSION = 'v0.89.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2184,8 +2187,8 @@ function renderGearInsp(){
     + (sl.stat ? `<div class="row">${statImg(sl.stat)} <b>${DEFS[now][sl.stat] || 0}</b></div>` : '')
     + `<div class="row i-muted">보유 ${have(now)}</div></div>`;
   h += '<div class="sub">기사</div><div class="rows">'
-    + `<div class="row">${statImg('atk')} <b>${knightAtk()}</b></div><div class="row">${statImg('def')} <b>${knightDef()}</b></div>`
-    + `<div class="row">${statImg('hp')} <b>${S.knight.hp}/${knightMaxHp()}</b></div></div>`;
+    + `<div class="row">${statImg('atk')} <b class="v-atk">${knightAtk()}</b></div><div class="row">${statImg('def')} <b class="v-def">${knightDef()}</b></div>`
+    + `<div class="row">${statImg('hp')} <b class="v-hp">${S.knight.hp}/${knightMaxHp()}</b></div></div>`;
   inspEl.innerHTML = h;
   return true;
 }
@@ -2206,10 +2209,10 @@ function renderFieldInsp(){
       + `<div><div class="nm">기사</div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
       + '<div class="sub">상태</div><div class="rows">'                // v0.73.0: 능력치는 한 묶음으로 가로 배치
-      + `<div class="row">${statImg('atk')} 공격 <b>${knightAtk()}</b></div>`
-      + `<div class="row">${statImg('def')} 방어 <b>${knightDef()}</b></div>`
-      + `<div class="row">${statImg('hp')} 체력 <b>${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div>`
-      + `<div class="row">Lv <b>${knightLv()}</b> <span class="i-muted">${k.xp || 0}/${xpNeed(knightLv())}</span></div></div>`
+      + `<div class="row">${statImg('atk')} 공격 <b class="v-atk">${knightAtk()}</b></div>`
+      + `<div class="row">${statImg('def')} 방어 <b class="v-def">${knightDef()}</b></div>`
+      + `<div class="row">${statImg('hp')} 체력 <b class="v-hp">${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div>`
+      + `<div class="row">Lv <b>${knightLv()}</b> <span class="v-xp">${k.xp || 0}/${xpNeed(knightLv())}</span></div></div>`
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
           + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
