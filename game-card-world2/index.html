@@ -775,7 +775,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.77.0';
+const VERSION = 'v0.78.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -881,7 +881,7 @@ function questGroupState(def){
   return { filled, done, now: now < 0 ? def.groups.length : now, all: done.every(Boolean) };
 }
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
-const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 10 };
+const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18 };   // v0.78.0: 적이 늘 되치게 되어 총 피해가 늘어난 만큼 체력을 올림
 // v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
 //   보상은 대부분 **최대 체력 +2**, 공격 +1은 6·9레벨처럼 드물게, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
 //   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
@@ -2090,7 +2090,7 @@ gatherEl.addEventListener('click', e => {
 // loot: [카드, 확률(%), 장수] — v0.15.2: 한 마리에서 **반드시 하나**가 나옴. 확률을 합치면 100
 //   송곳니 10% = 보스를 열 번쯤 잡으면 한 번 (보스를 반복해서 잡게 하는 목적)
 const ENEMIES = {
-  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:2,
+  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:3,   // v0.78.0: 2 → 3 (뗀석기면 두 대)
     loot: [['meat', 50, 1], ['hide', 30, 1], ['smalltooth', 20, 1]] },
   // v0.58.0: 중간보스 — 잡몹과 필드보스 사이. 뗀석기(공 2)면 잡히고, 맨손(공 1)으론 여기서 막힘
   wolf:   { name:'늑대', portrait:'portrait_wolf',   atk:2, def:0, hp:6,
@@ -2213,12 +2213,17 @@ function expTick(dt){
   }
   expPaint();
 }
-// 한 번 주고받기 — 기사가 먼저 친다
+// 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
+//   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
 function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
   const kd = Math.max(1, knightAtk() - def.def);
   e.hp -= kd;
   expSwing('knight', exp.foe, kd);
+  const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
+  k.hp = Math.max(0, k.hp - ed);
+  expSwing(exp.foe, 'knight', ed);
+  renderKnight();
   if (e.hp <= 0){
     e.dead = true;
     exp.foe = -1;
@@ -2238,15 +2243,18 @@ function expBeat(){
         unlockNextField(exp.id);
       }
       expEnd('boss');
+      return;
+    }
+    if (k.hp <= 0){                                               // v0.78.0: 마지막 일격에 함께 쓰러짐 — 처치는 인정하고 빈사 귀환
+      exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };
+      expEnd('down');
     }
     return;
   }
-  const ed = Math.max(1, def.atk - knightDef());
-  k.hp = Math.max(0, k.hp - ed);
-  if (k.hp <= 0) exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };   // v0.61.0: 무엇에게 쓰러졌나
-  expSwing(exp.foe, 'knight', ed);
-  if (k.hp <= 0) expEnd('down');                                  // v0.38.1: 빈사 판정을 그리기보다 먼저
-  renderKnight();
+  if (k.hp <= 0){
+    exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };   // v0.61.0: 무엇에게 쓰러졌나
+    expEnd('down');                                               // v0.38.1: 빈사 판정을 그리기보다 먼저
+  }
   save();
 }
 function expEnd(kind){
@@ -2443,7 +2451,7 @@ function expPaint(){
     sp.classList.toggle('done', exp.spots[i].done);
     sp.classList.toggle('searching', exp.spot === i);
   }
-  kt.querySelector('.hp').innerHTML = statBox(knightAtk(), knightDef(), S.knight.hp, KNIGHT.hp);   // v0.17.3: 공·방·체력
+  kt.querySelector('.hp').innerHTML = statBox(knightAtk(), knightDef(), S.knight.hp, knightMaxHp());   // v0.17.3: 공·방·체력. v0.78.1: 최대 체력은 레벨 반영
   for (const et of lane.querySelectorAll('.tok.enemy')){          // v0.13.1: 미리 서 있는 고블린들
     const f = exp.foes[+et.dataset.foe];
     et.classList.toggle('dead', f.dead);
@@ -2476,24 +2484,30 @@ function expSwing(from, to, dmg){
     setTimeout(() => f.remove(), 1000);
   }
 }
-// 기사 줄의 체력만 고침
+// 기사의 수치를 **보이는 곳 전부** 다시 그림 (v0.78.1)
+//   기사 카드는 전투 줄 · 전투 아래 · 정비 줄에 동시에 있고, 원정 트랙에도 기사 토큰이 있다.
+//   예전엔 전투 탭의 카드 하나만 고쳐서 같은 값이 화면마다 달라 보였음 (카드 최대 체력 ≠ 트랙 최대 체력)
 // v0.38.1: 능력치가 카드 안으로 들어간 뒤(v0.29.0) 체력 막대를 못 찾아 여기서 오류가 났음 → 카드 기준으로 찾음
 function renderKnight(){
-  if (S.tab !== 'battle') return;
-  const k = S.knight, card = gatherEl.querySelector('.chars .cw.knight');
-  if (!card) return;
-  const hb = card.querySelector('.hpbar');                        // v0.70.0: 숫자가 막대 위에 겹쳐 있음
-  if (hb){
-    hb.classList.toggle('down', k.hp <= 0);
-    hb.querySelector('i').style.width = (k.hp / knightMaxHp() * 100) + '%';
-    hb.querySelector('.barlab').textContent = `${k.hp}/${knightMaxHp()}`;
+  const k = S.knight, max = knightMaxHp(), need = xpNeed(knightLv());
+  for (const card of gatherEl.querySelectorAll('.cw.knight')){    // 줄·아래·정비 — 있는 것 모두
+    const st = card.querySelector('.kstat');
+    if (st) st.innerHTML = `<span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`;
+    const hb = card.querySelector('.hpbar');                      // v0.70.0: 숫자가 막대 위에 겹쳐 있음
+    if (hb){
+      hb.classList.toggle('down', k.hp <= 0);
+      hb.querySelector('i').style.width = (k.hp / max * 100) + '%';
+      hb.querySelector('.barlab').textContent = `${k.hp}/${max}`;
+    }
+    const xb = card.querySelector('.xpbar');
+    if (xb){
+      xb.querySelector('i').style.width = Math.min(100, (k.xp || 0) / need * 100) + '%';
+      xb.querySelector('.barlab').innerHTML = `Lv ${knightLv()}<span class="xpn">${k.xp || 0}/${need}</span>`;
+    }
   }
-  const xb = card.querySelector('.xpbar');
-  if (xb){
-    xb.querySelector('i').style.width = Math.min(100, (k.xp || 0) / xpNeed(knightLv()) * 100) + '%';
-    xb.querySelector('.barlab').innerHTML = `Lv ${knightLv()}<span class="xpn">${k.xp || 0}/${xpNeed(knightLv())}</span>`;
-  }
-  if (knightPick) renderInsp();
+  const kt = document.querySelector('#exp .tok.knight .hp');      // 원정 트랙의 기사 토큰
+  if (kt && exp) kt.innerHTML = statBox(knightAtk(), knightDef(), k.hp, max);
+  renderInsp();                                                   // 인스펙터도 같은 값이어야 함
 }
 // v0.66.0: 경험치. v0.71.0: **적을 잡는 즉시** 오르고 **보상도 그 자리에서** 붙는다 (카드에 바로 보이게)
 //   **최대 체력·공격·방어만 오르고 지금 체력은 그대로** — 레벨업으로 회복되지 않는다
