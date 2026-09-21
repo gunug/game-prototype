@@ -826,7 +826,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.89.0';
+const VERSION = 'v0.90.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1873,7 +1873,9 @@ function renderTabs(){                                            // v0.21.0: �
   const wrap = document.getElementById('tabs');
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
-  const html = ['<button class="tabbtn" data-tab="battle">🗡️ 전투</button>']
+  // v0.90.0: '전투' → '필드'. 그 옆에 아직 안 만든 '던전'을 자물쇠로 보여 둠
+  const html = ['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
+    '<button class="tabbtn locked" data-tab="dungeon"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">🏚 던전</button>']
     .concat(BOARDS.map(b => boardOpen(b)
       ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
       : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}</button>`)).join('');
@@ -2265,6 +2267,11 @@ function setTab(tab){
 document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('[data-tab]');
   if (!btn) return;
+  if (btn.dataset.tab === 'dungeon'){                             // v0.90.0: 아직 안 만든 화면
+    flash(btn, 'fail', 600);
+    lockPop(btn, '🔒 아직 갈 수 없는 곳');
+    return;
+  }
   const b = BOARD_BY_ID[btn.dataset.tab];
   if (b && !boardOpen(b)){                                        // v0.21.0: 잠긴 화면 — 무엇이 있어야 열리는지
     flash(btn, 'fail', 600);
