@@ -775,7 +775,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.78.1';
+const VERSION = 'v0.79.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1079,16 +1079,19 @@ function findSpot(x, y, skip){
 }
 
 // ── 카드 그리기 ─────────────────────────────────────
+// v0.79.0: 카드에 붙는 공·방 표시 — 카드가 그려지는 곳 **모두**가 이걸 쓴다
+//   (아래 재료 자리 · 위 격자 · 정비 아래 · 장비 칸 안 · 날아가는 카드)
+function statsHtml(t){
+  const d = DEFS[t] || {};
+  if (!d.atk && !d.def) return '';
+  return '<div class="stats">'
+    + (d.atk ? `<span>${statImg('atk')}${d.atk}</span>` : '')
+    + (d.def ? `<span>${statImg('def')}${d.def}</span>` : '')
+    + '</div>';
+}
 function cardHtml(c){
   const d = DEFS[c.type];
-  let html = '';
-  if (d.atk || d.def){
-    html += '<div class="stats">'
-      + (d.atk ? `<span>${statImg('atk')}${d.atk}</span>` : '')
-      + (d.def ? `<span>${statImg('def')}${d.def}</span>` : '')
-      + '</div>';
-  }
-  const sl = slotOfType(c.type);                                   // v0.30.0: 장비면 왼쪽 위에 실루엣
+  const html = statsHtml(c.type);
   return html
     + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`
     + (S.newCards.includes(c.type) ? '<div class="new-b">NEW</div>' : '');
@@ -1506,7 +1509,8 @@ const shownOpen = t => editMode || shownSeen(t);                  // v0.24.0: �
 function slotHtml(t){
   const on = shownOpen(t);
   return `<div class="sleeve${bookPick === t ? ' sel' : ''}" data-book="${t}">`
-    + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}"><div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
+    + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}">${on ? statsHtml(t) : ''}`
+    + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
 }
 function detailHtml(){
   if (!bookPick) return '<span class="i-muted">슬리브를 탭하면 카드 정보가 나와요.</span>';
@@ -1611,7 +1615,7 @@ async function runInserts(){
       ghost.classList.add('ghost');                               // 실루엣은 흐려지며 빠지고
       const card = document.createElement('div');                 // 진짜 카드가 위에서 끼워짐
       card.className = `cw framed f-${frameOf(DEFS[t])} insert`;
-      card.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+      card.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
       slot.appendChild(card);
       slot.classList.add('glow');
       await wait(300);
@@ -1685,7 +1689,7 @@ const isRowScreen = tab => tab === 'battle' || tab === 'gearup';
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
 function slotHtmlOf(sl){
   const inner = sl.card
-    ? `<div class="cw framed f-${sl.frame || 'wood'}"><div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
+    ? `<div class="cw framed f-${sl.frame || 'wood'}">${statsHtml(sl.type)}<div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
     : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
     : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${sl.lab ? `<span class="pslot-lab">${esc(sl.lab)}</span>` : ''}`;   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
   return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
@@ -1715,7 +1719,7 @@ function screenRows(){
   const slotOf = (row, sl) => {
     const open = slotOpen(sl.key);                                // v0.56.0: 잠긴 칸은 자물쇠 + 이름
     const t = open ? equipped(sl.key) : null;
-    return { id: `${row}:${sl.key}`, open, card: !!t, icon: t ? iconHtml(t) : '',
+    return { id: `${row}:${sl.key}`, open, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
       lab: open || !sl.lv ? sl.name : `${sl.name} (${sl.lv}레벨)` };   // v0.66.0: 여는 조건을 적어 둠
   };
@@ -1733,7 +1737,7 @@ function screenTokens(){
     token: c.type,
     html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">`
       + `<div class="emoji">${iconHtml(c.type)}</div>`
-      + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`,
+      + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div>${statsHtml(c.type)}</div>`,
   }));
 }
 // 기사 카드 — 능력치는 카드 안에 (v0.29.0)
@@ -1796,7 +1800,7 @@ function renderTopGrid(){
   const list = S.cards.filter(c => onTopGrid(c.type, S.tab) && c.n > 0);
   topGridEl.innerHTML = list.length
     ? list.map(c => `<div class="cw framed f-${frameOf(DEFS[c.type])}${inspType === c.type ? ' sel' : ''}" data-topcard="${c.type}">`
-        + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
+        + `${statsHtml(c.type)}<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
     : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
 }
 gatherEl.addEventListener('click', e => {                         // v0.36.0: 말풍선을 탭하면 바로 다음으로
@@ -2321,7 +2325,7 @@ function flyToTop(t, fx, fy, vanish){
   const mk = () => {
     const el = document.createElement('div');
     el.className = `cw framed f-${frameOf(DEFS[t])} fly`;
-    el.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+    el.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
     el.style.setProperty('--cw', CW + 'px'); el.style.setProperty('--ch', CH + 'px');
     document.body.appendChild(el);
     return el;
@@ -2363,7 +2367,7 @@ function showAway(t, fx, fy){
   const tr = table.getBoundingClientRect();
   const fly = document.createElement('div');
   fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
-  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${have(t)}</div>`;
+  fly.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${have(t)}</div>`;
   fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
   document.body.appendChild(fly);
   const x = tr.left + fx, y = tr.top + fy;
@@ -2380,7 +2384,7 @@ function showAway(t, fx, fy){
 function flyToCraft(t, r){
   const fly = document.createElement('div');
   fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
-  fly.innerHTML = `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+  fly.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
   fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
   document.body.appendChild(fly);
   const sx = r.left + r.width / 2 - CW / 2, sy = r.top + r.height / 2 - CH / 2;
