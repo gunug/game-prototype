@@ -177,6 +177,10 @@
   /* v0.63.0: 조합식 표기 — 못 얻어 본 재료는 검은 실루엣 */
   .rcp-ic.unk .icon{filter:brightness(0) opacity(.45);}
   .rcp-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
+  /* v1.1.0: 없는 재료 — 누르면 그걸 얻는 곳으로 */
+  .rcp-jump{cursor:pointer;border-bottom:1px dashed rgba(255,212,0,.6);}
+  .rcp-jump:hover{color:var(--brand-yellow);}
+  .rcp-jump::after{content:' ↗';font-size:.85em;color:var(--brand-yellow);}
   .nbadge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;box-sizing:border-box;border-radius:999px;
     background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
   .nbadge[hidden]{display:none;}
@@ -835,8 +839,10 @@ const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보�
 const rcpIcon = (t, known) => `<span class="rcp-ic${known ? '' : ' unk'}">${iconHtml(t, true)}</span>`;
 const rcpCard = (t, withHave) => {
   const known = S.seen.includes(t);
-  return rcpIcon(t, known) + ' ' + (known ? esc(DEFS[t].name) : '???')
+  const body = rcpIcon(t, known) + ' ' + (known ? esc(DEFS[t].name) : '???')
     + (withHave ? ` <span class="i-muted">보유 ${known ? have(t) : '??'}</span>` : '');
+  // v1.1.0: 인스펙터의 조합식에서 **보유가 0인 재료**를 누르면 그걸 얻는 곳으로 점프
+  return withHave && known && have(t) <= 0 ? `<span class="rcp-jump" data-jump="${t}">${body}</span>` : body;
 };
 const rcpSide = (sd, withHave) => sd.card ? rcpCard(sd.card, withHave)
   : `🏷️ ${esc(sd.use || sd.tag || '')}`;                          // 용도 태그 쪽은 늘 보임
@@ -855,7 +861,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.1.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -878,6 +884,10 @@ const shownUses = t => useOf(t).filter(u => SHOWN_USES.includes(u));
 const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
+inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
+  const j = e.target.closest('[data-jump]');
+  if (j) jumpTo(j.dataset.jump);
+});
 let CW = 70, CH = 95;
 // v0.17.0: 필드 고갈 없앰 — 몇 번이든 원정을 보낼 수 있음 (잠금만 남음)
 // v0.24.0: 에디터 모드 — 설정(⚙)에서 켬. 저장하지 않음 (새로고침하면 꺼짐)
@@ -2495,6 +2505,21 @@ const HEAL_FULL_MS = 30000;                                      // 거점이 �
 const HEAL_FULL_CAMP_MS = 15000;                                 // 거점이 있으면 절반
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
+// v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
+function jumpTo(t){
+  const r = CRAFT_RECIPES.find(x => !x.cook && (x.out || []).includes(t));
+  if (r){
+    setTab(recipeKind(r));
+    inspType = t; selected = null; knightPick = false;
+    renderInsp();
+    toast(`${DEFS[t].name} — 여기서 만든다`);
+    return;
+  }
+  const f = FIELDS.find(x => yieldsOf(x.id).includes(t))
+    || FIELDS.find(x => lootTypes(x.id).includes(t));
+  setTab('battle');
+  if (f){ fieldPick = f.id; knightPick = false; renderScreen(); renderInsp(); toast(`${DEFS[t].name} — ${f.emoji} ${f.name}에서 얻는다`); }
+}
 // v0.86.0: 초당 회복량 — '가득까지 걸리는 시간'으로 정해 두었으므로 최대 체력에 따라 달라진다
 const hpPerSec = ms => Math.round(knightMaxHp() / (ms / 1000) * 10) / 10;
 const healMs = () => Math.max(120, healFullMs() / knightMaxHp());   // 체력 한 칸에 걸리는 시간
