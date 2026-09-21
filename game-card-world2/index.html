@@ -850,7 +850,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.99.0';
+const VERSION = 'v0.99.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1653,18 +1653,18 @@ function detailHtml(){
 const TREES = {
   weapon: { name:'무기 트리', icon:'⚔️', note:'갈래가 성격을 정하고, 위로 갈수록 특징이 쌓인다. 회색은 아직 없는 것.', branches: [
     { name:'🗡 날붙이', kind:'베기', nodes: [
+      // v0.99.1: 하위 = 그 카드를 **재료로 직접 써서** 강화한 것. 이빨 단검은 뗀석기를 쓰지 않으므로 따로 뿌리
       { d:0, id:'blade',       make:'돌 + 부싯돌' },
-      { d:1, id:'toothdagger', make:'작은 이빨 + 나무막대', tags:['예리'] },
-      { d:2, name:'뼈자루 단검', make:'이빨 단검 + 뼈',       atk:3, tags:['예리','가벼움'] },
-      { d:2, name:'흑요석 칼',   make:'이빨 단검 + 흑요석',   atk:4, tags:['예리','출혈'] },
       { d:1, name:'손도끼',      make:'뗀석기 + 섬유끈',       atk:2, tags:['묵직'] },
       { d:2, name:'전투 도끼',   make:'손도끼 + 나무막대',       atk:4, tags:['묵직','방어 무시'] },
+      { d:0, id:'toothdagger', make:'작은 이빨 + 나무막대', tags:['예리'] },
+      { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈',       atk:3, tags:['예리','가벼움'] },
+      { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석',   atk:4, tags:['예리','출혈'] },
     ] },
     { name:'🔱 자루', kind:'찌르기', nodes: [
-      { d:0, name:'뾰족한 막대', make:'나무막대 + 뗀석기',        atk:2, tags:['사거리'] },
-      { d:1, id:'fangspear',    make:'뾰족한 막대 + 날카로운 송곳니', tags:['사거리','관통'] },
-      { d:2, name:'삼지창',      make:'송곳니 창 + 뼈',          atk:5, tags:['관통','연타'] },
-      { d:2, name:'투창',        make:'송곳니 창 + 섬유끈',      atk:4, tags:['던지기','선제'] },
+      { d:0, id:'fangspear',    make:'날카로운 송곳니 + 나무막대', tags:['사거리','관통'] },   // v0.99.1: 실제 조합식대로 뿌리
+      { d:1, name:'삼지창',      make:'송곳니 창 + 뼈',          atk:5, tags:['관통','연타'] },
+      { d:1, name:'투창',        make:'송곳니 창 + 섬유끈',      atk:4, tags:['던지기','선제'] },
     ] },
     { name:'🏹 줄', kind:'원거리', nodes: [
       { d:0, name:'투석줄',      make:'섬유끈 + 부드러운 가죽',  atk:2, tags:['원거리'] },
@@ -1678,12 +1678,13 @@ const TREES = {
   ] },
   tool: { name:'도구 트리', icon:'🔨', note:'도구도 같은 규칙 — 쓰던 것에 재료를 덧대 다음 것이 된다.', branches: [
     { name:'🔨 다듬기', kind:'만들기', nodes: [
-      { d:0, id:'blade',      make:'돌 + 부싯돌' },
-      { d:1, id:'plank',      make:'나무 + 🏷️ 손질lv1' },
-      { d:2, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
-      { d:3, name:'톱',        make:'작업대 + 흑요석',   tags:['정밀'] },
-      { d:1, id:'whetstone',  make:'모래 + 돌',           tags:['연마'] },
-      { d:2, name:'가는 숫돌', make:'숫돌 + 부드러운 가죽', tags:['연마+'] },
+      // v0.99.1: 나무판자·숫돌은 뗀석기를 강화한 것이 아니므로 각자 뿌리
+      { d:0, id:'blade',      make:'돌 + 부싯돌',          tags:['손질lv1'] },
+      { d:0, id:'plank',      make:'나무 + 🏷️ 손질lv1' },
+      { d:1, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
+      { d:2, name:'톱',        make:'작업대 + 흑요석',   tags:['정밀'] },
+      { d:0, id:'whetstone',  make:'모래 + 돌',           tags:['연마'] },
+      { d:1, name:'가는 숫돌', make:'숫돌 + 부드러운 가죽', tags:['연마+'] },
     ] },
     { name:'🔥 불', kind:'다루기', nodes: [
       { d:0, id:'ember',      make:'부싯돌 + 석탄' },
