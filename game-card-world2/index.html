@@ -634,11 +634,13 @@ const DEFS = {
   stoneknife: { name:'뗀석기 칼', kind:'material', tier:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
   whetstone: { name:'숫돌',       kind:'material', tier:2, group:'tool' },
   ember: { name:'불씨',       kind:'material', tier:2, group:'tool' },
-  firewood: { name:'나무막대',   kind:'material', tier:2, group:'tool' },   // v0.92.0: 나무막대 → 나무막대 (id는 그대로)
+  firewood: { name:'나무 손잡이', kind:'material', tier:2, group:'tool' },   // v0.92.0 통나무 → 나무 손잡이. v1.2.0: → 나무 손잡이 (무기 부품, id는 그대로)
   // 🧱 건축 재료
   clay: { name:'점토',       kind:'material', tier:2, group:'build' },
   cord: { name:'섬유끈',     kind:'material', tier:2, group:'build' },
   plank: { name:'나무판자',   kind:'material', tier:2, group:'tool' },   // v0.20.0: 도구재료
+  shieldboard: { name:'방패판', kind:'material', tier:2, group:'gear' },   // v1.2.0: 갑옷 부품 — 나무판자를 손질
+  curedleather: { name:'손질된 가죽', kind:'material', tier:2, group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
   wax: { name:'밀랍',       kind:'material', tier:2, group:'build' },
   copperore: { name:'구리 원석',  kind:'material', tier:2, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
   // 🍖 음식
@@ -683,7 +685,8 @@ const USE = {
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
-  firewood:['무기재료', '갑옷재료', '건축재료', '생산재료', '도구재료', '연료'],   // v0.34.1: 모닥불 재료. v0.93.0: 나무 방패의 몸통
+  firewood:['무기재료'],   // v1.2.0: 무기 부품(자루). 연료·건축 등은 나무 · 나무판자가 맡음
+  shieldboard:['갑옷재료'], curedleather:['갑옷재료'],   // v1.2.0: 갑옷 부품
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료', '연료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료', '연료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
@@ -719,12 +722,14 @@ const DESC = {
   stoneknife:'날에 나무를 끼웠다. 이제 휘두를 수 있다.',
   whetstone: '모래에 문질러 매끈해진 돌. 이제 남을 매끈하게 만든다.',
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
-  firewood:  '곧고 단단하게 다듬은 막대. 무엇을 달아도 자루가 된다.',
+  firewood:  '손에 맞게 깎아 낸 나무 손잡이. 끝에 날을 끼울 홈이 있다.',
+  shieldboard:'판자를 둥글게 잇대어 깎았다. 아직 가죽을 대지 않은 방패의 몸.',
+  curedleather:'억센 가죽의 털을 긁고 가장자리를 다듬었다. 이제 옷이 될 수 있다.',
   clay:      '물과 흙이 손잡았다. 모양은 네가 정해라.',
   cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
   plank:     '나무를 쪼개 판판하게 골랐다. 이제 뭘 올려도 흔들리지 않는다.',
   workbench: '올려놓고 두드릴 자리가 생겼다. 손이 하던 일을 판이 거든다.',
-  woodshield:'널빤지에 가죽을 덧댔다. 맞을 땐 이 뒤에 숨는다.',
+  woodshield:'방패판에 억센 가죽을 덧댔다. 맞을 땐 이 뒤에 숨는다.',
   campfire:  '불을 가둬 두는 법을 배웠다. 이제 앉아서 손볼 시간이 생긴다.',
   wax:       '벌들이 공들여 지은 집의 벽. 미안하게 됐다.',
   copperore: '광석 더미에서 구릿빛 덩이만 골라냈다. 녹이는 건 다음 일.',
@@ -738,7 +743,7 @@ const DESC = {
   fang:      '한때 누군가의 자랑이었다. 지금은 창 끝이 될 참.',
   toothdagger:'이빨을 나무에 끼웠다. 짐승이 하던 일을 사람이 한다.',
   fangspear: '송곳니가 길어지니 곰도 멀리서 상대할 수 있다.',
-  leatherarmor:'억센 가죽을 덧대 만든 옷. 무겁지만 살아 돌아온다.',
+  leatherarmor:'손질한 가죽을 겉감, 부드러운 가죽을 안감으로. 무겁지만 살아 돌아온다.',
   pouch:     '넣을 게 생기기 전에 만들어 두는 게 순서다.',
   fishhook:  '작은 이빨은 여전히 무언가를 문다. 이번엔 물고기를.',
   roastmeat: '불 위에서 기다리는 시간만큼 맛있어진다.',
@@ -791,14 +796,17 @@ const RECIPES = [
   { id:'stoneknife',   a:{ card:'blade' },      b:{ card:'tree' },     out:['stoneknife'] },
   { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
   { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
-  { id:'leatherarmor', a:{ card:'toughhide' },  b:{ use:'손질lv1' },   out:['leatherarmor'] },   // v0.94.0: 자를 수 있으면 무엇이든
+  // v1.2.0: 갑옷 부품을 먼저 손질해 두고 조립한다
+  { id:'curedleather', a:{ card:'toughhide' },  b:{ use:'손질lv1' },   out:['curedleather'] },
+  { id:'leatherarmor', a:{ card:'curedleather' }, b:{ card:'hide' },   out:['leatherarmor'] },   // 겉감 + 안감
   { id:'pouch',        a:{ card:'hide' },       b:{ card:'cord' },     out:['pouch'] },
   { id:'fishhook',     a:{ card:'smalltooth' }, b:{ card:'cord' },     out:['fishhook'] },
   { id:'roastmeat',    a:{ card:'meat' },       b:{ card:'ember' },    out:['roastmeat'] },
   // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
   { id:'plank',        a:{ card:'tree' },       b:{ use:'손질lv1' },   out:['plank'] },   // v0.94.0
   { id:'workbench',    a:{ card:'plank' },      b:{ use:'손질lv1' },   out:['workbench'] },   // v0.94.0
-  { id:'woodshield',   a:{ card:'firewood' },   b:{ card:'toughhide' }, out:['woodshield'] },   // v0.51.0: 나무 방패
+  { id:'shieldboard',  a:{ card:'plank' },      b:{ use:'손질lv1' },   out:['shieldboard'] },   // v1.2.0
+  { id:'woodshield',   a:{ card:'shieldboard' }, b:{ card:'toughhide' }, out:['woodshield'] },   // v0.51.0: 나무 방패. v1.2.0: 방패판 + 억센 가죽
   { id:'campfire',     a:{ card:'ember' },      b:{ use:'연료' },      out:['campfire'] },   // v0.23.0: 모닥불. v0.49.0: 연료 아무거나
 ];
 function tagLevel(def, name){
@@ -861,7 +869,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1715,19 +1723,19 @@ const TREES = {
       { d:0, id:'blade',       make:'돌 + 부싯돌',          tags:['무기재료'] },   // v1.0.0: 날 — 그 자체는 무기가 아님
       { d:1, id:'stoneknife',  make:'뗀석기 + 나무' },
       { d:1, name:'손도끼',      make:'뗀석기 + 섬유끈',       atk:2, tags:['묵직'] },
-      { d:2, name:'전투 도끼',   make:'손도끼 + 나무막대',       atk:4, tags:['묵직','방어 무시'] },
-      { d:0, id:'toothdagger', make:'작은 이빨 + 나무막대', tags:['예리'] },
+      { d:2, name:'전투 도끼',   make:'손도끼 + 나무 손잡이',       atk:4, tags:['묵직','방어 무시'] },
+      { d:0, id:'toothdagger', make:'작은 이빨 + 나무 손잡이', tags:['예리'] },
       { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈',       atk:3, tags:['예리','가벼움'] },
       { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석',   atk:4, tags:['예리','출혈'] },
     ] },
     { name:'🔱 자루', kind:'찌르기', nodes: [
-      { d:0, id:'fangspear',    make:'날카로운 송곳니 + 나무막대', tags:['사거리','관통'] },   // v0.99.1: 실제 조합식대로 뿌리
+      { d:0, id:'fangspear',    make:'날카로운 송곳니 + 나무 손잡이', tags:['사거리','관통'] },   // v0.99.1: 실제 조합식대로 뿌리
       { d:1, name:'삼지창',      make:'송곳니 창 + 뼈',          atk:5, tags:['관통','연타'] },
       { d:1, name:'투창',        make:'송곳니 창 + 섬유끈',      atk:4, tags:['던지기','선제'] },
     ] },
     { name:'🏹 줄', kind:'원거리', nodes: [
       { d:0, name:'투석줄',      make:'섬유끈 + 부드러운 가죽',  atk:2, tags:['원거리'] },
-      { d:1, name:'사냥활',      make:'투석줄 + 나무막대',         atk:3, tags:['원거리','선제'] },
+      { d:1, name:'사냥활',      make:'투석줄 + 나무 손잡이',         atk:3, tags:['원거리','선제'] },
       { d:2, name:'뼈살 활',     make:'사냥활 + 뼈',             atk:4, tags:['원거리','관통'] },
     ] },
     { name:'🦴 뼈', kind:'때리기', nodes: [
@@ -1754,7 +1762,7 @@ const TREES = {
     { name:'🪢 줄', kind:'잡기', nodes: [
       { d:0, id:'cord',       make:'풀 + 물' },
       { d:1, id:'fishhook',   make:'섬유끈 + 작은 이빨' },
-      { d:2, name:'낚싯대',    make:'낚싯바늘 + 나무막대',  tags:['낚시'] },
+      { d:2, name:'낚싯대',    make:'낚싯바늘 + 나무 손잡이',  tags:['낚시'] },
       { d:3, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
     ] },
     { name:'🎒 담기', kind:'나르기', nodes: [
@@ -1792,11 +1800,11 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
   note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 무기 트리의 성격이 열쇠다. 전부 계획뿐.', branches: [
   { name:'🪨 돌가죽 굴', kind:'방어가 무지막지', nodes: [
     { d:0, name:'돌가죽 주인', make:'방어가 매우 높아 보통 공격이 1밖에 안 박힘', tags:['해법: 방어 무시'] },
-    { d:1, name:'전투 도끼',  make:'🗡 날붙이 갈래 — 손도끼 + 나무막대', tags:['방어 무시'] },
+    { d:1, name:'전투 도끼',  make:'🗡 날붙이 갈래 — 손도끼 + 나무 손잡이', tags:['방어 무시'] },
   ] },
   { name:'🕸 거미 둥지', kind:'가까이 가면 반격', nodes: [
     { d:0, name:'둥지 주인',  make:'붙어서 치면 그만큼 되돌려받음', tags:['해법: 원거리 · 던지기'] },
-    { d:1, name:'사냥활',     make:'🏹 줄 갈래 — 투석줄 + 나무막대', tags:['원거리'] },
+    { d:1, name:'사냥활',     make:'🏹 줄 갈래 — 투석줄 + 나무 손잡이', tags:['원거리'] },
     { d:1, name:'투창',       make:'🔱 자루 갈래 — 송곳니 창 + 섬유끈', tags:['던지기'] },
   ] },
   { name:'🍄 늪지 무덤', kind:'계속 회복', nodes: [
@@ -1816,16 +1824,18 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
 TREES.armor = { name:'갑옷 트리', icon:'🛡',
   note:'몸을 지키는 것들. 방어는 피해를 그대로 깎아 공격보다 세다 — 그래서 한 칸 올리기가 어렵다. 회색은 아직 없는 것.', branches: [
   { name:'🧥 가죽옷', kind:'덧대기', nodes: [
-    { d:0, id:'leatherarmor', make:'억센 가죽 + 🏷️ 손질lv1' },
-    { d:1, name:'덧댄 갑옷',   make:'가죽 갑옷 + 억센 가죽',   tags:['방어 +2','묵직'] },
-    { d:2, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈',          tags:['방어 +3','단단'] },
-    { d:1, name:'털 조끼',     make:'가죽 갑옷 + 부드러운 가죽', tags:['방어 +1','가벼움'] },
+    { d:0, id:'curedleather', make:'억센 가죽 + 🏷️ 손질lv1', tags:['갑옷재료'] },
+    { d:1, id:'leatherarmor', make:'손질된 가죽 + 부드러운 가죽' },
+    { d:2, name:'덧댄 갑옷',   make:'가죽 갑옷 + 손질된 가죽', tags:['방어 +2','묵직'] },
+    { d:3, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈',          tags:['방어 +3','단단'] },
+    { d:2, name:'털 조끼',     make:'가죽 갑옷 + 부드러운 가죽', tags:['방어 +1','가벼움'] },
   ] },
   { name:'🛡 방패', kind:'막기', nodes: [
-    { d:0, id:'woodshield',   make:'나무막대 + 억센 가죽' },
-    { d:1, name:'덧댄 방패',   make:'나무 방패 + 부드러운 가죽', tags:['방어 +2'] },
-    { d:2, name:'큰 방패',     make:'덧댄 방패 + 나무판자',      tags:['방어 +3','묵직'] },
-    { d:1, name:'작은 방패',   make:'나무 방패 + 섬유끈',        tags:['방어 +1','선제'] },
+    { d:0, id:'shieldboard',  make:'나무판자 + 🏷️ 손질lv1', tags:['갑옷재료'] },
+    { d:1, id:'woodshield',   make:'방패판 + 억센 가죽' },
+    { d:2, name:'덧댄 방패',   make:'나무 방패 + 손질된 가죽',   tags:['방어 +2'] },
+    { d:3, name:'큰 방패',     make:'덧댄 방패 + 방패판',        tags:['방어 +3','묵직'] },
+    { d:2, name:'작은 방패',   make:'나무 방패 + 섬유끈',        tags:['방어 +1','선제'] },
   ] },
   { name:'🦴 뼈', kind:'단단함', nodes: [
     { d:0, name:'뼈 흉갑',     make:'뼈 + 🏷️ 손질lv1',          tags:['방어 +1','묵직'] },
