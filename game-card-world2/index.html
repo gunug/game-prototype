@@ -424,18 +424,27 @@
   .xpbar{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
   .xpbar i{display:block;height:100%;background:#57d9e0;opacity:.85;}
   /* v0.68.0: 인스펙터 레벨 표. v0.85.0: 한 레벨 = 길이가 같은 짧은 바, 가로로 늘어놓다 모자라면 줄내림 */
+  /* v0.97.0: 기사 인스펙터 정리 — 바 길이는 모두 같게, 눈에 띄는 건 '다음 레벨' 하나뿐 */
+  .lvnow{display:flex;align-items:center;gap:8px;margin:2px 0 6px;font-size:12px;}
+  .lvnow .lvfrom{font-weight:800;white-space:nowrap;}
+  .lvnow .lvbar{flex:1;position:relative;height:14px;border-radius:7px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .lvnow .lvbar i{display:block;height:100%;background:#57d9e0;opacity:.85;}
+  .lvnow .lvbar b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8);font-variant-numeric:tabular-nums;}
+  .lvnote{font-size:11px;color:var(--muted);margin:0 0 4px;}
   .lvtab{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;}
-  .lvr{flex:0 0 auto;box-sizing:border-box;width:8.2em;display:flex;align-items:center;gap:4px;
+  .lvbreak{flex-basis:100%;height:0;}                              /* 해금 레벨 앞에서 줄을 바꿈 — 바 자체는 늘이지 않음 */
+  .lvr{flex:0 0 auto;box-sizing:border-box;width:8.8em;display:flex;align-items:center;gap:4px;
     padding:3px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);
     font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;}
-  .lvr.got{color:var(--ink);border-color:rgba(143,220,143,.35);}
+  .lvr.got{opacity:.45;}                                            /* 지난 레벨은 한 발 물러남 */
   .lvr.got .lvn{color:#8fdc8f;}
-  .lvr.next{color:var(--ink);font-weight:800;border-color:rgba(255,212,0,.6);background:rgba(255,212,0,.07);}
+  .lvr.next{color:var(--ink);font-weight:800;opacity:1;border-color:rgba(255,212,0,.7);background:rgba(255,212,0,.09);}
   .lvr.next .lvn{color:var(--brand-yellow);}
-  .lvr.unlock{flex-basis:100%;width:auto;border-color:rgba(255,212,0,.45);}   /* 해금은 늘 한 줄 */
+  .lvr.unlock{border-style:dashed;}                                 /* 해금은 점선만 — 색으로 튀지 않게 */
   .lvr .lvn{flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
   .lvr .lvw{flex:none;display:flex;align-items:center;gap:2px;}
-  .lvr .lvx{color:var(--brand-yellow);font-weight:800;}
+  .lvr .lvx{flex:none;}
   .lvr .lvq{margin-left:auto;flex:none;opacity:.7;font-variant-numeric:tabular-nums;}
   .lvr .icon.inline{width:1.05em;height:1.05em;}
   /* v0.71.0: 원정 중 레벨업 — 기사 카드가 금빛으로 번쩍 */
@@ -835,7 +844,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.96.0';
+const VERSION = 'v0.97.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2233,21 +2242,25 @@ addEventListener('pointercancel', () => {
 });
 // v0.68.0: 레벨 표 — 5레벨 한 묶음이 되풀이된다는 걸 눈으로 알 수 있게 20레벨까지
 function lvTableHtml(){
-  const now = knightLv();
+  const now = knightLv(), k = S.knight, need = xpNeed(now);
   const icon = { hp:statImg('hp'), atk:statImg('atk'), def:statImg('def') };
+  // v0.97.0: 맨 위에 **지금 → 다음** 진행 막대. 표에서 튀는 건 '다음 레벨' 하나뿐
   let h = '<div class="sub">레벨</div>'
-    + `<div class="row i-muted">5레벨이 한 묶음 — ${icon.hp}+2 · ${icon.hp}+2 · ${icon.def}+1 · <b>해금</b> · ${icon.atk}+1 로 되풀이</div>`
+    + `<div class="lvnow"><span class="lvfrom">Lv ${now} → ${now + 1}</span>`
+    + `<span class="lvbar"><i style="width:${Math.min(100, (k.xp || 0) / need * 100)}%"></i><b>${k.xp || 0} / ${need}</b></span></div>`
+    + `<div class="lvnote">5레벨이 한 묶음 — ${icon.hp}+2 · ${icon.hp}+2 · ${icon.def}+1 · 🔓 · ${icon.atk}+1</div>`
     + '<div class="lvtab">';
   for (let lv = 2; lv <= LV_MAX_SHOWN; lv++){
     const r = lvReward(lv);
     const got = lv <= now, next = lv === now + 1;
     const rw = [r.hp ? `${icon.hp}+${r.hp}` : '', r.atk ? `${icon.atk}+${r.atk}` : '', r.def ? `${icon.def}+${r.def}` : ''].filter(Boolean).join(' ');
+    if (r.slot) h += '<div class="lvbreak"></div>';                // 해금 레벨은 새 줄에서 시작 (바 길이는 그대로)
     h += `<div class="lvr${got ? ' got' : ''}${next ? ' next' : ''}${r.slot ? ' unlock' : ''}">`
       + `<span class="lvn">Lv ${lv}</span>`
-      + (r.slot ? `<span class="lvx">🔓 ${esc(slotByKey(r.slot).name)} 칸</span>` : `<span class="lvw">${rw}</span>`)
+      + (r.slot ? `<span class="lvx">🔓 ${esc(slotByKey(r.slot).name)}</span>` : `<span class="lvw">${rw}</span>`)
       + `<span class="lvq">${xpNeed(lv - 1)}</span></div>`;
   }
-  return h + '</div><div class="row i-muted">바 오른쪽 수는 그 레벨이 되는 데 드는 경험치</div>';
+  return h + '</div><div class="lvnote" style="margin-top:4px">바 오른쪽 수는 그 레벨이 되는 데 드는 경험치</div>';
 }
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
@@ -2296,13 +2309,12 @@ function renderFieldInsp(){
   if (knightPick){                                                // v0.13.0: 기사를 탭했을 때
     const k = S.knight;
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
-      + `<div><div class="nm">기사</div><div class="kd">캐릭터 · 원정</div></div></div>`
+      + `<div><div class="nm">기사 <span class="i-muted" style="font-weight:700">Lv ${knightLv()}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
       + '<div class="sub">상태</div><div class="rows">'                // v0.73.0: 능력치는 한 묶음으로 가로 배치
       + `<div class="row">${statImg('atk')} 공격 <b class="v-atk">${knightAtk()}</b></div>`
       + `<div class="row">${statImg('def')} 방어 <b class="v-def">${knightDef()}</b></div>`
-      + `<div class="row">${statImg('hp')} 체력 <b class="v-hp">${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div>`
-      + `<div class="row">Lv <b>${knightLv()}</b> <span class="v-xp">${k.xp || 0}/${xpNeed(knightLv())}</span></div></div>`
+      + `<div class="row">${statImg('hp')} 체력 <b class="v-hp">${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div></div>`
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
           + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
