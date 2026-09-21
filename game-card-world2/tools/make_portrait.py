@@ -6,7 +6,7 @@
 사용법:
   python make_portrait.py --name portrait_knight --label 기사 --kind character --prompt "full body standing pose of ..."
   python make_portrait.py --name portrait_bear --label 곰 --kind creature --prompt "full body of a big wild brown bear standing ..."
-기록: ../docs/아이콘_목록.md (make_icon.py 와 같은 곳)
+기록: ../docs/아이콘_목록.md (make_icon_object.py · make_icon_character.py 와 같은 곳)
 """
 import argparse
 import json
@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-from make_icon import STYLE_PREFIX, fetch_image, record, run_workflow
+from icon_common import CHARACTER_PREFIX, OBJECT_PREFIX, fetch_image, record, run_workflow
 
 TOOLS = Path(__file__).resolve().parent
 WORKFLOW = TOOLS / "portrait_workflow.json"
@@ -67,7 +67,7 @@ def main():
     text = a.prompt.rstrip(" ,.") + (SHADE if kind["shade"] else "") + SUFFIX.format(
         subject=kind["subject"], body=kind["body"], bg=BG_COLORS[bg])
     if not a.no_style:
-        text = STYLE_PREFIX + text
+        text = (OBJECT_PREFIX if a.kind == 'place' else CHARACTER_PREFIX) + text   # 2026-09-21: 장소는 사물용 머리말 (사람이 안 끼게)
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
 
     wf = json.loads(WORKFLOW.read_text(encoding="utf-8"))

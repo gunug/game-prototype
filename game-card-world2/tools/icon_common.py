@@ -1,11 +1,11 @@
-"""ComfyUI icon_work_game 워크플로우로 게임 아이콘 생성.
+"""아이콘 생성 공통 부분 — 직접 실행하지 않음.
 
-1024 원본 → 배경 제거 → 크롭 → 64px 축소 → 32색 → 투명 PNG.
-결과는 game-card-world2/images/icon/<name>.png 로 복사한다.
+용도별로 나눈 두 스크립트가 이걸 불러 씀 (2026-09-21 분리):
+  make_icon_object.py    사물 · 재료 · 도구 · 설비 · 장소 · UI 그림 (사람 · 생물이 끼지 않게)
+  make_icon_character.py 캐릭터 · 크리처 (슈퍼 데포르메 인물 비율)
 
-사용법:
-  python make_icon.py --name gold_coin --prompt "A polished fantasy game gold coin icon ..."
-절차 문서: ../docs/아이콘_생성.md
+ComfyUI icon_work_game 워크플로우: 1024 원본 → 배경 제거 → 크롭 → 64px 축소 → 32색 → 투명 PNG.
+결과는 game-card-world2/images/icon/<name>.png.
 """
 import argparse
 import json
@@ -23,27 +23,40 @@ ICON_DIR = Path(__file__).resolve().parent.parent / "images" / "icon"
 LOG_MD = Path(__file__).resolve().parent.parent / "docs" / "아이콘_목록.md"
 LOG_HEAD = (
     "# 아이콘 목록\n\n"
-    "> 이미지 파일명과 생성에 쓴 프롬프트 기록 (아이콘·카드 프레임). `tools/make_icon.py`·`tools/make_frame.py` 가 생성에 성공할 때마다 자동으로 갱신한다.\n"
+    "> 이미지 파일명과 생성에 쓴 프롬프트 기록 (아이콘·카드 프레임). `tools/make_icon_object.py` · `make_icon_character.py` · `make_portrait.py` 가 생성에 성공할 때마다 자동으로 갱신한다.\n"
     "> 같은 파일명은 덮어쓴다 (이전 기록은 git). `- 메모:` 줄은 다시 뽑아도 남는다.\n"
-    "> 다시 뽑기: `python tools/make_icon.py --name <파일명> --seed <seed> <옵션> --prompt \"<프롬프트>\"`\n"
+    "> 다시 뽑기: `python tools/make_icon_object.py`(사물) 또는 `make_icon_character.py`(캐릭터·크리처) `--name <파일명> --seed <seed> <옵션> --prompt \"<프롬프트>\"`\n"
     "> 규칙·요령은 `아이콘_프롬프트.md`.\n"
 )
 # 파일명 = <분류>_<id>. card 의 id 는 index.html DEFS 키 그대로
 CATEGORIES = ("card", "tag", "status", "ui", "fx")
 NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
-# 그림체 통일 — 모든 아이콘 앞에 붙임. 밝은 분위기, 어린이용 아님, 실사 아님
-# 작게 보여도 읽히도록 슈퍼 데포르메 비율 (단순화 버전은 단조로워서 폐기)
-STYLE_PREFIX = (
-    "Stylized fantasy RPG game icon, super deformed (SD) style with chunky exaggerated proportions, "
-    "characters have an oversized head and a small compact body, "
+# 그림체 — 두 용도가 같은 붓 느낌을 쓰되, 인물 비율 문구는 캐릭터용에만 (2026-09-21 분리)
+#   예전엔 하나의 머리말에 'characters have an oversized head …'가 들어 있어 사물에도 사람이 끼었음
+PAINT = (
     "hand-painted semi-realistic illustration style, bold readable shapes with clean dark outlines, "
     "painterly brush texture, soft cel-shaded volumes, "
     "bright warm lighting, rich vivid colors, grounded mature art direction for teen and adult players. "
 )
-PROMPT_SUFFIX = (
-    ", single object, centered composition, isolated object, clean readable silhouette, "
-    "simple solid {bg} background, no text, no characters, no additional objects"
+# 캐릭터 · 크리처 — 작게 보여도 읽히도록 슈퍼 데포르메 비율
+CHARACTER_PREFIX = (
+    "Stylized fantasy RPG game icon, super deformed (SD) style with chunky exaggerated proportions, "
+    "characters have an oversized head and a small compact body, " + PAINT
 )
+CHARACTER_SUFFIX = (
+    ", single character, centered composition, clean readable silhouette, "
+    "simple solid {bg} background, no text, no additional characters, no scenery"
+)
+# 사물 · 재료 · 도구 · 설비 · 장소 · UI — 사람 · 생물 · 손 · 얼굴이 안 끼게 앞뒤로 못 박음
+OBJECT_PREFIX = (
+    "Stylized fantasy RPG game item icon, chunky readable shapes, " + PAINT
+    + "An inanimate object only, no person, no human, no hands, no face, no eyes, no creature, no animal: "
+)
+OBJECT_SUFFIX = (
+    ", single object, centered composition, isolated object, clean readable silhouette, "
+    "simple solid {bg} background, no text, no people, no characters, no hands, no additional objects"
+)
+STYLE_PREFIX = CHARACTER_PREFIX                                  # 옛 이름
 # 검은 오브젝트·불·고리 모양은 검은 배경이 남으므로 흰 배경으로
 BG_COLORS = {"black": "#000000", "white": "#ffffff white"}
 
@@ -141,8 +154,15 @@ def fetch_image(url, img):
     return api(url, f"/view?{q}")
 
 
-def main():
-    ap = argparse.ArgumentParser(description="ComfyUI 게임 아이콘 생성")
+KINDS = {
+    "object":    {"prefix": OBJECT_PREFIX,    "suffix": OBJECT_SUFFIX,    "desc": "사물 · 재료 · 도구 · 설비 · 장소 · UI 아이콘"},
+    "character": {"prefix": CHARACTER_PREFIX, "suffix": CHARACTER_SUFFIX, "desc": "캐릭터 · 크리처 아이콘"},
+}
+
+
+def main(kind):
+    k = KINDS[kind]
+    ap = argparse.ArgumentParser(description=f"ComfyUI 게임 아이콘 생성 — {k['desc']}")
     ap.add_argument("--name", required=True, help="파일명 (확장자 없이, 영문 소문자·숫자·_·-)")
     ap.add_argument("--prompt", required=True, help="영문 프롬프트")
     ap.add_argument("--label", default="", help="기록용 한글 이름 (예: 동물 사체). 없으면 기존 기록의 이름 유지")
@@ -162,9 +182,9 @@ def main():
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
-    text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + PROMPT_SUFFIX.format(bg=BG_COLORS[a.bg])
+    text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + k["suffix"].format(bg=BG_COLORS[a.bg])
     if not a.no_style:
-        text = STYLE_PREFIX + text
+        text = k["prefix"] + text
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
     prompt = build_prompt(text, a.name, seed, a.size, a.colors)
 
@@ -185,11 +205,11 @@ def main():
         opts += ["--size", str(a.size)]
     if a.colors != 32:
         opts += ["--colors", str(a.colors)]
-    record(a.name, a.label, a.prompt, seed, opts)
+    record(a.name, a.label, a.prompt, seed, [f"({kind})"] + opts)
 
     print(f"icon  {dest}")
     print(f"full  ComfyUI output/{full['subfolder']}/{full['filename']}")
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit("직접 실행하지 말고 make_icon_object.py(사물) 또는 make_icon_character.py(캐릭터·크리처) 를 쓰세요")
