@@ -95,4 +95,24 @@ refresh('에디터 모드', "S.seen = ['stone']; S.knight.lv = 3; save(); localS
   { lv: 3 });
 vm.runInContext("localStorage.removeItem(EDIT_KEY);", ctx);
 
+// 5) 같은 두 장이 탭마다 다른 결과를 내지 않는지 (v1.4.0) — 사용자가 헷갈림
+try {
+  const clash = vm.runInContext(`(function(){
+    const out = [], nm = t => DEFS[t].name, boards = BOARDS.filter(b => b.dyn).map(b => b.id);
+    const here = (t, b) => onBoard(t, b) || onTopGrid(t, b);
+    for (let i = 0; i < CRAFT_TYPES.length; i++) for (let j = i + 1; j < CRAFT_TYPES.length; j++){
+      const x = CRAFT_TYPES[i], y = CRAFT_TYPES[j], res = {};
+      for (const b of boards){
+        if (!here(x, b) || !here(y, b)) continue;
+        const m = usableRecipes(x, y).find(mm => CRAFT_RECIPES.includes(mm.r) && boardMakes(mm.r, b));
+        if (m) res[b] = (m.r.out || []).join('/');
+      }
+      if (new Set(Object.values(res)).size > 1) out.push(nm(x) + ' + ' + nm(y) + ' → ' + JSON.stringify(res));
+    }
+    return out;
+  })()`, ctx);
+  if (clash.length) report('탭마다 다른 결과', new Error(clash.join(' / ')));
+  else console.log('✓ 같은 두 장은 어느 탭에서나 같은 결과');
+} catch (e){ report('탭마다 다른 결과', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
