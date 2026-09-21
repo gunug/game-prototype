@@ -335,7 +335,9 @@
   .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
   .cw .name{color:var(--ink);font-size:calc(var(--cf) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
   /* v0.82.0: 카드 **아래쪽**에 `⚔ +2` 꼴. v0.87.0: 글씨 크기는 이름과 같게(.13), 색은 그림과 같게 */
-  .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .05);display:flex;justify-content:center;gap:4px;
+  /* v0.88.0: 수치가 있는 카드만 그림·이름을 조금 위로 올리고, 수치도 살짝 올림 */
+  .cw .stats ~ .emoji,.cw .stats ~ .name{position:relative;top:calc(var(--cw) * -.07);}
+  .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .09);display:flex;justify-content:center;gap:4px;
     font-size:calc(var(--cf) * .13);font-weight:800;line-height:1;pointer-events:none;
     text-shadow:0 1px 3px rgba(0,0,0,.85);}
   .cw .stats > span{display:flex;align-items:center;gap:1px;}
@@ -821,7 +823,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.87.0';
+const VERSION = 'v0.88.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1931,9 +1933,9 @@ function screenTokens(){
   if (S.tab === 'battle') return [{ token: 'knight', html: knightCardHtml(true) }];
   return S.cards.filter(c => onBoard(c.type, 'gearup') && c.n > 0).map(c => ({
     token: c.type,
-    html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">`
+    html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${statsHtml(c.type)}`   // v0.88.0: 수치를 맨 앞에
       + `<div class="emoji">${iconHtml(c.type)}</div>`
-      + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div>${statsHtml(c.type)}</div>`,
+      + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`,
   }));
 }
 // 기사 카드 — 능력치는 카드 안에 (v0.29.0)
