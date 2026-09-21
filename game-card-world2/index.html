@@ -942,7 +942,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.4.3';
+const VERSION = 'v2.4.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2881,6 +2881,7 @@ function expStart(id, cardEl){
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
   questHit(`exp-start:${id}`);                                    // v0.60.0: 그 필드로 떠나기만 하면 끝나는 퀘스트
@@ -2896,6 +2897,7 @@ function expTick(dt){
     const ev = plan[exp.idx];
     if (ev && exp.t >= ev.at){
       exp.idx++;
+      if (ev.loot || ev.fight) hintDone('expRun');                // v2.4.4: 첫 채집·싸움을 만나면 걷기 팁 끝
       if (ev.loot){                                               // v0.13.4: 채집 포인트에서 잠시 뒤짐
         exp.spot = exp.spots.findIndex(sp => !sp.done && sp.at === ev.at);
         exp.phase = 'search'; exp.search = 0;
@@ -2912,6 +2914,7 @@ function expTick(dt){
       }
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
+    if (exp.phase !== 'run') renderHint();                        // v2.4.4: 채집·싸움 시작 → 그 팁으로
   } else if (exp.phase === 'search'){
     exp.search += dt;
     if (exp.search >= SEARCH_MS){
@@ -2920,6 +2923,7 @@ function expTick(dt){
       exp.spot = -1;
       exp.phase = 'run';
       expLoot();
+      hintDone('expSearch');                                      // v2.4.4
     }
   } else if (exp.phase === 'fight'){
     exp.beat += dt;
@@ -2946,6 +2950,7 @@ function expBeat(){
     exp.foe = -1;
     exp.phase = 'run';
     exp.line = `${def.name}을 쓰러뜨렸다`;
+    hintDone('expFight');                                         // v2.4.4
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     gainXp(enemyXp(def));                                         // v0.71.0: 잡는 즉시 오른다 (카드에 바로 보이게)
     S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
@@ -3287,9 +3292,19 @@ let questClear = 0;                                               // v0.41.1: �
 // v2.4.0: 곰을 잡기 전까지의 팁 — 위에서부터 먼저 걸리는 하나만 보여 줌
 const questOn = id => (S.quests || []).some(q => q.id === id && !q.done);
 const onTab = (id, here, there) => S.tab === id ? here : there;
+const objP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '을' : '를');   // v2.4.4: 을/를
 function currentHint(){
   const H = S.hints || {};
-  if (exp) return null;
+  // v2.4.4: 원정 중 팁 — 처음 한 번씩 (걷기 · 채집 · 싸움)
+  if (exp){
+    if (exp.phase === 'search' && !H.expSearch)
+      return { key:'expSearch', text:'채집 중 — 주운 재료는 🔨 조합 탭에 쌓여요. 같은 곳을 자주 뒤지면 잠시 고갈돼요', sel:[] };
+    if (exp.phase === 'fight' && !H.expFight)
+      return { key:'expFight', text:'싸움은 저절로 해요 — 기사 카드 안 체력이 0이 되면 쓰러지니 지켜보세요', sel:[] };
+    if (exp.phase === 'run' && !H.expRun)
+      return { key:'expRun', text:`기사가 ${objP((FIELD_BY_ID[exp.id] || {}).name || '필드')} 돌아요 — 길에서 재료를 줍고, 적을 만나면 싸워요`, sel:[] };
+    return null;
+  }
   // ① 첫 출전
   if (!H.sortie && S.knight.hp > 0)
     return onTab('battle',
