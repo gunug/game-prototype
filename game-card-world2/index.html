@@ -817,7 +817,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.85.0';
+const VERSION = 'v0.86.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1127,11 +1127,13 @@ function findSpot(x, y, skip){
 //   (아래 재료 자리 · 위 격자 · 정비 아래 · 장비 칸 안 · 날아가는 카드)
 function statsHtml(t){
   const d = DEFS[t] || {};
-  if (!d.atk && !d.def) return '';
+  // v0.86.0: 거점(모닥불)은 초당 회복량을 적는다 — '본래의 두 배' 같은 모호한 말 대신 실제 수치
+  const camp = useOf(t).includes('거점') ? `<span>${statImg('hp')}+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</span>` : '';
+  if (!d.atk && !d.def && !camp) return '';
   return '<div class="stats">'                                    // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span>${statImg('atk')}+${d.atk}</span>` : '')
     + (d.def ? `<span>${statImg('def')}+${d.def}</span>` : '')
-    + '</div>';
+    + camp + '</div>';
 }
 function cardHtml(c){
   const d = DEFS[c.type];
@@ -2162,8 +2164,10 @@ function renderGearInsp(){
     inspEl.innerHTML = `<div class="head"><div class="pic">${now ? iconHtml(now) : '🔥'}</div>`
       + `<div><div class="nm">거점 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`
       + `<div class="desc">쉴 곳. 캐릭터 장비가 아니라 <b>모두에게 함께 적용</b>된다.</div>`
-      + `<div class="row">쉬는 동안 회복 — 가득 차기까지 <b>${Math.round(healFullMs() / 1000)}초</b>`
-      + `<span class="i-muted"> (거점이 ${now ? '있어 절반' : '없으면 두 배'})</span></div>`;
+      + '<div class="rows">'                                      // v0.86.0: 실제 수치로
+      + `<div class="row">${now ? '' : '지금 '}${statImg('hp')} <b>+${hpPerSec(HEAL_FULL_MS)}/s</b> <span class="i-muted">거점 없음</span></div>`
+      + `<div class="row">${now ? '지금 ' : ''}${statImg('hp')} <b>+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</b> <span class="i-muted">모닥불</span></div></div>`
+      + `<div class="row i-muted">가득 차기까지 ${Math.round(healFullMs() / 1000)}초 · 최대 체력이 늘면 초당 회복량도 함께 늘어난다</div>`;
     return true;
   }
   const now = equipped(sl.key);
@@ -2203,7 +2207,7 @@ function renderFieldInsp(){
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
           + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
-      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — 가득 차기까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (거점 있음)' : ''}`}</div>`
+      + `<div class="row i-muted">${exp ? '원정 중' : `쉬는 중 — ${statImg('hp')} +${hpPerSec(healFullMs())}/s · 가득까지 ${Math.round(healFullMs() / 1000)}초${equipped('camp') ? ' (모닥불)' : ''}`}</div>`
       + lvTableHtml();                                             // v0.68.0: 레벨 표
     return;
   }
@@ -2317,6 +2321,8 @@ const HEAL_FULL_MS = 30000;                                      // 거점이 �
 const HEAL_FULL_CAMP_MS = 15000;                                 // 거점이 있으면 절반
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
+// v0.86.0: 초당 회복량 — '가득까지 걸리는 시간'으로 정해 두었으므로 최대 체력에 따라 달라진다
+const hpPerSec = ms => Math.round(knightMaxHp() / (ms / 1000) * 10) / 10;
 const healMs = () => Math.max(120, healFullMs() / knightMaxHp());   // 체력 한 칸에 걸리는 시간
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 // v0.58.0: 원정 순서를 필드마다 똑같은 틀로 맞춤
