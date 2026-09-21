@@ -414,18 +414,20 @@
   .klv{position:relative;z-index:1;font-size:calc(var(--cf) * .11);font-weight:800;color:var(--brand-yellow);}
   .xpbar{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden;}
   .xpbar i{display:block;height:100%;background:var(--brand-yellow);opacity:.8;}
-  /* v0.68.0: 인스펙터 레벨 표 */
-  .lvtab{margin-top:2px;}
-  .lvr{display:flex;align-items:center;gap:6px;padding:1px 0;font-size:12px;color:var(--muted);}
-  .lvr.cyc{border-top:1px dashed rgba(255,255,255,.12);padding-top:3px;margin-top:2px;}   /* 묶음이 바뀌는 자리 */
-  .lvr.got{color:var(--ink);}
+  /* v0.68.0: 인스펙터 레벨 표. v0.85.0: 한 레벨 = 길이가 같은 짧은 바, 가로로 늘어놓다 모자라면 줄내림 */
+  .lvtab{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;}
+  .lvr{flex:0 0 auto;box-sizing:border-box;width:8.2em;display:flex;align-items:center;gap:4px;
+    padding:3px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);
+    font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;}
+  .lvr.got{color:var(--ink);border-color:rgba(143,220,143,.35);}
   .lvr.got .lvn{color:#8fdc8f;}
-  .lvr.next{color:var(--ink);font-weight:800;}
+  .lvr.next{color:var(--ink);font-weight:800;border-color:rgba(255,212,0,.6);background:rgba(255,212,0,.07);}
   .lvr.next .lvn{color:var(--brand-yellow);}
-  .lvr .lvn{width:3.4em;flex:none;font-variant-numeric:tabular-nums;}
-  .lvr .lvw{flex:none;display:flex;align-items:center;gap:3px;}
-  .lvr .lvx{flex:1;color:var(--brand-yellow);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .lvr .lvq{flex:none;font-variant-numeric:tabular-nums;}
+  .lvr.unlock{flex-basis:100%;width:auto;border-color:rgba(255,212,0,.45);}   /* 해금은 늘 한 줄 */
+  .lvr .lvn{flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
+  .lvr .lvw{flex:none;display:flex;align-items:center;gap:2px;}
+  .lvr .lvx{color:var(--brand-yellow);font-weight:800;}
+  .lvr .lvq{margin-left:auto;flex:none;opacity:.7;font-variant-numeric:tabular-nums;}
   .lvr .icon.inline{width:1.05em;height:1.05em;}
   /* v0.71.0: 원정 중 레벨업 — 기사 카드가 금빛으로 번쩍 */
   .cw.knight.lvup{animation:lvFlash .9s ease-out;}
@@ -815,7 +817,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.84.2';
+const VERSION = 'v0.85.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -931,13 +933,15 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18 };   // v0.78.0: 적이 
 const LV_CYCLE = ['atk', 'hp', 'hp', 'hp', 'def'];                // (레벨−1) % 5 자리
 const LV_SLOT = { 5:'armor', 10:'shield', 15:'trinket' };         // 장비 칸이 열리는 레벨
 const LV_MAX_SHOWN = 20;                                          // 인스펙터 표에 보여 주는 데까지
+// v0.85.0: **해금 레벨은 해금만** 준다 (능력치는 없음).
+//   그래서 사라지는 방어 +1은 **바로 앞 레벨**이 대신 받는다 (그 자리의 최대 체력 +2 대신)
 function lvReward(lv){
+  if (LV_SLOT[lv]) return { slot: LV_SLOT[lv] };
   const key = LV_CYCLE[(lv - 1) % LV_CYCLE.length];
-  const r = key === 'hp' ? { hp:2 } : key === 'def' ? { def:1 } : { atk:1 };
-  if (LV_SLOT[lv]) r.slot = LV_SLOT[lv];
-  return r;
+  if (key === 'hp' && LV_SLOT[lv + 1]) return { def:1 };          // 해금 바로 앞 레벨
+  return key === 'hp' ? { hp:2 } : key === 'def' ? { def:1 } : { atk:1 };
 }
-const xpNeed = lv => 25 + 15 * (lv - 1);                          // 2레벨 25 · 3레벨 40 …
+const xpNeed = lv => 40 + 25 * (lv - 1);                          // 2레벨 40 · 3레벨 65 … (v0.85.0: 방어가 한 레벨 앞당겨진 만큼 곡선을 올림)
 const enemyXp = d => d.hp + d.atk * 2 + d.def * 2;                // 토끼 4 · 늑대 10 · 곰 15
 const knightLv = () => (S.knight && S.knight.lv) || 1;
 const lvSum = key => { let v = 0; for (let i = 2; i <= knightLv(); i++) v += lvReward(i)[key] || 0; return v; };
@@ -2131,18 +2135,18 @@ function lvTableHtml(){
   const now = knightLv();
   const icon = { hp:statImg('hp'), atk:statImg('atk'), def:statImg('def') };
   let h = '<div class="sub">레벨</div>'
-    + `<div class="row i-muted">5레벨이 한 묶음 — ${icon.hp}+2 · ${icon.hp}+2 · ${icon.hp}+2 · ${icon.def}+1 · ${icon.atk}+1 로 되풀이</div>`
+    + `<div class="row i-muted">5레벨이 한 묶음 — ${icon.hp}+2 · ${icon.hp}+2 · ${icon.def}+1 · <b>해금</b> · ${icon.atk}+1 로 되풀이</div>`
     + '<div class="lvtab">';
   for (let lv = 2; lv <= LV_MAX_SHOWN; lv++){
     const r = lvReward(lv);
     const got = lv <= now, next = lv === now + 1;
     const rw = [r.hp ? `${icon.hp}+${r.hp}` : '', r.atk ? `${icon.atk}+${r.atk}` : '', r.def ? `${icon.def}+${r.def}` : ''].filter(Boolean).join(' ');
-    h += `<div class="lvr${got ? ' got' : ''}${next ? ' next' : ''}${lv % LV_CYCLE.length === 1 ? ' cyc' : ''}">`
-      + `<span class="lvn">Lv ${lv}</span><span class="lvw">${rw}</span>`
-      + `<span class="lvx">${r.slot ? `🔓 ${esc(slotByKey(r.slot).name)} 칸` : ''}</span>`
-      + `<span class="lvq i-muted">${xpNeed(lv - 1)}</span></div>`;
+    h += `<div class="lvr${got ? ' got' : ''}${next ? ' next' : ''}${r.slot ? ' unlock' : ''}">`
+      + `<span class="lvn">Lv ${lv}</span>`
+      + (r.slot ? `<span class="lvx">🔓 ${esc(slotByKey(r.slot).name)} 칸</span>` : `<span class="lvw">${rw}</span>`)
+      + `<span class="lvq">${xpNeed(lv - 1)}</span></div>`;
   }
-  return h + '</div><div class="row i-muted">오른쪽 수는 그 레벨이 되는 데 드는 경험치</div>';
+  return h + '</div><div class="row i-muted">바 오른쪽 수는 그 레벨이 되는 데 드는 경험치</div>';
 }
 // 인스펙터: 칸 정보 (조작 없음)
 function renderGearInsp(){
