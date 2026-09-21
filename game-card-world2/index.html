@@ -937,7 +937,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.4.0';
+const VERSION = 'v2.4.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -985,8 +985,9 @@ const QUESTS = {
                 say:'할 수 있는 게 없네… 일단 산으로 가볼까' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
-  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자'
-                  : canMakeWeapon() ? '쥘 만한 걸 만들어 보자' : '⛰️ 산에서 쓸 만한 걸 더 모으자',
+  arm:        { name:'맨손으론 무리', text:() => { if (haveWeapon()) return '만든 무기를 손에 쥐자';   // v2.4.1: 다음 한 걸음 기준
+                  const st = nextStep('근접무기');
+                  return !st ? '⛰️ 산에서 쓸 만한 걸 더 모으자' : st.final ? '쥘 만한 걸 만들어 보자' : '부품부터 만들자'; },
                 goal:1, key:'equip:weapon',
                 say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
@@ -1050,6 +1051,32 @@ const sideReach = sd => sideHave(sd) || (sd.card && canMakeCard(sd.card));
 const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('근접무기'))
   && sideReach(r.a) && sideReach(r.b));
 const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
+// v2.4.1: 목표 태그(예: 근접무기)까지 **지금 바로 할 수 있는 조합 하나**를 찾는다 — 목표에서 거꾸로 내려감
+//   돌려주는 것: { r: 조합식, board: 그 조합을 하는 탭, final: 목표를 바로 만드는 조합인지 }
+function nextStep(tag, depth = 3){
+  const goals = CRAFT_RECIPES.filter(r => (r.out || []).some(o => useOf(o).includes(tag)));
+  const seen = new Set();
+  const find = (recipes, d, final) => {
+    for (const r of recipes){
+      if (seen.has(r)) continue;
+      seen.add(r);
+      if (sideHave(r.a) && sideHave(r.b)){
+        const boards = recipeBoards(r);
+        return { r, board: boards[0] || recipeKind(r), final };
+      }
+    }
+    if (d <= 0) return null;
+    for (const r of recipes){                                      // 모자란 쪽을 만드는 조합으로 한 단 내려감
+      for (const sd of [r.a, r.b]){
+        if (sideHave(sd) || !sd.card) continue;
+        const sub = find(CRAFT_RECIPES.filter(x => (x.out || []).includes(sd.card)), d - 1, false);
+        if (sub) return sub;
+      }
+    }
+    return null;
+  };
+  return find(goals, depth, true);
+}
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
@@ -1567,6 +1594,7 @@ function craft(drag, tgt, m){
   const from = { x: tgt.x, y: tgt.y };
   S.madeRecipes = S.madeRecipes || [];                            // v0.45.0: 해 본 조합 기록
   hintDone('craft');                                              // v2.2.0
+  if (outs.some(o => useOf(o).includes('근접무기'))) hintDone('firstWeapon');   // v2.4.1: 첫 무기 뒤론 두 카드 안 빛냄
   if (!S.madeRecipes.includes(r.id)) S.madeRecipes.push(r.id);
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
@@ -3272,11 +3300,25 @@ function currentHint(){
     return ['tool', 'weapon', 'armor'].includes(S.tab)
       ? { key:'craft', text:'카드를 다른 카드 위로 끌어다 놓으면 합쳐 볼 수 있어요', sel:[] }
       : { key:'craft', text:'🔨 조합 탭에서 모은 재료를 서로 합쳐 볼 수 있어요', sel:['#tabs [data-tab="tool"]'] };
-  // ④ 무기 만들기 — 재료가 다 모였는데 아직 무기가 없을 때
-  if (questOn('arm') && !haveWeapon() && canMakeWeapon())
-    return onTab('weapon',
-      { key:'forge', text:'아래 재료를 서로, 또는 위 무기 칸으로 끌어 합치면 무기가 돼요', sel:[] },
-      { key:'forge', text:'무기 탭에서 모은 재료로 무기를 만들 수 있어요', sel:['#tabs [data-tab="weapon"]'] });
+  // ④ 무기 만들기 — v2.4.1: 목표에서 거꾸로 **지금 할 수 있는 한 걸음**을 찾아 그 탭으로 (부품이 먼저면 조합 탭)
+  //   첫 무기를 만들기 전까지만 합칠 두 카드를 빛냄 (그 뒤론 탭만 알려 줌 — 조합식은 직접 찾기)
+  if (questOn('arm') && !haveWeapon()){
+    const st = nextStep('근접무기');
+    if (st){
+      const bd = BOARD_BY_ID[st.board] || BOARDS[0];
+      const what = st.final ? '무기' : '부품';
+      if (S.tab !== bd.id)
+        return { key:'forge', text:`${bd.name} 탭에서 ${st.final ? '무기를 만들 수 있어요' : '먼저 부품을 만들어요'}`, sel:[`#tabs [data-tab="${bd.id}"]`] };
+      const pair = [st.r.a, st.r.b].map(sd => sd.card || CRAFT_TYPES.find(t => useOf(t).includes(sd.use) && have(t) > 0));
+      const sel = H.firstWeapon ? [] : pair.flatMap(t => {
+        const c = cardOf(t);
+        return [c ? `.cw[data-id="${c.id}"]` : '', `[data-topcard="${t}"]`].filter(Boolean);
+      });
+      return { key:'forge', text: H.firstWeapon
+        ? `재료를 끌어 합쳐 ${what}를 만들어 보세요`
+        : `빛나는 두 카드를 서로 끌어 합치면 ${what}${st.final ? '가' : '이'} 돼요`, sel };
+    }
+  }
   // ⑤ 장착
   if (!H.equip && haveWeapon())
     return onTab('gearup',
