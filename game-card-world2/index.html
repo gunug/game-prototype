@@ -671,7 +671,7 @@ const DEFS = {
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
-const USES = ['무기재료', '무기', '갑옷재료', '방어구', '방패', '장신구', '거점', '손질lv1', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '연료'];   // v0.49.0: 연료. v0.57.0: '설비'는 없앰
+const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '손질lv1', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료', '연료'];   // v0.49.0: 연료. v0.57.0: '설비'는 없앰
 const USE = {
   // 1티어
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료', '연료'],   // v0.46.1: 도구 화면에서 불씨를 만들 수 있게 spring:['약품재료', '요리재료'],
@@ -681,7 +681,7 @@ const USE = {
   grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '갑옷재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
   blade:['무기재료', '도구재료', '손질lv1'], whetstone:['도구'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장
-  stoneknife:['무기'],
+  stoneknife:['무기', '근접무기'],   // v1.9.0: 기사가 드는 건 근접무기뿐
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
@@ -692,7 +692,7 @@ const USE = {
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '약품재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
-  toothdagger:['무기'], fangspear:['무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
+  toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'],
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'], campfire:['도구', '거점'],
@@ -870,7 +870,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.8.0';
+const VERSION = 'v1.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -887,7 +887,7 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 // 콜렉터북 탭 이름 — '1티어' 같은 제작 용어 대신 플레이어가 아는 말로
 const TIER_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품' };
 const tierName = n => TIER_NAME[n] || `${n}`;
-const SHOWN_USES = ['무기재료', '무기', '갑옷재료', '방어구', '방패', '장신구', '거점', '도구재료', '도구', '연료', '손질lv1'];
+const SHOWN_USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '도구재료', '도구', '연료', '손질lv1'];
 const shownUses = t => useOf(t).filter(u => SHOWN_USES.includes(u));
 
 const table = document.getElementById('table');
@@ -960,11 +960,11 @@ function questHit(key){
   }
 }
 // v0.62.0: 지금 무기를 가지고 있나 / 지금 재료로 무기를 만들 수 있나
-const haveWeapon = () => CRAFT_TYPES.some(t => useOf(t).includes('무기') && have(t) > 0);
+const haveWeapon = () => CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && have(t) > 0);   // v1.9.0: 기사는 근접무기만
 // v1.0.0: 무기 재료(뗀석기 등)를 지금 만들 수 있어도 '만들기'로 친다 — 한 단 더 들여다봄
 const canMakeCard = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && sideHave(r.a) && sideHave(r.b));
 const sideReach = sd => sideHave(sd) || (sd.card && canMakeCard(sd.card));
-const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('무기'))
+const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('근접무기'))
   && sideReach(r.a) && sideReach(r.b));
 const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
@@ -991,7 +991,7 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18 };   // v0.78.0: 적이 
 //   체력 +2 · 체력 +2 · 체력 +2 · 방어 +1 · 공격 +1
 //   방어는 5의 배수(5 · 10 · 15 · 20), 공격은 그 다음 레벨(6 · 11 · 16), 나머지는 최대 체력
 const LV_CYCLE = ['atk', 'hp', 'hp', 'hp', 'def'];                // (레벨−1) % 5 자리
-const LV_SLOT = { 5:'armor', 10:'shield', 15:'trinket' };         // 장비 칸이 열리는 레벨
+const LV_SLOT = { 5:'armor', 10:'shield', 15:'trinket', 20:'consumable' };   // 장비 칸이 열리는 레벨. v1.9.0: 20 소모품
 const LV_MAX_SHOWN = 20;                                          // 인스펙터 표에 보여 주는 데까지
 // v0.85.0: **해금 레벨은 해금만** 준다 (능력치는 없음).
 //   그래서 사라지는 방어 +1은 **바로 앞 레벨**이 대신 받는다 (그 자리의 최대 체력 +2 대신)
@@ -1029,11 +1029,14 @@ const BOARDS = [
 // v0.23.0: 장비 칸 — 무기 · 갑옷 · 방패. 각 칸에 올릴 수 있는 태그
 // v0.56.0: 처음엔 **무기 칸만** 열려 있음. 나머지는 자물쇠 — 앞으로 무엇을 갖추는지 이름으로 보여 준다
 // v0.66.0: 여는 시점은 **캐릭터 레벨** (갑옷 5 · 방패 10). 칸에 조건을 적어 둔다
+// v1.9.0: '무기' 칸 → **'근접무기'** 칸. 원거리무기는 쓸 수 있는 클래스가 따로 있음 — 기사는 끝까지 못 씀
+//   원거리든 근접이든 무기는 모두 ⚔️ 무기 탭에서 만든다 ('무기' 태그는 둘 다 가짐)
 const SLOTS = [
-  { key:'weapon', name:'무기',  tag:'무기',   stat:'atk' },                   // v0.55.1: 실루엣 그림 없앰
+  { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk' },           // v0.55.1: 실루엣 그림 없앰
   { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', lv:5 },
   { key:'shield', name:'방패',  tag:'방패',   stat:'def', lv:10 },
   { key:'trinket',name:'장신구', tag:'장신구', lv:15 },            // v0.69.0: 아직 이 태그를 가진 카드는 없음
+  { key:'consumable', name:'소모품', tag:'소모품', lv:20 },       // v1.9.0: 장신구 다음. 아직 이 태그를 가진 카드는 없음
 ];
 // v0.66.0: **거점은 캐릭터 장비가 아니다.** 정비 화면에 하나뿐인 공통 칸이고 모든 캐릭터에게 같이 적용된다
 const CAMP = { key:'camp', name:'거점', tag:'거점' };
@@ -1720,7 +1723,7 @@ function detailHtml(){
 const TREES = {
   // v1.3.0: **부품 기준**으로 다시 짬 — 무기 = 날 부품 + 자루 부품, 강화 = 무기 + 새 부품
   //   맨 위 '부품' 묶음에 무기에 들어가는 부품을 모아 두고, 갈래마다 조립 순서를 보인다
-  weapon: { name:'무기 트리', icon:'⚔️', note:'무기는 날과 자루를 조립해 만들고, 만든 무기에 부품을 하나씩 더 달아 강해진다. 부품은 🔨 조합 탭에서 만든다. 회색은 아직 없는 것.', branches: [
+  weapon: { name:'무기 트리', icon:'⚔️', note:'무기는 날과 자루를 조립해 만들고, 만든 무기에 부품을 하나씩 더 달아 강해진다. 근접이든 원거리든 ⚔️ 무기 탭에서 만들지만 기사는 근접무기만 든다. 부품은 🔨 조합 탭에서. 회색은 아직 없는 것.', branches: [
     { name:'🔩 부품', kind:'날 · 자루 · 줄', nodes: [
       { d:0, id:'blade',       make:'날 — 돌 + 부싯돌' },
       { d:0, id:'smalltooth',  make:'날 — 토끼 · 곰 · 늑대가 떨굼' },
@@ -1746,7 +1749,7 @@ const TREES = {
       { d:2, name:'삼지창',      make:'긴 창 + 날카로운 송곳니',  atk:6, tags:['관통','연타'] },
       { d:1, name:'투창',        make:'송곳니 창 + 깃털',        atk:4, tags:['던지기','선제'] },
     ] },
-    { name:'🏹 줄', kind:'원거리 · 활대와 시위', nodes: [
+    { name:'🏹 줄', kind:'원거리무기 · 기사는 못 씀', nodes: [
       { d:0, name:'사냥활',      make:'활대 + 시위',            atk:3, tags:['원거리','선제'] },
       { d:1, name:'뼈살 활',     make:'사냥활 + 작은 이빨',      atk:4, tags:['원거리','관통'] },
       { d:1, name:'흑요석 살 활', make:'사냥활 + 흑요석 날',      atk:5, tags:['원거리','출혈'] },
