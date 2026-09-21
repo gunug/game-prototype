@@ -141,7 +141,11 @@
     box-shadow:0 2px 10px rgba(0,0,0,.4);animation:hintBob 1.6s ease-in-out infinite;}
   .hintbar[hidden]{display:none;}
   @keyframes hintBob{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(-3px);}}
-  .hint-glow{box-shadow:0 0 0 2px var(--brand-yellow),0 0 14px rgba(255,212,0,.6) !important;animation:hintGlow 1.2s ease-in-out infinite;}
+  .hint-glow{box-shadow:0 0 0 2px var(--brand-yellow),0 0 14px rgba(255,212,0,.6);animation:hintGlow 1.2s ease-in-out infinite;}
+  /* v2.4.2: 첫 무기 — 합칠 두 카드는 깜빡임 (켜졌다 꺼졌다 + 밝기) */
+  .hint-glow.hint-blink{animation:hintBlink .8s steps(1,end) infinite, hintBright .8s ease-in-out infinite;}
+  @keyframes hintBlink{0%{box-shadow:0 0 0 3px var(--brand-yellow),0 0 20px rgba(255,212,0,.9);}50%{box-shadow:0 0 0 0 transparent;}}
+  @keyframes hintBright{0%,100%{filter:brightness(1);}25%{filter:brightness(1.35);}}
   @keyframes hintGlow{0%,100%{box-shadow:0 0 0 2px var(--brand-yellow),0 0 6px rgba(255,212,0,.35);}50%{box-shadow:0 0 0 2px var(--brand-yellow),0 0 18px rgba(255,212,0,.75);}}
   /* v2.2.0: 기사의 수첩 — 종이 톤 머리줄, 끝낸 줄은 그어 지움 */
   .q-book{font-size:11px;font-weight:800;letter-spacing:.04em;color:#c9b98a;padding:2px 0 3px;border-bottom:1px dashed rgba(201,185,138,.35);margin-bottom:2px;}
@@ -937,7 +941,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.4.1';
+const VERSION = 'v2.4.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3316,7 +3320,7 @@ function currentHint(){
       });
       return { key:'forge', text: H.firstWeapon
         ? `재료를 끌어 합쳐 ${what}를 만들어 보세요`
-        : `빛나는 두 카드를 서로 끌어 합치면 ${what}${st.final ? '가' : '이'} 돼요`, sel };
+        : `빛나는 두 카드를 서로 끌어 합치면 ${what}${st.final ? '가' : '이'} 돼요`, sel, blink: !H.firstWeapon };
     }
   }
   // ⑤ 장착
@@ -3346,13 +3350,13 @@ function renderHint(){
   else if (H.sawDown && !H.down) H.down = true;
   if (questOn('bear') && S.knight.hp >= knightMaxHp() && H.sawBearHint) H.bearReady = true;
   if (questOn('bear') && S.knight.hp < knightMaxHp()) H.sawBearHint = true;
-  for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow');
+  for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow', 'hint-blink');
   const bar = document.getElementById('hintbar');
   const h = currentHint();
   bar.hidden = !h;
   if (!h) return;
   bar.textContent = '👆 ' + h.text;
-  for (const q of h.sel) document.querySelector(q)?.classList.add('hint-glow');
+  for (const q of h.sel) document.querySelector(q)?.classList.add('hint-glow', ...(h.blink ? ['hint-blink'] : []));
 }
 function hintDone(key){
   if ((S.hints || {})[key]) return;
