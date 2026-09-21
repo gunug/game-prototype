@@ -870,7 +870,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.5.0';
+const VERSION = 'v1.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1756,29 +1756,35 @@ const TREES = {
       { d:1, name:'가시 몽둥이', make:'뼈 몽둥이 + 작은 이빨',   atk:3, tags:['묵직','출혈'] },
     ] },
   ] },
-  tool: { name:'도구 트리', icon:'🔨', note:'도구도 같은 규칙 — 쓰던 것에 재료를 덧대 다음 것이 된다.', branches: [
-    { name:'🔨 다듬기', kind:'만들기', nodes: [
-      // v0.99.1: 나무판자·숫돌은 뗀석기를 강화한 것이 아니므로 각자 뿌리
-      { d:0, id:'blade',      make:'돌 + 부싯돌',          tags:['손질lv1','무기재료'] },
-      { d:0, id:'plank',      make:'나무 + 🏷️ 손질lv1' },
-      { d:1, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
-      { d:2, name:'톱',        make:'작업대 + 흑요석',   tags:['정밀'] },
+  // v1.6.0: **부품 기준**으로 다시 짬 — 도구 = 몸 부품 + 쓰임 부품, 강화 = 도구 + 새 부품
+  tool: { name:'도구 트리', icon:'🔨', note:'도구는 몸이 되는 부품에 쓰임을 정하는 부품을 붙여 만들고, 만든 도구에 부품을 더해 나아간다. 부품은 🔨 조합 탭에서 만든다. 회색은 아직 없는 것.', branches: [
+    { name:'🔩 부품', kind:'판 · 줄 · 불 · 담기 · 연장', nodes: [
+      { d:0, id:'blade',      make:'손질 연장 — 돌 + 부싯돌', tags:['손질lv1'] },
+      { d:0, id:'plank',      make:'판 — 나무 + 🏷️ 손질lv1' },
+      { d:0, id:'cord',       make:'줄 — 풀 + 물' },
+      { d:0, id:'ember',      make:'불 — 부싯돌 + 석탄' },
+      { d:0, id:'hide',       make:'주머니감 — 토끼가 떨굼' },
+      { d:0, id:'smalltooth', make:'걸이 — 토끼 · 곰 · 늑대가 떨굼' },
+      { d:0, id:'sand',       make:'연마재 — 강가에서 주움' },
+      { d:0, name:'흑요석 날',  make:'톱날 — 흑요석 + 🏷️ 손질lv1' },
+    ] },
+    { name:'🔨 다듬기', kind:'판 + 손질 · 연마', nodes: [
+      { d:0, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
+      { d:1, name:'톱',        make:'작업대 + 흑요석 날',   tags:['정밀'] },
       { d:0, id:'whetstone',  make:'모래 + 돌',           tags:['연마'] },
       { d:1, name:'가는 숫돌', make:'숫돌 + 부드러운 가죽', tags:['연마+'] },
     ] },
-    { name:'🔥 불', kind:'다루기', nodes: [
-      { d:0, id:'ember',      make:'부싯돌 + 석탄' },
-      { d:1, id:'campfire',   make:'불씨 + 연료',        tags:['거점'] },
-      { d:2, name:'화덕',      make:'모닥불 + 점토',      tags:['요리'] },
-      { d:3, name:'가마',      make:'화덕 + 돌',          tags:['굽기'] },
+    { name:'🔥 불', kind:'불 + 연료', nodes: [
+      { d:0, id:'campfire',   make:'불씨 + 🏷️ 연료' },
+      { d:1, name:'화덕',      make:'모닥불 + 점토',      tags:['요리'] },
+      { d:2, name:'가마',      make:'화덕 + 돌',          tags:['굽기'] },
     ] },
-    { name:'🪢 줄', kind:'잡기', nodes: [
-      { d:0, id:'cord',       make:'풀 + 물' },
-      { d:1, id:'fishhook',   make:'섬유끈 + 작은 이빨' },
-      { d:2, name:'낚싯대',    make:'낚싯바늘 + 나무 손잡이',  tags:['낚시'] },
-      { d:3, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
+    { name:'🪢 줄', kind:'걸이 + 줄', nodes: [
+      { d:0, id:'fishhook',   make:'작은 이빨 + 섬유끈' },
+      { d:1, name:'낚싯대',    make:'낚싯바늘 + 나무 손잡이',  tags:['낚시'] },
+      { d:2, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
     ] },
-    { name:'🎒 담기', kind:'나르기', nodes: [
+    { name:'🎒 담기', kind:'주머니감 + 끈', nodes: [
       { d:0, id:'pouch',      make:'부드러운 가죽 + 섬유끈' },
       { d:1, name:'등짐',      make:'가죽 주머니 + 억센 가죽', tags:['많이'] },
     ] },
