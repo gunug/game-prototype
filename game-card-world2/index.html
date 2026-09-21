@@ -339,11 +339,13 @@
     font-size:calc(var(--cf) * .166);font-weight:800;line-height:1;pointer-events:none;
     text-shadow:0 1px 3px rgba(0,0,0,.8);}
   .cw .stats .icon.inline{width:1.1em;height:1.1em;margin:0 1px 0 0;vertical-align:0;}
-  /* v0.83.0: 능력치 그림 뒤 색 라운드 박스 — 공격 노랑 · 방어 파랑 · 체력 빨강 */
-  .icon.stat-atk,.icon.stat-def,.icon.stat-hp{border-radius:.3em;padding:.08em;box-sizing:content-box;}
-  .icon.stat-atk{background:rgba(255,206,64,.26);box-shadow:inset 0 0 0 1px rgba(255,206,64,.55);}
-  .icon.stat-def{background:rgba(92,156,255,.26);box-shadow:inset 0 0 0 1px rgba(92,156,255,.55);}
-  .icon.stat-hp{background:rgba(255,92,92,.26);box-shadow:inset 0 0 0 1px rgba(255,92,92,.55);}
+  /* v0.83.0: 능력치 그림 뒤 색 라운드 박스 — 공격 노랑 · 방어 파랑 · 체력 빨강
+     v0.84.0: 그림 자체가 벡터(SVG)라 색은 `color`로 칠해진다 */
+  svg.icon.stat-atk,svg.icon.stat-def,svg.icon.stat-hp{border-radius:.3em;padding:.08em;box-sizing:content-box;fill:currentColor;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.45));}
+  svg.icon.stat-atk{color:#ffce40;background:rgba(255,206,64,.2);box-shadow:inset 0 0 0 1px rgba(255,206,64,.5);}
+  svg.icon.stat-def{color:#7db0ff;background:rgba(92,156,255,.2);box-shadow:inset 0 0 0 1px rgba(92,156,255,.5);}
+  svg.icon.stat-hp{color:#ff7a7a;background:rgba(255,92,92,.2);box-shadow:inset 0 0 0 1px rgba(255,92,92,.5);}
   .cw.framed{background:var(--frame) center/100% 100% no-repeat border-box;border-color:transparent;}
   .cw.framed::before{opacity:0;}
   .f-gold{--frame:url(images/frame/frame_gold.png);}
@@ -713,10 +715,15 @@ function iconHtml(t, inline){
 const frameOf = d => 'wood';                                     // 1티어 원물은 모두 나무 프레임
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
-const STAT_NAME = { atk:'공격', def:'방어', hp:'체력', people:'인원' };
-// v0.83.0: 능력치 그림 뒤에 색 라운드 박스를 깐다 (공격 노랑 · 방어 파랑 · 체력 빨강).
-//   그림을 다시 만들지 않고 CSS 배경만 얹는다 — `stat-<키>` 클래스로 구분
-const statImg = k => `<img class="icon inline stat-${k}" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
+const STAT_NAME = { atk:'공격', def:'방어', hp:'체력' };   // v0.84.0: 안 쓰던 '인원'은 뺌
+// v0.84.0: 능력치 그림을 **벡터(SVG)**로 — 작게 줄여도 또렷하고, 색은 CSS가 정한다
+//   공격 = 검 · 방어 = 방패 · 체력 = 하트. 뒤의 색 라운드 박스는 v0.83.0 그대로
+const STAT_SVG = {
+  atk: '<path d="M12 1.6 14.2 5.2V14h-4.4V5.2z"/><path d="M7.4 14h9.2v2.1H7.4z"/><path d="M10.9 16.1h2.2v3.6h-2.2z"/><circle cx="12" cy="20.8" r="1.5"/>',
+  def: '<path d="M12 1.8 20.2 4.7V11c0 4.9-3.4 8.6-8.2 10.5C7.2 19.6 3.8 15.9 3.8 11V4.7z"/>',
+  hp:  '<path d="M12 21.2C5.6 16.5 3 13.3 3 10.1a4.7 4.7 0 0 1 9-2.4 4.7 4.7 0 0 1 9 2.4c0 3.2-2.6 6.4-9 11.1z"/>',
+};
+const statImg = k => `<svg class="icon inline stat-${k}" viewBox="0 0 24 24" role="img" aria-label="${STAT_NAME[k]}">${STAT_SVG[k] || ''}</svg>`;
 const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
 
 // 2장 조합 — 각 쪽은 { card } 또는 { tag, lv }. keep: 'a'/'b' = 남는 쪽
@@ -807,7 +814,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.83.0';
+const VERSION = 'v0.84.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
