@@ -421,6 +421,21 @@
   @keyframes lvFlash{0%{box-shadow:0 0 0 0 rgba(255,212,0,0);}
     25%{box-shadow:0 0 14px 4px rgba(255,212,0,.85);filter:brightness(1.35);}
     100%{box-shadow:0 0 0 0 rgba(255,212,0,0);}}
+  /* v0.80.0: 트리 버튼 · 트리 팝업 (콜렉터북과 같은 옷) */
+  .treebtn{position:absolute;right:8px;top:8px;z-index:6;padding:4px 10px;border-radius:var(--r-pill);
+    border:1px solid var(--hairline);background:rgba(20,18,15,.82);color:var(--ink);font:inherit;font-size:12px;font-weight:800;cursor:pointer;}
+  .treebtn[hidden]{display:none;}
+  .treebtn:hover{border-color:rgba(255,212,0,.5);}
+  .trow{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;}
+  .trow .tpad{flex:none;color:var(--muted);opacity:.55;white-space:pre;font-variant-numeric:tabular-nums;}
+  .trow .tname{font-weight:800;white-space:nowrap;}
+  .trow.plan .tname{color:var(--muted);}
+  .trow .tmake{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .trow .tchips{display:flex;gap:3px;flex-wrap:wrap;margin-left:auto;}
+  .trow .tchip{font-size:10px;padding:1px 6px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--muted);}
+  .trow .tchip.atk{border-color:rgba(255,212,0,.45);color:#ffe08a;}
+  .trow .tchip.plan{border-style:dashed;}
+  .tnote{font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.5;}
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
   .book-back.open{opacity:1;pointer-events:auto;}
   /* v0.17.1: 팝업은 화면 안에서 가능한 크게 — 가로·세로 비율은 화면 따라 자유롭게 */
@@ -494,6 +509,9 @@
     </div>
   </div>
 </div>
+<button class="treebtn" id="treeBtn" hidden></button>
+<div class="book-back" id="treeBack"></div>
+<div class="book" id="tree"></div>
 <div class="book-back" id="bookBack"></div>
 <div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
@@ -775,7 +793,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.79.0';
+const VERSION = 'v0.80.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1521,6 +1539,109 @@ function detailHtml(){
     ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
     : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
 }
+// ── 무기 트리 · 도구 트리 (v0.80.0, 전부 가상 계획) ─────────────────
+// 규칙 ① 조합식은 늘 `이전 것 + 새 재료 = 다음 것` — 쓰던 걸 버리지 않고 덧댄다
+//      ② 큰 갈래가 그 물건의 **성격**을 정하고, 그 성격은 가지 끝까지 간다
+//      ③ 갈래가 또 나뉘면 성격 위에 **세부 특징이 하나씩 쌓인다**
+//      ④ 뿌리는 여럿이다 (모두 뗀석기에서 시작하지 않는다)
+// `id`가 있으면 지금 게임에 있는 카드, 없으면 아직 계획뿐인 것
+const TREES = {
+  weapon: { name:'무기 트리', icon:'⚔️', note:'갈래가 성격을 정하고, 위로 갈수록 특징이 쌓인다. 회색은 아직 없는 것.', branches: [
+    { name:'🗡 날붙이', kind:'베기', nodes: [
+      { d:0, id:'blade',       make:'돌 + 부싯돌' },
+      { d:1, id:'toothdagger', make:'뗀석기 + 작은 이빨', tags:['예리'] },
+      { d:2, name:'뼈자루 단검', make:'이빨 단검 + 뼈',       atk:3, tags:['예리','가벼움'] },
+      { d:2, name:'흑요석 칼',   make:'이빨 단검 + 흑요석',   atk:4, tags:['예리','출혈'] },
+      { d:1, name:'손도끼',      make:'뗀석기 + 섬유끈',       atk:2, tags:['묵직'] },
+      { d:2, name:'전투 도끼',   make:'손도끼 + 통나무',       atk:4, tags:['묵직','방어 무시'] },
+    ] },
+    { name:'🔱 자루', kind:'찌르기', nodes: [
+      { d:0, name:'뾰족한 막대', make:'통나무 + 뗀석기',        atk:2, tags:['사거리'] },
+      { d:1, id:'fangspear',    make:'뾰족한 막대 + 날카로운 송곳니', tags:['사거리','관통'] },
+      { d:2, name:'삼지창',      make:'송곳니 창 + 뼈',          atk:5, tags:['관통','연타'] },
+      { d:2, name:'투창',        make:'송곳니 창 + 섬유끈',      atk:4, tags:['던지기','선제'] },
+    ] },
+    { name:'🏹 줄', kind:'원거리', nodes: [
+      { d:0, name:'투석줄',      make:'섬유끈 + 부드러운 가죽',  atk:2, tags:['원거리'] },
+      { d:1, name:'사냥활',      make:'투석줄 + 통나무',         atk:3, tags:['원거리','선제'] },
+      { d:2, name:'뼈살 활',     make:'사냥활 + 뼈',             atk:4, tags:['원거리','관통'] },
+    ] },
+    { name:'🦴 뼈', kind:'때리기', nodes: [
+      { d:0, name:'뼈 몽둥이',   make:'뼈 + 섬유끈',             atk:2, tags:['묵직'] },
+      { d:1, name:'가시 몽둥이', make:'뼈 몽둥이 + 작은 이빨',   atk:3, tags:['묵직','출혈'] },
+    ] },
+  ] },
+  tool: { name:'도구 트리', icon:'🔨', note:'도구도 같은 규칙 — 쓰던 것에 재료를 덧대 다음 것이 된다.', branches: [
+    { name:'🔨 다듬기', kind:'만들기', nodes: [
+      { d:0, id:'blade',      make:'돌 + 부싯돌' },
+      { d:1, id:'plank',      make:'뗀석기 + 나무' },
+      { d:2, id:'workbench',  make:'나무판자 + 뗀석기', tags:['설비'] },
+      { d:3, name:'톱',        make:'작업대 + 흑요석',   tags:['정밀'] },
+      { d:1, id:'whetstone',  make:'뗀석기 + 모래',      tags:['연마'] },
+      { d:2, name:'가는 숫돌', make:'숫돌 + 부드러운 가죽', tags:['연마+'] },
+    ] },
+    { name:'🔥 불', kind:'다루기', nodes: [
+      { d:0, id:'ember',      make:'부싯돌 + 석탄' },
+      { d:1, id:'campfire',   make:'불씨 + 연료',        tags:['거점'] },
+      { d:2, name:'화덕',      make:'모닥불 + 점토',      tags:['요리'] },
+      { d:3, name:'가마',      make:'화덕 + 돌',          tags:['굽기'] },
+    ] },
+    { name:'🪢 줄', kind:'잡기', nodes: [
+      { d:0, id:'cord',       make:'풀 + 물' },
+      { d:1, id:'fishhook',   make:'섬유끈 + 작은 이빨' },
+      { d:2, name:'낚싯대',    make:'낚싯바늘 + 통나무',  tags:['낚시'] },
+      { d:3, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
+    ] },
+    { name:'🎒 담기', kind:'나르기', nodes: [
+      { d:0, id:'pouch',      make:'부드러운 가죽 + 섬유끈' },
+      { d:1, name:'등짐',      make:'가죽 주머니 + 억센 가죽', tags:['많이'] },
+    ] },
+  ] },
+};
+const treeEl = document.getElementById('tree');
+const treeBack = document.getElementById('treeBack');
+const treeBtn = document.getElementById('treeBtn');
+let treeOpen = null;                                              // 열려 있는 트리 id
+function treeRowHtml(n){
+  const d = n.id ? DEFS[n.id] : null;
+  const name = d ? d.name : n.name;
+  const atk = d ? d.atk : n.atk;
+  const pad = n.d ? '   '.repeat(n.d - 1) + '└ ' : '';
+  const chips = (atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
+    .concat((n.tags || []).map(x => `<span class="tchip">${esc(x)}</span>`))
+    .concat(d ? [] : ['<span class="tchip plan">아직 없음</span>']);
+  return `<div class="trow${d ? '' : ' plan'}">`
+    + `<span class="tpad">${pad}</span>`
+    + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
+    + `<span class="tmake">${esc(n.make)}</span><span class="tchips">${chips.join('')}</span></div>`;
+}
+function renderTree(){
+  const t = TREES[treeOpen];
+  if (!t) return;
+  treeEl.innerHTML = '<div class="book-grip"></div>'
+    + `<div class="book-head"><div class="book-title">${t.icon} ${esc(t.name)}</div>`
+    + '<div class="book-tabs"></div><span class="meta">계획 — 아직 만들 수 없는 것이 섞여 있음</span>'
+    + '<button class="book-close" data-treeclose="1">✕</button></div>'
+    + `<div class="book-detail">${esc(t.note)}</div>`
+    + '<div class="book-body"><div class="book-inner">'
+    + t.branches.map(b => `<div class="book-field"><div class="book-fname">${esc(b.name)} <span class="i-muted">— ${esc(b.kind)}</span></div>`
+        + b.nodes.map(treeRowHtml).join('') + '</div>').join('')
+    + '</div></div>';
+}
+function openTree(id){
+  treeOpen = id;
+  if (id) renderTree();
+  treeEl.classList.toggle('open', !!id);
+  treeBack.classList.toggle('open', !!id);
+}
+treeBack.addEventListener('click', () => openTree(null));
+treeEl.addEventListener('click', e => { if (e.target.closest('[data-treeclose]')) openTree(null); });
+treeBtn.addEventListener('click', () => openTree(TREES[S.tab] ? S.tab : null));
+function renderTreeBtn(){                                         // 도구·무기 화면에서만 보임
+  const t = TREES[S.tab];
+  treeBtn.hidden = !t;
+  if (t) treeBtn.textContent = `🌳 ${t.name}`;
+}
 // v0.46.0: 조합 탭.
 // v0.59.0: 가리는 단위를 **재료 한 장씩**으로 바꿈 — 발견한 재료는 이름이 보이고 못 찾은 재료만 ???.
 //   결과는 **그 조합을 해 보기 전까지 늘 ???**. 그래서 재료를 다 모으면 `재료 + 재료 = ???`가 되어
@@ -2054,7 +2175,7 @@ function setTab(tab){
   S.tab = tab;
   renderTabs();
   table.hidden = isRowScreen(tab);                                // v0.29.0: 전투·정비는 줄 화면
-  renderScreen(); renderTopGrid();
+  renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
   renderGather(); renderInsp(); save();
