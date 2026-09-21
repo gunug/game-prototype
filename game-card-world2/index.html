@@ -693,6 +693,11 @@ const DEFS = {
   longspear: { name:'긴 창',       kind:'material', tier:3, group:'gear', atk:5 },
   shieldrim: { name:'방패테',      kind:'material', tier:2, group:'gear' },
   rimshield: { name:'테 두른 방패', kind:'material', tier:3, group:'gear', def:2 },
+  // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙구슬 목걸이(장신구 방어 +2)
+  barb:      { name:'미늘',        kind:'material', tier:2, group:'gear' },
+  harpoon:   { name:'작살',        kind:'material', tier:3, group:'gear', atk:9 },
+  claybead:  { name:'흙구슬',      kind:'material', tier:2, group:'gear' },
+  claynecklace:{ name:'흙구슬 목걸이', kind:'material', tier:3, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
   bearclaw:  { name:'곰의 발톱',   kind:'material', tier:2, group:'loot' },
   bisonhorn: { name:'들소 뿔',     kind:'material', tier:2, group:'loot' },
@@ -728,6 +733,7 @@ const USE = {
   toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'],
   longspear:['무기', '근접무기'], shieldrim:['갑옷재료'], rimshield:['방패'],   // v2.1.0: 숲
+  barb:['무기재료'], harpoon:['무기', '근접무기'], claybead:['갑옷재료'], claynecklace:['장신구'],   // v2.3.0: 강가
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'], campfire:['도구', '거점'],
 };
@@ -782,6 +788,10 @@ const DESC = {
   longspear: '송곳니 창에 긴 자루를 이었다. 여우가 닿기 전에 먼저 닿는다.',
   shieldrim: '판자를 둥글게 휘어 수액으로 붙였다. 마르면 돌처럼 단단하다.',
   rimshield: '나무 방패 가장자리에 테를 둘렀다. 모서리부터 부서지던 버릇이 사라졌다.',
+  barb:      '송곳니를 숫돌에 갈아 거꾸로 선 갈고리를 냈다. 한 번 박히면 빠지지 않는다.',
+  harpoon:   '긴 창 끝에 미늘을 달았다. 물속의 것도, 껍질 두른 것도 끌어낸다.',
+  claybead:  '점토를 빚어 불에 구웠다. 작고 단단하고, 가운데 구멍이 있다.',
+  claynecklace:'흙구슬을 끈에 꿰었다. 목에 걸면 이상하게 마음이 단단해진다.',
   bearclaw:  '산의 주인이 남긴 것. 이걸 본 토끼는 다시는 산에 오지 않는다.',
   bisonhorn: '초원을 들이받던 뿔. 아직도 앞으로 나아가려 한다.',
   mosspelt:  '숲곰이 숲과 한 몸이 된 흔적. 털 사이에서 풀이 자란다.',
@@ -845,6 +855,12 @@ const RECIPES = [
   { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
   // v2.1.0: 🌲 숲 — 송곳니 창에 긴 자루 (송곳니는 이제 늑대 두목이 주로 떨굼)
   { id:'longspear',    a:{ card:'fangspear' },  b:{ card:'longhandle' }, out:['longspear'] },
+  // v2.3.0: 🏞️ 강가 — 모래로 만든 숫돌에 송곳니를 갈아 미늘, 긴 창에 달면 작살
+  { id:'barb',         a:{ card:'fang' },       b:{ card:'whetstone' }, out:['barb'] },
+  { id:'harpoon',      a:{ card:'longspear' },  b:{ card:'barb' },     out:['harpoon'] },
+  // v2.3.0: 첫 장신구 — 점토(물 + 흙)를 불씨에 구워 구슬, 섬유끈에 꿰면 목걸이
+  { id:'claybead',     a:{ card:'clay' },       b:{ card:'ember' },    out:['claybead'] },
+  { id:'claynecklace', a:{ card:'claybead' },   b:{ card:'cord' },     out:['claynecklace'] },
   // v1.2.0: 갑옷 부품을 먼저 손질해 두고 조립한다
   { id:'curedleather', a:{ card:'toughhide' },  b:{ use:'손질lv1' },   out:['curedleather'] },
   { id:'leatherarmor', a:{ card:'curedleather' }, b:{ card:'hide' },   out:['leatherarmor'] },   // 겉감 + 안감
@@ -921,7 +937,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.2.1';
+const VERSION = 'v2.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1113,10 +1129,10 @@ const BOARDS = [
   { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'],
     top:'무기', tops:['무기'], dyn:['무기'] },                     // v0.33.0: 이모지 대신 작업대 그림
   // v0.93.0: 몸을 지키는 것들. v0.95.0: 연장도 `갑옷재료` 태그로 정식으로 아래에 놓임 (topIds 꼼수 없앰)
-  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구', '방패'],
-    top:'방어구', tops:['방어구', '방패'], dyn:['방어구', '방패'] },   // v1.0.0: 갑옷 조합식에 직접 들어가는 것
+  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구', '방패', '장신구'],
+    top:'방어구', tops:['방어구', '방패', '장신구'], dyn:['방어구', '방패', '장신구'] },   // v2.3.0: 장신구도 몸을 지키는 것 — 갑옷 탭   // v1.0.0: 갑옷 조합식에 직접 들어가는 것
   // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
-  { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '거점'] },
+  { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '장신구', '거점'] },
 ];
 // v0.23.0: 장비 칸 — 무기 · 갑옷 · 방패. 각 칸에 올릴 수 있는 태그
 // v0.56.0: 처음엔 **무기 칸만** 열려 있음. 나머지는 자물쇠 — 앞으로 무엇을 갖추는지 이름으로 보여 준다
@@ -1127,7 +1143,7 @@ const SLOTS = [
   { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk' },           // v0.55.1: 실루엣 그림 없앰
   { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', lv:5 },
   { key:'shield', name:'방패',  tag:'방패',   stat:'def', lv:10 },
-  { key:'trinket',name:'장신구', tag:'장신구', lv:15 },            // v0.69.0: 아직 이 태그를 가진 카드는 없음
+  { key:'trinket',name:'장신구', tag:'장신구', stat:'def', lv:15 },   // v0.69.0. v2.3.0: 첫 장신구(흙구슬 목걸이) — 방어를 더함
   { key:'consumable', name:'소모품', tag:'소모품', lv:20 },       // v1.9.0: 장신구 다음. 아직 이 태그를 가진 카드는 없음
 ];
 // v0.66.0: **거점은 캐릭터 장비가 아니다.** 정비 화면에 하나뿐인 공통 칸이고 모든 캐릭터에게 같이 적용된다
@@ -1148,7 +1164,7 @@ const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
 //   무기 탭 = 무기를 만드는 조합식에 **직접** 들어가는 카드 (끝까지 따라가지 않음)
 //   갑옷 탭 = 갑옷 · 방패를 만드는 조합식에 직접 들어가는 카드
 //   조합 탭 = 그 밖의 모든 조합식의 재료 + 어느 탭에도 자리가 없는 카드
-const SPECIFIC_OUT = ['무기', '방어구', '방패'];
+const SPECIFIC_OUT = ['무기', '방어구', '방패', '장신구'];   // v2.3.0: 장신구
 const recipeKind = r => {                                          // 이 조합식은 어느 탭 것인가
   const outs = r.cook ? [] : (r.out || []);
   for (const b of BOARDS) if (Array.isArray(b.dyn) && outs.some(o => useOf(o).some(u => b.dyn.includes(u)))) return b.id;
@@ -1835,6 +1851,7 @@ const TREES = {
       { d:0, id:'fang',        make:'창날 — 늑대 두목 · 숲곰이 주로 떨굼' },
       { d:0, id:'firewood',    make:'짧은 자루 — 돌 + 나무' },
       { d:0, id:'longhandle',   make:'긴 자루 — 나무 손잡이 + 섬유끈' },
+      { d:0, id:'barb',         make:'갈고리 날 — 날카로운 송곳니 + 숫돌' },
       { d:0, name:'뼈 손잡이',   make:'가벼운 자루 — 뼈 + 🏷️ 손질lv1' },
       { d:0, name:'흑요석 날',   make:'날 — 흑요석 + 🏷️ 손질lv1' },
       { d:0, name:'활대',        make:'줄 — 나무 자루 + 🏷️ 손질lv1' },
@@ -1851,6 +1868,7 @@ const TREES = {
     { name:'🔱 자루', kind:'찌르기 · 긴 자루', nodes: [
       { d:0, id:'fangspear',    make:'날카로운 송곳니 + 나무 손잡이', tags:['사거리','관통'] },
       { d:1, id:'longspear',     make:'송곳니 창 + 나무 자루',   tags:['사거리','관통','선제'] },
+      { d:2, id:'harpoon',       make:'긴 창 + 미늘',             tags:['관통','끌어내기'] },
       { d:2, name:'삼지창',      make:'긴 창 + 날카로운 송곳니',  atk:6, tags:['관통','연타'] },
       { d:1, name:'투창',        make:'송곳니 창 + 깃털',        atk:4, tags:['던지기','선제'] },
     ] },
@@ -1955,20 +1973,23 @@ TREES.battle = { name:'필드 트리', icon:'🗡️',
     { d:0, name:'🛠 새로 되는 것', make:'긴 창 · 테 두른 방패', on:true },
     { d:0, name:'진행',          make:'약 9판 · 클리어 10레벨 (방패 칸이 열리는 때와 맞춤)', on:true },
   ] },
-  { name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구 (아직)', nodes: [
+  { name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'물 · 흙 · 모래 · 물고기', on:true },
     { d:1, id:'sand',           make:'연마재 — 숫돌 = 모래 + 돌' },
+    { d:2, id:'barb',           make:'갈고리 날 — 날카로운 송곳니 + 숫돌' },
+    { d:1, id:'clay',           make:'물 + 흙' },
+    { d:2, id:'claybead',       make:'꾸밈 — 점토 + 불씨' },
     { d:0, name:'🐾 떨어지는 것', make:'가재 · 악어 · 큰 메기', on:true },
     { d:1, id:'fillet',         make:'가재 40% · 큰 메기 40%' },
     { d:1, id:'toughhide',      make:'악어 50% · 큰 메기 20%' },
     { d:1, id:'fang',           make:'창날 — 악어 20%' },
     { d:1, id:'catfishwhisker', make:'👑 큰 메기만 떨굼 10% — 쓰임은 아직' },
-    { d:0, name:'⚔ 악어',       make:'중간보스 체44 · 공7 · 방3', on:true, tags:['강가 무기부터'] },
+    { d:0, name:'⚔ 악어',       make:'중간보스 체44 · 공7 · 방3', on:true, tags:['작살부터'] },
     { d:0, name:'👑 큰 메기',    make:'필드보스 체60 · 공9 · 방3', on:true, tags:['15레벨 + 장신구'] },
-    { d:0, name:'🛠 새로 되는 것', make:'숫돌 · 점토 · 생선살 — 강가 무기(+9) · 장신구(방+2)는 아직', tags:['⚠ 무기 · 장신구 없음'] },
+    { d:0, name:'🛠 새로 되는 것', make:'작살 · 흙구슬 목걸이 · 숫돌 · 점토 · 생선살', on:true },
+    { d:0, name:'진행',          make:'약 10판 · 클리어 15레벨 (장신구 칸이 열리는 때와 맞춤)', on:true },
   ] },
   { name:'정할 것', kind:'미정', nodes: [
-    { d:0, name:'강가 장비',      make:'강가 무기(+9) · 장신구(방+2)가 없으면 악어를 넘기 어려움 — 수치는 이 둘을 가정해 맞춤' },
     { d:0, name:'보스 전리품',    make:'곰의 발톱 · 들소 뿔 · 이끼 낀 곰가죽 · 메기 수염 — 어디에 쓸지' },
     { d:0, name:'흑요석',        make:'어느 땅에서 나올지 — 흑요석 날이 던전 열쇠 둘을 맡음' },
   ] },
@@ -2022,6 +2043,7 @@ TREES.armor = { name:'갑옷 트리', icon:'🛡',
     { d:0, id:'hide',         make:'안감 — 토끼가 떨굼' },
     { d:0, id:'shieldboard',  make:'방패 몸 — 나무판자 + 🏷️ 손질lv1' },
     { d:0, id:'toughhide',    make:'덧댐 — 곰이 떨굼' },
+    { d:0, id:'claybead',     make:'꾸밈 — 점토 + 불씨 (강가)' },
     { d:0, name:'면 직물',     make:'안감 — 풀 + 섬유끈' },
     { d:0, name:'뼈 비늘',     make:'덧댐 — 뼈 + 🏷️ 손질lv1' },
     { d:0, id:'shieldrim',     make:'테두리 — 나무판자 + 수액 (숲)' },
@@ -2038,6 +2060,9 @@ TREES.armor = { name:'갑옷 트리', icon:'🛡',
     { d:2, name:'큰 방패',     make:'테 두른 방패 + 방패판',    tags:['방어 +3','묵직'] },
     { d:1, name:'가벼운 방패', make:'나무 방패 + 면 직물',      tags:['방어 +1','가벼움','선제'] },
   ] },
+  { name:'📿 장신구', kind:'꾸밈 + 끈', nodes: [
+    { d:0, id:'claynecklace', make:'흙구슬 + 섬유끈' },
+  ] },
   { name:'🦴 뼈', kind:'단단함', nodes: [
     { d:0, name:'뼈 흉갑',     make:'뼈 비늘 + 부드러운 가죽', tags:['방어 +1','묵직'] },
     { d:1, name:'뼈 갑주',     make:'뼈 흉갑 + 손질된 가죽',   tags:['방어 +3','묵직'] },
@@ -2045,6 +2070,7 @@ TREES.armor = { name:'갑옷 트리', icon:'🛡',
   { name:'정할 것', kind:'미정', nodes: [
     { d:0, name:'갑옷 칸',     make:'5레벨에 열림 — 그 전에 만들어 두기만 함', on:true },
     { d:0, name:'방패 칸',     make:'10레벨에 열림', on:true },
+    { d:0, name:'장신구 칸',   make:'15레벨에 열림 — 장신구도 갑옷 탭에서 만듦', on:true },
     { d:0, name:'성격',        make:'가벼움 · 묵직 · 선제가 실제로 무엇을 바꾸는지 미정' },
     { d:0, name:'손질lv2',     make:'더 좋은 연장이 있어야 만들 수 있는 단계를 둘지' },
   ] },
