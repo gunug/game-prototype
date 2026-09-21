@@ -148,6 +148,9 @@
     display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
   /* v0.45.0: 아직 해 본 적 없는 조합 상대 — 끄는 동안 '새로운 발견!' */
   .cw.new-combo{border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.55),var(--sh-md);}
+  /* v0.81.0: 위 격자의 완성품도 놓는 자리 — 재료를 끌어다 올리면 다음 단계가 된다 */
+  .toplist .cw.dim{opacity:.32;filter:grayscale(.6);}
+  .toplist .cw.hot{border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.75),0 0 14px rgba(255,212,0,.5);}
   .cw .find-b{position:absolute;left:50%;bottom:calc(100% + 4px);transform:translateX(-50%);z-index:6;white-space:nowrap;
     padding:2px 7px;border-radius:999px;background:var(--brand-yellow);color:var(--on-brand);
     font-size:calc(var(--cf) * .1);font-weight:900;line-height:1.2;box-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;
@@ -627,7 +630,9 @@ const USE = {
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '방어구재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
-  blade:['무기', '도구', '도구재료', '방어구재료'], whetstone:['도구'],   // v0.56.0: 뗀석기는 첫 무기이기도 함. 방어구재료는 가죽 갑옷(억센 가죽 + 뗀석기)이 무기 화면에서 조합되도록                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
+  blade:['무기', '도구', '도구재료'], whetstone:['도구'],   // v0.56.0: 뗀석기는 첫 무기이기도 함
+  // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료·방어구재료'를 붙이지 않는다 —
+  //   완성품은 위 격자에만 있고, 재료를 그 위에 끌어다 놓아 다음 단계로 만든다                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
   firewood:['무기재료', '건축재료', '생산재료', '도구재료', '연료'],          // v0.34.1: 모닥불 재료
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료', '연료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료', '연료'], copperore:['무기재료', '건축재료', '생산재료'],
@@ -793,7 +798,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.80.0';
+const VERSION = 'v0.81.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1412,11 +1417,33 @@ table.addEventListener('pointermove', e => {
       el.insertAdjacentHTML('beforeend',                           // v0.48.0: 해 본 조합은 결과 카드·이름·보유 수
         `<div class="find-b known">${outLabel(m, drag.c.type, o.type)}</div>`);
     }
+    for (const el of topGridEl.querySelectorAll('[data-topcard]')){   // v0.81.0: 위 격자도 같은 규칙으로
+      const t = el.dataset.topcard;
+      const m = t === drag.c.type ? null : craftMatch(drag.c.type, t);
+      if (!m){ el.classList.add('dim'); continue; }
+      if (!(S.madeRecipes || []).includes(m.r.id)){
+        el.classList.add('new-combo');
+        el.insertAdjacentHTML('beforeend', '<div class="find-b">새로운 발견!</div>');
+        continue;
+      }
+      el.insertAdjacentHTML('beforeend', `<div class="find-b known">${outLabel(m, drag.c.type, t)}</div>`);
+    }
   }
+  const over = topCardAt(e.clientX, e.clientY);                   // v0.81.0: 지금 가리키는 위 격자 칸
+  for (const el of topGridEl.querySelectorAll('[data-topcard]')) el.classList.toggle('hot', el === over);
   drag.c.x = drag.ox + dx; drag.c.y = drag.oy + dy;               // v0.28.0: 끄는 동안엔 필드 밖도 허용
   drag.el.style.left = (drag.c.x + drag.off.x) + 'px';            // v0.28.1: 필드 기준 좌표
   drag.el.style.top = (drag.c.y + drag.off.y) + 'px';
 });
+// v0.81.0: 그 좌표에 있는 위 격자 칸
+function topCardAt(px, py){
+  if (topGridEl.hidden) return null;
+  for (const el of topGridEl.querySelectorAll('[data-topcard]')){
+    const r = el.getBoundingClientRect();
+    if (px >= r.left && px <= r.right && py >= r.top && py <= r.bottom) return el;
+  }
+  return null;
+}
 function endDrag(e){
   if (!drag) return;
   const d = drag;
@@ -1428,7 +1455,26 @@ function endDrag(e){
     el.classList.remove('dim', 'new-combo');
     el.querySelector('.find-b')?.remove();                         // v0.45.0
   }
+  for (const el of topGridEl.querySelectorAll('[data-topcard]')){   // v0.81.0
+    el.classList.remove('dim', 'new-combo', 'hot');
+    el.querySelector('.find-b')?.remove();
+  }
   if (!d.moved){ select(d.c.id); return; }
+  // v0.81.0: **위 격자의 완성품 위에 재료를 놓으면** 그 자리에서 다음 단계로 만들어진다
+  const topEl = e.type === 'pointercancel' ? null : topCardAt(e.clientX, e.clientY);
+  if (topEl){
+    const t = topEl.dataset.topcard, tgt = cardOf(t);
+    const m = tgt && t !== d.c.type && craftMatch(d.c.type, t);
+    d.c.x = d.ox; d.c.y = d.oy;                                   // 끌던 카드는 제자리로
+    place(d.el, d.c);
+    if (m){
+      tgt.x = d.ox; tgt.y = d.oy;                                 // 결과는 끌어온 자리에서 태어나 격자로 날아감
+      craft(d.c, tgt, m);
+      flash(topEl, 'bump', 300);
+    } else flash(d.el, 'fail', 1500);
+    renderMeta(); renderInsp(); save();
+    return;
+  }
   // v0.28.0: 필드 밖(위 줄 목록 등)에 놓으면 제자리로 돌아감
   const tr = table.getBoundingClientRect();
   const inField = e.type !== 'pointercancel' && e.clientX >= tr.left && e.clientX <= tr.right && e.clientY >= tr.top && e.clientY <= tr.bottom;
@@ -1650,8 +1696,10 @@ const comboDone = r => (S.madeRecipes || []).includes(r.id);
 // 그 조합을 어느 화면에서 만들 수 있나 — 두 재료가 그 화면 아래에 있고, 결과 유형도 그 화면 것이어야 함
 const BOARD_MARK = { tool:'🔨', weapon:'⚔️', gearup:'🔧' };
 const boardLabel = id => `${BOARD_MARK[id] || ''} ${boardOf(id).name.replace(/^\S+\s+/, '')}`.trim();
-const sideOnBoard = (sd, id) => sd.card ? onBoard(sd.card, id)
-  : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && onBoard(t, id));
+// v0.81.0: 완성품(위 격자)도 재료가 될 수 있다 — 아래 재료를 그 위에 끌어다 놓는 방식
+const sideHere = (t, id) => onBoard(t, id) || onTopGrid(t, id);
+const sideOnBoard = (sd, id) => sd.card ? sideHere(sd.card, id)
+  : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && sideHere(t, id));
 const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
