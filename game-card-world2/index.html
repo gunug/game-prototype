@@ -639,7 +639,9 @@ const DEFS = {
   clay: { name:'점토',       kind:'material', tier:2, group:'build' },
   cord: { name:'섬유끈',     kind:'material', tier:2, group:'build' },
   plank: { name:'나무판자',   kind:'material', tier:2, group:'tool' },   // v0.20.0: 도구재료
-  shieldboard: { name:'방패판', kind:'material', tier:2, group:'gear' },   // v1.2.0: 갑옷 부품 — 나무판자를 손질
+  shieldboard: { name:'방패판', kind:'material', tier:2, group:'gear' },
+  longhandle: { name:'나무 자루', kind:'material', tier:2, group:'gear' },   // v2.0.0: 긴 자루 — 나무 손잡이 + 섬유끈
+  handaxe: { name:'손도끼', kind:'material', tier:3, group:'gear', atk:3 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
   curedleather: { name:'손질된 가죽', kind:'material', tier:2, group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
   wax: { name:'밀랍',       kind:'material', tier:2, group:'build' },
   copperore: { name:'구리 원석',  kind:'material', tier:2, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
@@ -686,7 +688,8 @@ const USE = {
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
   firewood:['무기재료'],   // v1.2.0: 무기 부품(자루). 연료·건축 등은 나무 · 나무판자가 맡음
-  shieldboard:['갑옷재료'], curedleather:['갑옷재료'],   // v1.2.0: 갑옷 부품
+  shieldboard:['갑옷재료'], curedleather:['갑옷재료'],
+  longhandle:['무기재료'], handaxe:['무기', '근접무기'],   // v2.0.0   // v1.2.0: 갑옷 부품
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료', '연료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료', '연료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
@@ -724,6 +727,8 @@ const DESC = {
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
   firewood:  '손에 맞게 깎아 낸 나무 손잡이. 끝에 날을 끼울 홈이 있다.',
   shieldboard:'판자를 둥글게 잇대어 깎았다. 아직 가죽을 대지 않은 방패의 몸.',
+  longhandle:'손잡이에 섬유끈을 감아 길게 이었다. 휘두르면 힘이 실린다.',
+  handaxe:   '뗀석기 칼을 긴 자루에 묶었다. 한 번 내리치면 묵직하다.',
   curedleather:'억센 가죽의 털을 긁고 가장자리를 다듬었다. 이제 옷이 될 수 있다.',
   clay:      '물과 흙이 손잡았다. 모양은 네가 정해라.',
   cord:      '풀도 물에 불려 꼬면 쓸모가 생긴다. 사람도 그렇다던데.',
@@ -783,7 +788,7 @@ const RECIPES = [
   { id:'ember',      a:{ card:'flint' },  b:{ card:'coal' },      out:['ember'] },
   { id:'clay',       a:{ card:'water' },  b:{ card:'soil' },      out:['clay'] },
   { id:'firewood',   a:{ card:'stone' },  b:{ card:'tree' },      out:['firewood'] },
-  { id:'cord',       a:{ card:'grass' },  b:{ card:'water' },     out:['cord'] },
+  { id:'cord',       a:{ card:'grass' },  b:{ use:'손질lv1' },     out:['cord'] },   // v2.0.0: 풀을 칼로 쪼개 섬유를 훑음 (물은 강가라 초원에서 막혔음)
   { id:'honey',      a:{ card:'stone' },  b:{ card:'honeycomb' }, out:['honey', 'wax'] },
   { id:'copperore',  a:{ card:'ore' },    b:{ card:'coal' },      out:['copperore'] },   // v0.12.0: 부순 광석(광석+돌) → 구리(광석+석탄). v0.12.1: 구리 원석
   { id:'butcher',    a:{ card:'flint' },  b:{ card:'beast' },     out:['hide', 'meat', 'bone'] },
@@ -795,6 +800,9 @@ const RECIPES = [
   // v1.0.0: 첫 무기. v1.4.0: 뗀석기 + **나무 손잡이** (날 + 자루) — '뗀석기 + 나무'는 조합 탭에서 나무판자가 되어
   //   같은 두 장이 탭마다 다른 결과를 내던 것을 없앰
   { id:'stoneknife',   a:{ card:'blade' },      b:{ card:'firewood' }, out:['stoneknife'] },
+  // v2.0.0: 🌾 초원 — 섬유끈으로 자루를 길게, 뗀석기 칼에 달면 손도끼
+  { id:'longhandle',   a:{ card:'firewood' },   b:{ card:'cord' },     out:['longhandle'] },
+  { id:'handaxe',      a:{ card:'stoneknife' }, b:{ card:'longhandle' }, out:['handaxe'] },
   { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
   { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
   // v1.2.0: 갑옷 부품을 먼저 손질해 두고 조립한다
@@ -870,7 +878,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.9.0';
+const VERSION = 'v2.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -930,15 +938,30 @@ const QUESTS = {
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 출전하기',      goal:1, key:'exp-start:grassland',
                 say:'산 너머에 다른 땅이 열렸군' },
+  // v2.0.0: 🌾 초원 사슬 — 공통 질문 '어떻게 강해지지?'의 초원 답 = 방어(갑옷). 그 전에 무기 하나 더
+  gweapon:    { name:'이 칼로는 부족해', text:'더 무거운 근접무기를 장착하기', goal:1, key:'equip:atk3',
+                say:'멧돼지가 꿈쩍도 안 하는군' },
+  boar:       { name:'길을 막는 멧돼지', text:'⚔ 멧돼지 쓰러뜨리기',    goal:1, key:'kill:boar' },
+  lv5:        { name:'몸을 단련하자',   text:'5레벨 되기',             goal:1, key:'level:5',
+                say:'들소의 뿔을 맞고 버틸 몸이 필요해' },
+  garmor:     { name:'몸을 지키자',     text:'갑옷을 장착하기',         goal:1, key:'equip:armor',
+                say:'이제 갑옷을 걸칠 수 있겠어' },
+  bison:      { name:'초원의 주인',     text:'👑 들소 쓰러뜨리기',      goal:1, key:'kill:bison' },
+  forest:     { name:'숲으로',          text:'🌲 숲으로 출전하기',      goal:1, key:'exp-start:forest',
+                say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { gomountain:'arm', arm:'wolf', wolf:'better', better:'bear', bear:'grass' };
+const QUEST_NEXT = { gomountain:'arm', arm:'wolf', wolf:'better', better:'bear', bear:'grass',
+  grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
 function questSelfCheck(){
   const w = equipped('weapon');
   if (w) questHit('equip:weapon');
   if (w && (DEFS[w].atk || 0) >= 2) questHit('equip:atk2');
+  if (w && (DEFS[w].atk || 0) >= 3) questHit('equip:atk3');       // v2.0.0
+  if (equipped('armor')) questHit('equip:armor');
+  for (let lv = 2; lv <= knightLv(); lv++) questHit(`level:${lv}`);
   for (const k of (S.killed || [])) questHit(`kill:${k}`);         // v0.66.0: 퀘스트를 받기 전에 이미 잡았어도 인정
   for (const id in (S.marks || {})) questHit(`exp-end:${id}`);
 }
@@ -1729,7 +1752,7 @@ const TREES = {
       { d:0, id:'smalltooth',  make:'날 — 토끼 · 곰 · 늑대가 떨굼' },
       { d:0, id:'fang',        make:'창날 — 곰이 떨굼' },
       { d:0, id:'firewood',    make:'짧은 자루 — 돌 + 나무' },
-      { d:0, name:'나무 자루',   make:'긴 자루 — 나무 손잡이 + 섬유끈' },
+      { d:0, id:'longhandle',   make:'긴 자루 — 나무 손잡이 + 섬유끈' },
       { d:0, name:'뼈 손잡이',   make:'가벼운 자루 — 뼈 + 🏷️ 손질lv1' },
       { d:0, name:'흑요석 날',   make:'날 — 흑요석 + 🏷️ 손질lv1' },
       { d:0, name:'활대',        make:'줄 — 나무 자루 + 🏷️ 손질lv1' },
@@ -1737,7 +1760,7 @@ const TREES = {
     ] },
     { name:'🗡 날붙이', kind:'베기 · 짧은 자루', nodes: [
       { d:0, id:'stoneknife',  make:'뗀석기 + 나무 손잡이' },
-      { d:1, name:'손도끼',      make:'뗀석기 칼 + 나무 자루',   atk:2, tags:['묵직'] },
+      { d:1, id:'handaxe',      make:'뗀석기 칼 + 나무 자루',   tags:['묵직'] },
       { d:2, name:'전투 도끼',   make:'손도끼 + 흑요석 날',      atk:4, tags:['묵직','방어 무시'] },
       { d:0, id:'toothdagger', make:'작은 이빨 + 나무 손잡이', tags:['예리'] },
       { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈 손잡이',   atk:3, tags:['예리','가벼움'] },
@@ -1764,7 +1787,7 @@ const TREES = {
     { name:'🔩 부품', kind:'판 · 줄 · 불 · 담기 · 연장', nodes: [
       { d:0, id:'blade',      make:'손질 연장 — 돌 + 부싯돌', tags:['손질lv1'] },
       { d:0, id:'plank',      make:'판 — 나무 + 🏷️ 손질lv1' },
-      { d:0, id:'cord',       make:'줄 — 풀 + 물' },
+      { d:0, id:'cord',       make:'줄 — 풀 + 🏷️ 손질lv1' },
       { d:0, id:'ember',      make:'불 — 부싯돌 + 석탄' },
       { d:0, id:'hide',       make:'주머니감 — 토끼가 떨굼' },
       { d:0, id:'smalltooth', make:'걸이 — 토끼 · 곰 · 늑대가 떨굼' },
@@ -1820,35 +1843,36 @@ TREES.battle = { name:'필드 트리', icon:'🗡️',
     { d:0, name:'👑 곰',         make:'필드보스 체9 · 공3 → 🌾 초원이 열림', on:true, tags:['이빨 단검부터'] },
     { d:0, name:'🛠 여기서 다 되는 것', make:'뗀석기 칼 · 이빨 단검 · 송곳니 창 · 가죽 갑옷 · 나무 방패 · 작업대 · 모닥불', on:true },
   ] },
-  { name:'🌾 초원', kind:'두 번째 땅', nodes: [
+  { name:'🌾 초원', kind:'두 번째 땅 · 답: 방어(갑옷)', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'풀 · 씨앗 · 벌집 · 깃털', on:true },
+    { d:1, id:'cord',           make:'줄 — 풀 + 🏷️ 손질lv1' },
+    { d:2, id:'longhandle',     make:'긴 자루 — 나무 손잡이 + 섬유끈' },
     { d:1, id:'feather',        make:'🔑 던지기 — 그대로 부품' },
-    { d:1, id:'grass',          make:'줄의 재료 — 섬유끈 = 풀 + 물 (물은 강가)' },
-    { d:0, name:'🐾 떨어지는 것', make:'들개 · 늑대 · 들소', on:true },
-    { d:1, id:'toughhide',      make:'덧댐 — 들소 40% (곰보다 잘 나옴)' },
-    { d:1, id:'fang',           make:'창날 — 들소 20% (곰의 두 배)' },
-    { d:1, id:'hide',           make:'안감 — 들개 30% · 늑대 30%' },
-    { d:0, name:'관문',          make:'들개 체7 · 공3 / 늑대(임시) / 👑 들소 체12 · 공3 · 방1', on:true, tags:['세기 미정'] },
-    { d:0, name:'🛠 새로 되는 것', make:'없음 — 줍는 것이 섬유끈(물은 강가)을 기다리고, 전리품은 산과 같은 종류', tags:['⚠ 비어 있음'] },
+    { d:0, name:'🐾 떨어지는 것', make:'들개 · 멧돼지 · 들소', on:true },
+    { d:1, id:'toughhide',      make:'덧댐 · 겉감 — 멧돼지 50% · 들소 40%' },
+    { d:1, id:'fang',           make:'창날 — 들소 20%' },
+    { d:1, id:'hide',           make:'안감 — 들개 30%' },
+    { d:0, name:'⚔ 멧돼지',     make:'중간보스 체10 · 공3', on:true, tags:['손도끼부터'] },
+    { d:0, name:'👑 들소',       make:'필드보스 체14 · 공4 · 방1 → 🌲 숲이 열림', on:true, tags:['5레벨 + 갑옷'] },
+    { d:0, name:'🛠 새로 되는 것', make:'손도끼 · 가죽 주머니 · 낚싯바늘 — 섬유끈이 풀려서', on:true },
+    { d:0, name:'진행',          make:'약 7판 · 클리어 5레벨 (갑옷 칸이 열리는 때와 맞춤)', on:true },
   ] },
   { name:'🌲 숲', kind:'아직', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'나무 · 열매 · 수액 · 약초', on:true },
     { d:1, id:'sap',            make:'시위의 재료 — 시위 = 섬유끈 + 수액' },
-    { d:0, name:'적 구성',       make:'미정' },
-    { d:0, name:'🛠 새로 되는 것', make:'없음 — 수액도 섬유끈과 짝이라 강가를 기다림', tags:['⚠ 비어 있음'] },
+    { d:0, name:'적 구성',       make:'계획: 여우 체14·공5 / 늑대 두목 체20·공6·방1 / 숲곰 체28·공8·방2' },
+    { d:0, name:'🛠 새로 되는 것', make:'아직 없음 — 숲 무기(+5) · 방패(+2)를 정해야 함', tags:['⚠ 비어 있음'] },
   ] },
   { name:'🏞️ 강가', kind:'아직', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'물 · 흙 · 모래 · 물고기', on:true },
     { d:1, id:'water',          make:'줄 · 점토의 재료 — 섬유끈 = 풀 + 물' },
     { d:1, id:'sand',           make:'연마재 — 숫돌 = 모래 + 돌' },
-    { d:0, name:'적 구성',       make:'미정' },
-    { d:0, name:'🛠 새로 되는 것', make:'숫돌 · 가죽 주머니 · 낚싯바늘 — 물이 들어와 섬유끈이 풀림', on:true },
+    { d:0, name:'적 구성',       make:'계획: 가재 체18·공7 / 악어 체28·공9·방2 / 큰 메기 체40·공11·방3' },
+    { d:0, name:'🛠 새로 되는 것', make:'숫돌 · 점토 · 생선살 — 강가 무기(+9) · 장신구(방+3)는 아직', on:true },
   ] },
   { name:'정할 것', kind:'미정', nodes: [
-    { d:0, name:'초원 · 숲이 비어 있음', make:'두 땅을 열어도 새로 만들 수 있는 장비 · 도구가 0 — 산에서 이미 다 되고, 섬유끈이 강가의 물을 기다림' },
-    { d:0, name:'섬유끈',        make:'풀(초원)과 물(강가)이 두 땅에 걸침 — 강가 전에는 나무 자루 · 시위 · 면 직물 · 가죽 주머니가 막힘' },
+    { d:0, name:'숲이 비어 있음', make:'숲을 열어도 새로 되는 것이 아직 없음 — 숲의 무기 · 방패를 정해야 함' },
     { d:0, name:'흑요석',        make:'어느 땅에서 나올지 — 흑요석 날이 던전 열쇠 둘을 맡음' },
-    { d:0, name:'초원 세기',     make:'산 클리어 무기(이빨 단검)로 초원이 어떻게 되는지 아직 안 맞춤' },
   ] },
 ] };
 // v1.7.0: **부품 기준**으로 다시 짬 — 던전 보스의 기믹 → 그걸 푸는 무기 → 그 무기에 성격을 주는 **열쇠 부품**
@@ -2318,6 +2342,7 @@ function equipCard(sl, type){
   if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
   questHit(`equip:${sl.key}`);                                    // v0.60.0: 무기를 끼움
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 2) questHit('equip:atk2');   // 더 센 무기
+  if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 3) questHit('equip:atk3');   // v2.0.0: 초원
   renderAll(); renderInsp(); save();
 }
 function unequipSlot(sl){
@@ -2569,11 +2594,13 @@ const ENEMIES = {
   // v0.58.0: 체력 10 → 9. 중간보스에게 깎인 체력으로도 이빨 단검(공 3)이면 이기도록
   bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:9,
     loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 20, 1], ['fang', 10, 1]] },
-  // v0.51.0: 🌾 초원 — 들개(기본) · 들소(보스)
-  //   맞춰 놓은 세기: 이빨 단검만으로는 들개 둘을 못 넘기고, 들소는 송곳니 창 + 방패가 있어야 이김
-  wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:3, def:0, hp:7,
+  // v2.0.0: 🌾 초원 — 들개(잡몹) · 멧돼지(중간보스) · 들소(필드보스). 시뮬레이션으로 맞춘 세기 (확정 58)
+  //   이빨 단검으로는 멧돼지에서 막히고, 손도끼면 멧돼지를 넘고 들소에서 막히고, 5레벨 갑옷이면 클리어 (약 7판, Lv5)
+  wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:2, def:0, hp:6,
     loot: [['meat', 40, 1], ['hide', 30, 1], ['smalltooth', 30, 1]] },
-  bison:  { name:'들소', portrait:'portrait_bison',  atk:3, def:1, hp:12,
+  boar:   { name:'멧돼지', portrait:'portrait_boar', atk:3, def:0, hp:10,   // 초원의 핵심 부품: 억센 가죽
+    loot: [['toughhide', 50, 1], ['meat', 40, 1], ['smalltooth', 30, 1]] },
+  bison:  { name:'들소', portrait:'portrait_bison',  atk:4, def:1, hp:14,
     loot: [['toughhide', 40, 1], ['meat', 30, 2], ['fang', 20, 1], ['smalltooth', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
@@ -2624,7 +2651,7 @@ function lanePlan(mob, mid, boss){
 }
 const EXP_PLAN = {
   mountain:  lanePlan('animal', 'wolf', 'bear'),
-  grassland: lanePlan('wilddog', 'wolf', 'bison'),                // v0.51.0. v0.58.0: 초원 중간보스는 아직 미정이라 늑대를 그대로 씀
+  grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
@@ -3017,6 +3044,7 @@ function gainXp(n){
     k.xp -= xpNeed(k.lv);
     k.lv++;
     ups.push(k.lv);
+    questHit(`level:${k.lv}`);                                     // v2.0.0: 레벨 퀘스트
   }
   save();
   renderKnight();                                                 // 카드의 막대·숫자는 바로 갱신
