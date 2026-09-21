@@ -82,6 +82,12 @@
   .pslot.hot{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.22);box-shadow:0 0 8px rgba(255,212,0,.45);}
   .pslot.locked{border-style:solid;opacity:.45;background:transparent;}
   .pslot .lock{width:55%;image-rendering:pixelated;}
+  /* v0.98.0: 자물쇠 위에 겹쳐 '무엇이 있어야 열리는지' — 모든 자물쇠 공통 */
+  .lockneed{position:absolute;left:50%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;white-space:nowrap;
+    padding:2px 6px;border-radius:var(--r-pill);background:rgba(10,9,7,.86);border:1px solid rgba(255,255,255,.18);
+    color:#fff;font-weight:800;line-height:1.1;text-shadow:0 1px 2px rgba(0,0,0,.8);}
+  .pslot .lockneed{top:55%;font-size:calc(var(--cf) * .085);}
+  .gather .cw.field .lockneed{top:52%;font-size:calc(var(--cf) * .075);}
   .pslot > .icon{width:70%;height:auto;}                           /* v0.29.2: 칸에 바로 놓인 그림만 (카드 안 그림은 건드리지 않음) */
   .pslot-lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* v0.30.0: 장비 실루엣 — 빈 칸 가운데(큰 것), 카드 왼쪽 위(작은 것) */
@@ -176,7 +182,7 @@
   .nbadge[hidden]{display:none;}
   /* v0.9.0: 잠긴 필드 — 어둡게 + 자물쇠 */
   .gather .cw.field.field-locked{cursor:default;}
-  .gather .cw.field.field-locked > :not(.lock){filter:brightness(.3) saturate(.15);}
+  .gather .cw.field.field-locked > :not(.lock):not(.lockneed){filter:brightness(.3) saturate(.15);}
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
   /* 기사 줄 · 원정 트랙 (v0.13.0) */
@@ -844,7 +850,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.97.0';
+const VERSION = 'v0.98.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1975,7 +1981,8 @@ function renderTabs(){                                            // v0.21.0: �
     '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>']
     .concat(BOARDS.map(b => boardOpen(b)
       ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
-      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}</button>`)).join('');
+      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
+        + (b.needs ? ` <span class="i-muted">· 필요 ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>')).join('');   // v0.98.0
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
@@ -1991,7 +1998,9 @@ function slotHtmlOf(sl){
   const inner = sl.card
     ? `<div class="cw framed f-${sl.frame || 'wood'}">${statsHtml(sl.type)}<div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
     : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
-    : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${sl.lab ? `<span class="pslot-lab">${esc(sl.lab)}</span>` : ''}`;   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
+    : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">`   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
+      + (sl.need ? `<b class="lockneed">${esc(sl.need)}</b>` : '')                    // v0.98.0: 자물쇠 위에 조건
+      + (sl.lab ? `<span class="pslot-lab">${esc(sl.lab)}</span>` : '');
   return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
 }
 // 이 화면의 줄 목록
@@ -2000,7 +2009,8 @@ function screenRows(){
     return FIELDS.map(f => {
       const locked = fieldLocked(f.id), ys = yieldsOf(f.id);
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
-        + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : '')
+        + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
+          + `<b class="lockneed">${esc(fieldNeed(f.id))}</b>` : '')     // v0.98.0: 자물쇠 위에 조건
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
         + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
         + (lootTypes(f.id).length
@@ -2021,7 +2031,7 @@ function screenRows(){
     const t = open ? equipped(sl.key) : null;
     return { id: `${row}:${sl.key}`, open, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
-      lab: open || !sl.lv ? sl.name : `${sl.name} (${sl.lv}레벨)` };   // v0.66.0: 여는 조건을 적어 둠
+      lab: sl.name, need: open || !sl.lv ? '' : `필요 ${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에
   };
   const campCard = '<div class="cw framed f-stone camp-lab"><div class="emoji">🔥</div>'
     + '<div class="name">거점</div><div class="sub-lab">모두 공통</div></div>';
@@ -2928,6 +2938,12 @@ function questStep(id){
 }
 // v0.47.0: 보스를 잡으면 그다음 잠긴 필드가 열림
 //   자물쇠가 바들바들 떨리다 → 열린 자물쇠로 바뀌고 → 아래로 내려가며 사라짐 → 흐리던 색이 돌아오고 → 마지막에 이름이 나타남
+// v0.98.0: 그 필드가 열리는 조건 — 필드는 앞 필드를 처음 깨면 하나씩 열린다
+function fieldNeed(id){
+  const i = FIELDS.findIndex(f => f.id === id);
+  const prev = i > 0 ? FIELDS[i - 1] : null;
+  return prev ? `필요 ${prev.name} 클리어` : '잠김';
+}
 function unlockNextField(afterId){
   const i = FIELDS.findIndex(f => f.id === afterId);
   const next = FIELDS.slice(i + 1).find(f => fieldLocked(f.id)) || FIELDS.find(f => fieldLocked(f.id));
@@ -2937,6 +2953,7 @@ function unlockNextField(afterId){
   playUnlock(next);
 }
 function playUnlock(f){
+  gatherEl.querySelector(`[data-field="${f.id}"] .lockneed`)?.remove();   // v0.98.0
   const card = gatherEl.querySelector(`[data-field="${f.id}"]`);
   if (!card){ renderScreen(); return; }
   const lock = card.querySelector('.lock');
