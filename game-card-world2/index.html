@@ -942,7 +942,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.5.1';
+const VERSION = 'v2.5.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1058,8 +1058,8 @@ const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useO
 const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
 // v2.4.1: 목표 태그(예: 근접무기)까지 **지금 바로 할 수 있는 조합 하나**를 찾는다 — 목표에서 거꾸로 내려감
 //   돌려주는 것: { r: 조합식, board: 그 조합을 하는 탭, final: 목표를 바로 만드는 조합인지 }
-function nextStep(tag, depth = 3){
-  const goals = CRAFT_RECIPES.filter(r => (r.out || []).some(o => useOf(o).includes(tag)));
+function nextStep(tag, depth = 3, ok = () => true){               // v2.5.2: ok — 결과 카드 조건 (예: 공격력 2 이상)
+  const goals = CRAFT_RECIPES.filter(r => (r.out || []).some(o => useOf(o).includes(tag) && ok(o)));
   const seen = new Set();
   const find = (recipes, d, final) => {
     for (const r of recipes){
@@ -3334,7 +3334,7 @@ function currentHint(){
         return [c ? `.cw[data-id="${c.id}"]` : '', `[data-topcard="${t}"]`].filter(Boolean);
       });
       return { key:'forge', text: H.firstWeapon
-        ? `재료를 끌어 합쳐 ${what}를 만들어 보세요`
+        ? `재료를 끌어 합쳐 ${what}${st.final ? '를' : '을'} 만들어 보세요`
         : `빛나는 두 카드를 서로 끌어 합치면 ${what}${st.final ? '가' : '이'} 돼요`, sel, blink: !H.firstWeapon };
     }
   }
@@ -3344,11 +3344,7 @@ function currentHint(){
       { key:'equip', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
       { key:'equip', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] });
   // ⑥⑦ 콜렉터북 · 필드 정보 팁은 뺌 (v2.5.1) — 퀘스트 길 사이에 끼어 흐름을 끊음
-  // ⑧ 더 센 무기 — 트리에서 다음 무기 길을 보여 줌
-  if (!H.tree && questOn('better'))
-    return onTab('weapon',
-      { key:'tree', text:'오른쪽 위 🌳 트리에서 더 센 무기로 가는 길을 볼 수 있어요', sel:['#treeBtn'] },
-      { key:'tree', text:'무기 탭의 🌳 트리에서 더 센 무기를 찾아볼 수 있어요', sel:['#tabs [data-tab="weapon"]'] });
+  // ⑧ 더 센 무기 — v2.5.2: 퀘스트 바닥 팁(questHint) 안으로 옮김 (장착 → 만들기 → 트리 → 모으기 순)
   // ⑨ 곰 앞 — 체력이 모자라면 채우고 가라
   if (!H.bearReady && questOn('bear') && S.knight.hp < knightMaxHp())
     return { key:'bearReady', text:'곰은 셉니다 — 기사 체력이 가득 찬 뒤에 나가세요', sel:['.chars [data-token="knight"]'] };
@@ -3399,31 +3395,46 @@ function unlockHint(){
 }
 // v2.4.5: 바닥 팁 — 곰을 잡기 전까진 **늘 하나는** 보인다. 한 번 보고 끝나는 팁이 다 지나가도 지금 퀘스트 기준으로 다음 할 일
 function questHint(){
-  const go = (text, key) => exp
+  const go = (text, key) => keep(exp
     ? { key, text:'기사가 원정 중 — 그동안 🔨 조합 탭에서 모은 재료를 합쳐 볼 수 있어요', sel:[] }
     : S.knight.hp <= 0
       ? { key, text:'기사가 쉬는 중 — 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] }
       : onTab('battle',
           { key, text, sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
-          { key, text:'🗡️ 필드 탭에서 ' + text, sel:['#tabs [data-tab="battle"]'] });
+          { key, text:'🗡️ 필드 탭에서 ' + text, sel:['#tabs [data-tab="battle"]'] }));
   if (questOn('gomountain')) return go('기사를 ⛰️ 산 출전 칸에 놓아 다녀와요', 'q:gomountain');
   if (questOn('arm')){
     if (haveWeapon())
-      return onTab('gearup',
+      return keep(onTab('gearup',
         { key:'q:arm', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
-        { key:'q:arm', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] });
+        { key:'q:arm', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] }));
     return go('⛰️ 산으로 출전해 무기 재료를 더 모아요', 'q:arm');   // 지금 할 조합이 없을 때 (있으면 ④가 먼저)
   }
-  if (questOn('wolf')) return go('⛰️ 산으로 출전해 늑대를 넘어요', 'q:wolf');
-  if (questOn('better')){
-    if (exp) return { key:'q:better', text:'기사가 원정 중 — 그동안 무기 탭에서 더 센 무기를 만들어 볼 수 있어요', sel:[] };
-    return onTab('weapon',
-      { key:'q:better', text:'🌳 트리를 보고 더 센 무기를 만들어요 — 재료가 모자라면 산에서 더 모아요', sel:['#treeBtn'] },
-      { key:'q:better', text:'무기 탭에서 더 센 무기를 만들어 정비 탭에서 쥐여 줘요', sel:['#tabs [data-tab="weapon"]'] });
+  if (questOn('wolf')) return go('⛰️ 무기를 쥐었으니 다시 산으로 — 늑대를 넘어요', 'q:wolf');
+  if (questOn('better')){                                        // v2.5.2: 쥐여 주기 → 만들기 → 트리 → 모으기
+    const strong = t => (DEFS[t].atk || 0) >= 2;
+    if (CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && strong(t) && have(t) > 0))
+      return keep(onTab('gearup',
+        { key:'q:better', text:'더 센 무기를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
+        { key:'q:better', text:'정비 탭에서 더 센 무기를 기사에게 쥐여 줘요', sel:['#tabs [data-tab="gearup"]'] }));
+    const st = nextStep('근접무기', 3, strong);
+    if (st){
+      const bd = BOARD_BY_ID[st.board] || BOARDS[0];
+      return keep(S.tab === bd.id
+        ? { key:'q:better', text: st.final ? '재료를 끌어 합쳐 더 센 무기를 만들어 보세요' : '재료를 끌어 합쳐 먼저 부품을 만들어요', sel:[] }
+        : { key:'q:better', text:`${bd.name} 탭에서 ${st.final ? '더 센 무기를 만들 수 있어요' : '먼저 부품을 만들어요'}`, sel:[`#tabs [data-tab="${bd.id}"]`] });
+    }
+    if (!(S.hints || {}).tree && !exp)
+      return keep(onTab('weapon',
+        { key:'q:better', text:'오른쪽 위 🌳 트리에서 더 센 무기로 가는 길을 볼 수 있어요', sel:['#treeBtn'] },
+        { key:'q:better', text:'무기 탭의 🌳 트리에서 더 센 무기에 필요한 재료를 볼 수 있어요', sel:['#tabs [data-tab="weapon"]'] }));
+    return go('⛰️ 산으로 출전해 더 센 무기 재료를 모아요', 'q:better');
   }
-  if (questOn('bear')) return go('⛰️ 산으로 출전해 곰을 쓰러뜨려요', 'q:bear');
-  return null;
+  if (questOn('bear')) return go('⛰️ 새 무기를 쥐었으니 다시 산으로 — 곰을 쓰러뜨려요', 'q:bear');
+  return lastQH;                                                  // v2.5.2: 퀘스트가 넘어가는 틈(0.9초)에도 비지 않게
 }
+let lastQH = null;
+const keep = h => (lastQH = h);
 function renderHint(){
   const H = S.hints || (S.hints = {});
   if (S.knight.hp <= 0) H.sawDown = true;                         // v2.4.0
@@ -3446,6 +3457,7 @@ function hintDone(key){
   renderHint(); save();
 }
 function renderQuest(){
+  setTimeout(renderHint, 0);                                      // v2.5.2: 퀘스트가 바뀌면 팁도 바로 다음으로
   const el = document.getElementById('quest');
   const list = S.quests || [];
   el.hidden = false;
