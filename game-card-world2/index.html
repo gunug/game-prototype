@@ -444,6 +444,13 @@
     25%{box-shadow:0 0 14px 4px rgba(255,212,0,.85);filter:brightness(1.35);}
     100%{box-shadow:0 0 0 0 rgba(255,212,0,0);}}
   /* v0.80.0: 트리 버튼 · 트리 팝업 (콜렉터북과 같은 옷) */
+  /* v0.91.0: 던전 화면 — 아직 들어갈 던전이 없어 안내와 계획표 버튼만 */
+  .dungeon[hidden]{display:none;}
+  .dungeon{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    box-sizing:border-box;padding:calc(var(--cw) * .3);text-align:center;
+    background:radial-gradient(ellipse at 50% 40%,#231d22 0%,var(--canvas) 72%);}
+  .dungeon .dg-t{font-size:calc(var(--cw) * .28);font-weight:900;color:var(--ink);}
+  .dungeon .dg-s{font-size:calc(var(--cw) * .17);color:var(--muted);line-height:1.6;max-width:26em;}
   .treebtn{position:absolute;right:8px;top:8px;z-index:6;padding:4px 10px;border-radius:var(--r-pill);
     border:1px solid var(--hairline);background:rgba(20,18,15,.82);color:var(--ink);font:inherit;font-size:12px;font-weight:800;cursor:pointer;}
   .treebtn[hidden]{display:none;}
@@ -516,6 +523,7 @@
   </div>
   <div class="toplist grid" id="topgrid" hidden></div>
   <div class="gather" id="gather" hidden></div>
+  <div class="dungeon" id="dungeon" hidden></div>
 </div>
 <div class="ui side" id="ui">
   <div class="quest" id="quest"></div>
@@ -826,7 +834,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.90.0';
+const VERSION = 'v0.91.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1056,8 +1064,9 @@ function load(){
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
     s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
-    if (!BOARD_BY_ID[s.tab] && s.tab !== 'battle') s.tab = 'battle';
-    if (s.tab !== 'battle' && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
+    const freeTab = t => t === 'battle' || t === 'dungeon';       // v0.91.0: 보드가 아닌 화면
+    if (!BOARD_BY_ID[s.tab] && !freeTab(s.tab)) s.tab = 'battle';
+    if (!freeTab(s.tab) && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
     delete s.quest;
     s.intro = 'done';
     const ok = s.knight || {};                                    // v0.13.0: 기사. v0.66.0: 레벨·경험치
@@ -1676,19 +1685,70 @@ const TREES = {
     ] },
   ] },
 };
+const dungeonEl = document.getElementById('dungeon');             // v0.91.0
+dungeonEl.innerHTML = '<div class="dg-t">🏚 던전</div>'
+  + '<div class="dg-s">아직 들어갈 수 있는 던전이 없다.<br>'
+  + '던전의 주인은 <b>수치로는 넘을 수 없는 장치</b>를 하나씩 가지고 있다 — 맞는 <b>성격</b>의 장비를 갖춰야 한다.<br>'
+  + '오른쪽 위 <b>🌳 던전 트리</b>에 무엇이 기다리는지 적어 두었다.</div>';
+// 필드 트리 · 던전 트리 (v0.91.0) — 확정 55: 필드는 수치로, 던전은 기믹으로 막는다
+TREES.battle = { name:'필드 트리', icon:'🗡️',
+  note:'필드는 수치로 막는다 — 더 세지기만 하면 깰 수 있다. 장비가 없으면 레벨로도 뚫린다.', branches: [
+  { name:'⛰️ 산', kind:'첫 땅 · 열려 있음', nodes: [
+    { d:0, name:'토끼',   make:'잡몹 4마리',  on:true, tags:['체3 · 공1'] },
+    { d:0, name:'늑대',   make:'⚔ 중간보스',  on:true, tags:['체6 · 공2','뗀석기부터'] },
+    { d:0, name:'곰',     make:'👑 필드보스',  on:true, tags:['체9 · 공3','이빨 단검부터'] },
+    { d:1, name:'→ 🌾 초원이 열림', make:'처음 잡았을 때 한 번', on:true },
+  ] },
+  { name:'🌾 초원', kind:'두 번째 땅', nodes: [
+    { d:0, name:'들개',   make:'잡몹 4마리',  on:true, tags:['체7 · 공3'] },
+    { d:0, name:'늑대',   make:'⚔ 중간보스',  on:true, tags:['체6 · 공2','산과 같음(임시)'] },
+    { d:0, name:'들소',   make:'👑 필드보스',  on:true, tags:['체12 · 공3 · 방1'] },
+    { d:1, name:'세기 조정', make:'아직 맞추지 않음' },
+  ] },
+  { name:'🌲 숲 · 🏞️ 강가', kind:'아직', nodes: [
+    { d:0, name:'적 구성',  make:'미정' },
+    { d:0, name:'채집물',   make:'카드는 있음 — 열매 · 수액 · 약초 · 물 · 흙 · 모래 · 물고기', on:true },
+  ] },
+] };
+TREES.dungeon = { name:'던전 트리', icon:'🏚',
+  note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 무기 트리의 성격이 열쇠다. 전부 계획뿐.', branches: [
+  { name:'🪨 돌가죽 굴', kind:'방어가 무지막지', nodes: [
+    { d:0, name:'돌가죽 주인', make:'방어가 매우 높아 보통 공격이 1밖에 안 박힘', tags:['해법: 방어 무시'] },
+    { d:1, name:'전투 도끼',  make:'🗡 날붙이 갈래 — 손도끼 + 통나무', tags:['방어 무시'] },
+  ] },
+  { name:'🕸 거미 둥지', kind:'가까이 가면 반격', nodes: [
+    { d:0, name:'둥지 주인',  make:'붙어서 치면 그만큼 되돌려받음', tags:['해법: 원거리 · 던지기'] },
+    { d:1, name:'사냥활',     make:'🏹 줄 갈래 — 투석줄 + 통나무', tags:['원거리'] },
+    { d:1, name:'투창',       make:'🔱 자루 갈래 — 송곳니 창 + 섬유끈', tags:['던지기'] },
+  ] },
+  { name:'🍄 늪지 무덤', kind:'계속 회복', nodes: [
+    { d:0, name:'무덤 주인',  make:'때려도 때려도 도로 차오름', tags:['해법: 출혈'] },
+    { d:1, name:'흑요석 칼',  make:'🗡 날붙이 갈래 — 이빨 단검 + 흑요석', tags:['출혈'] },
+  ] },
+  { name:'🐚 껍질 동굴', kind:'단단한 껍질', nodes: [
+    { d:0, name:'동굴 주인',  make:'겉껍질을 뚫지 못하면 안쪽에 닿지 않음', tags:['해법: 관통'] },
+    { d:1, name:'삼지창',     make:'🔱 자루 갈래 — 송곳니 창 + 뼈', tags:['관통'] },
+  ] },
+  { name:'정할 것', kind:'미정', nodes: [
+    { d:0, name:'전투 규칙',  make:'지금은 피해 = 공격 − 방어 한 줄뿐 — 성격이 실제로 듣게 하려면 규칙이 붙어야 함' },
+    { d:0, name:'가장 싼 시작', make:"'방어 무시' 하나만 넣고 첫 던전 보스를 방어 5로 세우기" },
+    { d:0, name:'그 밖',      make:'던전 수 · 층 구조 · 실패했을 때 무엇을 알려 줄지 · 전리품' },
+  ] },
+] };
 const treeEl = document.getElementById('tree');
 const treeBack = document.getElementById('treeBack');
 const treeBtn = document.getElementById('treeBtn');
 let treeOpen = null;                                              // 열려 있는 트리 id
 function treeRowHtml(n){
   const d = n.id ? DEFS[n.id] : null;
+  const on = !!d || n.on;                                         // v0.91.0: 카드가 아닌 것(필드·적)도 '있음'으로 칠 수 있게
   const name = d ? d.name : n.name;
   const atk = d ? d.atk : n.atk;
   const pad = n.d ? '   '.repeat(n.d - 1) + '└ ' : '';
   const chips = (atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
     .concat((n.tags || []).map(x => `<span class="tchip">${esc(x)}</span>`))
-    .concat(d ? [] : ['<span class="tchip plan">아직 없음</span>']);
-  return `<div class="trow${d ? '' : ' plan'}">`
+    .concat(on ? [] : ['<span class="tchip plan">아직 없음</span>']);
+  return `<div class="trow${on ? '' : ' plan'}">`
     + `<span class="tpad">${pad}</span>`
     + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
     + `<span class="tmake">${esc(n.make)}</span><span class="tchips">${chips.join('')}</span></div>`;
@@ -1873,9 +1933,9 @@ function renderTabs(){                                            // v0.21.0: �
   const wrap = document.getElementById('tabs');
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
-  // v0.90.0: '전투' → '필드'. 그 옆에 아직 안 만든 '던전'을 자물쇠로 보여 둠
+  // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
   const html = ['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
-    '<button class="tabbtn locked" data-tab="dungeon"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">🏚 던전</button>']
+    '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>']
     .concat(BOARDS.map(b => boardOpen(b)
       ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
       : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}</button>`)).join('');
@@ -1996,7 +2056,7 @@ function knightCardHtml(drag){
 const topGridEl = document.getElementById('topgrid');
 function renderTopGrid(){
   const b = boardOf(S.tab);
-  const on = !isRowScreen(S.tab) && !!(b.tops || b.top);
+  const on = !isRowScreen(S.tab) && S.tab !== 'dungeon' && !!(b.tops || b.top);   // v0.91.0
   topGridEl.hidden = !on;
   table.classList.toggle('half', on);
   if (!on) return;
@@ -2255,10 +2315,11 @@ function renderFieldInsp(){
 function setTab(tab){
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
-  if (tab !== 'battle' && !boardOpen(BOARD_BY_ID[tab] || {})) return;
+  if (tab !== 'battle' && tab !== 'dungeon' && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
   S.tab = tab;
   renderTabs();
-  table.hidden = isRowScreen(tab);                                // v0.29.0: 전투·정비는 줄 화면
+  dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
+  table.hidden = isRowScreen(tab) || tab === 'dungeon';           // v0.29.0: 전투·정비는 줄 화면
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
@@ -2267,11 +2328,6 @@ function setTab(tab){
 document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('[data-tab]');
   if (!btn) return;
-  if (btn.dataset.tab === 'dungeon'){                             // v0.90.0: 아직 안 만든 화면
-    flash(btn, 'fail', 600);
-    lockPop(btn, '🔒 아직 갈 수 없는 곳');
-    return;
-  }
   const b = BOARD_BY_ID[btn.dataset.tab];
   if (b && !boardOpen(b)){                                        // v0.21.0: 잠긴 화면 — 무엇이 있어야 열리는지
     flash(btn, 'fail', 600);
@@ -2945,7 +3001,7 @@ function setEditMode(on, quiet){
   try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; slotPick = null; knightPick = false;
   renderTabs();
-  if (S.tab !== 'battle' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';
+  if (S.tab !== 'battle' && S.tab !== 'dungeon' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
   setTab(S.tab);
   renderAll(); renderBook(); renderInsp();
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
