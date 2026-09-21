@@ -870,7 +870,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v1.4.0';
+const VERSION = 'v1.5.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1834,25 +1834,33 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:0, name:'그 밖',      make:'던전 수 · 층 구조 · 실패했을 때 무엇을 알려 줄지 · 전리품' },
   ] },
 ] };
+// v1.5.0: **부품 기준**으로 다시 짬 — 갑옷 = 겉감 + 안감, 방패 = 방패 몸 + 덧댐, 강화 = 만든 것 + 새 부품
 TREES.armor = { name:'갑옷 트리', icon:'🛡',
-  note:'몸을 지키는 것들. 방어는 피해를 그대로 깎아 공격보다 세다 — 그래서 한 칸 올리기가 어렵다. 회색은 아직 없는 것.', branches: [
-  { name:'🧥 가죽옷', kind:'덧대기', nodes: [
-    { d:0, id:'curedleather', make:'억센 가죽 + 🏷️ 손질lv1', tags:['갑옷재료'] },
-    { d:1, id:'leatherarmor', make:'손질된 가죽 + 부드러운 가죽' },
-    { d:2, name:'덧댄 갑옷',   make:'가죽 갑옷 + 손질된 가죽', tags:['방어 +2','묵직'] },
-    { d:3, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈',          tags:['방어 +3','단단'] },
-    { d:2, name:'털 조끼',     make:'가죽 갑옷 + 부드러운 가죽', tags:['방어 +1','가벼움'] },
+  note:'갑옷은 겉감과 안감, 방패는 방패 몸과 덧댐을 조립해 만들고, 만든 것에 부품을 하나씩 더해 단단해진다. 부품은 🔨 조합 탭에서 만든다. 회색은 아직 없는 것.', branches: [
+  { name:'🔩 부품', kind:'겉감 · 안감 · 방패 몸 · 덧댐', nodes: [
+    { d:0, id:'curedleather', make:'겉감 — 억센 가죽 + 🏷️ 손질lv1' },
+    { d:0, id:'hide',         make:'안감 — 토끼가 떨굼' },
+    { d:0, id:'shieldboard',  make:'방패 몸 — 나무판자 + 🏷️ 손질lv1' },
+    { d:0, id:'toughhide',    make:'덧댐 — 곰이 떨굼' },
+    { d:0, name:'면 직물',     make:'안감 — 풀 + 섬유끈' },
+    { d:0, name:'뼈 비늘',     make:'덧댐 — 뼈 + 🏷️ 손질lv1' },
+    { d:0, name:'방패테',      make:'테두리 — 나무판자 + 섬유끈' },
   ] },
-  { name:'🛡 방패', kind:'막기', nodes: [
-    { d:0, id:'shieldboard',  make:'나무판자 + 🏷️ 손질lv1', tags:['갑옷재료'] },
-    { d:1, id:'woodshield',   make:'방패판 + 억센 가죽' },
-    { d:2, name:'덧댄 방패',   make:'나무 방패 + 손질된 가죽',   tags:['방어 +2'] },
-    { d:3, name:'큰 방패',     make:'덧댄 방패 + 방패판',        tags:['방어 +3','묵직'] },
-    { d:2, name:'작은 방패',   make:'나무 방패 + 섬유끈',        tags:['방어 +1','선제'] },
+  { name:'🧥 가죽옷', kind:'겉감 + 안감', nodes: [
+    { d:0, id:'leatherarmor', make:'손질된 가죽 + 부드러운 가죽' },
+    { d:1, name:'덧댄 갑옷',   make:'가죽 갑옷 + 손질된 가죽', tags:['방어 +2','묵직'] },
+    { d:2, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈 비늘',     tags:['방어 +3','단단'] },
+    { d:1, name:'누빈 갑옷',   make:'가죽 갑옷 + 면 직물',     tags:['방어 +2','가벼움'] },
+  ] },
+  { name:'🛡 방패', kind:'방패 몸 + 덧댐', nodes: [
+    { d:0, id:'woodshield',   make:'방패판 + 억센 가죽' },
+    { d:1, name:'테 두른 방패', make:'나무 방패 + 방패테',      tags:['방어 +2'] },
+    { d:2, name:'큰 방패',     make:'테 두른 방패 + 방패판',    tags:['방어 +3','묵직'] },
+    { d:1, name:'가벼운 방패', make:'나무 방패 + 면 직물',      tags:['방어 +1','가벼움','선제'] },
   ] },
   { name:'🦴 뼈', kind:'단단함', nodes: [
-    { d:0, name:'뼈 흉갑',     make:'뼈 + 🏷️ 손질lv1',          tags:['방어 +1','묵직'] },
-    { d:1, name:'뼈 갑주',     make:'뼈 흉갑 + 억센 가죽',       tags:['방어 +3','묵직'] },
+    { d:0, name:'뼈 흉갑',     make:'뼈 비늘 + 부드러운 가죽', tags:['방어 +1','묵직'] },
+    { d:1, name:'뼈 갑주',     make:'뼈 흉갑 + 손질된 가죽',   tags:['방어 +3','묵직'] },
   ] },
   { name:'정할 것', kind:'미정', nodes: [
     { d:0, name:'갑옷 칸',     make:'5레벨에 열림 — 그 전에 만들어 두기만 함', on:true },
