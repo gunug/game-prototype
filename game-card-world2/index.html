@@ -850,7 +850,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.98.1';
+const VERSION = 'v0.99.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2369,6 +2369,8 @@ function setTab(tab){
   S.tab = tab;
   renderTabs();
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
+  // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
+  for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
   table.hidden = isRowScreen(tab) || tab === 'dungeon';           // v0.29.0: 전투·정비는 줄 화면
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
@@ -2700,8 +2702,17 @@ function showAway(t, fx, fy){
   ], { duration: 1200, easing: 'ease-out', fill: 'forwards' }).finished.then(() => fly.remove());
 }
 function flyToCraft(t, r){
+  // v0.99.0: 필드 화면이 안 보이면 연출 없이 바로 넣는다 — 숨은 기사 자리(0,0)에서 튀어나와
+  //   다른 탭 구석에 카드가 살짝 걸려 보이던 것
+  if (S.tab !== 'battle' || gatherEl.hidden || !(r && r.width)){
+    if (!S.seen.includes(t)) discover(t);
+    const { w, h } = bounds();
+    addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === boardFor(t) ? 'spawn' : null);
+    renderMeta(); save();
+    return;
+  }
   const fly = document.createElement('div');
-  fly.className = `cw framed f-${frameOf(DEFS[t])} fly`;
+  fly.className = `cw framed f-${frameOf(DEFS[t])} fly from-field`;   // v0.99.0: 필드를 떠나면 숨길 수 있게
   fly.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
   fly.style.setProperty('--cw', CW + 'px'); fly.style.setProperty('--ch', CH + 'px');
   document.body.appendChild(fly);
