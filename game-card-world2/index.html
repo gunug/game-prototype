@@ -334,8 +334,9 @@
   .icon.emo.inline{display:inline-flex;vertical-align:-.3em;}
   .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
   .cw .name{color:var(--ink);font-size:calc(var(--cf) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
-  .cw .stats{position:absolute;left:0;right:0;top:calc(var(--cw) * .05);display:flex;justify-content:center;gap:4px;
-    font-size:calc(var(--cf) * .095);font-weight:700;line-height:1;pointer-events:none;}
+  /* v0.82.0: 카드 **아래쪽**에 절반 크기로 `⚔ +2` 꼴 */
+  .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .05);display:flex;justify-content:center;gap:3px;
+    font-size:calc(var(--cf) * .0475);font-weight:700;line-height:1;pointer-events:none;}
   .cw .stats .icon.inline{width:1.1em;height:1.1em;margin:0 1px 0 0;vertical-align:0;}
   .cw.framed{background:var(--frame) center/100% 100% no-repeat border-box;border-color:transparent;}
   .cw.framed::before{opacity:0;}
@@ -798,7 +799,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.81.0';
+const VERSION = 'v0.82.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1107,9 +1108,9 @@ function findSpot(x, y, skip){
 function statsHtml(t){
   const d = DEFS[t] || {};
   if (!d.atk && !d.def) return '';
-  return '<div class="stats">'
-    + (d.atk ? `<span>${statImg('atk')}${d.atk}</span>` : '')
-    + (d.def ? `<span>${statImg('def')}${d.def}</span>` : '')
+  return '<div class="stats">'                                    // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
+    + (d.atk ? `<span>${statImg('atk')}+${d.atk}</span>` : '')
+    + (d.def ? `<span>${statImg('def')}+${d.def}</span>` : '')
     + '</div>';
 }
 function cardHtml(c){
