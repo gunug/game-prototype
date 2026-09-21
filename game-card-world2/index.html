@@ -135,6 +135,18 @@
   .quest.show{max-height:40%;opacity:1;padding:6px 12px;border-bottom-width:1px;overflow-y:auto;}
   .q-row{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:26px;}
   .quest .q-tag{color:var(--brand-yellow);font-weight:800;flex:none;}
+  /* v2.2.0: 조작 힌트 — 필드 아래 한 줄 + 대상에 노란 빛 */
+  .hintbar{position:absolute;left:50%;bottom:10px;z-index:8;transform:translateX(-50%);max-width:calc(100% - 20px);box-sizing:border-box;
+    padding:6px 12px;border-radius:999px;background:rgba(255,212,0,.92);color:#1a1a17;font-size:12px;font-weight:800;text-align:center;pointer-events:none;
+    box-shadow:0 2px 10px rgba(0,0,0,.4);animation:hintBob 1.6s ease-in-out infinite;}
+  .hintbar[hidden]{display:none;}
+  @keyframes hintBob{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(-3px);}}
+  .hint-glow{box-shadow:0 0 0 2px var(--brand-yellow),0 0 14px rgba(255,212,0,.6) !important;animation:hintGlow 1.2s ease-in-out infinite;}
+  @keyframes hintGlow{0%,100%{box-shadow:0 0 0 2px var(--brand-yellow),0 0 6px rgba(255,212,0,.35);}50%{box-shadow:0 0 0 2px var(--brand-yellow),0 0 18px rgba(255,212,0,.75);}}
+  /* v2.2.0: 기사의 수첩 — 종이 톤 머리줄, 끝낸 줄은 그어 지움 */
+  .q-book{font-size:11px;font-weight:800;letter-spacing:.04em;color:#c9b98a;padding:2px 0 3px;border-bottom:1px dashed rgba(201,185,138,.35);margin-bottom:2px;}
+  .quest .q-text{font-style:italic;}
+  .q-row.done .q-name,.q-row.done .q-text{text-decoration:line-through;text-decoration-color:rgba(143,220,143,.7);}
   .quest .q-name{flex:none;}
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
   .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
@@ -508,6 +520,13 @@
   .book-body{overflow-y:auto;padding:0 16px 20px;}
   .book-inner{max-width:760px;margin:0 auto;}
   .book-field{margin:10px 0 14px;}
+  /* v2.2.0: 흔적 — 이야기 조각 한 줄씩 */
+  .trace{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;margin:6px 0;border-radius:var(--r-md);background:rgba(201,185,138,.08);border:1px solid rgba(201,185,138,.2);}
+  .trace.locked{opacity:.45;}
+  .trace.new{box-shadow:0 0 0 1px var(--brand-yellow);}
+  .trace-n{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:rgba(201,185,138,.25);color:#e8dcb5;}
+  .trace-t{font-weight:800;font-size:13px;color:#e8dcb5;}
+  .trace-x{font-size:12px;color:var(--muted);line-height:1.5;font-style:italic;margin-top:2px;}
   .book-fname{font-size:13px;font-weight:800;color:var(--brand-yellow);margin-bottom:6px;}
   .book-row{display:flex;gap:10px;flex-wrap:wrap;}
   /* 슬리브: 카드를 끼우는 투명 비닐 주머니. 앞면 아래쪽 덮개(::after)가 카드 위에 겹쳐 '끼워진' 느낌 */
@@ -538,6 +557,7 @@
 <body>
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
+  <div class="hintbar" id="hintbar" hidden></div>
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
@@ -900,7 +920,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -944,32 +964,32 @@ const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24
 //        ② 하나가 끝나면 **바로 다음이 붙는다** — 할 일이 빈 순간을 만들지 않는다
 //        ③ 한 번에 한 줄. key 하나로 판정한다
 const QUESTS = {
-  gomountain: { name:'산으로',       text:'⛰️ 산에 다녀오기',        goal:1, key:'exp-end:mountain',
+  gomountain: { name:'산으로',       text:'⛰️ 산에 다녀오자',        goal:1, key:'exp-end:mountain',
                 say:'할 수 있는 게 없네… 일단 산으로 가볼까' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
-  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '무기를 장착하기'
-                  : canMakeWeapon() ? '무기를 만들기' : '⛰️ 산에서 재료를 더 모으기',
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자'
+                  : canMakeWeapon() ? '쥘 만한 걸 만들어 보자' : '⛰️ 산에서 쓸 만한 걸 더 모으자',
                 goal:1, key:'equip:weapon',
                 say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
-  wolf:       { name:'길을 막는 것',  text:'⚔ 늑대 쓰러뜨리기',        goal:1, key:'kill:wolf',
+  wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
                 say:'늑대부터 넘어야 앞으로 가겠군' },
   // v0.72.0: 이 대사는 퀘스트를 받을 때가 아니라 **곰에게 지고 돌아온 뒤**에 한다 (expEnd)
-  better:     { name:'이걸론 부족해', text:'더 센 무기를 장착하기',     goal:1, key:'equip:atk2' },
-  bear:       { name:'산의 주인',     text:'👑 곰 쓰러뜨리기',         goal:1, key:'kill:bear',
+  better:     { name:'이걸론 부족해', text:'더 센 무기를 쥐자',     goal:1, key:'equip:atk2' },
+  bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
-  grass:      { name:'다음 땅',       text:'🌾 초원으로 출전하기',      goal:1, key:'exp-start:grassland',
+  grass:      { name:'다음 땅',       text:'🌾 초원으로 가 보자',      goal:1, key:'exp-start:grassland',
                 say:'산 너머에 다른 땅이 열렸군' },
   // v2.0.0: 🌾 초원 사슬 — 공통 질문 '어떻게 강해지지?'의 초원 답 = 방어(갑옷). 그 전에 무기 하나 더
-  gweapon:    { name:'이 칼로는 부족해', text:'더 무거운 근접무기를 장착하기', goal:1, key:'equip:atk3',
+  gweapon:    { name:'이 칼로는 부족해', text:'더 묵직한 걸 쥐자', goal:1, key:'equip:atk3',
                 say:'멧돼지가 꿈쩍도 안 하는군' },
-  boar:       { name:'길을 막는 멧돼지', text:'⚔ 멧돼지 쓰러뜨리기',    goal:1, key:'kill:boar' },
-  lv5:        { name:'몸을 단련하자',   text:'5레벨 되기',             goal:1, key:'level:5',
+  boar:       { name:'길을 막는 멧돼지', text:'⚔ 멧돼지를 넘자',    goal:1, key:'kill:boar' },
+  lv5:        { name:'몸을 단련하자',   text:'몸을 단련하자 (5레벨)',             goal:1, key:'level:5',
                 say:'들소의 뿔을 맞고 버틸 몸이 필요해' },
-  garmor:     { name:'몸을 지키자',     text:'갑옷을 장착하기',         goal:1, key:'equip:armor',
+  garmor:     { name:'몸을 지키자',     text:'갑옷을 걸치자',         goal:1, key:'equip:armor',
                 say:'이제 갑옷을 걸칠 수 있겠어' },
-  bison:      { name:'초원의 주인',     text:'👑 들소 쓰러뜨리기',      goal:1, key:'kill:bison' },
-  forest:     { name:'숲으로',          text:'🌲 숲으로 출전하기',      goal:1, key:'exp-start:forest',
+  bison:      { name:'초원의 주인',     text:'👑 들소를 쓰러뜨리자',      goal:1, key:'kill:bison' },
+  forest:     { name:'숲으로',          text:'🌲 숲으로 가 보자',      goal:1, key:'exp-start:forest',
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
@@ -998,6 +1018,7 @@ function questResume(){
 }
 // 일어난 일 하나로 지금 퀘스트를 판정 — 맞는 게 없으면 아무 일도 안 함
 function questHit(key){
+  traceHit(key);                                                  // v2.2.0: 같은 사건이 흔적도 연다
   for (const q of (S.quests || [])){
     if (q.done || QUESTS[q.id].key !== key) continue;
     questStep(q.id);
@@ -1012,6 +1033,31 @@ const sideReach = sd => sideHave(sd) || (sd.card && canMakeCard(sd.card));
 const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('근접무기'))
   && sideReach(r.a) && sideReach(r.b));
 const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
+// ── 흔적 (v2.2.0) ─────────────────────────────────
+// 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
+//   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
+const TRACE_WHO = { knight: '🛡 기사' };
+const TRACES = [
+  { id:'wake',     who:'knight', key:'start',            name:'빈손',
+    text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
+  { id:'kneel',    who:'knight', key:'lose-boss:mountain', name:'무릎',
+    text:'곰 앞에서 무릎을 꿇었다. 이상하다. 처음 겪는 일이 아닌 것 같다.' },
+  { id:'shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
+    text:'곰의 등에 박혀 있던 쇳조각. 손잡이 쪽의 문양을 나는 안다. 이건 우리 것이다.' },
+  { id:'beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
+    text:'산을 넘자 바람 냄새가 달라졌다. 저 문양이 어디서 왔는지, 초원이 답해 줄지도 모른다.' },
+  { id:'hornmark', who:'knight', key:'kill:bison',       name:'뿔에 긁힌 문양',
+    text:'들소의 뿔 밑동에 같은 문양이 긁혀 있었다. 누군가 이 길을 먼저 지나갔다.' },
+];
+const TRACE_BY_ID = Object.fromEntries(TRACES.map(t => [t.id, t]));
+function traceHit(key){
+  const t = TRACES.find(x => x.key === key && !(S.traces || []).includes(x.id));
+  if (!t) return;
+  S.traces.push(t.id);
+  S.newTraces.push(t.id);
+  toast(`📜 흔적: ${t.name}`);
+  renderNew(); save();
+}
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
 const questText = (def, q) => {
@@ -1138,7 +1184,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], hints: {}, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -1167,6 +1213,9 @@ function load(){
     s.lootSeen = ls;
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
     s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
+    s.traces = (Array.isArray(s.traces) ? s.traces : []).filter(id => TRACE_BY_ID[id]);   // v2.2.0: 흔적
+    s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
+    s.hints = s.hints && typeof s.hints === 'object' ? s.hints : {};   // v2.2.0: 본 조작 안내
     const eq = {};                                                // v0.23.0: 장착한 장비
     for (const sl of ALL_SLOTS){
       const t = s.equip && s.equip[sl.key];
@@ -1327,8 +1376,9 @@ function renderNew(){
     if (!on && b) b.remove();
   }
   const badge = document.getElementById('bookBadge');
-  badge.hidden = !S.newCards.length;
-  if (S.newCards.length) setNum(badge, S.newCards.length);
+  const nNew = S.newCards.length + (S.newTraces || []).length;     // v2.2.0: 새 흔적도 셈
+  badge.hidden = !nNew;
+  if (nNew) setNum(badge, nNew);
   else badge.textContent = '';
 }
 // 처음 본 카드 — 발견 기록 + NEW (v0.9.0: 콜렉터북 끼우기는 콜렉터북을 열 때 한꺼번에)
@@ -1369,6 +1419,7 @@ function renderAll(){
   renderTopGrid();                                                 // v0.34.0
   renderMeta();
   renderNew();
+  setTimeout(renderHint, 0);                                      // v2.2.0: 조작 힌트 (화면이 다 그려진 뒤)
   renderQuest();
   renderInsp();
   renderBook();
@@ -1498,6 +1549,7 @@ function craft(drag, tgt, m){
   const eaten = [a, b];                                          // v0.9.0: 두 재료 모두 한 장씩 줄어듦 (남는 쪽 없음)
   const from = { x: tgt.x, y: tgt.y };
   S.madeRecipes = S.madeRecipes || [];                            // v0.45.0: 해 본 조합 기록
+  hintDone('craft');                                              // v2.2.0
   if (!S.madeRecipes.includes(r.id)) S.madeRecipes.push(r.id);
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
@@ -1737,8 +1789,15 @@ function renderInsp(){
 // 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
 const bookBack = document.getElementById('bookBack');
-let bookTier = TIERS[0];
-const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭
+let bookTier = 'tool';                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
+const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
+const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
+const BOOK_BOARDS = () => BOARDS.filter(b => b.dyn);               // 카드를 만드는 탭 — 조합 · 무기 · 갑옷
+// 그 탭에 나오는 카드 — 게임 화면과 같은 기준 (위 격자 = 완성품, 아래 = 재료). 어디에도 없는 카드는 조합 탭으로
+const bookCardsOf = id => CRAFT_TYPES.filter(t => onTopGrid(t, id) || onBoard(t, id)
+  || (id === 'tool' && !BOOK_BOARDS().some(b => onTopGrid(t, b.id) || onBoard(t, b.id))));
+const bookTabOf = t => (BOOK_BOARDS().find(b => bookCardsOf(b.id).includes(t)) || BOARDS[0]).id;
+const bookBoardLabel = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
 let paused = false;
@@ -2068,28 +2127,48 @@ function renderCombos(){
 }
 function renderBook(){
   if (!bookOpen) return;
-  const isCombo = bookTier === COMBO_TAB;
-  const inTier = isCombo ? [] : CRAFT_TYPES.filter(t => DEFS[t].tier === bookTier);
+  const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB;
+  const inTab = isCombo || isTrace ? [] : bookCardsOf(bookTier);
   const combos = isCombo ? renderCombos() : null;
-  const found = isCombo ? combos.done : inTier.filter(shownSeen).length;
-  const total = isCombo ? combos.total : inTier.length;
+  const found = isCombo ? combos.done : isTrace ? (S.traces || []).length : inTab.filter(shownSeen).length;
+  const total = isCombo ? combos.total : isTrace ? TRACES.length : inTab.length;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
-    + TIERS.map(n => `<button class="tabbtn${n === bookTier ? ' on' : ''}" data-tier="${n}">${tierName(n)}</button>`).join('')
-    + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합</button></div>`
+    + BOOK_BOARDS().map(b => `<button class="tabbtn${b.id === bookTier ? ' on' : ''}" data-tier="${b.id}">${bookBoardLabel(b)}</button>`).join('')
+    + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합법</button>`
+    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-tier="${TRACE_TAB}">📜 흔적</button></div>`
     + `<span class="meta">발견 ${found}/${total}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
-    + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>' : detailHtml()}</div>`
+    + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
+      : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>' : detailHtml()}</div>`
     + '<div class="book-body"><div class="book-inner">';
   if (isCombo) h += combos.html;
-  else for (const f of groupsOfTier(bookTier)){
-    const list = inTier.filter(t => placeOf(t) === f);
-    if (!list.length) continue;
-    h += `<div class="book-field"><div class="book-fname">${f.emoji} ${f.name}</div><div class="book-row">${list.map(slotHtml).join('')}</div></div>`;
+  else if (isTrace) h += traceBookHtml();
+  else {
+    // v2.2.0: 게임 화면처럼 — 위 격자에 오르는 완성품, 아래에 놓이는 재료
+    const tops = inTab.filter(t => onTopGrid(t, bookTier)), mats = inTab.filter(t => !tops.includes(t));
+    if (tops.length) h += `<div class="book-field"><div class="book-fname">완성품</div><div class="book-row">${tops.map(slotHtml).join('')}</div></div>`;
+    if (mats.length) h += `<div class="book-field"><div class="book-fname">재료</div><div class="book-row">${mats.map(slotHtml).join('')}</div></div>`;
   }
   const body = bookEl.querySelector('.book-body');
   const keep = body ? body.scrollTop : 0;
   bookEl.innerHTML = h + '</div></div>';
   bookEl.querySelector('.book-body').scrollTop = keep;
+}
+// v2.2.0: 흔적 탭 — 캐릭터마다 묶어서, 드러난 조각은 이름과 이야기, 아닌 건 ???
+function traceBookHtml(){
+  let h = '';
+  for (const who of Object.keys(TRACE_WHO)){
+    const list = TRACES.filter(t => t.who === who);
+    h += `<div class="book-field"><div class="book-fname">${TRACE_WHO[who]} <span class="i-muted">${list.filter(t => (S.traces || []).includes(t.id)).length}/${list.length}</span></div>`;
+    h += list.map((t, i) => {
+      const on = editMode || (S.traces || []).includes(t.id);
+      const fresh = (S.newTraces || []).includes(t.id);
+      return `<div class="trace${on ? '' : ' locked'}${fresh ? ' new' : ''}"><div class="trace-n">${i + 1}</div>`
+        + `<div class="trace-b"><div class="trace-t">${on ? esc(t.name) : '???'}</div>`
+        + `<div class="trace-x">${on ? esc(t.text) : '아직 겪지 못한 일.'}</div></div></div>`;
+    }).join('') + '</div>';
+  }
+  return h;
 }
 function openBook(open){
   bookOpen = open;
@@ -2119,7 +2198,7 @@ async function runInserts(){
   await wait(420);                                                // 올라오는 시간
   const order = S.newCards.slice().sort((x, y) => DEFS[x].tier - DEFS[y].tier || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
   for (const t of order){
-    if (bookTier !== DEFS[t].tier){ bookTier = DEFS[t].tier; renderBook(); }   // 끼울 땐 그 티어 탭으로
+    if (bookTier !== bookTabOf(t)){ bookTier = bookTabOf(t); renderBook(); }   // 끼울 땐 그 카드가 나오는 탭으로 (v2.2.0)
     const slot = bookEl.querySelector(`[data-book="${t}"]`);
     if (slot){
       slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -2145,14 +2224,14 @@ async function runInserts(){
 document.getElementById('bookBtn').addEventListener('click', () => {
   if (paused || S.intro !== 'done') return;
   openBook(!bookOpen);
-  if (bookOpen) runInserts();
+  if (bookOpen){ runInserts(); if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500); }   // v2.2.0: 새 흔적은 한 번 보면 끝
 });
 bookBack.addEventListener('click', () => { if (!paused) openBook(false); });
 bookEl.addEventListener('click', e => {
   if (paused) return;
   if (e.target.closest('[data-close]')) return openBook(false);
   const tab = e.target.closest('[data-tier]');
-  if (tab){ bookTier = tab.dataset.tier === COMBO_TAB ? COMBO_TAB : +tab.dataset.tier; return renderBook(); }
+  if (tab){ bookTier = tab.dataset.tier; return renderBook(); }    // v2.2.0: 탭 id 그대로
   const slot = e.target.closest('[data-book]');
   if (slot){ bookPick = slot.dataset.book; renderBook(); }
 });
@@ -2293,6 +2372,7 @@ const knightSayHtml = () => knightLine ? `<div class="god-speech knight-say" dat
 // 처음 켰을 때 — 할 게 없으니 산으로
 function knightIntro(){
   questResume();                                                  // v0.60.0: 저장에서 이어 시작
+  traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
   save();
@@ -2379,6 +2459,7 @@ function equipCard(sl, type){
   useOne(c);                                                      // 한 장만 칸으로
   if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
   questHit(`equip:${sl.key}`);                                    // v0.60.0: 무기를 끼움
+  hintDone('equip');                                              // v2.2.0
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 2) questHit('equip:atk2');   // 더 센 무기
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 3) questHit('equip:atk3');   // v2.0.0: 초원
   renderAll(); renderInsp(); save();
@@ -2740,6 +2821,7 @@ function expStart(id, cardEl){
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
   questHit(`exp-start:${id}`);                                    // v0.60.0: 그 필드로 떠나기만 하면 끝나는 퀘스트
+  hintDone('sortie');                                             // v2.2.0
   renderGather(); renderInsp(); save();
 }
 function expTick(dt){
@@ -2847,6 +2929,7 @@ function expEnd(kind){
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
+  if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
@@ -3134,6 +3217,41 @@ function healTick(dt){
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
 // v0.16.1: 퀘스트가 없으면 줄 자체를 숨겨 자리를 차지하지 않음. 여러 개면 한 줄씩 쌓이고, 많으면 UI 높이의 40%까지만 쓰고 스크롤
 let questClear = 0;                                               // v0.41.1: 다 접힌 뒤에 내용을 비움
+// ── 조작 힌트 (v2.2.0) ──────────────────────────────
+// 조작법은 퀘스트(기사의 수첩)에 적지 않고 여기서 따로 알려 줌. 한 번 해 보면 다시 안 나옴
+//   대상에 노란 빛을 두르고, 필드 아래에 한 줄
+function currentHint(){
+  const H = S.hints || {};
+  if (exp) return null;
+  if (!H.sortie && S.knight.hp > 0)
+    return S.tab === 'battle'
+      ? { key:'sortie', text:'기사 카드를 끌어 ⛰️ 산 줄의 출전 칸에 놓아 보세요', sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] }
+      : { key:'sortie', text:'🗡️ 전투 탭에서 기사를 출전시킬 수 있어요', sel:['#tabs [data-tab="battle"]'] };
+  if (!H.craft && H.sortie && S.cards.length >= 2 && (S.tab === 'tool' || S.tab === 'weapon' || S.tab === 'armor'))
+    return { key:'craft', text:'카드를 다른 카드 위로 끌어다 놓으면 합쳐 볼 수 있어요', sel:[] };
+  if (!H.craft && H.sortie && S.cards.length >= 2)
+    return { key:'craft', text:'🔨 조합 탭에서 모은 재료를 서로 합쳐 볼 수 있어요', sel:['#tabs [data-tab="tool"]'] };
+  if (!H.equip && haveWeapon())
+    return S.tab === 'gearup'
+      ? { key:'equip', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] }
+      : { key:'equip', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] };
+  return null;
+}
+function renderHint(){
+  for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow');
+  const bar = document.getElementById('hintbar');
+  const h = currentHint();
+  bar.hidden = !h;
+  if (!h) return;
+  bar.textContent = '👆 ' + h.text;
+  for (const q of h.sel) document.querySelector(q)?.classList.add('hint-glow');
+}
+function hintDone(key){
+  if ((S.hints || {})[key]) return;
+  S.hints = S.hints || {};
+  S.hints[key] = true;
+  renderHint(); save();
+}
 function renderQuest(){
   const el = document.getElementById('quest');
   const list = S.quests || [];
@@ -3145,7 +3263,8 @@ function renderQuest(){
     return;
   }
   clearTimeout(questClear);
-  el.innerHTML = list.map(q => {
+  // v2.2.0: 퀘스트 줄 = 기사의 수첩 — 할 일은 게임의 지시가 아니라 기사가 스스로 적은 메모
+  el.innerHTML = '<div class="q-book">📓 기사의 수첩</div>' + list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
   }).join('');
@@ -3155,8 +3274,8 @@ function renderQuest(){
 function questRowHtml(q, def){
   const goal = questGoal(def);
   const prog = def.steps || q.done || goal <= 1 ? '' : ` <span class="q-prog">${Math.min(q.n, goal)}/${goal}</span>`;
-  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
-    + `<span class="q-text">${esc(q.done ? '완료' : questText(def, q))}${prog}</span>`
+  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span><b class="q-name">${esc(def.name)}</b>`
+    + `<span class="q-text">${esc(q.done ? '했다' : questText(def, q))}${prog}</span>`
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
 }
 // v0.41.0: 블록형 — 대제목 · 중제목은 모두 보이고, 소제목(완료 조건)은 지금 덩어리 것만
@@ -3345,7 +3464,7 @@ document.getElementById('reset').addEventListener('click', () => {
   clearTimeout(knightSayT); knightLine = null; knightSayDone = null;   // 기사 대사
   clearTimeout(lockPopT); document.querySelector('.lockpop')?.remove();
   clearTimeout(pushSaveTimer);
-  openBook(false); bookTier = TIERS[0]; bookPick = null;          // 콜렉터북
+  openBook(false); bookTier = 'tool'; bookPick = null;             // 콜렉터북
   pendingInsertReset();
   // 고른 것 · 화면 상태
   selected = null; inspType = null; fieldPick = null; knightPick = false; slotPick = null;
