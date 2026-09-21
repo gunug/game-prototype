@@ -334,10 +334,14 @@
   .icon.emo.inline{display:inline-flex;vertical-align:-.3em;}
   .icon.inline{display:inline-block;width:1.35em;height:1.35em;margin:0 1px;vertical-align:-.35em;}
   .cw .name{color:var(--ink);font-size:calc(var(--cf) * .13);font-weight:700;text-align:center;padding:0 4px;line-height:1.15;pointer-events:none;}
-  /* v0.82.0: 카드 **아래쪽**에 `⚔ +2` 꼴. v0.82.2: 0.2375 의 0.7배 */
+  /* v0.82.0: 카드 **아래쪽**에 `⚔ +2` 꼴. v0.87.0: 글씨 크기는 이름과 같게(.13), 색은 그림과 같게 */
   .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .05);display:flex;justify-content:center;gap:4px;
-    font-size:calc(var(--cf) * .166);font-weight:800;line-height:1;pointer-events:none;
-    text-shadow:0 1px 3px rgba(0,0,0,.8);}
+    font-size:calc(var(--cf) * .13);font-weight:800;line-height:1;pointer-events:none;
+    text-shadow:0 1px 3px rgba(0,0,0,.85);}
+  .cw .stats > span{display:flex;align-items:center;gap:1px;}
+  .cw .stats .s-atk{color:#ffce40;}
+  .cw .stats .s-def{color:#7db0ff;}
+  .cw .stats .s-hp{color:#ff7a7a;}
   .cw .stats .icon.inline{width:1.1em;height:1.1em;margin:0 1px 0 0;vertical-align:0;}
   /* 능력치 그림 — 공격 노랑 · 방어 파랑 · 체력 빨강. 벡터(SVG)라 색은 `color`로 칠해진다
      v0.84.1: 뒤에 깔던 색 라운드 박스는 없앰 (그림만) */
@@ -817,7 +821,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.86.0';
+const VERSION = 'v0.87.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1128,11 +1132,11 @@ function findSpot(x, y, skip){
 function statsHtml(t){
   const d = DEFS[t] || {};
   // v0.86.0: 거점(모닥불)은 초당 회복량을 적는다 — '본래의 두 배' 같은 모호한 말 대신 실제 수치
-  const camp = useOf(t).includes('거점') ? `<span>${statImg('hp')}+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</span>` : '';
+  const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</span>` : '';
   if (!d.atk && !d.def && !camp) return '';
   return '<div class="stats">'                                    // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
-    + (d.atk ? `<span>${statImg('atk')}+${d.atk}</span>` : '')
-    + (d.def ? `<span>${statImg('def')}+${d.def}</span>` : '')
+    + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
+    + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
     + camp + '</div>';
 }
 function cardHtml(c){
