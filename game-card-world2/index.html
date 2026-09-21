@@ -626,7 +626,8 @@ const DEFS = {
   honeycomb:{ name:'벌집',  kind:'material', tier:1, field:'grassland' },
   // ── 2티어 (v0.5.0, 추천안 그대로 — 미확정). 그림 없음: emoji 로 대신 ──
   // 🛠️ 도구 · 불
-  blade: { name:'뗀석기',     kind:'material', tier:2, group:'tool', atk:1 },   // v0.56.0: 기본 무기 — 가장 쉽게 만드는 무기
+  blade: { name:'뗀석기',     kind:'material', tier:2, group:'tool' },   // v1.0.0: 더는 무기가 아니라 무기재료 (날)
+  stoneknife: { name:'뗀석기 칼', kind:'material', tier:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
   whetstone: { name:'숫돌',       kind:'material', tier:2, group:'tool' },
   ember: { name:'불씨',       kind:'material', tier:2, group:'tool' },
   firewood: { name:'나무막대',   kind:'material', tier:2, group:'tool' },   // v0.92.0: 나무막대 → 나무막대 (id는 그대로)
@@ -673,7 +674,8 @@ const USE = {
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료', '연료'], beast:['요리재료', '갑옷재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
   // 2티어
-  blade:['무기', '도구', '도구재료', '갑옷재료', '손질lv1'], whetstone:['도구'],   // v0.56.0: 뗀석기는 첫 무기이기도 함. v0.94.0: 손질lv1. v0.95.0: 갑옷재료
+  blade:['무기재료', '도구재료', '손질lv1'], whetstone:['도구'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장
+  stoneknife:['무기'],
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
   ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
@@ -709,7 +711,8 @@ const DESC = {
   herb:  '쓴맛이 날수록 잘 듣는다고들 한다. 증명한 사람은 없다.',
   fish:  '물 밖에선 할 말이 없어 보인다.',
   honeycomb: '달콤함의 대가는 벌 떼가 청구한다.',
-  blade:     '돌이 부싯돌을 때렸다. 떨어져 나간 쪽이 날이 됐다.',
+  blade:     '돌이 부싯돌을 때렸다. 떨어져 나간 쪽이 날이 됐다. 쥘 데가 없어 아직 칼은 아니다.',
+  stoneknife:'날에 나무를 끼웠다. 이제 휘두를 수 있다.',
   whetstone: '모래에 문질러 매끈해진 돌. 이제 남을 매끈하게 만든다.',
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
   firewood:  '곧고 단단하게 다듬은 막대. 무엇을 달아도 자루가 된다.',
@@ -780,6 +783,8 @@ const RECIPES = [
   { id:'juice',      a:{ card:'berry' },  b:{ card:'water' },     out:['juice'] },
   { id:'salve',      a:{ card:'herb' },   b:{ card:'sap' },       out:['salve'] },
   // 3티어 (v0.15.0): 전리품으로 만드는 장비·도구·음식
+  // v1.0.0: 첫 무기 — 뗀석기에 나무를 끼움. 산의 원물(돌 · 부싯돌 · 나무)만으로 두 번이면 됨
+  { id:'stoneknife',   a:{ card:'blade' },      b:{ card:'tree' },     out:['stoneknife'] },
   { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
   { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
   { id:'leatherarmor', a:{ card:'toughhide' },  b:{ use:'손질lv1' },   out:['leatherarmor'] },   // v0.94.0: 자를 수 있으면 무엇이든
@@ -850,7 +855,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.99.1';
+const VERSION = 'v1.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -937,8 +942,11 @@ function questHit(key){
 }
 // v0.62.0: 지금 무기를 가지고 있나 / 지금 재료로 무기를 만들 수 있나
 const haveWeapon = () => CRAFT_TYPES.some(t => useOf(t).includes('무기') && have(t) > 0);
+// v1.0.0: 무기 재료(뗀석기 등)를 지금 만들 수 있어도 '만들기'로 친다 — 한 단 더 들여다봄
+const canMakeCard = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && sideHave(r.a) && sideHave(r.b));
+const sideReach = sd => sideHave(sd) || (sd.card && canMakeCard(sd.card));
 const canMakeWeapon = () => CRAFT_RECIPES.some(r => (r.out || []).some(o => useOf(o).includes('무기'))
-  && sideHave(r.a) && sideHave(r.b));
+  && sideReach(r.a) && sideReach(r.b));
 const sideHave = sd => sd.card ? have(sd.card) > 0 : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && have(t) > 0);
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
@@ -986,14 +994,16 @@ const PARTY = [true, false, false, false, false];                 // v0.26.0: �
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
   // v0.34.0: 위 절반은 완성품 격자(top), 아래 절반은 재료 카드 자리(bottom)
-  { id:'tool',   name:'🔨 도구', tags:['도구재료', '도구'], top:'도구', tops:['도구'], bottoms:['도구재료'] },
+  // v1.0.0: '도구' → '조합'. 무기 · 갑옷 같은 **특정 탭에 속하지 못하는 모든 조합**을 여기서 한다
+  { id:'tool',   name:'🔨 조합', tags:['도구재료', '도구'], top:'도구', tops:['도구'], dyn:'rest' },
   // v0.53.0: 위 격자엔 완성품, 아래엔 그 재료들. v0.56.0: 처음부터 열려 있음
   // v0.93.0: 방어구·방패는 갑옷 화면으로 내보냄 — 무기 화면은 무기만
+  // v1.0.0: 아래 재료 자리 = **무기가 되기 직전의 재료만** — 무기 조합식에 직접 들어가는 것 (dyn)
   { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'],
-    top:'무기', tops:['무기'], bottoms:['무기재료'] },             // v0.33.0: 이모지 대신 작업대 그림
+    top:'무기', tops:['무기'], dyn:['무기'] },                     // v0.33.0: 이모지 대신 작업대 그림
   // v0.93.0: 몸을 지키는 것들. v0.95.0: 연장도 `갑옷재료` 태그로 정식으로 아래에 놓임 (topIds 꼼수 없앰)
   { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구', '방패'],
-    top:'방어구', tops:['방어구', '방패'], bottoms:['갑옷재료'] },
+    top:'방어구', tops:['방어구', '방패'], dyn:['방어구', '방패'] },   // v1.0.0: 갑옷 조합식에 직접 들어가는 것
   // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '거점'] },
 ];
@@ -1020,11 +1030,41 @@ const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
 // 아래 절반(카드 자리)에 보이는 카드 — 재료 태그가 있는 보드는 재료만
 // v0.53.0: 아래 재료 자리 — bottoms 중 하나라도 맞으면
-const onBoard = (type, id) => { const b = boardOf(id); return b.bottoms ? useOf(type).some(u => b.bottoms.includes(u)) : useOf(type).some(u => b.tags.includes(u)); };
+// v1.0.0: **아래 재료 자리는 조합식에서 저절로 정해진다** (dyn) — 태그를 손으로 맞출 필요가 없음
+//   무기 탭 = 무기를 만드는 조합식에 **직접** 들어가는 카드 (끝까지 따라가지 않음)
+//   갑옷 탭 = 갑옷 · 방패를 만드는 조합식에 직접 들어가는 카드
+//   조합 탭 = 그 밖의 모든 조합식의 재료 + 어느 탭에도 자리가 없는 카드
+const SPECIFIC_OUT = ['무기', '방어구', '방패'];
+const recipeKind = r => {                                          // 이 조합식은 어느 탭 것인가
+  const outs = r.cook ? [] : (r.out || []);
+  for (const b of BOARDS) if (Array.isArray(b.dyn) && outs.some(o => useOf(o).some(u => b.dyn.includes(u)))) return b.id;
+  return 'tool';
+};
+const recipeInputs = r => [r.a, r.b].flatMap(sd => sd.card ? [sd.card] : CRAFT_TYPES.filter(t => useOf(t).includes(sd.use || sd.tag)));
+const BOARD_IN = {};                                               // 탭 id → 아래에 놓일 카드 모음
+for (const b of BOARDS) if (b.dyn) BOARD_IN[b.id] = new Set();
+for (const r of CRAFT_RECIPES) for (const t of recipeInputs(r)) BOARD_IN[recipeKind(r)]?.add(t);
+// 조합 탭의 위 격자 = 도구 + 다른 데 쓰이지 않는 조합 결과(요리 · 약품 따위의 끝물)
+const USED_AS_INPUT = new Set(CRAFT_RECIPES.flatMap(recipeInputs));
+const REST_TOP = new Set(CRAFT_RECIPES.filter(r => recipeKind(r) === 'tool' && !r.cook).flatMap(r => r.out || [])
+  .filter(t => !USED_AS_INPUT.has(t) && !useOf(t).some(u => SPECIFIC_OUT.includes(u) || u === '도구')));
+const onBoardStatic = (type, id) => { const b = boardOf(id); return useOf(type).some(u => b.tags.includes(u)); };
+const onBoard = (type, id) => {
+  const b = boardOf(id);
+  if (!b.dyn) return onBoardStatic(type, id);
+  if (BOARD_IN[b.id].has(type)) return true;                       // boardOf는 모르는 id(필드 등)면 조합 탭을 돌려줌
+  if (b.dyn === 'rest'){                                           // 어느 탭에도 자리가 없으면 조합 탭에
+    return !BOARDS.some(o => o.id !== b.id && o.dyn && (BOARD_IN[o.id].has(type) || onTopGrid(type, o.id)))
+      && !onTopGrid(type, b.id) && !useOf(type).some(u => SPECIFIC_OUT.includes(u) || u === '거점');
+  }
+  return false;
+};
 // 위 절반 격자에 보이는 카드 (완성품)
 // v0.53.0: 위 격자 — tops 중 하나라도 맞으면 (무기 화면은 무기·방어구·방패)
-const onTopGrid = (type, id) => { const b = boardOf(id); return !!b.tops && useOf(type).some(u => b.tops.includes(u)); };
-const boardFor = type => (BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
+const onTopGrid = (type, id) => { const b = boardOf(id);
+  return !!b.tops && (useOf(type).some(u => b.tops.includes(u)) || (b.dyn === 'rest' && REST_TOP.has(type))); };
+const boardFor = type => (BOARDS.find(b => b.dyn && boardOpen(b) && (onBoard(type, b.id) || onTopGrid(type, b.id)))   // v1.0.0
+  || BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
@@ -1061,7 +1101,14 @@ function load(){
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
     s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
     const eq = {};                                                // v0.23.0: 장착한 장비
-    for (const sl of ALL_SLOTS){ const t = s.equip && s.equip[sl.key]; if (t && DEFS[t] && useOf(t).includes(sl.tag)) eq[sl.key] = t; }
+    for (const sl of ALL_SLOTS){
+      const t = s.equip && s.equip[sl.key];
+      if (!t || !DEFS[t]) continue;
+      if (useOf(t).includes(sl.tag)){ eq[sl.key] = t; continue; }
+      // v1.0.0: 이제 그 칸에 못 드는 장비(무기가 아니게 된 뗀석기 등)는 보유로 돌려놓음
+      const c = s.cards.find(x => x.type === t);
+      if (c) c.n = (c.n || 1) + 1; else s.cards.push({ id: (s.nextId = (s.nextId || 1) + 1), type: t, x: 0, y: 0, n: 1 });
+    }
     s.equip = eq;
     // v0.51.1: 보스를 잡은 필드. 예전 저장(기록 없음)은 곰을 다시 잡을 때마다 필드가 열리던 버그가 있어
     //   산 다음 한 곳(초원)까지만 남기고 나머지는 다시 잠금
@@ -1364,6 +1411,7 @@ function spawnMany(types, x, y, from, made3s){
 function boardMakes(r, id){
   const b = boardOf(id);
   if (!b || !b.tags) return true;
+  if (b.dyn) return recipeKind(r) === id;                          // v1.0.0: 조합식이 속한 탭에서만
   const outs = r.cook ? [] : (r.out || []);
   return outs.some(o => useOf(o).some(u => b.tags.includes(u)));
 }
@@ -1654,7 +1702,8 @@ const TREES = {
   weapon: { name:'무기 트리', icon:'⚔️', note:'갈래가 성격을 정하고, 위로 갈수록 특징이 쌓인다. 회색은 아직 없는 것.', branches: [
     { name:'🗡 날붙이', kind:'베기', nodes: [
       // v0.99.1: 하위 = 그 카드를 **재료로 직접 써서** 강화한 것. 이빨 단검은 뗀석기를 쓰지 않으므로 따로 뿌리
-      { d:0, id:'blade',       make:'돌 + 부싯돌' },
+      { d:0, id:'blade',       make:'돌 + 부싯돌',          tags:['무기재료'] },   // v1.0.0: 날 — 그 자체는 무기가 아님
+      { d:1, id:'stoneknife',  make:'뗀석기 + 나무' },
       { d:1, name:'손도끼',      make:'뗀석기 + 섬유끈',       atk:2, tags:['묵직'] },
       { d:2, name:'전투 도끼',   make:'손도끼 + 나무막대',       atk:4, tags:['묵직','방어 무시'] },
       { d:0, id:'toothdagger', make:'작은 이빨 + 나무막대', tags:['예리'] },
@@ -1679,7 +1728,7 @@ const TREES = {
   tool: { name:'도구 트리', icon:'🔨', note:'도구도 같은 규칙 — 쓰던 것에 재료를 덧대 다음 것이 된다.', branches: [
     { name:'🔨 다듬기', kind:'만들기', nodes: [
       // v0.99.1: 나무판자·숫돌은 뗀석기를 강화한 것이 아니므로 각자 뿌리
-      { d:0, id:'blade',      make:'돌 + 부싯돌',          tags:['손질lv1'] },
+      { d:0, id:'blade',      make:'돌 + 부싯돌',          tags:['손질lv1','무기재료'] },
       { d:0, id:'plank',      make:'나무 + 🏷️ 손질lv1' },
       { d:1, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
       { d:2, name:'톱',        make:'작업대 + 흑요석',   tags:['정밀'] },
@@ -1714,7 +1763,7 @@ TREES.battle = { name:'필드 트리', icon:'🗡️',
   note:'필드는 수치로 막는다 — 더 세지기만 하면 깰 수 있다. 장비가 없으면 레벨로도 뚫린다.', branches: [
   { name:'⛰️ 산', kind:'첫 땅 · 열려 있음', nodes: [
     { d:0, name:'토끼',   make:'잡몹 4마리',  on:true, tags:['체3 · 공1'] },
-    { d:0, name:'늑대',   make:'⚔ 중간보스',  on:true, tags:['체6 · 공2','뗀석기부터'] },
+    { d:0, name:'늑대',   make:'⚔ 중간보스',  on:true, tags:['체6 · 공2','뗀석기 칼부터'] },
     { d:0, name:'곰',     make:'👑 필드보스',  on:true, tags:['체9 · 공3','이빨 단검부터'] },
     { d:1, name:'→ 🌾 초원이 열림', make:'처음 잡았을 때 한 번', on:true },
   ] },
