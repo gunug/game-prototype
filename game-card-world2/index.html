@@ -339,6 +339,11 @@
     font-size:calc(var(--cf) * .166);font-weight:800;line-height:1;pointer-events:none;
     text-shadow:0 1px 3px rgba(0,0,0,.8);}
   .cw .stats .icon.inline{width:1.1em;height:1.1em;margin:0 1px 0 0;vertical-align:0;}
+  /* v0.83.0: 능력치 그림 뒤 색 라운드 박스 — 공격 노랑 · 방어 파랑 · 체력 빨강 */
+  .icon.stat-atk,.icon.stat-def,.icon.stat-hp{border-radius:.3em;padding:.08em;box-sizing:content-box;}
+  .icon.stat-atk{background:rgba(255,206,64,.26);box-shadow:inset 0 0 0 1px rgba(255,206,64,.55);}
+  .icon.stat-def{background:rgba(92,156,255,.26);box-shadow:inset 0 0 0 1px rgba(92,156,255,.55);}
+  .icon.stat-hp{background:rgba(255,92,92,.26);box-shadow:inset 0 0 0 1px rgba(255,92,92,.55);}
   .cw.framed{background:var(--frame) center/100% 100% no-repeat border-box;border-color:transparent;}
   .cw.framed::before{opacity:0;}
   .f-gold{--frame:url(images/frame/frame_gold.png);}
@@ -709,7 +714,9 @@ const frameOf = d => 'wood';                                     // 1티어 원�
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 const STAT_NAME = { atk:'공격', def:'방어', hp:'체력', people:'인원' };
-const statImg = k => `<img class="icon inline" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
+// v0.83.0: 능력치 그림 뒤에 색 라운드 박스를 깐다 (공격 노랑 · 방어 파랑 · 체력 빨강).
+//   그림을 다시 만들지 않고 CSS 배경만 얹는다 — `stat-<키>` 클래스로 구분
+const statImg = k => `<img class="icon inline stat-${k}" src="images/icon/ui_${k}.png" alt="${STAT_NAME[k]}" draggable="false">`;
 const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, true) : t.startsWith('s_') && STAT_NAME[t.slice(2)] ? statImg(t.slice(2)) : '');
 
 // 2장 조합 — 각 쪽은 { card } 또는 { tag, lv }. keep: 'a'/'b' = 남는 쪽
@@ -800,7 +807,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.82.2';
+const VERSION = 'v0.83.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
