@@ -937,7 +937,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.3.0';
+const VERSION = 'v2.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2108,6 +2108,7 @@ function renderTree(){
 }
 function openTree(id){
   treeOpen = id;
+  if (id) hintDone('tree');                                       // v2.4.0
   if (id) renderTree();
   treeEl.classList.toggle('open', !!id);
   treeBack.classList.toggle('open', !!id);
@@ -2251,6 +2252,7 @@ async function runInserts(){
 document.getElementById('bookBtn').addEventListener('click', () => {
   if (paused || S.intro !== 'done') return;
   openBook(!bookOpen);
+  if (bookOpen) hintDone('book');                                 // v2.4.0
   if (bookOpen){ runInserts(); if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500); }   // v2.2.0: 새 흔적은 한 번 보면 끝
 });
 bookBack.addEventListener('click', () => { if (!paused) openBook(false); });
@@ -2720,6 +2722,7 @@ gatherEl.addEventListener('click', e => {
   if (fieldPick !== card.dataset.field){                          // v0.26.0: 탭은 고르기만. 출전은 기사 카드를 칸에 끌어다 놓기
     for (const el of gatherEl.querySelectorAll('[data-field]')) el.classList.toggle('sel', el === card);
     fieldPick = card.dataset.field;
+    hintDone('fieldInfo');                                        // v2.4.0
     renderInsp();
   }
 });
@@ -3180,6 +3183,7 @@ function expSwing(from, to, dmg){
 //   예전엔 전투 탭의 카드 하나만 고쳐서 같은 값이 화면마다 달라 보였음 (카드 최대 체력 ≠ 트랙 최대 체력)
 // v0.38.1: 능력치가 카드 안으로 들어간 뒤(v0.29.0) 체력 막대를 못 찾아 여기서 오류가 났음 → 카드 기준으로 찾음
 function renderKnight(){
+  setTimeout(renderHint, 0);                                      // v2.4.0: 쓰러짐 · 체력 팁
   const k = S.knight, max = knightMaxHp(), need = xpNeed(knightLv());
   for (const card of gatherEl.querySelectorAll('.cw.knight')){    // 줄·아래·정비 — 있는 것 모두
     const st = card.querySelector('.kstat');
@@ -3247,24 +3251,59 @@ let questClear = 0;                                               // v0.41.1: �
 // ── 조작 힌트 (v2.2.0) ──────────────────────────────
 // 조작법은 퀘스트(기사의 수첩)에 적지 않고 여기서 따로 알려 줌. 한 번 해 보면 다시 안 나옴
 //   대상에 노란 빛을 두르고, 필드 아래에 한 줄
+// v2.4.0: 곰을 잡기 전까지의 팁 — 위에서부터 먼저 걸리는 하나만 보여 줌
+const questOn = id => (S.quests || []).some(q => q.id === id && !q.done);
+const onTab = (id, here, there) => S.tab === id ? here : there;
 function currentHint(){
   const H = S.hints || {};
   if (exp) return null;
+  // ① 첫 출전
   if (!H.sortie && S.knight.hp > 0)
-    return S.tab === 'battle'
-      ? { key:'sortie', text:'기사 카드를 끌어 ⛰️ 산 줄의 출전 칸에 놓아 보세요', sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] }
-      : { key:'sortie', text:'🗡️ 필드 탭에서 기사를 출전시킬 수 있어요', sel:['#tabs [data-tab="battle"]'] };
-  if (!H.craft && H.sortie && S.cards.length >= 2 && (S.tab === 'tool' || S.tab === 'weapon' || S.tab === 'armor'))
-    return { key:'craft', text:'카드를 다른 카드 위로 끌어다 놓으면 합쳐 볼 수 있어요', sel:[] };
+    return onTab('battle',
+      { key:'sortie', text:'기사 카드를 끌어 ⛰️ 산 줄의 출전 칸에 놓아 보세요', sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
+      { key:'sortie', text:'🗡️ 필드 탭에서 기사를 출전시킬 수 있어요', sel:['#tabs [data-tab="battle"]'] });
+  // ② 쓰러짐 — 쉬면 돌아온다는 것 (처음 한 번)
+  if (!H.down && S.knight.hp <= 0)
+    return onTab('battle',
+      { key:'down', text:'기사가 쓰러졌어요 — 쉬는 동안 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] },
+      { key:'down', text:'기사가 쓰러졌어요 — 🗡️ 필드 탭에서 체력이 차오르는 걸 볼 수 있어요', sel:['#tabs [data-tab="battle"]'] });
+  // ③ 첫 조합
   if (!H.craft && H.sortie && S.cards.length >= 2)
-    return { key:'craft', text:'🔨 조합 탭에서 모은 재료를 서로 합쳐 볼 수 있어요', sel:['#tabs [data-tab="tool"]'] };
+    return ['tool', 'weapon', 'armor'].includes(S.tab)
+      ? { key:'craft', text:'카드를 다른 카드 위로 끌어다 놓으면 합쳐 볼 수 있어요', sel:[] }
+      : { key:'craft', text:'🔨 조합 탭에서 모은 재료를 서로 합쳐 볼 수 있어요', sel:['#tabs [data-tab="tool"]'] };
+  // ④ 무기 만들기 — 재료가 다 모였는데 아직 무기가 없을 때
+  if (questOn('arm') && !haveWeapon() && canMakeWeapon())
+    return onTab('weapon',
+      { key:'forge', text:'아래 재료를 서로, 또는 위 무기 칸으로 끌어 합치면 무기가 돼요', sel:[] },
+      { key:'forge', text:'무기 탭에서 모은 재료로 무기를 만들 수 있어요', sel:['#tabs [data-tab="weapon"]'] });
+  // ⑤ 장착
   if (!H.equip && haveWeapon())
-    return S.tab === 'gearup'
-      ? { key:'equip', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] }
-      : { key:'equip', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] };
+    return onTab('gearup',
+      { key:'equip', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
+      { key:'equip', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] });
+  // ⑥ 콜렉터북 — 새 카드가 쌓였는데 한 번도 안 열어 봤으면
+  if (!H.book && H.sortie && (S.newCards.length + (S.newTraces || []).length) >= 3)
+    return { key:'book', text:'📖 새 카드가 쌓였어요 — 콜렉터북을 열어 끼워 보세요', sel:['#bookBtn'] };
+  // ⑦ 필드 정보 — 원정을 한 번 다녀왔으면
+  if (!H.fieldInfo && Object.keys(S.marks || {}).length && S.tab === 'battle')
+    return { key:'fieldInfo', text:'필드 카드를 탭하면 그곳에서 나오는 재료와 적을 볼 수 있어요', sel:['[data-field="mountain"]'] };
+  // ⑧ 더 센 무기 — 트리에서 다음 무기 길을 보여 줌
+  if (!H.tree && questOn('better'))
+    return onTab('weapon',
+      { key:'tree', text:'오른쪽 위 🌳 트리에서 더 센 무기로 가는 길을 볼 수 있어요', sel:['#treeBtn'] },
+      { key:'tree', text:'무기 탭의 🌳 트리에서 더 센 무기를 찾아볼 수 있어요', sel:['#tabs [data-tab="weapon"]'] });
+  // ⑨ 곰 앞 — 체력이 모자라면 채우고 가라
+  if (!H.bearReady && questOn('bear') && S.knight.hp < knightMaxHp())
+    return { key:'bearReady', text:'곰은 셉니다 — 기사 체력이 가득 찬 뒤에 나가세요', sel:['.chars [data-token="knight"]'] };
   return null;
 }
 function renderHint(){
+  const H = S.hints || (S.hints = {});
+  if (S.knight.hp <= 0) H.sawDown = true;                         // v2.4.0
+  else if (H.sawDown && !H.down) H.down = true;
+  if (questOn('bear') && S.knight.hp >= knightMaxHp() && H.sawBearHint) H.bearReady = true;
+  if (questOn('bear') && S.knight.hp < knightMaxHp()) H.sawBearHint = true;
   for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow');
   const bar = document.getElementById('hintbar');
   const h = currentHint();
