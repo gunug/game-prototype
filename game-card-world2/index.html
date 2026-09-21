@@ -421,18 +421,6 @@
   @keyframes lvFlash{0%{box-shadow:0 0 0 0 rgba(255,212,0,0);}
     25%{box-shadow:0 0 14px 4px rgba(255,212,0,.85);filter:brightness(1.35);}
     100%{box-shadow:0 0 0 0 rgba(255,212,0,0);}}
-  /* v0.66.0: 레벨업 모달 — 원정에서 돌아와 정산할 때 */
-  .lv-back{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:60;}
-  .lv-back.open{display:flex;}
-  .lv-box{background:var(--panel,#1d1a16);border:1px solid var(--hairline);border-radius:14px;padding:18px 22px;
-    min-width:min(74vw, 300px);text-align:center;animation:lvIn .34s cubic-bezier(.2,.9,.3,1);}
-  @keyframes lvIn{0%{transform:scale(.8);opacity:0;}100%{transform:none;opacity:1;}}
-  .lv-box .big{font-size:22px;font-weight:900;color:var(--brand-yellow);letter-spacing:.06em;}
-  .lv-box .step{font-size:16px;font-weight:800;margin:4px 0 10px;}
-  .lv-box .rw{font-size:13px;padding:2px 0;}
-  .lv-box .unlock{font-size:13px;color:var(--brand-yellow);font-weight:800;padding:4px 0;}
-  .lv-box button{margin-top:12px;padding:6px 18px;border-radius:var(--r-pill);border:1px solid var(--hairline);
-    background:rgba(255,255,255,.08);color:var(--ink);font:inherit;font-weight:800;cursor:pointer;}
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
   .book-back.open{opacity:1;pointer-events:auto;}
   /* v0.17.1: 팝업은 화면 안에서 가능한 크게 — 가로·세로 비율은 화면 따라 자유롭게 */
@@ -507,7 +495,6 @@
   </div>
 </div>
 <div class="book-back" id="bookBack"></div>
-<div class="lv-back" id="lvBack"><div class="lv-box" id="lvBox"></div></div>
 <div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
 <script>
@@ -788,7 +775,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v0.76.1';
+const VERSION = 'v0.77.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2279,12 +2266,10 @@ function expEnd(kind){
   if (exp.t > best) S.marks[exp.id] = exp.t;
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
-  const ups = exp.ups || [];                                      // v0.71.0: 원정 중 오른 레벨 — 모달은 돌아온 뒤에
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save();
-    if (ups.length){ showLevelUp(ups); return; }
     if (bearLoss && !S.said.includes('bossloss')){                // v0.72.0: 보스에게 처음 졌을 때 한 번
       S.said.push('bossloss');
       knightSay('돌조각으론 곰을 당해낼 수 없겠어');
@@ -2527,36 +2512,16 @@ function gainXp(n){
   if (!exp) renderScreen();                                       // v0.71.0: 원정 중엔 줄을 다시 그리지 않는다 (트랙이 다시 만들어짐)
   renderInsp();
   if (!ups.length){ toast(`✨ 경험치 +${n}`); return; }
-  if (exp){                                                       // 원정 중 — 멈추지 않고 그 자리에서 알림
-    exp.ups = (exp.ups || []).concat(ups);
-    toast(`⬆ 레벨 업! Lv ${k.lv} — ${LV_REWARD_TEXT(lvReward(k.lv))}`);
-    const card = gatherEl.querySelector('.chars .cw.knight');
-    if (card) flash(card, 'lvup', 900);
-    return;
-  }
-  showLevelUp(ups);
-}
-const lvBack = document.getElementById('lvBack');
-function showLevelUp(ups){
-  const k = S.knight;
-  const rows = ups.map(lv => {
+  // v0.77.0: **모달을 띄우지 않는다.** 캐릭터가 여럿이 되고 전투를 보내 놓고 다른 일을 하게 되면
+  //   레벨업마다 화면을 가리는 건 방해만 된다. 카드가 번쩍이고 알림 줄만 지나간다
+  const card = gatherEl.querySelector('.chars .cw.knight');
+  if (card) flash(card, 'lvup', 900);
+  for (const lv of ups){
     const r = lvReward(lv);
-    return `<div class="rw">Lv ${lv} — ${esc(LV_REWARD_TEXT(r))}</div>`
-      + (r.slot ? `<div class="unlock">🔓 ${esc(slotByKey(r.slot).name)} 칸이 열렸다</div>` : '');
-  }).join('');
-  document.getElementById('lvBox').innerHTML = '<div class="big">LEVEL UP</div>'
-    + `<div class="step">Lv ${ups[0] - 1} → Lv ${k.lv}</div>${rows}`
-    + `<div class="rw i-muted">체력 ${k.hp}/${knightMaxHp()} · 경험치 ${k.xp}/${xpNeed(k.lv)}</div>`
-    + '<button type="button" data-lvclose="1">확인</button>';
-  lvBack.classList.add('open');
-  setPaused(true);
+    toast(`⬆ ${KNIGHT.name} Lv ${lv} — ${LV_REWARD_TEXT(r)}`);
+    if (r.slot) toast(`🔓 ${slotByKey(r.slot).name} 칸이 열렸다`);
+  }
 }
-lvBack.addEventListener('click', e => {
-  if (e.target !== lvBack && !e.target.closest('[data-lvclose]')) return;
-  lvBack.classList.remove('open');
-  setPaused(false);
-  renderAll(); renderInsp();
-});
 // 쉬는 동안 회복 (원정 중엔 안 됨)
 function healTick(dt){
   if (exp || paused || S.knight.hp >= knightMaxHp()){ healProg = 0; return; }
