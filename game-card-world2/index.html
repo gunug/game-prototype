@@ -942,7 +942,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.4.4';
+const VERSION = 'v2.4.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3000,7 +3000,7 @@ function expEnd(kind){
   if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
   setTimeout(() => {
     exp = null;
-    renderGather(); renderInsp(); save();
+    renderGather(); renderInsp(); save(); renderHint();          // v2.4.5
     if (bearLoss && !S.said.includes('bossloss')){                // v0.72.0: 보스에게 처음 졌을 때 한 번
       S.said.push('bossloss');
       knightSay('돌조각으론 곰을 당해낼 수 없겠어');
@@ -3303,7 +3303,7 @@ function currentHint(){
       return { key:'expFight', text:'싸움은 저절로 해요 — 기사 카드 안 체력이 0이 되면 쓰러지니 지켜보세요', sel:[] };
     if (exp.phase === 'run' && !H.expRun)
       return { key:'expRun', text:`기사가 ${objP((FIELD_BY_ID[exp.id] || {}).name || '필드')} 돌아요 — 길에서 재료를 줍고, 적을 만나면 싸워요`, sel:[] };
-    return null;
+    if (exp.phase === 'end') return null;                          // v2.4.5: 원정 팁이 끝났으면 아래로 (끊기지 않게)
   }
   // ① 첫 출전
   if (!H.sortie && S.knight.hp > 0)
@@ -3358,6 +3358,34 @@ function currentHint(){
   // ⑨ 곰 앞 — 체력이 모자라면 채우고 가라
   if (!H.bearReady && questOn('bear') && S.knight.hp < knightMaxHp())
     return { key:'bearReady', text:'곰은 셉니다 — 기사 체력이 가득 찬 뒤에 나가세요', sel:['.chars [data-token="knight"]'] };
+  return questHint();
+}
+// v2.4.5: 바닥 팁 — 곰을 잡기 전까진 **늘 하나는** 보인다. 한 번 보고 끝나는 팁이 다 지나가도 지금 퀘스트 기준으로 다음 할 일
+function questHint(){
+  if ((S.killed || []).includes('bear')) return null;
+  const go = (text, key) => exp
+    ? { key, text:'기사가 원정 중 — 그동안 🔨 조합 탭에서 모은 재료를 합쳐 볼 수 있어요', sel:[] }
+    : S.knight.hp <= 0
+      ? { key, text:'기사가 쉬는 중 — 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] }
+      : onTab('battle',
+          { key, text, sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
+          { key, text:'🗡️ 필드 탭에서 ' + text, sel:['#tabs [data-tab="battle"]'] });
+  if (questOn('gomountain')) return go('기사를 ⛰️ 산 출전 칸에 놓아 다녀와요', 'q:gomountain');
+  if (questOn('arm')){
+    if (haveWeapon())
+      return onTab('gearup',
+        { key:'q:arm', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
+        { key:'q:arm', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] });
+    return go('⛰️ 산으로 출전해 무기 재료를 더 모아요', 'q:arm');   // 지금 할 조합이 없을 때 (있으면 ④가 먼저)
+  }
+  if (questOn('wolf')) return go('⛰️ 산으로 출전해 늑대를 넘어요', 'q:wolf');
+  if (questOn('better')){
+    if (exp) return { key:'q:better', text:'기사가 원정 중 — 그동안 무기 탭에서 더 센 무기를 만들어 볼 수 있어요', sel:[] };
+    return onTab('weapon',
+      { key:'q:better', text:'🌳 트리를 보고 더 센 무기를 만들어요 — 재료가 모자라면 산에서 더 모아요', sel:['#treeBtn'] },
+      { key:'q:better', text:'무기 탭에서 더 센 무기를 만들어 정비 탭에서 쥐여 줘요', sel:['#tabs [data-tab="weapon"]'] });
+  }
+  if (questOn('bear')) return go('⛰️ 산으로 출전해 곰을 쓰러뜨려요', 'q:bear');
   return null;
 }
 function renderHint(){
