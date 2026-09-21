@@ -942,7 +942,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.4.6';
+const VERSION = 'v2.4.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1598,11 +1598,14 @@ function craft(drag, tgt, m){
   const eaten = [a, b];                                          // v0.9.0: 두 재료 모두 한 장씩 줄어듦 (남는 쪽 없음)
   const from = { x: tgt.x, y: tgt.y };
   S.madeRecipes = S.madeRecipes || [];                            // v0.45.0: 해 본 조합 기록
-  hintDone('craft');                                              // v2.2.0
-  if (outs.some(o => useOf(o).includes('근접무기'))) hintDone('firstWeapon');   // v2.4.1: 첫 무기 뒤론 두 카드 안 빛냄
   if (!S.madeRecipes.includes(r.id)) S.madeRecipes.push(r.id);
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
+  // v2.4.7: 팁은 **만든 카드가 들어간 뒤** 다시 — 전엔 넣기 전에 그려 무기를 만들어도 '만들어 보세요'가 남았음
+  const H = S.hints || (S.hints = {});
+  H.craft = true;                                                 // v2.2.0
+  if (outs.some(o => useOf(o).includes('근접무기'))) H.firstWeapon = true;   // v2.4.1: 첫 무기 뒤론 두 카드 안 빛냄
+  renderHint();
   if (byId(tgt.id) && els.get(tgt.id)) flash(els.get(tgt.id), 'bump', 300);
   return true;                                                   // 남은 카드는 밀어내기로 비킴
 }
