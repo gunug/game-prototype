@@ -47,6 +47,9 @@
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
     background:rgba(10,10,7,.55);border-bottom:1px solid var(--hairline);
     scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
+  /* v2.8.0: 줄 화면(필드 · 정비)은 다시 **세로 줄** — 한 줄이 `카드 + 칸` 한 세트라 가로로 누이면 경계가 사라지고,
+     끌어다 놓을 칸이 스크롤 밖으로 나가면 끌면서 스크롤할 수가 없다. 높이는 내용만큼(화면 62%까지), 남는 자리는 아래가 다 쓴다 */
+  .gather .toplist{flex-direction:column;overflow-x:hidden;overflow-y:auto;max-height:62%;}
   .toplist[hidden]{display:none;}
   .toplist::-webkit-scrollbar{width:4px;height:4px;}
   .toplist::-webkit-scrollbar-thumb{background:rgba(255,212,0,.35);border-radius:4px;}
@@ -945,7 +948,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.7.0';
+const VERSION = 'v2.8.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2336,12 +2339,16 @@ function renderTabs(){                                            // v0.21.0: �
   for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
-  const html = ['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
-    '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>']
-    .concat(BOARDS.map(b => boardOpen(b)
-      ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
-      : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
-        + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>')).join('');   // v0.98.0 · v0.98.1
+  const boardBtn = b => boardOpen(b)
+    ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
+    : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
+      + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>';   // v0.98.0 · v0.98.1
+  // v2.8.0: 순서는 정비 · 필드 · 던전 · 나머지 보드(조합 · 무기 · 갑옷)
+  const gearBoard = BOARD_BY_ID['gearup'];
+  const html = (gearBoard ? [boardBtn(gearBoard)] : [])
+    .concat(['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
+      '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>'])
+    .concat(BOARDS.filter(b => b.id !== 'gearup').map(boardBtn)).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
