@@ -41,12 +41,14 @@
   .gather-hint{color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;}
   /* v0.25.0: 정비 화면 — 필드 위쪽에 장비 칸 줄. 카드를 끌어다 놓음 */
   /* v0.27.0: 화면을 위아래로 — 위는 줄 목록(넘치면 세로 스크롤), 아래는 카드를 놓는 자리 */
-  .toplist{position:absolute;left:0;right:0;top:0;height:50%;z-index:4;box-sizing:border-box;overflow-y:auto;overflow-x:auto;
-    display:flex;flex-direction:column;align-items:center;gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
+  /* v2.7.0: 위는 카드 **한 줄** — 자리가 모자라면 가로로 민다. 높이는 줄 높이만(--toph), 나머지는 전부 아래 자리 */
+  .toplist{position:absolute;left:0;right:0;top:0;z-index:4;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
+    display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:safe center;
+    gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
     background:rgba(10,10,7,.55);border-bottom:1px solid var(--hairline);
     scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
   .toplist[hidden]{display:none;}
-  .toplist::-webkit-scrollbar{width:4px;}
+  .toplist::-webkit-scrollbar{width:4px;height:4px;}
   .toplist::-webkit-scrollbar-thumb{background:rgba(255,212,0,.35);border-radius:4px;}
   .lrow{flex:none;display:flex;align-items:center;gap:calc(var(--cw) * .1);}
   .lrow > .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);cursor:pointer;}
@@ -57,12 +59,12 @@
   .lrow .pslot{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .lrow .slotbox .box{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
-  /* v0.34.0: 위 절반 격자형 — 완성품 카드를 줄지어 (넘치면 세로 스크롤) */
-  .toplist.grid{display:grid;grid-template-columns:repeat(auto-fill, minmax(var(--cw), 1fr));align-content:start;gap:calc(var(--cw) * .12);}
-  .toplist.grid .cw{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;}
-  .toplist.grid .empty-lab{grid-column:1 / -1;color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;padding:calc(var(--cw) * .2) 0;}
+  /* v0.34.0: 위 줄엔 완성품 카드. v2.7.0: 격자를 접고 한 줄로 — 많아지면 옆으로 민다 */
+  .toplist.grid{gap:calc(var(--cw) * .12);}
+  .toplist.grid .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);aspect-ratio:auto;cursor:pointer;}
+  .toplist.grid .empty-lab{flex:1 0 auto;color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;padding:calc(var(--cw) * .2) 0;}
   .lhint{flex:none;font-size:calc(var(--cf) * .1);color:var(--muted);text-align:center;}
-  .table.half{top:50%;}                                            /* 카드는 아래 절반에만 */
+  .table.half{top:var(--toph, 50%);}                               /* v2.7.0: 위 줄 밑부터 화면 끝까지 */
   .slotbar[hidden]{display:none;}
   .slotbox{display:flex;flex-direction:column;align-items:center;gap:3px;}
   .slotbox .box{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
@@ -72,7 +74,7 @@
   .slotbox.sel .box{border-color:rgba(255,255,255,.55);}
   .slotbox .lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* v0.27.0: 전투 화면 — 위에 필드마다 한 줄(필드 카드 + 출전 칸 5개), 아래에 캐릭터 카드 */
-  .botarea{position:absolute;left:0;right:0;top:50%;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  .botarea{position:absolute;left:0;right:0;top:var(--toph, 50%);bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);box-sizing:border-box;}
   .chars{position:relative;display:flex;align-items:center;gap:calc(var(--cw) * .2);}   /* v0.37.1: 대사 말풍선의 기준 */
   .chars .cw.knight{position:relative;flex:none;cursor:grab;}
@@ -581,6 +583,7 @@
     <div class="setpan" id="setpan" hidden>
       <span class="meta" id="seenMeta"></span>
       <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
+      <button class="reset" id="dumpBtn">진행도</button>
       <button class="reset" id="reset">처음부터</button>
     </div>
   </div>
@@ -942,7 +945,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.5.3';
+const VERSION = 'v2.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2458,17 +2461,24 @@ function knightCardHtml(drag){
 }
 // v0.34.0: 도구 · 무기 화면의 위 절반 — 완성품 카드 격자
 const topGridEl = document.getElementById('topgrid');
+// v2.7.0: 위 줄의 실제 높이를 재서 `--toph` 에 넣는다 — 아래 자리(.table.half · .botarea)가 나머지를 다 쓴다
+function syncTopH(){
+  const el = isRowScreen(S.tab) ? gatherEl.querySelector('.toplist') : (topGridEl.hidden ? null : topGridEl);
+  const h = el ? el.offsetHeight : 0;
+  document.documentElement.style.setProperty('--toph', h ? h + 'px' : '50%');
+}
 function renderTopGrid(){
   const b = boardOf(S.tab);
   const on = !isRowScreen(S.tab) && S.tab !== 'dungeon' && !!(b.tops || b.top);   // v0.91.0
   topGridEl.hidden = !on;
   table.classList.toggle('half', on);
-  if (!on) return;
+  if (!on){ syncTopH(); return; }
   const list = S.cards.filter(c => onTopGrid(c.type, S.tab) && c.n > 0);
   topGridEl.innerHTML = list.length
     ? list.map(c => `<div class="cw framed f-${frameOf(DEFS[c.type])}${inspType === c.type ? ' sel' : ''}" data-topcard="${c.type}">`
         + `${statsHtml(c.type)}<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>`).join('')
     : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
+  syncTopH();
 }
 gatherEl.addEventListener('click', e => {                         // v0.36.0: 말풍선을 탭하면 바로 다음으로
   if (e.target.closest('[data-knightsay]')) endKnightSay();
@@ -2490,6 +2500,7 @@ function renderScreen(){
     + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
     + (S.tab === 'battle' ? knightSayHtml() : '') + '</div>'
     + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+  syncTopH();
   if (S.tab === 'battle') expBuild();
 }
 const renderGather = renderScreen;                                // 옛 이름
@@ -3647,6 +3658,71 @@ function setEditMode(on, quiet){
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 }
 document.getElementById('editMode').addEventListener('change', e => setEditMode(e.target.checked));
+// v2.6.0: 진행도 — 지금 상태를 JSON 으로 클립보드에 (AI 에게 붙여 넣어 진행을 보여 주기 위한 것)
+//   에디터 모드면 시험용 상태가 아니라 **진짜 저장본**을 뜬다
+function progressSnapshot(){
+  const src = editMode && realS ? realS : S;
+  const prev = S;
+  S = src;                                                        // knightAtk 등은 전역 S 를 본다 — 만드는 동안만 잠깐 바꿔 끼움
+  try {
+    const nameOf = t => (DEFS[t] && DEFS[t].name) || t;
+    const goalOf = def => questGoal(def) || 1;
+    const cards = (src.cards || []).filter(c => DEFS[c.type])
+      .map(c => ({ type: c.type, name: nameOf(c.type), n: c.n || 1 }))
+      .sort((a, b) => b.n - a.n || a.type.localeCompare(b.type));
+    const equip = {};
+    for (const sl of ALL_SLOTS){
+      const t = src.equip && src.equip[sl.key];
+      equip[sl.key] = { 칸: sl.name, 열림: slotOpen(sl.key), 장착: t ? nameOf(t) : null, type: t || null };
+    }
+    const quests = (src.quests || []).filter(q => QUESTS[q.id]).map(q => ({
+      id: q.id, name: QUESTS[q.id].name, 할일: questText(QUESTS[q.id], q),
+      진행: Math.min(q.n || 0, goalOf(QUESTS[q.id])) + '/' + goalOf(QUESTS[q.id]), 끝냄: !!q.done }));
+    return {
+      version: VERSION,
+      at: new Date().toISOString(),
+      에디터모드: editMode,                                        // true 면 에디터 모드를 켜 둔 채로 뜬 것 (내용은 진짜 저장본)
+      기사: { lv: src.knight.lv, xp: src.knight.xp, 다음레벨xp: xpNeed(src.knight.lv),
+        hp: src.knight.hp, 최대hp: knightMaxHp(), 공격: knightAtk(), 방어: knightDef() },
+      장비: equip,
+      필드: FIELDS.map(f => ({ id: f.id, name: f.name,
+        열림: !((src.fields || {})[f.id] || {}).locked,
+        보스처치: (src.cleared || []).includes(f.id),
+        최고지점: (src.marks || {})[f.id] || 0 })),
+      화면: { 지금탭: src.tab, 열린보드: (src.boards || []).map(id => (BOARD_BY_ID[id] || {}).name || id) },
+      퀘스트: { 진행중: quests, 끝낸것: (src.questDone || []).filter(id => QUESTS[id]).map(id => QUESTS[id].name) },
+      카드: { 발견: (src.seen || []).length, 전체: CRAFT_TYPES.length,
+        만들어본조합: (src.madeRecipes || []).length, 보유: cards },
+      잡은적: (src.killed || []).filter(k => ENEMIES[k]).map(k => ENEMIES[k].name),
+      흔적: (src.traces || []).filter(id => TRACE_BY_ID[id]).map(id => TRACE_BY_ID[id].name),
+    };
+  } finally { S = prev; }
+}
+// file:// 로 열면 navigator.clipboard 가 없다 — 숨긴 textarea 로 대신함
+function copyText(s){
+  const legacy = () => new Promise((res, rej) => {
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.style.cssText = 'position:fixed;top:-1000px;opacity:0;';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e){ ok = false; }
+    ta.remove();
+    ok ? res() : rej(new Error('execCommand copy 실패'));
+  });
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(s).catch(legacy);   // 권한이 막히면 옆길로
+  return legacy();
+}
+document.getElementById('dumpBtn').addEventListener('click', () => {
+  let json;
+  try { json = JSON.stringify(progressSnapshot(), null, 2); }
+  catch (e){ console.warn('진행도 만들기 실패', e); toast('⚠ 진행도를 못 만들었어요'); return; }
+  copyText(json).then(
+    () => toast('📋 진행도 복사됨 — AI 에게 그대로 붙여 넣으세요'),
+    e => { console.warn('클립보드 복사 실패 — 아래 JSON 을 직접 복사하세요', e); console.log(json);
+      toast('⚠ 복사가 막혔어요 — 개발자 콘솔에 찍어 두었어요'); });
+});
 document.getElementById('setBtn').addEventListener('click', e => {
   e.stopPropagation();
   setPan.hidden = !setPan.hidden;
