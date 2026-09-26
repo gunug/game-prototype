@@ -948,7 +948,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.8.3';
+const VERSION = 'v2.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1889,12 +1889,12 @@ const TREES = {
   //   맨 위 '부품' 묶음에 무기에 들어가는 부품을 모아 두고, 갈래마다 조립 순서를 보인다
   weapon: { name:'무기 트리', icon:'⚔️', note:'무기는 날과 자루를 조립해 만들고, 만든 무기에 부품을 하나씩 더 달아 강해진다. 근접이든 원거리든 ⚔️ 무기 탭에서 만들지만 기사는 근접무기만 든다. 부품은 🔨 조합 탭에서. 회색은 아직 없는 것.', branches: [
     { name:'🔩 부품', kind:'날 · 자루 · 줄', nodes: [
-      { d:0, id:'blade',       make:'날 — 돌 + 부싯돌' },
-      { d:0, id:'smalltooth',  make:'날 — 토끼 · 곰 · 늑대가 떨굼' },
-      { d:0, id:'fang',        make:'창날 — 늑대 두목 · 숲곰이 주로 떨굼' },
-      { d:0, id:'firewood',    make:'짧은 자루 — 돌 + 나무' },
-      { d:0, id:'longhandle',   make:'긴 자루 — 나무 손잡이 + 섬유끈' },
-      { d:0, id:'barb',         make:'갈고리 날 — 날카로운 송곳니 + 숫돌' },
+      { d:0, id:'blade',       role:'날' },
+      { d:0, id:'smalltooth',  role:'날' },
+      { d:0, id:'fang',        role:'창날' },
+      { d:0, id:'firewood',    role:'짧은 자루' },
+      { d:0, id:'longhandle',   role:'긴 자루' },
+      { d:0, id:'barb',         role:'갈고리 날' },
       { d:0, name:'뼈 손잡이',   make:'가벼운 자루 — 뼈 + 🏷️ 손질lv1' },
       { d:0, name:'흑요석 날',   make:'날 — 흑요석 + 🏷️ 손질lv1' },
       { d:0, name:'활대',        make:'줄 — 나무 자루 + 🏷️ 손질lv1' },
@@ -1902,17 +1902,17 @@ const TREES = {
       { d:0, name:'구리 원석',   make:'광석 + 석탄 — 광석이 나오는 곳이 아직 없어 길이 막혀 있음' },
     ] },
     { name:'🗡 날붙이', kind:'베기 · 짧은 자루', nodes: [
-      { d:0, id:'stoneknife',  make:'뗀석기 + 나무 손잡이' },
-      { d:1, id:'handaxe',      make:'뗀석기 칼 + 나무 자루',   tags:['묵직'] },
+      { d:0, id:'stoneknife' },
+      { d:1, id:'handaxe',   tags:['묵직'] },
       { d:2, name:'전투 도끼',   make:'손도끼 + 흑요석 날',      atk:4, tags:['묵직','방어 무시'] },
-      { d:0, id:'toothdagger', make:'작은 이빨 + 나무 손잡이', tags:['예리'] },
+      { d:0, id:'toothdagger', tags:['예리'] },
       { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈 손잡이',   atk:3, tags:['예리','가벼움'] },
       { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석 날',   atk:4, tags:['예리','출혈'] },
     ] },
     { name:'🔱 자루', kind:'찌르기 · 긴 자루', nodes: [
-      { d:0, id:'fangspear',    make:'날카로운 송곳니 + 나무 손잡이', tags:['사거리','관통'] },
-      { d:1, id:'longspear',     make:'송곳니 창 + 나무 자루',   tags:['사거리','관통','선제'] },
-      { d:2, id:'harpoon',       make:'긴 창 + 미늘',             tags:['관통','끌어내기'] },
+      { d:0, id:'fangspear', tags:['사거리','관통'] },
+      { d:1, id:'longspear',   tags:['사거리','관통','선제'] },
+      { d:2, id:'harpoon',             tags:['관통','끌어내기'] },
       { d:2, name:'삼지창',      make:'긴 창 + 날카로운 송곳니',  atk:6, tags:['관통','연타'] },
       { d:1, name:'투창',        make:'송곳니 창 + 깃털',        atk:4, tags:['던지기','선제'] },
     ] },
@@ -1929,40 +1929,39 @@ const TREES = {
   // v1.6.0: **부품 기준**으로 다시 짬 — 도구 = 몸 부품 + 쓰임 부품, 강화 = 도구 + 새 부품
   tool: { name:'도구 트리', icon:'🔨', note:'도구는 몸이 되는 부품에 쓰임을 정하는 부품을 붙여 만들고, 만든 도구에 부품을 더해 나아간다. 부품은 🔨 조합 탭에서 만든다 — 숫돌처럼 만든 연장이 다시 부품(미늘)이 되고, 그걸로 ⚔️ 무기 탭에서 작살을 만든다. 회색은 아직 없는 것.', branches: [
     { name:'🔩 부품', kind:'판 · 줄 · 불 · 담기 · 연장', nodes: [
-      { d:0, id:'blade',      make:'손질 연장 — 돌 + 부싯돌', tags:['손질lv1'] },
-      { d:0, id:'plank',      make:'판 — 나무 + 🏷️ 손질lv1' },
-      { d:0, id:'cord',       make:'줄 — 풀 + 🏷️ 손질lv1' },
-      { d:0, id:'ember',      make:'불 — 부싯돌 + 석탄' },
-      { d:0, id:'hide',       make:'주머니감 — 토끼가 떨굼' },
-      { d:0, id:'smalltooth', make:'걸이 — 토끼 · 곰 · 늑대가 떨굼' },
-      { d:0, id:'sand',       make:'연마재 — 강가에서 주움' },
-      { d:0, id:'fang',       make:'갈고리 날감 — 늑대 두목 · 숲곰이 주로 떨굼' },
+      { d:0, id:'blade',      role:'손질 연장', tags:['손질lv1'] },
+      { d:0, id:'plank',      role:'판' },
+      { d:0, id:'cord',       role:'줄' },
+      { d:0, id:'ember',      role:'불' },
+      { d:0, id:'hide',       role:'주머니감' },
+      { d:0, id:'smalltooth', role:'걸이' },
+      { d:0, id:'sand',       role:'연마재' },
+      { d:0, id:'fang',       role:'갈고리 날감' },
       { d:0, name:'흑요석 날',  make:'톱날 — 흑요석 + 🏷️ 손질lv1' },
     ] },
     { name:'🔨 다듬기 · 갈기', kind:'판 + 손질 · 연마 → 작살', nodes: [
-      { d:0, id:'workbench',  make:'나무판자 + 🏷️ 손질lv1' },
+      { d:0, id:'workbench' },
       { d:1, name:'톱',        make:'작업대 + 흑요석 날',   tags:['정밀'] },
-      { d:0, id:'whetstone',  make:'모래 + 돌',           tags:['연마'] },
-      { d:1, id:'barb',        make:'갈고리 날 — 날카로운 송곳니 + 숫돌', tags:['작살 부품'] },
-      { d:2, id:'harpoon',     make:'⚔️ 무기 탭에서 — 긴 창 + 미늘', tags:['관통','끌어내기'] },
+      { d:0, id:'whetstone',           tags:['연마'] },
+      { d:1, id:'barb',        role:'갈고리 날', tags:['작살 부품'] },
+      { d:2, id:'harpoon',     role:'⚔️ 무기 탭에서', tags:['관통','끌어내기'] },
       { d:1, name:'가는 숫돌', make:'숫돌 + 부드러운 가죽', tags:['연마+'] },
     ] },
     { name:'🔥 불', kind:'불 + 연료', nodes: [
-      { d:0, id:'campfire',   make:'불씨 + 🏷️ 연료' },
+      { d:0, id:'campfire' },
       { d:1, name:'화덕',      make:'모닥불 + 점토',      tags:['요리'] },
       { d:2, name:'가마',      make:'화덕 + 돌',          tags:['굽기'] },
     ] },
     { name:'🪢 줄', kind:'걸이 + 줄', nodes: [
-      { d:0, id:'fishhook',   make:'작은 이빨 + 섬유끈' },
+      { d:0, id:'fishhook' },
       { d:1, name:'낚싯대',    make:'낚싯바늘 + 나무 손잡이',  tags:['낚시'] },
       { d:2, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
     ] },
     { name:'🎒 담기', kind:'주머니감 + 끈', nodes: [
-      { d:0, id:'pouch',      make:'부드러운 가죽 + 섬유끈' },
+      { d:0, id:'pouch' },
       { d:1, name:'등짐',      make:'가죽 주머니 + 억센 가죽', tags:['많이'] },
     ] },
-  ] },
-};
+  ] } };
 const dungeonEl = document.getElementById('dungeon');             // v0.91.0
 dungeonEl.innerHTML = '<div class="dg-t">🏚 던전</div>'
   + '<div class="dg-s">아직 들어갈 수 있는 던전이 없다.<br>'
@@ -1973,64 +1972,64 @@ dungeonEl.innerHTML = '<div class="dg-t">🏚 던전</div>'
 //   필드는 수치로 막는다(확정 55). 부품이 어느 땅에서 나오는지가 곧 어디까지 갈 수 있는지다
 TREES.battle = { name:'필드 트리', icon:'🗡️',
   note:'필드마다 줍는 것과 떨어지는 것, 그걸로 만드는 부품, 그리고 넘어야 할 적. 필드는 수치로 막는다 — 세지기만 하면 깬다.', branches: [
-  { name:'⛰️ 산', kind:'첫 땅 · 열려 있음', nodes: [
+  { field:'mountain', name:'⛰️ 산', kind:'첫 땅 · 열려 있음', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'돌 · 부싯돌 · 석탄 · 나무', on:true },
-    { d:1, id:'blade',          make:'날 — 돌 + 부싯돌' },
-    { d:1, id:'firewood',       make:'짧은 자루 — 돌 + 나무' },
-    { d:1, id:'ember',          make:'불 — 부싯돌 + 석탄' },
-    { d:1, id:'plank',          make:'판 — 나무 + 🏷️ 손질lv1' },
-    { d:2, id:'shieldboard',    make:'방패 몸 — 나무판자 + 🏷️ 손질lv1' },
+    { d:1, id:'blade',          role:'날' },
+    { d:1, id:'firewood',       role:'짧은 자루' },
+    { d:1, id:'ember',          role:'불' },
+    { d:1, id:'plank',          role:'판' },
+    { d:2, id:'shieldboard',    role:'방패 몸' },
     { d:0, name:'🐾 떨어지는 것', make:'토끼 · 늑대 · 곰', on:true },
-    { d:1, id:'smalltooth',     make:'날 · 걸이 — 토끼 20% · 늑대 60% · 곰 15%' },
-    { d:1, id:'hide',           make:'안감 · 주머니감 — 토끼 30% · 늑대 30%' },
-    { d:1, id:'toughhide',      make:'덧댐 — 곰 30%' },
-    { d:2, id:'curedleather',   make:'겉감 — 억센 가죽 + 🏷️ 손질lv1' },
-    { d:1, id:'fang',           make:'창날 — 곰 5%' },
-    { d:1, id:'bearclaw',       make:'👑 곰만 떨굼 10% — 쓰임은 아직' },
+    { d:1, id:'smalltooth',     role:'날 · 걸이' },
+    { d:1, id:'hide',           role:'안감 · 주머니감' },
+    { d:1, id:'toughhide',      role:'덧댐' },
+    { d:2, id:'curedleather',   role:'겉감' },
+    { d:1, id:'fang',           role:'창날' },
+    { d:1, id:'bearclaw',       note:'쓰임은 아직' },
     { d:0, name:'⚔ 늑대',       make:'중간보스 체6 · 공2', on:true, tags:['뗀석기 칼부터'] },
     { d:0, name:'👑 곰',         make:'필드보스 체9 · 공3 → 🌾 초원이 열림', on:true, tags:['이빨 단검부터'] },
     { d:0, name:'🛠 여기서 다 되는 것', make:'뗀석기 칼 · 이빨 단검 · 송곳니 창 · 가죽 갑옷 · 나무 방패 · 작업대 · 모닥불', on:true },
   ] },
-  { name:'🌾 초원', kind:'두 번째 땅 · 답: 방어(갑옷)', nodes: [
+  { field:'grassland', name:'🌾 초원', kind:'두 번째 땅 · 답: 방어(갑옷)', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'풀 · 씨앗 · 벌집 · 깃털', on:true },
-    { d:1, id:'cord',           make:'줄 — 풀 + 🏷️ 손질lv1' },
-    { d:2, id:'longhandle',     make:'긴 자루 — 나무 손잡이 + 섬유끈' },
-    { d:1, id:'feather',        make:'🔑 던지기 — 그대로 부품' },
+    { d:1, id:'cord',           role:'줄' },
+    { d:2, id:'longhandle',     role:'긴 자루' },
+    { d:1, id:'feather',        role:'🔑 던지기', note:'그대로 부품' },
     { d:0, name:'🐾 떨어지는 것', make:'들개 · 멧돼지 · 들소', on:true },
-    { d:1, id:'toughhide',      make:'덧댐 · 겉감 — 멧돼지 50% · 들소 40%' },
-    { d:1, id:'fang',           make:'창날 — 들소 10%' },
-    { d:1, id:'bisonhorn',      make:'👑 들소만 떨굼 10% — 쓰임은 아직' },
-    { d:1, id:'hide',           make:'안감 — 들개 30%' },
+    { d:1, id:'toughhide',      role:'덧댐 · 겉감' },
+    { d:1, id:'fang',           role:'창날' },
+    { d:1, id:'bisonhorn',      note:'쓰임은 아직' },
+    { d:1, id:'hide',           role:'안감' },
     { d:0, name:'⚔ 멧돼지',     make:'중간보스 체10 · 공3', on:true, tags:['손도끼부터'] },
     { d:0, name:'👑 들소',       make:'필드보스 체14 · 공4 · 방1 → 🌲 숲이 열림', on:true, tags:['5레벨 + 갑옷'] },
     { d:0, name:'🛠 새로 되는 것', make:'손도끼 · 가죽 주머니 · 낚싯바늘 — 섬유끈이 풀려서', on:true },
     { d:0, name:'진행',          make:'약 7판 · 클리어 5레벨 (갑옷 칸이 열리는 때와 맞춤)', on:true },
   ] },
-  { name:'🌲 숲', kind:'세 번째 땅 · 답: 막기(방패)', nodes: [
+  { field:'forest', name:'🌲 숲', kind:'세 번째 땅 · 답: 막기(방패)', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'나무 · 열매 · 수액 · 약초', on:true },
-    { d:1, id:'sap',            make:'붙이기 — 그대로 부품' },
-    { d:2, id:'shieldrim',      make:'테두리 — 나무판자 + 수액' },
+    { d:1, id:'sap',            role:'붙이기', note:'그대로 부품' },
+    { d:2, id:'shieldrim',      role:'테두리' },
     { d:0, name:'🐾 떨어지는 것', make:'여우 · 늑대 두목 · 숲곰', on:true },
-    { d:1, id:'fang',           make:'창날 — 늑대 두목 35% · 숲곰 30%' },
-    { d:1, id:'hide',           make:'안감 — 여우 40% · 늑대 두목 30%' },
-    { d:1, id:'toughhide',      make:'덧댐 — 숲곰 30%' },
-    { d:1, id:'mosspelt',       make:'👑 숲곰만 떨굼 10% — 쓰임은 아직' },
+    { d:1, id:'fang',           role:'창날' },
+    { d:1, id:'hide',           role:'안감' },
+    { d:1, id:'toughhide',      role:'덧댐' },
+    { d:1, id:'mosspelt',       note:'쓰임은 아직' },
     { d:0, name:'⚔ 늑대 두목',  make:'중간보스 체22 · 공4 · 방1', on:true, tags:['긴 창부터'] },
     { d:0, name:'👑 숲곰',       make:'필드보스 체30 · 공6 · 방2 → 🏞️ 강가가 열림', on:true, tags:['10레벨 + 방패'] },
     { d:0, name:'🛠 새로 되는 것', make:'긴 창 · 테 두른 방패', on:true },
     { d:0, name:'진행',          make:'약 9판 · 클리어 10레벨 (방패 칸이 열리는 때와 맞춤)', on:true },
   ] },
-  { name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구', nodes: [
+  { field:'riverside', name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'물 · 흙 · 모래 · 물고기', on:true },
-    { d:1, id:'sand',           make:'연마재 — 숫돌 = 모래 + 돌' },
-    { d:2, id:'barb',           make:'갈고리 날 — 날카로운 송곳니 + 숫돌' },
-    { d:1, id:'clay',           make:'물 + 흙' },
-    { d:2, id:'claybead',       make:'꾸밈 — 점토 + 불씨' },
+    { d:1, id:'sand',           role:'연마재' },
+    { d:2, id:'barb',           role:'갈고리 날' },
+    { d:1, id:'clay' },
+    { d:2, id:'claybead',       role:'꾸밈' },
     { d:0, name:'🐾 떨어지는 것', make:'가재 · 악어 · 큰 메기', on:true },
-    { d:1, id:'fillet',         make:'가재 40% · 큰 메기 40%' },
-    { d:1, id:'toughhide',      make:'악어 50% · 큰 메기 20%' },
-    { d:1, id:'fang',           make:'창날 — 악어 20%' },
-    { d:1, id:'catfishwhisker', make:'👑 큰 메기만 떨굼 10% — 쓰임은 아직' },
+    { d:1, id:'fillet' },
+    { d:1, id:'toughhide' },
+    { d:1, id:'fang',           role:'창날' },
+    { d:1, id:'catfishwhisker', note:'쓰임은 아직' },
     { d:0, name:'⚔ 악어',       make:'중간보스 체44 · 공7 · 방3', on:true, tags:['작살부터'] },
     { d:0, name:'👑 큰 메기',    make:'필드보스 체60 · 공9 · 방3', on:true, tags:['15레벨 + 장신구'] },
     { d:0, name:'🛠 새로 되는 것', make:'작살 · 흙구슬 목걸이 · 숫돌 · 점토 · 생선살', on:true },
@@ -2047,10 +2046,10 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
   note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 보스 아래에 그걸 푸는 무기, 그 아래에 무기에 성격을 주는 열쇠 부품. 전부 계획뿐.', branches: [
   { name:'🔑 열쇠 부품', kind:'성격을 주는 부품', nodes: [
     { d:0, name:'흑요석 날',  make:'방어 무시 · 출혈 — 흑요석 + 🏷️ 손질lv1', tags:['돌가죽 굴','늪지 무덤'] },
-    { d:0, id:'fang',        make:'관통 — 늑대 두목이 주로 떨굼',               tags:['껍질 동굴'] },
+    { d:0, id:'fang',        role:'관통',               tags:['껍질 동굴'] },
     { d:0, name:'나무 자루',  make:'긴 자루 — 나무 손잡이 + 섬유끈',          tags:['껍질 동굴'] },
     { d:0, name:'활대 · 시위', make:'원거리 — 나무 자루 + 🏷️ 손질lv1 / 섬유끈 + 수액', tags:['거미 둥지'] },
-    { d:0, id:'feather',     make:'던지기 — 초원에서 주움',                   tags:['거미 둥지'] },
+    { d:0, id:'feather',     role:'던지기',                   tags:['거미 둥지'] },
   ] },
   { name:'🪨 돌가죽 굴', kind:'방어가 무지막지', nodes: [
     { d:0, name:'돌가죽 주인', make:'방어가 매우 높아 보통 공격이 1밖에 안 박힘', tags:['해법: 방어 무시'] },
@@ -2062,7 +2061,7 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:1, name:'사냥활',      make:'활대 + 시위',          tags:['원거리'] },
     { d:2, name:'🔑 활대 · 시위', make:'나무 자루 + 🏷️ 손질lv1 / 섬유끈 + 수액' },
     { d:1, name:'투창',        make:'송곳니 창 + 깃털',      tags:['던지기'] },
-    { d:2, id:'feather',      make:'🔑 초원에서 주움' },
+    { d:2, id:'feather' },
   ] },
   { name:'🍄 늪지 무덤', kind:'계속 회복', nodes: [
     { d:0, name:'무덤 주인',   make:'때려도 때려도 도로 차오름', tags:['해법: 출혈'] },
@@ -2072,7 +2071,7 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
   { name:'🐚 껍질 동굴', kind:'단단한 껍질', nodes: [
     { d:0, name:'동굴 주인',   make:'겉껍질을 뚫지 못하면 안쪽에 닿지 않음', tags:['해법: 관통'] },
     { d:1, name:'삼지창',      make:'긴 창 + 날카로운 송곳니', tags:['관통','연타'] },
-    { d:2, id:'fang',         make:'🔑 늑대 두목이 주로 떨굼' },
+    { d:2, id:'fang' },
     { d:2, name:'🔑 나무 자루', make:'나무 손잡이 + 섬유끈 (긴 창을 만들 때)' },
   ] },
   { name:'정할 것', kind:'미정', nodes: [
@@ -2086,29 +2085,29 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
 TREES.armor = { name:'갑옷 트리', icon:'🛡',
   note:'갑옷은 겉감과 안감, 방패는 방패 몸과 덧댐을 조립해 만들고, 만든 것에 부품을 하나씩 더해 단단해진다. 부품은 🔨 조합 탭에서 만든다. 회색은 아직 없는 것.', branches: [
   { name:'🔩 부품', kind:'겉감 · 안감 · 방패 몸 · 덧댐', nodes: [
-    { d:0, id:'curedleather', make:'겉감 — 억센 가죽 + 🏷️ 손질lv1' },
-    { d:0, id:'hide',         make:'안감 — 토끼가 떨굼' },
-    { d:0, id:'shieldboard',  make:'방패 몸 — 나무판자 + 🏷️ 손질lv1' },
-    { d:0, id:'toughhide',    make:'덧댐 — 곰이 떨굼' },
-    { d:0, id:'claybead',     make:'꾸밈 — 점토 + 불씨 (강가)' },
+    { d:0, id:'curedleather', role:'겉감' },
+    { d:0, id:'hide',         role:'안감' },
+    { d:0, id:'shieldboard',  role:'방패 몸' },
+    { d:0, id:'toughhide',    role:'덧댐' },
+    { d:0, id:'claybead',     role:'꾸밈' },
     { d:0, name:'면 직물',     make:'안감 — 풀 + 섬유끈' },
     { d:0, name:'뼈 비늘',     make:'덧댐 — 뼈 + 🏷️ 손질lv1' },
-    { d:0, id:'shieldrim',     make:'테두리 — 나무판자 + 수액 (숲)' },
+    { d:0, id:'shieldrim',     role:'테두리' },
   ] },
   { name:'🧥 가죽옷', kind:'겉감 + 안감', nodes: [
-    { d:0, id:'leatherarmor', make:'손질된 가죽 + 부드러운 가죽' },
+    { d:0, id:'leatherarmor' },
     { d:1, name:'덧댄 갑옷',   make:'가죽 갑옷 + 손질된 가죽', tags:['방어 +2','묵직'] },
     { d:2, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈 비늘',     tags:['방어 +3','단단'] },
     { d:1, name:'누빈 갑옷',   make:'가죽 갑옷 + 면 직물',     tags:['방어 +2','가벼움'] },
   ] },
   { name:'🛡 방패', kind:'방패 몸 + 덧댐', nodes: [
-    { d:0, id:'woodshield',   make:'방패판 + 억센 가죽' },
-    { d:1, id:'rimshield',     make:'나무 방패 + 방패테' },
+    { d:0, id:'woodshield' },
+    { d:1, id:'rimshield' },
     { d:2, name:'큰 방패',     make:'테 두른 방패 + 방패판',    tags:['방어 +3','묵직'] },
     { d:1, name:'가벼운 방패', make:'나무 방패 + 면 직물',      tags:['방어 +1','가벼움','선제'] },
   ] },
   { name:'📿 장신구', kind:'꾸밈 + 끈', nodes: [
-    { d:0, id:'claynecklace', make:'흙구슬 + 섬유끈' },
+    { d:0, id:'claynecklace' },
   ] },
   { name:'🦴 뼈', kind:'단단함', nodes: [
     { d:0, name:'뼈 흉갑',     make:'뼈 비늘 + 부드러운 가죽', tags:['방어 +1','묵직'] },
@@ -2126,11 +2125,36 @@ const treeEl = document.getElementById('tree');
 const treeBack = document.getElementById('treeBack');
 const treeBtn = document.getElementById('treeBtn');
 let treeOpen = null;                                              // 열려 있는 트리 id
-function treeRowHtml(n){
+// v2.9.0: '무엇으로 만드나'를 **조합식 · 전리품 · 채집터에서 바로 뽑는다** — 손으로 적어 두면 규칙이 바뀔 때 어긋난다
+//   ① 만드는 조합식이 있으면 그 재료  ② 없으면 떨구는 크리처(확률)  ③ 그것도 없으면 줍는 곳
+const sideLabel = sd => sd.card ? (DEFS[sd.card] ? DEFS[sd.card].name : sd.card)
+  : `🏷️ ${sd.use || sd.tag || ''}`;
+function dropText(t, field){                                      // 떨구는 크리처 — 확률 높은 셋만
+  const keys = field ? foesOf(field) : Object.keys(ENEMIES);
+  const hit = keys.filter(k => ENEMIES[k] && (ENEMIES[k].loot || []).some(l => l[0] === t))
+    .map(k => ({ n: ENEMIES[k].name, p: ENEMIES[k].loot.find(l => l[0] === t)[1] }))
+    .sort((x, y) => y.p - x.p);
+  if (!hit.length) return null;
+  return hit.slice(0, 3).map(x => `${x.n} ${x.p}%`).join(' · ') + (hit.length > 3 ? ' …' : '') + ' 떨굼';
+}
+function autoMake(t, field){
+  if (!DEFS[t]) return null;
+  const drop = dropText(t, field);
+  if (field && drop) return drop;                                 // 필드 트리에선 그 땅에서 나오는 길이 먼저
+  const rs = RECIPES.filter(x => (x.out || []).includes(t));
+  if (rs.length) return rs.slice(0, 2).map(x => `${sideLabel(x.a)} + ${sideLabel(x.b)}`).join(' 또는 ');
+  if (drop) return drop;
+  const where = fieldText(t);
+  return where ? `${where}에서 주움` : null;
+}
+function treeRowHtml(n, ctx){
   const d = n.id ? DEFS[n.id] : null;
   const on = !!d || n.on;                                         // v0.91.0: 카드가 아닌 것(필드·적)도 '있음'으로 칠 수 있게
   const name = d ? d.name : n.name;
   const atk = d ? d.atk : n.atk;
+  const auto = n.id ? autoMake(n.id, ctx && ctx.field) : null;    // v2.9.0
+  const make = auto ? (n.role ? `${n.role} — ${auto}` : auto) + (n.note ? ` · ${n.note}` : '')
+    : (n.make || n.note || '');
   const pad = n.d ? '   '.repeat(n.d - 1) + '└ ' : '';
   const chips = (atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
     .concat((n.tags || []).map(x => `<span class="tchip">${esc(x)}</span>`))
@@ -2138,7 +2162,7 @@ function treeRowHtml(n){
   return `<div class="trow${on ? '' : ' plan'}">`
     + `<span class="tpad">${pad}</span>`
     + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
-    + `<span class="tmake">${esc(n.make)}</span><span class="tchips">${chips.join('')}</span></div>`;
+    + `<span class="tmake">${esc(make)}</span><span class="tchips">${chips.join('')}</span></div>`;
 }
 function renderTree(){
   const t = TREES[treeOpen];
@@ -2150,7 +2174,7 @@ function renderTree(){
     + `<div class="book-detail">${esc(t.note)}</div>`
     + '<div class="book-body"><div class="book-inner">'
     + t.branches.map(b => `<div class="book-field"><div class="book-fname">${esc(b.name)} <span class="i-muted">— ${esc(b.kind)}</span></div>`
-        + b.nodes.map(treeRowHtml).join('') + '</div>').join('')
+        + b.nodes.map(n => treeRowHtml(n, b)).join('') + '</div>').join('')
     + '</div></div>';
 }
 function openTree(id){
