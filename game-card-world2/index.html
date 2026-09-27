@@ -1044,7 +1044,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.6.4';
+const VERSION = 'v3.6.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2666,10 +2666,11 @@ function goalNeeds(){
 const goalNeedsAt = id => goalNeeds().filter(t => yieldsOf(id).includes(t) || lootTypes(id).includes(t));
 // v3.5.2: 줍는 줄도 장소를 먼저 — "⛰️ 산에서 돌 줍기" · "늑대 60% 떨굼 작은 이빨"
 // v3.6.4: 그 재료가 실제로 나오는 필드를 **모두** 적는다 (카드의 소속 필드 하나만 적던 것)
-const gatherFields = t => FIELDS.filter(f => yieldsOf(f.id).includes(t)
-  && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')));   // 사라진 들머리는 빼고
+// v3.6.5: **지금 갈 수 있는 필드만** — 잠긴 곳과 튜토리얼 뒤 사라진 들머리는 안 적는다
+const gatherFields = t => FIELDS.filter(f => yieldsOf(f.id).includes(t) && !fieldLocked(f.id)
+  && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')));
 const gatherText = t => { const fs = gatherFields(t);
-  return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : (fieldText(t) || ''); };
+  return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : ''; };   // 갈 수 있는 곳이 없으면 비움
 function getStepBody(t){
   const card = `${rcpIcon(t, true)} ${esc(aimName(t))}`;
   const drop = dropText(t);
