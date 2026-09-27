@@ -1030,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.2';
+const VERSION = 'v3.2.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2614,7 +2614,10 @@ function aimWhere(t){                                             // 어디서 �
 // v3.0.5: 목표까지의 차례 (앞 차례가 만들어 주는 🏷️ 태그 줄은 뺌) — 수첩 줄과 목적 탭이 같은 것을 본다
 const goalSteps = g => goalPlan(g).filter((st, i, all) =>
   st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
-const goalStepBody = st => st.kind === 'make' ? aimLine(st.r)
+// v3.2.3: 조합 줄엔 **어느 탭에서 만드는지**도 같이
+const stepWhere = r => { const b = recipeBoards(r).map(boardLabel).join(' · ');
+  return b ? ` <span class="i-muted">${esc(b)}에서</span>` : ''; };
+const goalStepBody = st => st.kind === 'make' ? aimLine(st.r) + stepWhere(st.r)
   : st.kind === 'get' ? `${rcpIcon(st.type, true)} ${esc(aimName(st.type))} <span class="i-muted">${esc(aimWhere(st.type))}</span>`
   : `🏷️ ${esc(st.use)} <span class="i-muted">이 태그가 붙은 재료</span>`;
 function goalPlanHtml(){
