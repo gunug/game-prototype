@@ -731,6 +731,12 @@ const DEFS = {
   // 🛠️ 도구 · 불
   blade: { name:'뗀석기',     kind:'material', tier:2, made:'mountain', group:'tool' },   // v1.0.0: 더는 무기가 아니라 무기재료 (날)
   stoneknife: { name:'뗀석기 칼', kind:'material', tier:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
+  drymeat: { name:'말린 고기', kind:'material', tier:2, made:'mountain', group:'food' },   // v3.10.1
+  fletching: { name:'화살깃',  kind:'material', tier:2, made:'grassland', group:'gear' },
+  jerky: { name:'육포',       kind:'material', tier:2, made:'grassland', group:'food' },
+  tannedfur: { name:'무두질 털가죽', kind:'material', tier:2, made:'forest', group:'loot' },
+  renderfat: { name:'기름 덩이', kind:'material', tier:2, made:'forest', group:'food' },
+  fishoil: { name:'생선 기름',  kind:'material', tier:2, made:'river', group:'body' },
   rope: { name:'밧줄',       kind:'material', tier:2, group:'build', made:'forest' },    // v3.10.0
   glue: { name:'아교',       kind:'material', tier:2, group:'build', made:'forest' },
   barbtip: { name:'가시 촉',  kind:'material', tier:2, group:'gear',  made:'forest' },
@@ -823,6 +829,8 @@ const USE = {
   meat:['요리재료'], fatmeat:['요리재료'], toughmeat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '도구재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료', '장신구'],
+  drymeat:['요리재료'], jerky:['요리재료'], renderfat:['요리재료', '약품재료'],
+  fletching:['무기재료'], tannedfur:['갑옷재료'], fishoil:['약품재료', '생산재료'],
   rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], barbtip:['무기재료'],
   nacre:['장신구', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],
   smokedfish:['요리재료'], leatherstrap:['갑옷재료', '도구재료'],
@@ -878,6 +886,12 @@ const DESC = {
   claw:      '땅을 헤집던 것. 끝이 안으로 굽어 잘 걸린다.',
   scale:     '겹쳐 대면 물도 칼도 미끄러진다.',
   vine:      '숲이 스스로 꼬아 놓은 줄. 끊기 전에는 잘 풀리지도 않는다.',
+  drymeat:   '연기에 오래 걸어 두었다. 이제 급할 것이 없다.',
+  fletching: '뼈대에 깃을 붙였다. 날아가는 것에는 꼬리가 있어야 한다.',
+  jerky:     '풀에 싸 말렸다. 주머니에 넣고 다니기 좋다.',
+  tannedfur: '수액을 먹여 무두질했다. 털은 그대로, 가죽은 부드럽게.',
+  renderfat: '약초로 냄새를 잡고 기름만 걷어냈다.',
+  fishoil:   '맑고 미끄럽다. 등잔에도, 상처에도 쓴다.',
   rope:      '덩굴을 꼬아 굵게. 사람 하나쯤은 매달려도 된다.',
   glue:      '수액과 뼈를 함께 졸였다. 식으면 놓아주지 않는다.',
   barbtip:   '끝을 갈아 세웠다. 들어가면 잘 빠지지 않는 각도.',
@@ -956,24 +970,30 @@ const RECIPES = [
   { id:'firewood',   a:{ card:'stone' },  b:{ card:'tree' },      out:['firewood'] },
   { id:'plank',      a:{ card:'tree' },   b:{ card:'flint' },     out:['plank'] },        // 나무를 쪼갬
   { id:'curedleather', a:{ card:'hide' }, b:{ card:'tallow' },    out:['curedleather'] }, // 기름을 먹인 가죽
+  { id:'drymeat',    a:{ card:'meat' },   b:{ card:'coal' },      out:['drymeat'] },      // v3.10.1: 연기에 말림
   // 🌾 초원
   { id:'cord',       a:{ card:'grass' },  b:{ card:'smalltooth' }, out:['cord'] },        // 이빨로 훑어 섬유를
   { id:'flour',      a:{ card:'seed' },   b:{ card:'stone' },     out:['flour'] },
   { id:'honey',      a:{ card:'honeycomb' }, b:{ card:'water' },  out:['honey'] },        // 물에 거름
   { id:'boneneedle', a:{ card:'bone' },   b:{ card:'sand' },      out:['boneneedle'] },   // 모래에 갈아 바늘
   { id:'leatherstrap', a:{ card:'toughhide' }, b:{ card:'smalltooth' }, out:['leatherstrap'] },   // 잘라 만든 끈
+  { id:'fletching',  a:{ card:'feather' }, b:{ card:'bone' },     out:['fletching'] },    // v3.10.1: 뼈대에 깃을 붙임
+  { id:'jerky',      a:{ card:'toughmeat' }, b:{ card:'grass' },  out:['jerky'] },        // v3.10.1: 풀에 싸 말림
   // 🌲 숲
   { id:'rope',       a:{ card:'vine' },   b:{ card:'fang' },      out:['rope'] },
   { id:'juice',      a:{ card:'berry' },  b:{ card:'water' },     out:['juice'] },
   { id:'salve',      a:{ card:'herb' },   b:{ card:'sap' },       out:['salve'] },
   { id:'glue',       a:{ card:'sap' },    b:{ card:'bone' },      out:['glue'] },         // 끓여 붙이는 것
-  { id:'barbtip',    a:{ card:'fang' },   b:{ card:'sand' },      out:['barbtip'] },      // 갈아 세운 촉
+  { id:'barbtip',    a:{ card:'fang' },   b:{ card:'claw' },      out:['barbtip'] },      // v3.10.1: 발톱 모양으로 되꺾인 촉
+  { id:'tannedfur',  a:{ card:'furpelt' }, b:{ card:'sap' },      out:['tannedfur'] },    // v3.10.1: 수액으로 무두질
+  { id:'renderfat',  a:{ card:'fatmeat' }, b:{ card:'herb' },     out:['renderfat'] },    // v3.10.1: 약초로 누린내를 잡아 기름만
   // 🏞️ 강가
   { id:'clay',       a:{ card:'water' },  b:{ card:'soil' },      out:['clay'] },
   { id:'whetstone',  a:{ card:'sand' },   b:{ card:'stone' },     out:['whetstone'] },
-  { id:'nacre',      a:{ card:'shellpiece' }, b:{ card:'sand' },  out:['nacre'] },
+  { id:'nacre',      a:{ card:'shellpiece' }, b:{ card:'pincer' }, out:['nacre'] },       // v3.10.1: 집게로 껍데기를 벗겨 속을
   { id:'scaleplate', a:{ card:'scale' },  b:{ card:'sinew' },     out:['scaleplate'] },   // 비늘을 힘줄로 엮음
   { id:'smokedfish', a:{ card:'fillet' }, b:{ card:'coal' },      out:['smokedfish'] },
+  { id:'fishoil',    a:{ card:'fish' },   b:{ card:'smalltooth' }, out:['fishoil'] },     // v3.10.1: 물고기를 갈라 기름을
   // 3티어 (v0.15.0): 전리품으로 만드는 장비·도구·음식
   // v1.0.0: 첫 무기. v1.4.0: 뗀석기 + **나무 손잡이** (날 + 자루) — '뗀석기 + 나무'는 조합 탭에서 나무판자가 되어
   //   같은 두 장이 탭마다 다른 결과를 내던 것을 없앰
@@ -1104,7 +1124,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.10.0';
+const VERSION = 'v3.10.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
