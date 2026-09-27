@@ -131,7 +131,7 @@
   .botarea{position:absolute;left:0;right:0;top:var(--toph, 50%);bottom:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);box-sizing:border-box;}
   .chars{position:relative;display:flex;align-items:center;gap:calc(var(--cw) * .2);}   /* v0.37.1: 대사 말풍선의 기준 */
-  /* v3.5.3: 🎯 목적의 아래 칸 — 카드가 많으면 줄을 내리고, 줄이 넘치면 세로로 굴림 */
+  /* v3.5.3: 🎯 목표의 아래 칸 — 카드가 많으면 줄을 내리고, 줄이 넘치면 세로로 굴림 */
   .aim-tab .botarea{justify-content:flex-start;overflow:hidden;}
   .aim-tab .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:calc(var(--cw) * .12);
     width:100%;overflow-y:auto;overscroll-behavior:contain;padding:2px;box-sizing:border-box;}
@@ -265,7 +265,7 @@
   .rcp-ic.unk .icon{filter:brightness(0) opacity(.45);}
   .rcp-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
   /* v1.1.0: 없는 재료 — 누르면 그걸 얻는 곳으로 */
-  /* v5.2.0: 목적 줄에서 누를 수 있는 곳 — 장소는 알약, 재료는 밑줄 */
+  /* v5.2.0: 목표 줄에서 누를 수 있는 곳 — 장소는 알약, 재료는 밑줄 */
   .go-tab{cursor:pointer;padding:1px 7px;border-radius:var(--r-pill);background:rgba(255,212,0,.14);
     color:var(--brand-yellow);font-weight:800;}
   .go-tab:hover{background:rgba(255,212,0,.28);}
@@ -548,7 +548,7 @@
   .insp .desc{color:var(--muted);font-style:italic;margin:2px 0 8px;}
   .insp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
   .insp .chip{font-size:11px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--ink);}
-  /* v5.4.0: 인스펙터 안의 목적 차례 */
+  /* v5.4.0: 인스펙터 안의 목표 차례 */
   .insp .insp-plan{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
   .insp .insp-plan .aim-step{font-size:12px;line-height:1.5;}
   .insp .chip.trait{border-color:rgba(255,212,0,.6);color:var(--brand-yellow);background:rgba(255,212,0,.1);font-weight:800;}   /* v4.3.0 */
@@ -633,7 +633,7 @@
   .rcp-line[data-totree], .combo-row[data-totree]{cursor:pointer;}
   .trow[data-tnode]{cursor:pointer;}
   .book-row.treepicks{flex-wrap:wrap;gap:4px;}
-  /* v3.0.0: 🎯 목적 */
+  /* v3.0.0: 🎯 목표 */
   .aim-plan{margin:6px 10px 0;padding:8px 10px;border:1px solid var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.03);}
   .aim-t{font-size:12px;color:var(--muted);margin-bottom:4px;}
   .aim-step{display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;color:var(--muted);}
@@ -1265,7 +1265,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.1.0';
+const VERSION = 'v6.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1290,7 +1290,7 @@ const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
 inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
-  if (goalJumpClick(e)) return;                                   // v5.4.0: 목적 차례의 장소 · 재료
+  if (goalJumpClick(e)) return;                                   // v5.4.0: 목표 차례의 장소 · 재료
   const j = e.target.closest('[data-jump]');
   if (j) return jumpTo(j.dataset.jump);
   const tr = e.target.closest('[data-totree]');                   // v2.9.2: 조합 줄 → 🌳 트리
@@ -1322,31 +1322,31 @@ const QUESTS = {
                 say:'길목은 넘었다. 이제 산이다' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
-  // v3.0.1: **퀘스트는 무엇을 할지만 말하고, 어떻게는 🎯 목적이 안내한다**
-  //   ① 목적에 등록하기 → ② 목적이 적어 준 차례대로 만들기 → ③ 쥐기
+  // v3.0.1: **퀘스트는 무엇을 할지만 말하고, 어떻게는 🎯 목표이 안내한다**
+  //   ① 목표에 등록하기 → ② 목표이 적어 준 차례대로 만들기 → ③ 쥐기
   aimweapon:  { name:'무엇을 쥘까',   goal:1, key:'aim-use:근접무기',
-                // v3.0.3: 목적에 올릴 게 없으면 먼저 재료를 발견해야 한다는 걸 퀘스트가 말한다
+                // v3.0.3: 목표에 올릴 게 없으면 먼저 재료를 발견해야 한다는 걸 퀘스트가 말한다
                 // v3.2.5: 한마디는 없음 — 이 퀘스트는 보스에게 지고 돌아온 직후에 붙어서,
                 //   그때 하는 '맨손으론 저 이빨을…' 한마디에 묻힌다
-                text:() => aimUseCandidates('근접무기').length ? '🎯 목적에 만들 무기를 등록하자'
+                text:() => aimUseCandidates('근접무기').length ? '🎯 목표에 만들 무기를 등록하자'
                   : '🏕️ 들머리에서 무기가 될 재료를 더 모으자' },
-  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🎯 목적에 적힌 차례대로 만들자',
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🎯 목표에 적힌 차례대로 만들자',
                 goal:1, key:'equip:weapon' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
                 say:'늑대부터 넘어야 앞으로 가겠군' },
   // v0.72.0: 이 대사는 퀘스트를 받을 때가 아니라 **곰에게 지고 돌아온 뒤**에 한다 (expEnd)
   aimbetter:  { name:'더 센 것을 고르자', goal:1, key:'aim-atk2',
-                text:() => aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? '🎯 목적에 더 센 무기를 등록하자'
+                text:() => aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? '🎯 목표에 더 센 무기를 등록하자'
                   : '⛰️ 더 센 무기가 될 재료를 발견하자' },
-  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🎯 목적에 적힌 차례대로 만들자' : '더 센 무기를 쥐자',
+  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🎯 목표에 적힌 차례대로 만들자' : '더 센 무기를 쥐자',
                 goal:1, key:'equip:atk2' },
   bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
   // v4.3.0: 🪨 돌가죽 굴 — 한 번 막혀 본 뒤에 길이 열린다
-  pierce:     { name:'돌을 가르는 것', text:'🎯 목적에 방어를 무시하는 무기를 등록하자', goal:1, key:'aim-pierce',
+  pierce:     { name:'돌을 가르는 것', text:'🎯 목표에 방어를 무시하는 무기를 등록하자', goal:1, key:'aim-pierce',
                 say:'그 검은 돌을 쪼개면 날이 서겠지' },
   // v6.0.0: 🍄 늪지 무덤 — 회복을 끊는 길
-  bleed:      { name:'피를 흐르게', text:'🎯 목적에 출혈이 붙은 무기를 등록하자', goal:1, key:'aim-bleed',
+  bleed:      { name:'피를 흐르게', text:'🎯 목표에 출혈이 붙은 무기를 등록하자', goal:1, key:'aim-bleed',
                 say:'아물기 전에 다시 베면 된다' },
   tombkeeper: { name:'무덤의 주인',   text:'👑 무덤 주인을 넘자',   goal:1, key:'kill:tombkeeper',
                 say:'이 날이면 아물 틈이 없다' },
@@ -1384,7 +1384,7 @@ function questSelfCheck(){
     if (DEFS[t].pierce) questHit('aim-pierce');                   // v4.3.0
     if (DEFS[t].bleed) questHit('aim-bleed');                     // v6.0.0
   }
-  if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목적에 이미 걸어 두었으면 바로 인정
+  if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목표에 이미 걸어 두었으면 바로 인정
     for (const u of useOf(S.goal)) questHit(`aim-use:${u}`);
     if ((DEFS[S.goal].atk || 0) >= 2) questHit('aim-atk2');
     if ((DEFS[S.goal].atk || 0) >= 3) questHit('aim-atk3');
@@ -2013,7 +2013,7 @@ function unlockBoards(){
 }
 function addCard(type, x, y, anim, from, made){
   if (type === S.goal) setTimeout(checkGoalDone, 0);              // v3.0.6: 주워서 채워지는 목표도 끝남
-  if (DEFS[type]){                                                // v3.2.1: 목적에 안 걸고 먼저 만들어 버려도 사슬이 멈추지 않게
+  if (DEFS[type]){                                                // v3.2.1: 목표에 안 걸고 먼저 만들어 버려도 사슬이 멈추지 않게
     for (const u of useOf(type)) questHit(`aim-use:${u}`);
     if ((DEFS[type].atk || 0) >= 2) questHit('aim-atk2');
     if ((DEFS[type].atk || 0) >= 3) questHit('aim-atk3');
@@ -2979,7 +2979,7 @@ function renderTabs(){                                            // v0.21.0: �
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
   const groups = [
     { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전')] },
-    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목적')] },
+    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표')] },
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup').map(boardBtn) },
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
@@ -3015,7 +3015,7 @@ function renderTabs(){                                            // v0.21.0: �
   for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
-const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', aim:'🎯 목적', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', aim:'🎯 목표', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -3025,7 +3025,7 @@ function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
 const isRowScreen = tab => tab === 'battle' || tab === 'gearup' || tab === 'aim' || tab === 'dungeon';   // v3.0.0 · v4.0.0: 던전도 줄 화면
-// ── 🎯 목적 (v3.0.0) ─────────────────────────────────
+// ── 🎯 목표 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
 const aimRecipes = t => CRAFT_RECIPES.filter(x => !x.cook && (x.out || []).includes(t) && recipeBoards(x).length);
@@ -3035,7 +3035,7 @@ function sideReachKnown(sd, d){                                   // 그 재료�
   return aimRecipes(sd.card).some(x => sideReachKnown(x.a, d - 1) && sideReachKnown(x.b, d - 1));
 }
 const aimReady = t => aimRecipes(t).some(x => sideReachKnown(x.a, 3) && sideReachKnown(x.b, 3));
-// v6.1.0: 목적은 **기능이 있는 것**만 건다 — 무기 · 방어구 · 방패 · 장신구 · 도구 · 거점 · 소모품.
+// v6.1.0: 목표은 **기능이 있는 것**만 건다 — 무기 · 방어구 · 방패 · 장신구 · 도구 · 거점 · 소모품.
 //   기능 태그가 없는 것은 지금은 끝물이어도 언젠가 다른 것의 재료가 된다 (걸 까닭이 없다).
 //   중간 재료는 후보에서만 빠질 뿐, 목표까지의 **차례 안에는 그대로** 나온다
 const FUNCTION_USES = ['무기', '근접무기', '원거리무기', '방어구', '방패', '장신구', '도구', '거점', '소모품'];
@@ -3110,7 +3110,7 @@ function aimWhere(t){                                             // 어디서 �
   const w = gatherText(t);                                        // v3.6.4: 나오는 필드 모두
   return w ? `${w}에서 주움` : '구할 곳을 아직 모름';
 }
-// v3.0.5: 목표까지의 차례 (앞 차례가 만들어 주는 🏷️ 태그 줄은 뺌) — 수첩 줄과 목적 탭이 같은 것을 본다
+// v3.0.5: 목표까지의 차례 (앞 차례가 만들어 주는 🏷️ 태그 줄은 뺌) — 수첩 줄과 목표 탭이 같은 것을 본다
 const goalSteps = g => goalPlan(g).filter((st, i, all) =>
   st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
 const stepN = st => (st.n || 1) > 1 ? ` <span class="q-prog">×${st.n}</span>` : '';   // v3.6.2
@@ -3135,14 +3135,14 @@ function goalPlanHtml(){
       }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
     + '</div>';
 }
-// v3.0.0: 목적 탭에서는 **이름을 가리지 않는다** — 여기 실리는 것은 '재료를 구할 줄 아는 것'뿐이고,
+// v3.0.0: 목표 탭에서는 **이름을 가리지 않는다** — 여기 실리는 것은 '재료를 구할 줄 아는 것'뿐이고,
 //   가려 놓으면 안내가 안 된다 (다른 화면의 ??? 규칙은 그대로)
 const aimName = t => DEFS[t] ? DEFS[t].name : t;
 const goCard = t => `<span class="go-card" data-gocard="${t}">${rcpIcon(t, true)} ${esc(aimName(t))}</span>`;   // v5.2.0
 const aimSide = sd => sd.card ? goCard(sd.card) : `🏷️ ${esc(sd.use || sd.tag || '')}`;
 const aimLine = x => `${aimSide(x.a)} <span class="combo-op">+</span> ${aimSide(x.b)}`
   + ` <span class="combo-op">=</span> ${(x.out || []).map(goCard).join(' · ')}`;
-// v3.0.6: 목표를 손에 넣으면 그 자리에서 끝 — 목적 칸도 비고 수첩 🎯 줄도 사라짐
+// v3.0.6: 목표를 손에 넣으면 그 자리에서 끝 — 목표 칸도 비고 수첩 🎯 줄도 사라짐
 function checkGoalDone(){
   const g = S.goal;
   if (!g || !DEFS[g] || have(g) <= 0) return false;
@@ -3153,7 +3153,7 @@ function checkGoalDone(){
   renderQuest(); renderHint(); renderInsp();
   return true;
 }
-// v3.2.4: **튜토리얼 동안**에는 목적을 무기가 아닌 것으로 바꾸면 '무엇을 쥘까'로 되돌아간다
+// v3.2.4: **튜토리얼 동안**에는 목표을 무기가 아닌 것으로 바꾸면 '무엇을 쥘까'로 되돌아간다
 //   (튜토리얼이 끝나면 무엇을 걸든 자유 — 되돌리지 않음)
 function questRegress(){
   if ((S.cleared || []).includes('prelude')) return;
@@ -3171,14 +3171,14 @@ function questRegress(){
 }
 function setGoal(t){
   S.goal = t;
-  hintDone('aim');                                                // v3.2.0: 목적 등록 조작을 해 봤다
-  questHit('aim');                                                // v3.0.0: '목적에 등록하기' 퀘스트
+  hintDone('aim');                                                // v3.2.0: 목표 등록 조작을 해 봤다
+  questHit('aim');                                                // v3.0.0: '목표에 등록하기' 퀘스트
   for (const u of useOf(t)) questHit(`aim-use:${u}`);
   if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
   if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
   if (DEFS[t].pierce) questHit('aim-pierce');                     // v4.3.0: 방어 무시 무기를 목표로 걸었다
   if (DEFS[t].bleed) questHit('aim-bleed');                       // v6.0.0
-  toast(`🎯 목적 — ${aimName(t)}`);
+  toast(`🎯 목표 — ${aimName(t)}`);
   questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
   renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
 }
@@ -3197,9 +3197,9 @@ function screenRows(){
   if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
     const g = S.goal && DEFS[S.goal] ? S.goal : null;
     const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
-      + '<div class="name">목적</div><div class="sub-lab">하나만</div></div>';
+      + '<div class="name">목표</div><div class="sub-lab">하나만</div></div>';
     return [{ card, slots: [{ id:'aim:goal', open:true, card: !!g, type: g, icon: g ? iconHtml(g) : '',
-      cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'목표' }] }];
+      cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'' }] }];   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
   if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0: 던전도 같은 줄 화면
     return (S.tab === 'dungeon' ? DUNGEONS() : OUT_FIELDS())
@@ -3360,7 +3360,7 @@ function renderScreen(){
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
     + `<div class="gather-hint">${S.tab === 'battle' || S.tab === 'dungeon'
       ? (exp ? `🏃 ${esc(FIELD_BY_ID[exp.id].name)} 원정 중 — 돌아올 때까지 기다리세요` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
-      : S.tab === 'aim' ? (S.goal ? '🎯 목적 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
+      : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   paintIcons(gatherEl);                                           // v3.5.0
@@ -3573,14 +3573,14 @@ function renderFoeInsp(){
       : '<div class="desc">아직 마주쳐 보지 못했다.</div>');
   return true;
 }
-// v5.4.0: 🎯 목적 카드를 탭하면 '무엇을 만들기까지 무엇을 해야 하나'를 인스펙터에서 본다
+// v5.4.0: 🎯 목표 카드를 탭하면 '무엇을 만들기까지 무엇을 해야 하나'를 인스펙터에서 본다
 //   (전에는 필드 위에 겹쳐 그려 카드 자리를 먹었다)
 function renderGoalInsp(){
   const g = S.goal, plan = goalSteps(g);
   const first = plan.findIndex(st => !planStepDone(st));
   inspEl.innerHTML = `<div class="head"><div class="pic">${iconHtml(g)}</div>`
     + `<div><div class="nm">${esc(aimName(g))} 만들기</div>`
-    + `<div class="kd">🎯 목적 · ${plan.filter(planStepDone).length}/${plan.length} 됨</div></div></div>`
+    + `<div class="kd">🎯 목표 · ${plan.filter(planStepDone).length}/${plan.length} 됨</div></div></div>`
     + `<div class="aim-plan insp-plan">`
     + (plan.length ? plan.map((st, i) => {
         const done = planStepDone(st);
@@ -3659,7 +3659,7 @@ function setTab(tab){
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
   table.hidden = isRowScreen(tab) || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
-  fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목적 화면 전용 배치
+  fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목표 화면 전용 배치
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
@@ -3710,7 +3710,7 @@ gatherEl.addEventListener('click', e => {
 // 기사는 공 1 · 방 0 · 체 10. 체력이 0이 되면 빈사로 돌아오고, 쉬는 동안 회복된다
 // v0.14.0: 고블린 대신 토끼, 보스는 곰 (레거시 world 수치 그대로 — 토끼 체2 공1, 곰 체10 공3)
 // loot: [카드, 확률(%), 장수] — v0.15.2: 한 마리에서 **반드시 하나**가 나옴. 확률을 합치면 100
-//   송곳니 10% = 보스를 열 번쯤 잡으면 한 번 (보스를 반복해서 잡게 하는 목적)
+//   송곳니 10% = 보스를 열 번쯤 잡으면 한 번 (보스를 반복해서 잡게 하는 목표)
 const ENEMIES = {
   // v3.8.0: 필드마다 전리품 종류를 고정. v3.8.3 — ⛰️ 산: 작은 이빨 · 부드러운 가죽 · 붉은 고기 · 짐승 기름 (+ 보스 곰의 발톱) / 뼈는 초원으로
   animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:3,   // v0.78.0: 2 → 3 (뗀석기면 두 대)
@@ -3788,7 +3788,7 @@ const HEAL_FULL_CAMP_MS = 15000;                                 // 거점이 �
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
-// v5.2.0: 목적 줄의 장소 · 재료를 눌렀을 때
+// v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
 function goBoard(id){
   const b = BOARD_BY_ID[id];
   if (!b){ setTab(id); return; }
@@ -4433,8 +4433,8 @@ function opNote(){
   if (!H.sortie) return '기사 카드를 필드 줄의 출전 칸으로 끌어다 놓는다';
   if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
     const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
-    return pick2 ? `🎯 목적 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
-      : '🎯 목적 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
+    return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
+      : '🎯 목표 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
   }
   if (!H.craft && S.cards.length >= 2) return '카드를 다른 카드 위로 끌어다 놓으면 합쳐진다';
   if (!H.equip && haveWeapon()) return '🔧 정비 탭에서 무기를 기사의 근접무기 칸으로 끌어다 놓는다';
@@ -4453,7 +4453,7 @@ function renderQuest(){
   setTimeout(renderHint, 0);                                      // v2.5.2: 퀘스트가 바뀌면 팁도 바로 다음으로
   const el = document.getElementById('quest');
   const list = S.quests || [];
-  const goalRow = goalRowHtml();                                  // v3.0.5: 목적에 건 목표의 **지금 한 단계**
+  const goalRow = goalRowHtml();                                  // v3.0.5: 목표에 건 목표의 **지금 한 단계**
   el.hidden = false;
   el.classList.toggle('show', (list.length > 0 || !!goalRow) && !knightLine);   // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
   if (!list.length && !goalRow){
