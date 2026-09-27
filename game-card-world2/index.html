@@ -1028,7 +1028,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.1.1';
+const VERSION = 'v3.1.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3198,7 +3198,14 @@ const PRELUDE_LOOT = [
   [['flint', 'stone']],
 ];
 const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
-const preludeStage = () => Math.min(S.prelude || 0, PRELUDE_PLANS.length - 1);
+// v3.1.2: 판은 **다녀온 횟수가 아니라 기사가 어디까지 왔는지**로 정한다 —
+//   몇 번을 다시 가도 지금 필요한 것부터 순서대로 준다 (재료가 넘치는 건 괜찮다)
+//   ① 아직 날이 없으면 돌·부싯돌 판  ② 날이 있으면 나무 판(적도 하나)  ③ 무기를 쥐었으면 보스 판
+function preludeStage(){
+  if (haveWeapon() || equipped('weapon')) return 2;
+  if (have('blade') > 0 || (S.madeRecipes || []).includes('blade')) return 1;
+  return 0;
+}
 const EXP_PLAN = {
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
@@ -3344,8 +3351,6 @@ function expEnd(kind){
   exp.beatMark = exp.fail && exp.t > best + 0.02 && best > 0.02;
   if (exp.t > best) S.marks[exp.id] = exp.t;
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
-  if (exp.id === 'prelude' && !(S.cleared || []).includes('prelude') && preludeStage() < PRELUDE_PLANS.length - 1)
-    S.prelude = (S.prelude || 0) + 1;                             // v3.1.0: 다음 판 대본으로
   expPaint();
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
