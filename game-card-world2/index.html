@@ -1197,7 +1197,12 @@ function recipesFor(x, y){
 const usableRecipes = (x, y) => recipesFor(x, y);
 // v0.21.5: 인스펙터에 나오는 카드에는 보유 수량을 함께
 // v0.23.1: 인스펙터에 카드가 나오면 늘 보유 수량을 함께. 가려진 카드(???)는 보유도 ??
-const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
+// v6.6.0: **재료를 모두 본 적이 있으면 그 조합 결과도 아는 것으로 친다** — 아직 만들어 보지 않았어도
+//   (인스펙터 · 조합식 표기 · 보유 수량이 모두 이 하나를 본다. 콜렉터북의 발견 도장은 그대로 S.seen)
+const foreseenOf = t => !S.seen.includes(t) && CRAFT_RECIPES.some(x => !x.cook && (x.out || []).includes(t)
+  && sideKnown(x.a) && sideKnown(x.b));
+const cardKnown = t => S.seen.includes(t) || foreseenOf(t);
+const haveText = (t, known = cardKnown(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
 // ── 조합식 표기 (v0.63.0) — 인스펙터·콜렉터북·끌기 표시가 모두 이 규칙 하나를 쓴다 ──
 //   ① 한 번도 얻어 본 적 없는 재료는 **검은 실루엣 + ???**
 //   ② 한 번이라도 얻었으면 **그림 + 이름**
@@ -1206,7 +1211,7 @@ const haveText = (t, known = S.seen.includes(t)) => `<span class="i-muted">보�
 //   ⑤ 화살표(→)를 쓰지 않고 `=` 로 통일한다
 const rcpIcon = (t, known) => `<span class="rcp-ic${known ? '' : ' unk'}">${iconHtml(t, true)}</span>`;
 const rcpCard = (t, withHave) => {
-  const known = S.seen.includes(t);
+  const known = cardKnown(t);                                     // v6.6.0
   const body = rcpIcon(t, known) + ' ' + (known ? esc(DEFS[t].name) : '???')
     + (withHave ? ` <span class="i-muted">보유 ${known ? have(t) : '??'}</span>` : '');
   // v1.1.0: 인스펙터의 조합식에서 **보유가 0인 재료**를 누르면 그걸 얻는 곳으로 점프
@@ -1267,7 +1272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.5.0';
+const VERSION = 'v6.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2317,12 +2322,14 @@ function renderInsp(){
     return;
   }
   const d = DEFS[t];
-  if (!S.seen.includes(t)){                                      // 콜렉터북의 미발견 칸
+    const foreseen = foreseenOf(t);
+  if (!cardKnown(t)){                                            // 콜렉터북의 미발견 칸
     inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${fieldText(t)} · 보유 ??</div></div></div>`
       + '<div class="desc">아직 발견하지 못한 카드.</div>';
     return;
   }
-  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div><div class="kd">${fieldText(t)} · 보유 ${have(t)}</div></div></div>`;
+  let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div>`
+    + `<div class="kd">${fieldText(t)} · 보유 ${have(t)}${foreseen ? ' <span class="i-muted">· 아직 만들어 보지 않음</span>' : ''}</div></div></div>`;
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
   const chips = shownUses(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그. v0.74.0: 쓸 화면이 있는 것만
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
@@ -3270,7 +3277,7 @@ function screenTokens(){
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
     // v3.0.7: 카드 위엔 할 일을 적지 않는다 — 상태는 테두리 빛으로만, 자세한 건 탭했을 때 인스펙터에서
-    html: `<div class="cw framed f-${frameOf(DEFS[t])}${S.seen.includes(t) ? '' : ' unseen'} aim-${cardState(t)}">`
+    html: `<div class="cw framed f-${frameOf(DEFS[t])}${S.seen.includes(t) ? '' : ' unseen'}${inspType === t ? ' sel' : ''} aim-${cardState(t)}">`   // v6.6.0: 고른 카드
       + statsHtml(t)                                              // v3.5.4: 공격 · 방어 · 회복 수치도 카드에
       + `<div class="emoji">${iconHtml(t)}</div>`
       + `<div class="name">${esc(aimName(t))}</div></div>`,
@@ -3486,7 +3493,7 @@ addEventListener('pointerup', e => {
   if (!d.moved){                                                  // 탭 — 정보만
     if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
     else if (d.token === 'knight'){ knightPick = true; fieldPick = null; slotPick = null; renderScreen(); renderInsp(); }
-    else { inspType = d.token; selected = null; knightPick = false; renderInsp(); }
+    else { inspType = d.token; selected = null; knightPick = false; slotPick = null; renderScreen(); renderInsp(); }   // v6.6.0: 목표 탭 카드도 골라짐
     return;
   }
   const hit = slotUnder(e.clientX, e.clientY, d.token);
