@@ -1225,7 +1225,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.9.0';
+const VERSION = 'v5.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1644,8 +1644,12 @@ const cardOf = type => S.cards.find(c => c.type === type);
 const have = type => cardOf(type)?.n || 0;                       // 보유 수량
 
 // v0.16.0: 필드는 1:1, UI는 남는 공간, 팝업은 1:1 (확정 50)
-const UI_MIN = 240;                                              // UI가 최소로 가져가는 폭/높이
-let FS = 320;
+// v5.0.0: **1:1을 버린다.** 인스펙터는 고정 폭(가로) · 고정 높이(세로)만 쓰고 필드가 남는 공간을 다 먹는다
+//   1:1이던 동안 1920×1080에서 필드 1080², 인스펙터 칸 840 — 500px가 빈 채였다
+const INSP_W = 340, INSP_H = 300;                                 // 인스펙터가 쓰는 폭 · 높이
+const UI_MIN = 220;                                               // 화면이 작을 때 인스펙터가 양보하는 한계
+let FS = 320;                                                     // 카드 크기 기준 = 필드의 짧은 변
+let FW = 320, FH = 320;                                           // v5.0.0: 필드 폭 · 높이 (더 이상 같지 않다)
 // v4.4.0: 모바일 모드 — 갤럭시 S22 울트라 기준 화면(412×915 CSS 픽셀)으로 가둬 본다
 const MOBILE_W = 412, MOBILE_H = 915;
 const NARROW_FS = 560;                                            // v4.7.0: 필드가 이보다 좁으면 메인 탭을 접는다
@@ -1684,7 +1688,12 @@ function layout(){
       + (k === 1 ? '' : `;transform:scale(${k});transform-origin:0 0`);
   };
   const land = orientMode === 'land' ? true : orientMode === 'port' ? false : W >= H;   // v4.9.0
-  FS = Math.max(220, Math.min(land ? H : W, (land ? W : H) - UI_MIN));
+  // v5.0.0: 인스펙터는 고정 폭(높이) — 좁은 화면에서는 UI_MIN 까지만 줄어든다
+  const iw = Math.max(UI_MIN, Math.min(INSP_W, Math.round(W * 0.32)));
+  const ih = Math.max(UI_MIN, Math.min(INSP_H, Math.round(H * 0.34)));
+  if (land){ FW = Math.max(260, W - iw); FH = H; }
+  else { FW = W; FH = Math.max(260, H - ih); }
+  FS = Math.min(FW, FH);                                          // 카드 크기는 짧은 변 기준
   const fieldEl = document.getElementById('field'), uiEl = document.getElementById('ui');
   const frame = document.getElementById('frame');
   if (frame){
@@ -1692,20 +1701,21 @@ function layout(){
     if (mobileMode) frame.style.cssText = `left:${ox}px;top:${oy}px;width:${Math.round(W * k)}px;height:${Math.round(H * k)}px`;
   }
   if (land){
-    put(fieldEl, 0, (H - FS) / 2, FS, FS);
-    put(uiEl, FS, 0, W - FS, H);
+    put(fieldEl, 0, 0, FW, FH);
+    put(uiEl, FW, 0, W - FW, H);
     uiEl.className = 'ui side';
   } else {
-    put(fieldEl, (W - FS) / 2, 0, FS, FS);
-    put(uiEl, 0, FS, W, H - FS);
+    put(fieldEl, 0, 0, FW, FH);
+    put(uiEl, 0, FH, W, H - FH);
     uiEl.className = 'ui bottom';
   }
   const fr = fieldEl.getBoundingClientRect();                    // 알림은 필드 위쪽 가운데
   Object.assign(document.getElementById('toasts').style,
-    { left: fr.left + 'px', width: FS + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
+    { left: fr.left + 'px', width: (FW * k) + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
   const root = document.documentElement.style;
   root.setProperty('--fs', FS + 'px');
-  const nw = mobileMode || FS < NARROW_FS;                        // v4.7.0: 모바일 모드거나 필드가 좁으면 ☰
+  root.setProperty('--fw', FW + 'px'); root.setProperty('--fh', FH + 'px');   // v5.0.0
+  const nw = mobileMode || FW < NARROW_FS;                        // v4.7.0: 모바일 모드거나 필드가 좁으면 ☰ (폭 기준)
   if (nw !== narrowUI){ narrowUI = nw; navOpen = false; renderTabs(); }
   syncHeadH();                                                    // v3.6.0
 }
@@ -1721,7 +1731,7 @@ if (typeof ResizeObserver === 'function'){                        // v3.6.0: 머
 }
 function measure(){
   layout();
-  CW = Math.round(Math.max(44, Math.min(87, FS / 6.4)));         // v0.16.0: 카드 크기는 필드(정사각형) 기준
+  CW = Math.round(Math.max(44, Math.min(87, FS / 6.4)));         // v0.16.0 · v5.0.0: 필드의 **짧은 변** 기준
   CH = Math.round(CW * 1.36);
   const root = document.documentElement.style;                  // v0.3.0: 콜렉터북도 카드 크기를 씀
   root.setProperty('--cw', CW + 'px');
