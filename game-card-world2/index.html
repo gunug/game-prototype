@@ -413,6 +413,7 @@
   .f-gold{--frame:url(images/frame/frame_gold.png);}
   .f-stone{--frame:url(images/frame/frame_stone.png);}
   .f-wood{--frame:url(images/frame/frame_wood.png);}
+  .f-boss{--frame:url(images/frame/frame_boss.png);}             /* v3.9.0: 보스 전용 전리품 — 루비 박힌 테두리 */
   .cw.sel{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;}
   /* v0.8.0: 보유 수량 — 카드 오른쪽 위 알약 */
   .cw .cnt{position:absolute;right:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;min-width:calc(var(--cf) * .2);height:calc(var(--cf) * .2);padding:0 calc(var(--cf) * .05);box-sizing:border-box;
@@ -907,7 +908,10 @@ function iconHtml(t, inline){
   if (d.emoji) return `<span class="icon emo${inline ? ' inline' : ''}">${d.emoji}</span>`;   // v0.5.0: 그림이 없는 2티어
   return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
 }
-const frameOf = d => 'wood';                                     // 1티어 원물은 모두 나무 프레임
+// v3.9.0: 보스만 떨구는 전리품은 루비 박힌 테두리로 — 한눈에 귀한 것임을 알 수 있게
+const BOSS_LOOT = ['bearclaw', 'bisonhorn', 'mosspelt', 'catfishwhisker'];
+const BOSS_LOOT_NAMES = new Set(BOSS_LOOT.map(t => (DEFS[t] || {}).name));
+const frameOf = d => d && BOSS_LOOT_NAMES.has(d.name) ? 'boss' : 'wood';
 const ICON_TOKEN = /⟦(\w+)⟧/g;
 const ic = t => `⟦${t}⟧`;
 const STAT_NAME = { atk:'공격', def:'방어', hp:'체력' };   // v0.84.0: 안 쓰던 '인원'은 뺌
@@ -1070,7 +1074,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.8.4';
+const VERSION = 'v3.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
