@@ -1028,7 +1028,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.1.2';
+const VERSION = 'v3.1.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3113,7 +3113,7 @@ const ENEMIES = {
   // v2.0.0: 🌾 초원 — 들개(잡몹) · 멧돼지(중간보스) · 들소(필드보스). 시뮬레이션으로 맞춘 세기 (확정 58)
   //   이빨 단검으로는 멧돼지에서 막히고, 손도끼면 멧돼지를 넘고 들소에서 막히고, 5레벨 갑옷이면 클리어 (약 7판, Lv5)
   // v3.1.0: 들머리 보스 — 맨손(공 1)으론 못 잡고 뗀석기 칼(공 2)이면 잡힌다. 그림은 들개 것을 같이 씀
-  strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:7,
+  strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:6,
     loot: [['smalltooth', 100, 1]] },
   wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:2, def:0, hp:6,
     loot: [['meat', 40, 1], ['hide', 30, 1], ['smalltooth', 30, 1]] },
@@ -3184,35 +3184,24 @@ function lanePlan(mob, mid, boss){
   const last = stops.length - 1;
   return stops.map((st, i) => Object.assign({ at: +(0.06 + (0.97 - 0.06) * (i / last)).toFixed(3) }, st));
 }
-// v3.1.0: 들머리 세 판 — 확률 없음. 판마다 대본이 다르고, 같은 판을 다시 가면 똑같다
-//   1판 줍기만 · 2판 약한 적 하나 (맨손이면 아프다) · 3판 보스 (무기가 없으면 못 넘는다)
-const PRELUDE_PLANS = [
-  [{ loot:1, at:0.30 }, { loot:1, at:0.70 }],
-  [{ loot:1, at:0.22 }, { fight:'animal', at:0.55 }, { loot:1, at:0.85 }],
-  [{ loot:1, at:0.28 }, { fight:'strayhound', boss:true, at:0.90 }],
+// v3.1.3: 들머리는 **한 판뿐이고 늘 같다** — 채집 지점 둘, 토끼 하나, 길 끝에 보스.
+//   맨손으로 가면 보스 앞에서 반드시 쓰러진다. 그 실패까지가 튜토리얼이다.
+//   몇 번을 다시 와도 같은 자리에서 같은 것이 나온다 (재료가 넘치는 건 괜찮다)
+const PRELUDE_PLAN = [
+  { loot:1, at:0.20 },
+  { fight:'animal', at:0.42 },
+  { loot:1, at:0.62 },
+  { fight:'strayhound', boss:true, at:0.90 },
 ];
-// 판마다 채집 지점에서 **무엇이 몇 개** 나오는지 (지점 순서대로)
-const PRELUDE_LOOT = [
-  [['stone', 'stone'], ['flint']],
-  [['tree', 'tree'], ['stone']],
-  [['flint', 'stone']],
-];
+const PRELUDE_LOOT = [['stone', 'flint'], ['stone', 'tree']];     // 지점 순서대로 — 한 판이면 뗀석기 칼 재료가 다 모인다
 const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
-// v3.1.2: 판은 **다녀온 횟수가 아니라 기사가 어디까지 왔는지**로 정한다 —
-//   몇 번을 다시 가도 지금 필요한 것부터 순서대로 준다 (재료가 넘치는 건 괜찮다)
-//   ① 아직 날이 없으면 돌·부싯돌 판  ② 날이 있으면 나무 판(적도 하나)  ③ 무기를 쥐었으면 보스 판
-function preludeStage(){
-  if (haveWeapon() || equipped('weapon')) return 2;
-  if (have('blade') > 0 || (S.madeRecipes || []).includes('blade')) return 1;
-  return 0;
-}
 const EXP_PLAN = {
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
   river:     lanePlan('crayfish', 'crocodile', 'catfish'),        // v2.1.0
 };
-const planOf = id => id === 'prelude' ? PRELUDE_PLANS[preludeStage()] : (EXP_PLAN[id] || EXP_PLAN.mountain);
+const planOf = id => id === 'prelude' ? PRELUDE_PLAN : (EXP_PLAN[id] || EXP_PLAN.mountain);
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
 const LANE_PAD = 5;                                              // 트랙 좌우 여백 (%) — v0.58.0: 자리가 13개라 여백을 줄여 간격을 벌림
 const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
@@ -3390,7 +3379,7 @@ function expLoot(){
   const tok = document.querySelector('#exp .tok.knight');
   const box = tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect();
   if (exp.id === 'prelude'){                                      // v3.1.0: 대본대로 — 언제 다시 와도 같은 것
-    const list = (PRELUDE_LOOT[preludeStage()] || [])[Math.max(0, exp.spots.filter(sp => sp.done).length)] || [];
+    const list = PRELUDE_LOOT[Math.max(0, exp.spots.filter(sp => sp.done).length)] || [];
     if (!list.length) return;
     exp.line = `${list.map(t => DEFS[t].name).join(' · ')}을(를) 주웠다`;
     list.forEach((t, i) => setTimeout(() => flyToCraft(t, box), i * 220));
