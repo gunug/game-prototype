@@ -271,6 +271,7 @@
   .exp-lane .tok,.exp-lane .spot,.exp-lane .mark{animation:objIn .3s ease-out;}
   @keyframes objIn{from{opacity:0;transform:scale(.7);}to{opacity:1;transform:none;}}
   .exp-lane .tok.knight{animation:none;}                          /* 기사는 계속 움직이므로 그대로 */
+  .exp-lane .tok.dead,.exp-lane .spot.done{animation:none;}       /* v3.14.3: 이미 끝난 것은 등장 연출 없이 */
   .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
   .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;}
@@ -1155,7 +1156,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.14.2';
+const VERSION = 'v3.14.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3806,8 +3807,12 @@ function expBuild(){
   const on = !!exp && S.tab === 'battle';                         // v3.14.0: 필드 탭에서만 큰 화면, 다른 탭은 미니
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1: 열고 닫힐 때 부드럽게
-  if (!exp){ setTimeout(() => { if (!exp) el.innerHTML = ''; }, 320); syncHeadH(); return; }
+  if (!exp){ setTimeout(() => { if (!exp){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
   if (!on){ syncHeadH(); return; }
+  // v3.14.3: 이미 지은 트랙이면 다시 짓지 않는다 — 다시 지으면 쓰러진 적까지 등장 연출이 되풀이돼 번쩍인다
+  const key = `${exp.id}|${exp.spots.map(sp => sp.at).join(',')}|${exp.foes.map(f => f.key + f.at).join(',')}`;
+  if (el._key === key && el.firstChild){ expPaint(); return; }
+  el._key = key;
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   el.innerHTML = '<div class="exp-lane">'
