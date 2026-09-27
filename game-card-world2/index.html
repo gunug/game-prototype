@@ -1030,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.0';
+const VERSION = 'v3.2.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1129,6 +1129,11 @@ function questSelfCheck(){
   if (w && (DEFS[w].atk || 0) >= 2) questHit('equip:atk2');
   if (w && (DEFS[w].atk || 0) >= 3) questHit('equip:atk3');       // v2.0.0
   if (equipped('armor')) questHit('equip:armor');
+  for (const t of CRAFT_TYPES) if (have(t) > 0 || Object.values(S.equip || {}).includes(t)){   // v3.2.1: 이미 만들어 둔 것도 '정했다'로 침
+    for (const u of useOf(t)) questHit(`aim-use:${u}`);
+    if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');
+    if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
+  }
   if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목적에 이미 걸어 두었으면 바로 인정
     for (const u of useOf(S.goal)) questHit(`aim-use:${u}`);
     if ((DEFS[S.goal].atk || 0) >= 2) questHit('aim-atk2');
@@ -1626,7 +1631,6 @@ function unlockBoards(){
     if (!b.needs || (S.boards || []).includes(b.id)) continue;
     if (have(b.needs) <= 0) continue;
     S.boards.push(b.id);
-    addUnlock('board', b.id);                                     // v2.5.0
     renderTabs();
     toast(`🔓 ${b.name} 화면이 열렸다 — ${DEFS[b.needs].name}`);
     save();
@@ -1634,6 +1638,11 @@ function unlockBoards(){
 }
 function addCard(type, x, y, anim, from, made){
   if (type === S.goal) setTimeout(checkGoalDone, 0);              // v3.0.6: 주워서 채워지는 목표도 끝남
+  if (DEFS[type]){                                                // v3.2.1: 목적에 안 걸고 먼저 만들어 버려도 사슬이 멈추지 않게
+    for (const u of useOf(type)) questHit(`aim-use:${u}`);
+    if ((DEFS[type].atk || 0) >= 2) questHit('aim-atk2');
+    if ((DEFS[type].atk || 0) >= 3) questHit('aim-atk3');
+  }
   let c = cardOf(type);
   if (c){
     c.n++;
@@ -2854,7 +2863,6 @@ function equipCard(sl, type){
   if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
   questHit(`equip:${sl.key}`);                                    // v0.60.0: 무기를 끼움
   hintDone('equip');                                              // v2.2.0
-  unlockDone('slot', sl.key);                                     // v2.5.0
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 2) questHit('equip:atk2');   // 더 센 무기
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 3) questHit('equip:atk3');   // v2.0.0: 초원
   renderAll(); renderInsp(); save();
@@ -3055,8 +3063,6 @@ function setTab(tab){
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
   if (tab !== 'battle' && tab !== 'dungeon' && tab !== 'aim' && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
-  for (const u of (S.hints || {}).unlocks || [])                  // v2.5.0: 언락 팁을 그 탭에서 보고 떠나면 끝
-    if (!u.done && u.seen && tab !== S.tab && unlockTab(u) === S.tab) u.done = true;
   S.tab = tab;
   renderTabs();
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
@@ -3230,7 +3236,6 @@ function expStart(id, cardEl){
   const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
-  unlockDone('field', id);                                        // v2.5.0
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
@@ -3269,6 +3274,7 @@ function expTick(dt){
     if (exp.search >= SEARCH_MS){
       const sp = exp.spots[exp.spot];
       if (sp) sp.done = true;
+      exp.lootIdx = exp.spot;                                     // v3.2.1: 몇 번째 채집 지점이었나 (들머리 대본용)
       exp.spot = -1;
       exp.phase = 'run';
       expLoot();
@@ -3381,7 +3387,7 @@ function expLoot(){
   const tok = document.querySelector('#exp .tok.knight');
   const box = tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect();
   if (exp.id === 'prelude'){                                      // v3.1.0: 대본대로 — 언제 다시 와도 같은 것
-    const list = PRELUDE_LOOT[Math.max(0, exp.spots.filter(sp => sp.done).length)] || [];
+    const list = PRELUDE_LOOT[Math.max(0, exp.lootIdx || 0)] || [];
     if (!list.length) return;
     exp.line = `${list.map(t => DEFS[t].name).join(' · ')}을(를) 주웠다`;
     list.forEach((t, i) => setTimeout(() => flyToCraft(t, box), i * 220));
@@ -3461,7 +3467,8 @@ function showAway(t, fx, fy){
 function flyToCraft(t, r){
   // v0.99.0: 필드 화면이 안 보이면 연출 없이 바로 넣는다 — 숨은 기사 자리(0,0)에서 튀어나와
   //   다른 탭 구석에 카드가 살짝 걸려 보이던 것
-  if (S.tab !== 'battle' || gatherEl.hidden || !(r && r.width)){
+  // v3.2.1: 창이 안 보이면 애니메이션이 멈춰 카드가 영영 안 들어온다 — 그때도 바로 넣는다
+  if (S.tab !== 'battle' || gatherEl.hidden || document.hidden || !(r && r.width)){
     if (!S.seen.includes(t)) discover(t);
     const { w, h } = bounds();
     addCard(t, w * (0.25 + Math.random() * 0.5) - CW / 2, h * (0.3 + Math.random() * 0.4) - CH / 2, S.tab === boardFor(t) ? 'spawn' : null);
@@ -3625,7 +3632,7 @@ function gainXp(n){
   for (const lv of ups){
     const r = lvReward(lv);
     toast(`⬆ ${KNIGHT.name} Lv ${lv} — ${LV_REWARD_TEXT(r)}`);
-    if (r.slot){ toast(`🔓 ${slotByKey(r.slot).name} 칸이 열렸다`); addUnlock('slot', r.slot); }   // v2.5.0
+    if (r.slot) toast(`🔓 ${slotByKey(r.slot).name} 칸이 열렸다`);
   }
 }
 // 쉬는 동안 회복 (원정 중엔 안 됨)
@@ -3653,7 +3660,6 @@ function renderHint(){
   if (S.knight.hp <= 0) H.sawDown = true;                         // v2.4.0
   else if (H.sawDown && !H.down) H.down = true;
   for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow', 'hint-blink');
-  for (const u of (H.unlocks || [])) if (!u.done && S.tab === unlockTab(u)) u.seen = true;   // v2.5.0: 그 자리에서 봤음
 }
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
@@ -3789,7 +3795,6 @@ function unlockNextField(afterId){
   const next = FIELDS.slice(i + 1).find(f => fieldLocked(f.id)) || FIELDS.find(f => fieldLocked(f.id));
   if (!next) return;
   S.fields[next.id].locked = false;
-  addUnlock('field', next.id);                                    // v2.5.0
   save();
   playUnlock(next);
 }
