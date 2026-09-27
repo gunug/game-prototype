@@ -66,6 +66,14 @@
   .toplist::-webkit-scrollbar{width:4px;height:4px;}
   .toplist::-webkit-scrollbar-thumb{background:rgba(255,212,0,.35);border-radius:4px;}
   .lrow{flex:none;display:flex;align-items:center;gap:calc(var(--cw) * .1);}
+  /* v4.2.0: 필드 왼쪽 크리처 줄 — 필드 카드보다 작게 */
+  .foelist{flex:none;display:flex;align-items:center;gap:calc(var(--cw) * .06);}
+  .foelist .cw.foe{position:relative;width:calc(var(--cw) * .62);height:calc(var(--ch) * .62);flex:none;
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;cursor:pointer;}
+  .foelist .cw.foe .pic{width:88%;height:64%;object-fit:cover;object-position:top center;margin-top:6%;border-radius:4px;}
+  .foelist .cw.foe .name{font-size:calc(var(--cw) * .11);line-height:1.1;text-align:center;}
+  .foelist .cw.foe.unknown .pic{filter:brightness(0) opacity(.45);}
+  .foelist .cw.foe.unknown .name{color:var(--muted);}
   .lrow > .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);cursor:pointer;}
   /* 줄 안의 필드 카드는 줄 높이에 맞춤 (채집 격자용 크기 규칙을 덮어씀) */
   .gather .lrow > .cw.field{width:var(--cw);height:var(--ch);aspect-ratio:auto;}
@@ -1177,7 +1185,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.1.2';
+const VERSION = 'v4.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1413,7 +1421,7 @@ const lvSum = key => { let v = 0; for (let i = 2; i <= knightLv(); i++) v += lvR
 const knightMaxHp = () => KNIGHT.hp + lvSum('hp');
 const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
   .filter(Boolean).join(' · ');
-const PARTY = [true, false, false, false, false];                 // v0.26.0: 출전 칸 5개 — 지금은 첫 칸만 열림
+const PARTY = [true, false, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 첫 칸만 열림
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
@@ -2995,13 +3003,20 @@ function screenRows(){
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>` : '')
         + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">⭐ ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2
         + '</div>';
+      // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
+      const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k => {
+        const e = ENEMIES[k] || {}, known = (S.killed || []).includes(k) || editMode;
+        return `<div class="cw framed f-wood foe${known ? '' : ' unknown'}" data-foe-card="${k}" title="${esc(e.name || '')}">`
+          + `<img class="pic" src="images/portrait/${e.portrait || 'portrait_animal'}.png" alt="${esc(e.name || '')}" draggable="false">`
+          + `<div class="name">${known ? esc(e.name || '') : '???'}</div></div>`;
+      }).join('')}</div>`;
       const slots = PARTY.map((open, i) => ({
         id: `${f.id}:${i}`, open: open && !locked,                // v0.35.0: 잠긴 필드는 출전 칸도 잠김
         card: open && exp && exp.id === f.id && i === 0,
         icon: '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">',
         cardName: '기사', frame: 'gold', lab: '출전',
       }));
-      return { card, slots };
+      return { card: foeCards + card, slots };
     });
   }
   // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
