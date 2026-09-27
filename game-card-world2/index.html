@@ -1034,7 +1034,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.3.1';
+const VERSION = 'v3.3.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1992,15 +1992,8 @@ function slotHtml(t){
     + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}">${on ? statsHtml(t) : ''}`
     + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
 }
-function detailHtml(){
-  if (!bookPick) return '<span class="i-muted">슬리브를 탭하면 카드 정보가 나와요.</span>';
-  const t = bookPick, d = DEFS[t];
-  const where = fieldText(t);
-  const use = shownUses(t).length ? ` <span class="i-muted">· ${shownUses(t).join(' · ')}</span>` : '';   // v0.74.0
-  return shownOpen(t)
-    ? `<span class="nm">${esc(d.name)}</span> <span class="i-muted">${where}</span>${use}<br>${esc(DESC[t] || '')}`
-    : `<span class="nm">???</span> <span class="i-muted">${where}</span><br><span class="i-muted">아직 발견하지 못한 카드.</span>`;
-}
+// v3.3.2: 카드를 고르면 **인스펙터**가 바뀐다 — 책 위 한 줄에 정보를 겹쳐 쓰지 않음
+const detailHtml = () => '<span class="i-muted">슬리브를 탭하면 오른쪽 정보 칸에 나와요.</span>';
 // ── 무기 트리 · 도구 트리 (v0.80.0, 전부 가상 계획) ─────────────────
 // 규칙 ① 조합식은 늘 `이전 것 + 새 재료 = 다음 것` — 쓰던 걸 버리지 않고 덧댄다
 //      ② 큰 갈래가 그 물건의 **성격**을 정하고, 그 성격은 가지 끝까지 간다
@@ -2510,7 +2503,11 @@ bookEl.addEventListener('click', e => {
   const tab = e.target.closest('[data-tier]');
   if (tab){ bookTier = tab.dataset.tier; return renderBook(); }    // v2.2.0: 탭 id 그대로
   const slot = e.target.closest('[data-book]');
-  if (slot){ bookPick = slot.dataset.book; renderBook(); }
+  if (slot){                                                      // v3.3.2: 인스펙터로
+    bookPick = slot.dataset.book;
+    inspType = bookPick; selected = null; knightPick = false; slotPick = null;
+    renderBook(); renderInsp();
+  }
 });
 
 // ── 탭 · 채집 (v0.6.0) ───────────────────────────────
