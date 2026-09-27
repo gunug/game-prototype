@@ -44,6 +44,14 @@
   /* 필드 */  /* 필드 */
   /* v3.6.0: 필드 맨 위 머리 — 탭 줄 + 수첩. 아래 화면들은 그만큼 내려서 시작한다 */
   .fieldhead{position:absolute;left:0;right:0;top:0;z-index:6;background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);}
+  /* v4.5.0: 탭 묶음 — 같은 결끼리 바탕을 공유하고 묶음 사이에만 틈 */
+  .tabgroup{display:inline-flex;align-items:center;gap:3px;padding:3px;border-radius:calc(var(--r-pill) + 3px);
+    background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);flex:none;}
+  .tabgroup + .tabgroup{margin-left:8px;}
+  .tabgroup .tabbtn{border-color:transparent;background:transparent;}
+  .tabgroup .tabbtn:hover{background:rgba(255,255,255,.08);}
+  .tabgroup .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);}
+  .tabgroup .tabbtn.locked{opacity:.75;}
   .fieldhead .uibar{border-top:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
   .fieldhead .uibar::-webkit-scrollbar{height:5px;}
   .fieldhead .uibar::-webkit-scrollbar-thumb{background:rgba(255,212,0,.45);border-radius:3px;}
@@ -1195,7 +1203,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.4.0';
+const VERSION = 'v4.5.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2843,20 +2851,32 @@ function renderTabs(){                                            // v0.21.0: �
   const wrap = document.getElementById('tabs');
   const FIXED = ['bookBtn', 'setBtn'];                            // v3.3.0 · v3.7.3: 📖 · ⚙ 단추는 고정
   for (const b of wrap.querySelectorAll('[data-tab]')) if (!FIXED.includes(b.id)) b.remove();
+  for (const g of wrap.querySelectorAll('.tabgroup')) if (!g.firstElementChild) g.remove();   // v4.5.0: 빈 묶음은 치운다
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
   const boardBtn = b => boardOpen(b)
     ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
     : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
       + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>';   // v0.98.0 · v0.98.1
-  // v2.8.0: 순서는 정비 · 필드 · 던전 · 나머지 보드(조합 · 무기 · 갑옷)
-  const gearBoard = BOARD_BY_ID['gearup'];
-  const html = (gearBoard ? [boardBtn(gearBoard)] : [])
-    .concat(['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
-      '<button class="tabbtn" data-tab="aim">🎯 목적</button>',          // v3.0.0
-      '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>'])
-    .concat(BOARDS.filter(b => b.id !== 'gearup').map(boardBtn)).join('');
+  // v4.5.0: 같은 결끼리 묶어 보이게 — [나가는 곳][준비][만드는 곳][기록][설정]
+  //   단추 동작은 그대로. 묶음마다 살짝 다른 바탕과 구분선만 둔다
+  const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
+  const groups = [
+    { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전')] },
+    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목적')] },
+    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup').map(boardBtn) },
+  ];
+  const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
+  // 📖 콜렉터북 · ⚙ 설정은 고정 단추 — 각자 한 묶음으로 감싸 둔다
+  for (const id of ['bookBtn', 'setBtn']){
+    const b = document.getElementById(id);
+    if (!b || b.parentElement.classList.contains('tabgroup')) continue;
+    const g = document.createElement('span');
+    g.className = 'tabgroup tg-' + (id === 'bookBtn' ? 'book' : 'set');
+    b.parentElement.insertBefore(g, b);
+    g.appendChild(b);
+  }
   paintIcons(wrap);                                               // v3.5.0
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
