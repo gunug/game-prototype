@@ -263,8 +263,14 @@
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
   .kstat .hpbar i{display:block;height:100%;background:#ff7a7a;transition:width .2s;}
-  .exp{width:100%;box-sizing:border-box;padding:4px 10px 6px;border-top:1px solid var(--hairline);}   /* v3.14.0: 수첩 아래 자리 */
+  /* v3.14.0: 수첩 아래 자리. v3.14.1: 열고 닫힐 때 높이·투명도가 부드럽게 */
+  .exp{width:100%;box-sizing:border-box;padding:0 10px;border-top:0 solid var(--hairline);max-height:0;opacity:0;overflow:hidden;
+    transition:max-height .3s cubic-bezier(.2,.85,.25,1),opacity .24s,padding .3s,border-top-width .3s;}
+  .exp.on{max-height:46vh;opacity:1;padding:4px 10px 6px;border-top-width:1px;}
   .exp[hidden]{display:none;}
+  .exp-lane .tok,.exp-lane .spot,.exp-lane .mark{animation:objIn .3s ease-out;}
+  @keyframes objIn{from{opacity:0;transform:scale(.7);}to{opacity:1;transform:none;}}
+  .exp-lane .tok.knight{animation:none;}                          /* 기사는 계속 움직이므로 그대로 */
   .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
   .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;}
@@ -370,8 +376,12 @@
   /* v0.38.0: 끝낸 퀘스트 — 노랗게 두 번 반짝인 뒤 사라짐 */
   /* v0.40.0: 끝낸 퀘스트는 조용히 — 색 없이 흐려지며 사라짐 (0.5초) */
   /* v3.13.0: 미니 원정 줄 — 다른 탭에서도 기사가 어디까지 갔는지 */
-  .miniexp{display:flex;align-items:center;gap:8px;padding:5px 12px 7px;border-top:1px solid var(--hairline);font-size:12px;}
+  .miniexp{display:flex;align-items:center;gap:8px;padding:0 12px;border-top:0 solid var(--hairline);font-size:12px;
+    max-height:0;opacity:0;overflow:hidden;
+    transition:max-height .3s cubic-bezier(.2,.85,.25,1),opacity .24s,padding .3s,border-top-width .3s;}
+  .miniexp.on{max-height:60px;opacity:1;padding:5px 12px 7px;border-top-width:1px;}
   .miniexp[hidden]{display:none;}
+  .miniexp img{animation:objIn .3s ease-out;}
   .miniexp .mx-pic{width:22px;height:22px;object-fit:cover;object-position:top center;border-radius:4px;flex:none;}
   .miniexp .mx-hp{width:52px;height:7px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;flex:none;}
   .miniexp .mx-hp i{display:block;height:100%;background:#7ddc7d;}
@@ -1145,7 +1155,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.14.0';
+const VERSION = 'v3.14.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3793,9 +3803,11 @@ function flyToCraft(t, r){
 function expBuild(){
   const el = document.getElementById('exp');
   if (!el) return;
-  el.hidden = !exp || S.tab !== 'battle';                         // v3.14.0: 필드 탭에서만 큰 화면, 다른 탭은 미니
-  if (!exp){ el.innerHTML = ''; syncHeadH(); return; }
-  if (el.hidden){ syncHeadH(); return; }
+  const on = !!exp && S.tab === 'battle';                         // v3.14.0: 필드 탭에서만 큰 화면, 다른 탭은 미니
+  el.hidden = false;
+  el.classList.toggle('on', on);                                  // v3.14.1: 열고 닫힐 때 부드럽게
+  if (!exp){ setTimeout(() => { if (!exp) el.innerHTML = ''; }, 320); syncHeadH(); return; }
+  if (!on){ syncHeadH(); return; }
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   el.innerHTML = '<div class="exp-lane">'
@@ -3820,8 +3832,9 @@ function renderMiniExp(){
   const el = document.getElementById('miniexp');
   if (!el) return;
   const on = !!exp && S.tab !== 'battle';                          // 필드 탭에선 큰 화면이 이미 보임
-  el.hidden = !on;
-  if (!on){ syncHeadH(); return; }
+  el.hidden = false;
+  el.classList.toggle('on', on);                                  // v3.14.1
+  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle')) el.innerHTML = ''; }, 320); syncHeadH(); return; }
   const f = FIELD_BY_ID[exp.id] || {}, max = knightMaxHp(), hp = Math.max(0, S.knight.hp);
   el.innerHTML = '<img class="mx-pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false">'
     + `<div class="mx-hp${hp / max <= 0.35 ? ' low' : ''}"><i style="width:${Math.round(hp / max * 100)}%"></i></div>`
