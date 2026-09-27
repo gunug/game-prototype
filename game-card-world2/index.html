@@ -28,8 +28,13 @@
   .meta{display:inline-block;font-size:12px;color:var(--muted);white-space:nowrap;}
   .reset{border:1px solid var(--hairline);background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:4px 10px;border-radius:var(--r-pill);cursor:pointer;}
   /* 설정 패널 — ⚙ 를 누르면 버튼 줄 위로 */
-  .setpan{position:absolute;right:10px;bottom:calc(100% + 6px);z-index:5;min-width:150px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;
-    background:rgba(28,28,23,.98);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);padding:10px 12px;}
+  /* v3.7.3: 설정 화면 (탭) */
+  .setpage{position:absolute;inset:0;z-index:3;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;align-items:flex-start;
+    padding:calc(var(--cw) * .25);background:radial-gradient(ellipse at 50% 40%,#23231d 0%,var(--canvas) 72%);}
+  .setpage[hidden]{display:none;}
+  .setpage .set-t{font-size:calc(var(--cw) * .26);font-weight:900;}
+  .setpage .set-btns{display:flex;gap:8px;}
+  .setpage .set-note{font-size:12px;color:var(--muted);line-height:1.6;max-width:28em;}
 
   /* 필드 */  /* 필드 */
   /* v3.6.0: 필드 맨 위 머리 — 탭 줄 + 수첩. 아래 화면들은 그만큼 내려서 시작한다 */
@@ -507,7 +512,7 @@
   /* v0.91.0: 던전 화면 — 아직 들어갈 던전이 없어 안내와 계획표 버튼만 */
   .dungeon[hidden]{display:none;}
   /* v3.6.0: 머리 높이만큼 내려서 시작 */
-  .field > .table,.field > .gather,.field > .dungeon,.field > .book.inline,.field > .toplist{top:var(--headh, 0px);}
+  .field > .table,.field > .gather,.field > .dungeon,.field > .book.inline,.field > .setpage,.field > .toplist{top:var(--headh, 0px);}
   .dungeon{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
     box-sizing:border-box;padding:calc(var(--cw) * .3);text-align:center;
     background:radial-gradient(ellipse at 50% 40%,#231d22 0%,var(--canvas) 72%);}
@@ -623,14 +628,8 @@
   <div class="fieldhead" id="fieldhead">
     <div class="uibar" id="tabs">
       <button class="tabbtn" id="bookBtn" data-tab="book">📖 콜렉터북<span class="nbadge" id="bookBadge" hidden></span></button>
-      <button class="tabbtn" id="setBtn">⚙ 설정</button>
+      <button class="tabbtn" id="setBtn" data-tab="settings">⚙ 설정</button>
       <span class="meta ver-out" id="ver"></span>
-      <div class="setpan" id="setpan" hidden>
-        <span class="meta" id="seenMeta"></span>
-        <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
-        <button class="reset" id="dumpBtn">진행도</button>
-        <button class="reset" id="reset">처음부터</button>
-      </div>
     </div>
     <div class="quest" id="quest"></div>
   </div>
@@ -641,6 +640,17 @@
   <div class="gather" id="gather" hidden></div>
   <div class="dungeon" id="dungeon" hidden></div>
   <div class="book inline" id="book" hidden></div>
+  <!-- v3.7.3: 설정은 팝업이 아니라 탭 (탭 줄이 가로로 넘칠 때 팝업이 잘려 안 보이던 것) -->
+  <div class="setpage" id="setpage" hidden>
+    <div class="set-t">⚙ 설정</div>
+    <span class="meta" id="seenMeta"></span>
+    <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
+    <div class="set-btns">
+      <button class="reset" id="dumpBtn">진행도</button>
+      <button class="reset" id="reset">처음부터</button>
+    </div>
+    <div class="set-note">에디터 모드는 잠긴 화면 · 필드 · 카드를 모두 열어 본다. 저장과 별개로 새로 고쳐도 유지된다.</div>
+  </div>
   <button class="treebtn" id="treeBtn" hidden></button>
 </div>
 <div class="ui side" id="ui">
@@ -1044,7 +1054,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.7.2';
+const VERSION = 'v3.7.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1318,7 +1328,7 @@ const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
 const slotOpen = key => { const sl = slotByKey(key); return !!sl && (!sl.lv || knightLv() >= sl.lv); };   // v0.66.0: 레벨로 열림
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const freeTabs = ['battle', 'dungeon', 'aim', 'book'];            // v3.3.0: 보드가 아닌 화면들
+const freeTabs = ['battle', 'dungeon', 'aim', 'book', 'settings'];   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -2423,7 +2433,7 @@ function renderBook(){
     + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합법</button>`
     + `<button class="tabbtn${isTrace ? ' on' : ''}" data-tier="${TRACE_TAB}">📜 흔적</button>`
     + `<button class="tabbtn${isTree ? ' on' : ''}" data-tier="${TREE_TAB}">🌳 길</button></div>`
-    + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
+    + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span></div>`
     + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
       : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
       : isTree ? `<span class="i-muted">${esc(tre.note)}</span>` : detailHtml()}</div>`
@@ -2594,7 +2604,8 @@ function lockPop(btn, text){
 }
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
-  for (const b of wrap.querySelectorAll('[data-tab]')) if (b.id !== 'bookBtn') b.remove();   // v3.3.0: 📖 단추는 고정
+  const FIXED = ['bookBtn', 'setBtn'];                            // v3.3.0 · v3.7.3: 📖 · ⚙ 단추는 고정
+  for (const b of wrap.querySelectorAll('[data-tab]')) if (!FIXED.includes(b.id)) b.remove();
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
   const boardBtn = b => boardOpen(b)
@@ -3178,6 +3189,7 @@ function setTab(tab){
   S.tab = tab;
   renderTabs();
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
+  document.getElementById('setpage').hidden = tab !== 'settings';  // v3.7.3
   bookEl.hidden = tab !== 'book';                                 // v3.3.0
   bookOpen = tab === 'book';
   renderBook();                                                   // v3.4.0: 탭에 들어오면 바로 그림
@@ -3188,7 +3200,7 @@ function setTab(tab){
   }
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
-  table.hidden = isRowScreen(tab) || tab === 'dungeon' || tab === 'book';   // v0.29.0: 전투·정비는 줄 화면
+  table.hidden = isRowScreen(tab) || tab === 'dungeon' || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
   fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목적 화면 전용 배치
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
@@ -4017,7 +4029,6 @@ function giveQuest(id){
 // ── 시작 ────────────────────────────────────────────
 document.getElementById('ver').textContent = VERSION;
 // v0.16.0: 설정 패널 (⚙) — 발견 수 · 처음부터 · 버전
-const setPan = document.getElementById('setpan');
 // v0.24.0: 에디터 모드 — 모든 잠금 해제 (저장 안 함)
 // v0.24.1: 켜면 진짜 저장 상태는 따로 두고, 모든 카드를 1개씩 가진 시험용 상태로 논다.
 //   끄면 그대로 돌아옴. 에디터 모드 동안은 저장하지 않음
@@ -4119,17 +4130,7 @@ document.getElementById('dumpBtn').addEventListener('click', () => {
     e => { console.warn('클립보드 복사 실패 — 아래 JSON 을 직접 복사하세요', e); console.log(json);
       toast('⚠ 복사가 막혔어요 — 개발자 콘솔에 찍어 두었어요'); });
 });
-document.getElementById('setBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  setPan.hidden = !setPan.hidden;
-  document.getElementById('setBtn').classList.toggle('on', !setPan.hidden);
-});
-document.addEventListener('click', e => {
-  if (setPan.hidden || e.target.closest('#setpan') || e.target.closest('#setBtn')) return;
-  setPan.hidden = true;
-  document.getElementById('setBtn').classList.remove('on');
-});
-// v0.37.0: 처음부터 — 저장뿐 아니라 화면·연출·고른 것까지 모두 처음 상태로
+// v3.7.3: ⚙ 는 그냥 탭 단추 — 탭 줄의 공통 처리가 설정 화면으로 데려간다
 document.getElementById('reset').addEventListener('click', () => {
   if (!confirm('처음부터 다시 시작할까요?')) return;
   if (paused) return;
