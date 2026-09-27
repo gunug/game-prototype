@@ -1030,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.3';
+const VERSION = 'v3.2.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2650,6 +2650,22 @@ function checkGoalDone(){
   renderQuest(); renderHint(); renderInsp();
   return true;
 }
+// v3.2.4: **튜토리얼 동안**에는 목적을 무기가 아닌 것으로 바꾸면 '무엇을 쥘까'로 되돌아간다
+//   (튜토리얼이 끝나면 무엇을 걸든 자유 — 되돌리지 않음)
+function questRegress(){
+  if ((S.cleared || []).includes('prelude')) return;
+  if (haveWeapon() || equipped('weapon')) return;
+  if (S.goal && useOf(S.goal).includes('근접무기')) return;
+  const q = (S.quests || []).find(x => x.id === 'aimweapon');
+  const doneList = (S.questDone || []).includes('aimweapon');
+  if (!q && !doneList) return;                                    // 아직 그 단계까지 안 왔으면 둘 것 없음
+  if (q && !q.done) return;                                       // 이미 되돌아와 있음
+  S.questDone = (S.questDone || []).filter(id => id !== 'aimweapon');
+  S.quests = (S.quests || []).filter(x => x.id !== 'arm' && x.id !== 'aimweapon');
+  (S.hints || (S.hints = {})).aim = false;                        // 고르는 법 안내도 다시
+  giveQuest('aimweapon');
+  toast('🎯 먼저 쥘 무기를 정하자');
+}
 function setGoal(t){
   S.goal = t;
   hintDone('aim');                                                // v3.2.0: 목적 등록 조작을 해 봤다
@@ -2658,7 +2674,8 @@ function setGoal(t){
   if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
   if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
   toast(`🎯 목적 — ${aimName(t)}`);
-  renderScreen(); renderInsp(); renderHint(); save();
+  questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
+  renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
 }
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
 function slotHtmlOf(sl){
@@ -2938,7 +2955,7 @@ addEventListener('pointerup', e => {
     if (d.fromSlot) unequipSlot(slotByKey(d.fromSlot.split(':')[1]));
     dropOnSlot(hit, d.token);
   } else if (d.fromSlot && !hit){
-    if (S.tab === 'aim'){ S.goal = null; toast('목표를 풀었다'); renderHint(); save(); }   // v3.0.0
+    if (S.tab === 'aim'){ S.goal = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4
     else unequipSlot(slotByKey(d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
