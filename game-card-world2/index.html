@@ -39,6 +39,12 @@
   .setpage[hidden]{display:none;}
   .setpage .set-t{font-size:calc(var(--cw) * .26);font-weight:900;}
   .setpage .set-btns{display:flex;gap:8px;}
+  /* v4.9.0: 화면 방향 고르는 줄 */
+  .setpage .set-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
+  .set-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:rgba(255,255,255,.06);}
+  .set-seg button{padding:4px 10px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--ink);
+    font:inherit;font-weight:700;cursor:pointer;}
+  .set-seg button.on{background:var(--brand-yellow);color:var(--on-brand);}
   .setpage .set-note{font-size:12px;color:var(--muted);line-height:1.6;max-width:28em;}
 
   /* 필드 */  /* 필드 */
@@ -712,6 +718,12 @@
   <div class="setpage" id="setpage" hidden>
     <div class="set-t">⚙ 설정</div>
     <span class="meta" id="seenMeta"></span>
+    <div class="set-row">화면 방향
+      <span class="set-seg" id="orientSeg">
+        <button data-orient="auto">자동</button><button data-orient="land">가로</button><button data-orient="port">세로</button>
+      </span>
+      <span class="meta">자동은 창 모양을 따른다</span>
+    </div>
     <label class="edit-mode"><input type="checkbox" id="mobileMode">모바일 모드 <span class="meta">412 × 915 (갤럭시 S22 울트라)</span></label>
     <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
     <div class="set-btns">
@@ -1213,7 +1225,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.8.0';
+const VERSION = 'v4.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1637,6 +1649,21 @@ let FS = 320;
 // v4.4.0: 모바일 모드 — 갤럭시 S22 울트라 기준 화면(412×915 CSS 픽셀)으로 가둬 본다
 const MOBILE_W = 412, MOBILE_H = 915;
 const NARROW_FS = 560;                                            // v4.7.0: 필드가 이보다 좁으면 메인 탭을 접는다
+// v4.9.0: 화면 방향 — 'auto'(창 모양대로) · 'land'(가로) · 'port'(세로)
+const ORIENT_KEY = 'card-world2.orient';
+let orientMode = 'auto';
+try { const v = localStorage.getItem(ORIENT_KEY); if (v === 'land' || v === 'port') orientMode = v; } catch (e) {}
+function setOrient(mode){
+  orientMode = (mode === 'land' || mode === 'port') ? mode : 'auto';
+  try { orientMode === 'auto' ? localStorage.removeItem(ORIENT_KEY) : localStorage.setItem(ORIENT_KEY, orientMode); } catch (e) {}
+  paintOrientSeg();
+  measure();
+}
+function paintOrientSeg(){
+  const seg = document.getElementById('orientSeg');
+  if (!seg) return;
+  for (const b of seg.querySelectorAll('[data-orient]')) b.classList.toggle('on', b.dataset.orient === orientMode);
+}
 let narrowUI = false, navOpen = false;
 const MOBILE_KEY = 'card-world2.mobile';
 let mobileMode = false;
@@ -1656,7 +1683,7 @@ function layout(){
     el.style.cssText = `left:${Math.round(ox + x * k)}px;top:${Math.round(oy + y * k)}px;width:${Math.round(w)}px;height:${Math.round(h)}px`
       + (k === 1 ? '' : `;transform:scale(${k});transform-origin:0 0`);
   };
-  const land = W >= H;
+  const land = orientMode === 'land' ? true : orientMode === 'port' ? false : W >= H;   // v4.9.0
   FS = Math.max(220, Math.min(land ? H : W, (land ? W : H) - UI_MIN));
   const fieldEl = document.getElementById('field'), uiEl = document.getElementById('ui');
   const frame = document.getElementById('frame');
@@ -4504,6 +4531,11 @@ function setEditMode(on, quiet){
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 }
 document.getElementById('editMode').addEventListener('change', e => setEditMode(e.target.checked));
+document.getElementById('orientSeg').addEventListener('click', e => {   // v4.9.0
+  const b = e.target.closest('[data-orient]');
+  if (b) setOrient(b.dataset.orient);
+});
+paintOrientSeg();
 document.getElementById('mobileMode').addEventListener('change', e => setMobileMode(e.target.checked));   // v4.4.0
 document.getElementById('mobileMode').checked = mobileMode;
 document.body.classList.toggle('mobile-mode', mobileMode);
