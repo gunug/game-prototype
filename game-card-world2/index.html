@@ -512,6 +512,9 @@
   .tchip.lack{color:var(--muted);}
   .tchip.unk{border-style:dotted;color:var(--muted);}
   .trow.st-unknown .tname{opacity:.55;}
+  .rcp-line[data-totree], .combo-row[data-totree]{cursor:pointer;}
+  .trow[data-tnode]{cursor:pointer;}
+  .trow.tflash{background:rgba(255,212,0,.18);}
   .rcp-line.now{border-left:2px solid var(--brand-yellow);padding-left:6px;background:rgba(255,212,0,.06);}
   .combo-row.now{background:rgba(255,212,0,.1);}
   .tnote{font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.5;}
@@ -975,12 +978,33 @@ function stateChip(t){
   return '';
 }
 const recipeNow = x => sideHave(x.a) && sideHave(x.b);            // 지금 두 재료가 다 있는 조합
+// v2.9.2: 세 화면을 오갈 수 있게 — 조합 줄 → 그 결과가 실린 🌳 트리, 트리 줄 → 인스펙터
+function treeOf(t){                                               // 그 카드가 어느 트리에 실려 있나
+  for (const id in TREES)
+    if (TREES[id].branches.some(b => b.nodes.some(n => n.id === t))) return id;
+  return null;
+}
+const treeAttr = x => {
+  const t = (x.out || []).find(o => treeOf(o));
+  return t ? ` data-totree="${t}" title="🌳 트리에서 보기"` : '';
+};
+function openTreeAt(t){                                           // 그 줄이 보이게 트리를 열고 잠깐 밝힘
+  const id = treeOf(t);
+  if (!id) return;
+  openTree(id);
+  setTimeout(() => {
+    const el = treeEl.querySelector(`[data-tnode="${t}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block:'center' });
+    flash(el, 'tflash', 1200);
+  }, 30);
+}
 // ── 공용 도우미 ───────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.9.1';
+const VERSION = 'v2.9.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1005,7 +1029,9 @@ const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전�
 const inspEl = document.getElementById('insp');
 inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
   const j = e.target.closest('[data-jump]');
-  if (j) jumpTo(j.dataset.jump);
+  if (j) return jumpTo(j.dataset.jump);
+  const tr = e.target.closest('[data-totree]');                   // v2.9.2: 조합 줄 → 🌳 트리
+  if (tr) openTreeAt(tr.dataset.totree);
 });
 let CW = 70, CH = 95;
 // v0.17.0: 필드 고갈 없앰 — 몇 번이든 원정을 보낼 수 있음 (잠금만 남음)
@@ -1858,7 +1884,7 @@ function renderInsp(){
       if (!sideMatch(mine, t)) continue;
       if (r.cook && mine.tag === '날것' && !d.cooked) continue;
       const keep = (r.keep === 'a' && mine === r.a) || (r.keep === 'b' && mine === r.b);
-      uses.push(`<div class="row rcp-line${recipeNow(r) ? ' now' : ''}">${rcpLine(r, true)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
+      uses.push(`<div class="row rcp-line${recipeNow(r) ? ' now' : ''}"${treeAttr(r)}>${rcpLine(r, true)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
       break;
     }
   }
@@ -1870,7 +1896,7 @@ function renderInsp(){
   const makes = here ? all.filter(r => recipeBoards(r).includes(here)) : all;
   if (all.length){                                                // 조합으로 안 나오는 카드(채집물)는 이 칸 자체가 없음
     h += '<div class="sub">만드는 법</div>'
-      + (makes.length ? makes.map(r => `<div class="row rcp-line${recipeNow(r) ? ' now' : ''}">${rcpLine(r, true)}</div>`).join('')
+      + (makes.length ? makes.map(r => `<div class="row rcp-line${recipeNow(r) ? ' now' : ''}"${treeAttr(r)}>${rcpLine(r, true)}</div>`).join('')
         : '<div class="i-muted">이 화면에서 만들 수는 없음</div>');
   }
   inspEl.innerHTML = h;
@@ -2219,7 +2245,15 @@ function openTree(id){
   treeBack.classList.toggle('open', !!id);
 }
 treeBack.addEventListener('click', () => openTree(null));
-treeEl.addEventListener('click', e => { if (e.target.closest('[data-treeclose]')) openTree(null); });
+treeEl.addEventListener('click', e => {
+  if (e.target.closest('[data-treeclose]')) return openTree(null);
+  const row = e.target.closest('[data-tnode]');                   // v2.9.2: 트리 줄 → 인스펙터에 그 카드
+  if (!row) return;
+  const t = row.dataset.tnode;
+  openTree(null);
+  inspType = t; selected = null; knightPick = false; slotPick = null;
+  renderInsp();
+});
 treeBtn.addEventListener('click', () => openTree(TREES[S.tab] ? S.tab : null));
 function renderTreeBtn(){                                         // 도구·무기 화면에서만 보임
   const t = TREES[S.tab];
@@ -2243,7 +2277,7 @@ function comboRowHtml(r){
   const on = comboDone(r);
   const now = recipeNow(r);                                       // v2.9.1: 지금 두 재료가 다 있음
   const where = `<span class="combo-where">${recipeBoards(r).map(boardLabel).join(' · ')}에서</span>`;
-  return `<div class="combo-row${now ? ' now' : ''}${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
+  return `<div class="combo-row${now ? ' now' : ''}${on ? '' : comboReady(r) ? ' ready' : ' locked'}"${treeAttr(r)}>`
     + `${rcpLine(r, false)}${where}${now ? '<span class="tchip can">지금 가능</span>' : ''}</div>`;   // v0.63.0: 인스펙터와 같은 표기
 }
 // 재료를 둘 다 알고 있는데 아직 안 해 본 조합
@@ -2304,6 +2338,12 @@ function traceBookHtml(){
   }
   return h;
 }
+bookEl.addEventListener('click', e => {                           // v2.9.2: 조합법 줄 → 🌳 트리
+  const tr = e.target.closest('[data-totree]');
+  if (!tr || paused) return;
+  openBook(false);
+  openTreeAt(tr.dataset.totree);
+});
 function openBook(open){
   bookOpen = open;
   bookEl.classList.toggle('open', open);
