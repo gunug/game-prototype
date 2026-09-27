@@ -514,6 +514,7 @@
   .trow.st-unknown .tname{opacity:.55;}
   .rcp-line[data-totree], .combo-row[data-totree]{cursor:pointer;}
   .trow[data-tnode]{cursor:pointer;}
+  .book-row.treepicks{flex-wrap:wrap;gap:4px;}
   .tpin{background:none;border:0;padding:0 4px 0 0;font-size:12px;opacity:.28;cursor:pointer;line-height:1;}
   .tpin:hover{opacity:.7;}
   .tpin.on{opacity:1;filter:drop-shadow(0 0 4px rgba(255,212,0,.8));}
@@ -1007,7 +1008,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.9.3';
+const VERSION = 'v2.9.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1916,6 +1917,8 @@ const bookBack = document.getElementById('bookBack');
 let bookTier = 'tool';                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
 const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
+const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
+let bookTree = 'weapon';
 const BOOK_BOARDS = () => BOARDS.filter(b => b.dyn);               // 카드를 만드는 탭 — 조합 · 무기 · 갑옷
 // 그 탭에 나오는 카드 — 게임 화면과 같은 기준 (위 격자 = 완성품, 아래 = 재료). 어디에도 없는 카드는 조합 탭으로
 const bookCardsOf = id => CRAFT_TYPES.filter(t => onTopGrid(t, id) || onBoard(t, id)
@@ -2311,21 +2314,25 @@ function renderCombos(){
 }
 function renderBook(){
   if (!bookOpen) return;
-  const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB;
-  const inTab = isCombo || isTrace ? [] : bookCardsOf(bookTier);
+  const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB, isTree = bookTier === TREE_TAB;
+  const inTab = isCombo || isTrace || isTree ? [] : bookCardsOf(bookTier);
   const combos = isCombo ? renderCombos() : null;
   const found = isCombo ? combos.done : isTrace ? (S.traces || []).length : inTab.filter(shownSeen).length;
   const total = isCombo ? combos.total : isTrace ? TRACES.length : inTab.length;
+  const tre = isTree ? (TREES[bookTree] || TREES.weapon) : null;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
     + BOOK_BOARDS().map(b => `<button class="tabbtn${b.id === bookTier ? ' on' : ''}" data-tier="${b.id}">${bookBoardLabel(b)}</button>`).join('')
     + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합법</button>`
-    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-tier="${TRACE_TAB}">📜 흔적</button></div>`
-    + `<span class="meta">발견 ${found}/${total}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
+    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-tier="${TRACE_TAB}">📜 흔적</button>`
+    + `<button class="tabbtn${isTree ? ' on' : ''}" data-tier="${TREE_TAB}">🌳 길</button></div>`
+    + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span><button class="book-close" data-close="1"${paused ? ' disabled' : ''}>✕</button></div>`
     + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
-      : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>' : detailHtml()}</div>`
+      : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
+      : isTree ? `<span class="i-muted">${esc(tre.note)}</span>` : detailHtml()}</div>`
     + '<div class="book-body"><div class="book-inner">';
   if (isCombo) h += combos.html;
+  else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
     // v2.2.0: 게임 화면처럼 — 위 격자에 오르는 완성품, 아래에 놓이는 재료
@@ -2337,6 +2344,14 @@ function renderBook(){
   const keep = body ? body.scrollTop : 0;
   bookEl.innerHTML = h + '</div></div>';
   bookEl.querySelector('.book-body').scrollTop = keep;
+}
+// v2.9.4: 🌳 길 탭 — 위에 트리 고르는 줄, 아래는 트리 화면과 같은 줄(같은 함수라 늘 같은 내용)
+function treeBookHtml(t){
+  return '<div class="book-field"><div class="book-row treepicks">'
+    + Object.keys(TREES).map(id => `<button class="tabbtn${id === bookTree ? ' on' : ''}" data-treepick="${id}">${TREES[id].icon} ${esc(TREES[id].name.replace(' 트리', ''))}</button>`).join('')
+    + '</div></div>'
+    + t.branches.map(b => `<div class="book-field"><div class="book-fname">${esc(b.name)} <span class="i-muted">— ${esc(b.kind)}</span></div>`
+        + b.nodes.map(n => treeRowHtml(n, b)).join('') + '</div>').join('');
 }
 // v2.2.0: 흔적 탭 — 캐릭터마다 묶어서, 드러난 조각은 이름과 이야기, 아닌 건 ???
 function traceBookHtml(){
@@ -2355,10 +2370,30 @@ function traceBookHtml(){
   return h;
 }
 bookEl.addEventListener('click', e => {                           // v2.9.2: 조합법 줄 → 🌳 트리
+  if (paused) return;
+  const pick = e.target.closest('[data-treepick]');               // v2.9.4: 길 탭에서 트리 고르기
+  if (pick){ bookTree = pick.dataset.treepick; return renderBook(); }
+  const p = e.target.closest('[data-pin]');                        // v2.9.4: 책 안에서도 목표 찍기
+  if (p){
+    S.goal = S.goal === p.dataset.pin ? null : p.dataset.pin;
+    toast(S.goal ? `🎯 목표 — ${DEFS[S.goal].name}` : '목표를 풀었다');
+    renderBook(); renderHint(); save();
+    return;
+  }
+  const row = e.target.closest('[data-tnode]');                   // 길 탭 줄 → 인스펙터
+  if (row){
+    openBook(false);
+    inspType = row.dataset.tnode; selected = null; knightPick = false; slotPick = null;
+    return renderInsp();
+  }
   const tr = e.target.closest('[data-totree]');
-  if (!tr || paused) return;
-  openBook(false);
-  openTreeAt(tr.dataset.totree);
+  if (!tr) return;
+  bookTier = TREE_TAB; bookTree = treeOf(tr.dataset.totree) || bookTree;   // v2.9.4: 책을 닫지 않고 길 탭으로
+  renderBook();
+  setTimeout(() => {
+    const el = bookEl.querySelector(`[data-tnode="${tr.dataset.totree}"]`);
+    if (el){ el.scrollIntoView({ block:'center' }); flash(el, 'tflash', 1200); }
+  }, 30);
 });
 function openBook(open){
   bookOpen = open;
@@ -3484,6 +3519,7 @@ function currentHint(){
   return questHint() || goalHint();                               // v2.9.3: 퀘스트 팁이 없으면 찍어 둔 목표
 }
 // v2.9.3: 목표 팁 — 트리에서 📌로 찍은 카드까지 가는 **다음 한 걸음**. 다 만들면 저절로 풀림
+const subP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '이' : '가');   // v2.9.4: 이/가
 function goalHint(){
   const g = S.goal;
   if (!g || !DEFS[g]) return null;
@@ -3491,7 +3527,7 @@ function goalHint(){
   const nm = DEFS[g].name, st = nextStepTo(g);
   if (!st){
     const m = lackOf(g);
-    return { key:'goal', text:`🎯 ${nm} — ${m ? m + '이(가) 모자라요' : '재료가 모자라요'}`, sel:[] };
+    return { key:'goal', text:`🎯 ${nm} — ${m ? subP(m) + ' 모자라요' : '재료가 모자라요'}`, sel:[] };
   }
   const bd = BOARD_BY_ID[st.board] || BOARDS[0];
   const made = st.final ? nm : ((st.r.out || []).map(o => DEFS[o] ? DEFS[o].name : o)[0] || '부품');
