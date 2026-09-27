@@ -98,7 +98,7 @@ vm.runInContext("localStorage.removeItem(EDIT_KEY);", ctx);
 // 5) 같은 두 장이 탭마다 다른 결과를 내지 않는지 (v1.4.0) — 사용자가 헷갈림
 try {
   const clash = vm.runInContext(`(function(){
-    const out = [], nm = t => DEFS[t].name, boards = BOARDS.filter(b => b.dyn).map(b => b.id);
+    const out = [], nm = t => DEFS[t].name, boards = BOARDS.filter(b => b.dyn || b.mats).map(b => b.id);   // v6.4.0: 재료 탭도 함께 본다
     const here = (t, b) => onBoard(t, b) || onTopGrid(t, b);
     for (let i = 0; i < CRAFT_TYPES.length; i++) for (let j = i + 1; j < CRAFT_TYPES.length; j++){
       const x = CRAFT_TYPES[i], y = CRAFT_TYPES[j], res = {};
