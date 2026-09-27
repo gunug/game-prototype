@@ -546,6 +546,11 @@
     background:linear-gradient(180deg,#2a2419,#1b1812);border:1px solid var(--hairline);border-radius:18px;box-shadow:0 10px 50px rgba(0,0,0,.65);
     transform:scale(.88);opacity:0;pointer-events:none;transition:transform .28s cubic-bezier(.2,.85,.25,1),opacity .28s;}
   .book.open{transform:none;opacity:1;pointer-events:auto;}
+  /* v3.3.0: 탭으로 붙은 책 — 필드(1:1) 안을 그대로 채운다 (팝업 아님) */
+  .book.inline{position:absolute;left:0;right:0;top:0;bottom:0;z-index:3;transform:none;opacity:1;pointer-events:auto;
+    border-radius:var(--r-md);box-shadow:none;}
+  .book.inline[hidden]{display:none;}
+  .book.inline .book-grip{display:none;}
   .book-grip{width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.2);margin:8px auto 0;flex:none;}
   .book-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 16px 8px;flex:none;}
   .book-title{font-weight:800;font-size:15px;}
@@ -604,13 +609,14 @@
   <div class="toplist grid" id="topgrid" hidden></div>
   <div class="gather" id="gather" hidden></div>
   <div class="dungeon" id="dungeon" hidden></div>
+  <div class="book inline" id="book" hidden></div>
   <button class="treebtn" id="treeBtn" hidden></button>
 </div>
 <div class="ui side" id="ui">
   <div class="quest" id="quest"></div>
   <div class="insp" id="insp"></div>
   <div class="uibar" id="tabs">
-    <button class="tabbtn" id="bookBtn">📖<span class="nbadge" id="bookBadge" hidden></span></button>
+    <button class="tabbtn" id="bookBtn" data-tab="book">📖<span class="nbadge" id="bookBadge" hidden></span></button>
     <button class="tabbtn" id="setBtn">⚙</button>
     <span class="meta ver-out" id="ver"></span>   <!-- v0.47.1: 설정을 안 열어도 보이게 -->
     <div class="setpan" id="setpan" hidden>
@@ -623,8 +629,6 @@
 </div>
 <div class="book-back" id="treeBack"></div>
 <div class="book" id="tree"></div>
-<div class="book-back" id="bookBack"></div>
-<div class="book" id="book"></div>
 <div class="toasts" id="toasts"></div>
 <script>
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
@@ -1030,7 +1034,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.5';
+const VERSION = 'v3.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1304,6 +1308,7 @@ const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
 const slotOpen = key => { const sl = slotByKey(key); return !!sl && (!sl.lv || knightLv() >= sl.lv); };   // v0.66.0: 레벨로 열림
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
+const freeTabs = ['battle', 'dungeon', 'aim', 'book'];            // v3.3.0: 보드가 아닌 화면들
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -1411,7 +1416,7 @@ function load(){
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
     s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
-    const freeTab = t => t === 'battle' || t === 'dungeon' || t === 'aim';   // v0.91.0: 보드가 아닌 화면
+    const freeTab = t => freeTabs.includes(t);                   // v0.91.0: 보드가 아닌 화면
     if (!BOARD_BY_ID[s.tab] && !freeTab(s.tab)) s.tab = 'battle';
     if (!freeTab(s.tab) && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
     delete s.quest;
@@ -1965,7 +1970,6 @@ function renderInsp(){
 // 아래에서 올라오는 모달. 티어 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
 // 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
-const bookBack = document.getElementById('bookBack');
 let bookTier = 'tool';                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
 const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
@@ -2447,11 +2451,12 @@ bookEl.addEventListener('click', e => {                           // v2.9.2: 조
     if (el){ el.scrollIntoView({ block:'center' }); flash(el, 'tflash', 1200); }
   }, 30);
 });
+// v3.3.0: 📖 콜렉터북은 **탭**이다 — 필드(1:1) 안에 그대로 펼쳐지고 팝업·뒷배경이 없다
+let lastTab = 'battle';                                           // 책에서 나올 때 돌아갈 탭
 function openBook(open){
+  if (open && S.tab !== 'book') return setTab('book');
+  if (!open && S.tab === 'book') return setTab(lastTab || 'battle');
   bookOpen = open;
-  bookEl.classList.toggle('open', open);
-  bookBack.classList.toggle('open', open);
-  document.getElementById('bookBtn').classList.toggle('on', open);
   if (!open) bookPick = null;
   renderBook();
 }
@@ -2498,16 +2503,10 @@ async function runInserts(){
   inserting = false;
   renderBook(); save();
 }
-document.getElementById('bookBtn').addEventListener('click', () => {
-  if (paused || S.intro !== 'done') return;
-  openBook(!bookOpen);
-  if (bookOpen) hintDone('book');                                 // v2.4.0
-  if (bookOpen){ runInserts(); if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500); }   // v2.2.0: 새 흔적은 한 번 보면 끝
-});
-bookBack.addEventListener('click', () => { if (!paused) openBook(false); });
+// v3.3.0: 📖 단추는 그냥 탭 단추 — 탭 줄의 공통 처리가 맡는다 (누르면 책 탭으로, ✕ 로 돌아감)
 bookEl.addEventListener('click', e => {
   if (paused) return;
-  if (e.target.closest('[data-close]')) return openBook(false);
+  if (e.target.closest('[data-close]')) return setTab(lastTab || 'battle');   // v3.3.0: 탭이라 '닫기'는 돌아가기
   const tab = e.target.closest('[data-tier]');
   if (tab){ bookTier = tab.dataset.tier; return renderBook(); }    // v2.2.0: 탭 id 그대로
   const slot = e.target.closest('[data-book]');
@@ -2542,7 +2541,7 @@ function lockPop(btn, text){
 }
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
-  for (const b of wrap.querySelectorAll('[data-tab]')) b.remove();
+  for (const b of wrap.querySelectorAll('[data-tab]')) if (b.id !== 'bookBtn') b.remove();   // v3.3.0: 📖 단추는 고정
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
   const boardBtn = b => boardOpen(b)
@@ -3083,13 +3082,21 @@ function renderFieldInsp(){
 function setTab(tab){
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
-  if (tab !== 'battle' && tab !== 'dungeon' && tab !== 'aim' && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
+  if (!freeTabs.includes(tab) && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
+  if (S.tab !== 'book') lastTab = S.tab;                          // v3.3.0: 책에서 나올 때 돌아갈 곳
   S.tab = tab;
   renderTabs();
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
+  bookEl.hidden = tab !== 'book';                                 // v3.3.0
+  bookOpen = tab === 'book';
+  if (bookOpen){                                                  // 새 카드는 들어오자마자 끼움
+    hintDone('book');
+    runInserts();
+    if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500);
+  }
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
-  table.hidden = isRowScreen(tab) || tab === 'dungeon';           // v0.29.0: 전투·정비는 줄 화면
+  table.hidden = isRowScreen(tab) || tab === 'dungeon' || tab === 'book';   // v0.29.0: 전투·정비는 줄 화면
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
@@ -3940,7 +3947,7 @@ function setEditMode(on, quiet){
   try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; slotPick = null; knightPick = false;
   renderTabs();
-  if (S.tab !== 'battle' && S.tab !== 'dungeon' && S.tab !== 'aim' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
+  if (!freeTabs.includes(S.tab) && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
   setTab(S.tab);
   renderAll(); renderBook(); renderInsp();
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
