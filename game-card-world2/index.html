@@ -373,15 +373,19 @@
   .miniexp{display:flex;align-items:center;gap:8px;padding:5px 12px 7px;border-top:1px solid var(--hairline);font-size:12px;}
   .miniexp[hidden]{display:none;}
   .miniexp .mx-pic{width:22px;height:22px;object-fit:cover;object-position:top center;border-radius:4px;flex:none;}
-  .miniexp .mx-hp{width:52px;height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;flex:none;}
+  .miniexp .mx-hp{width:52px;height:7px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;flex:none;}
   .miniexp .mx-hp i{display:block;height:100%;background:#7ddc7d;}
   .miniexp .mx-hp.low i{background:#e06b5a;}
-  .miniexp .mx-lane{position:relative;flex:1 1 auto;height:12px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .miniexp .mx-lane{position:relative;flex:1 1 auto;height:18px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden;}   /* v3.13.1: 1.5배 두껍게 */
   .miniexp .mx-lane .mx-bar{position:absolute;left:0;top:0;bottom:0;background:rgba(255,212,0,.22);}
-  .miniexp .mx-lane .mx-dot{position:absolute;top:1px;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--brand-yellow);}
-  .miniexp .mx-lane .mx-foe{position:absolute;top:3px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#e06b5a;}
-  .miniexp .mx-lane .mx-foe.dead{background:rgba(255,255,255,.25);}
-  .miniexp .mx-lane .mx-spot{position:absolute;top:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(255,255,255,.45);}
+  .miniexp .mx-lane .mx-dot{position:absolute;top:2px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--brand-yellow);}
+  /* v3.13.1: 적 얼굴 · 채집 포인트 그림 */
+  .miniexp .mx-lane .mx-foe{position:absolute;top:1px;width:16px;height:16px;margin-left:-8px;border-radius:50%;object-fit:cover;object-position:top center;
+    border:1px solid rgba(224,107,90,.8);background:rgba(0,0,0,.35);}
+  .miniexp .mx-lane .mx-foe.boss{border-color:var(--brand-yellow);width:18px;height:18px;top:0;margin-left:-9px;}
+  .miniexp .mx-lane .mx-foe.dead{filter:grayscale(1) brightness(.5);border-color:rgba(255,255,255,.25);}
+  .miniexp .mx-lane .mx-spot{position:absolute;top:3px;width:12px;height:12px;margin-left:-6px;object-fit:contain;opacity:.9;}
+  .miniexp .mx-lane .mx-spot.done{opacity:.3;filter:grayscale(1);}
   .miniexp .mx-line{flex:none;max-width:42%;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .q-pic{width:18px;height:18px;object-fit:cover;object-position:top center;border-radius:3px;vertical-align:middle;}
   .q-pic.emo{display:inline-block;text-align:center;font-size:13px;line-height:18px;}
@@ -1140,7 +1144,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.13.0';
+const VERSION = 'v3.13.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3818,8 +3822,10 @@ function renderMiniExp(){
     + `<div class="mx-hp${hp / max <= 0.35 ? ' low' : ''}"><i style="width:${Math.round(hp / max * 100)}%"></i></div>`
     + `<span class="mx-field">${f.emoji || ''}</span>`
     + '<div class="mx-lane"><div class="mx-bar" style="width:' + Math.round(exp.t * 100) + '%"></div>'
-    + exp.spots.map(sp => `<div class="mx-spot" style="left:${Math.round(sp.at * 100)}%"></div>`).join('')
-    + exp.foes.map(fo => `<div class="mx-foe${fo.dead ? ' dead' : ''}" style="left:${Math.round(fo.at * 100)}%"></div>`).join('')
+    + exp.spots.map(sp => `<img class="mx-spot${sp.done ? ' done' : ''}" style="left:${Math.round(sp.at * 100)}%"`
+        + ` src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집" draggable="false">`).join('')
+    + exp.foes.map(fo => `<img class="mx-foe${fo.dead ? ' dead' : ''}${fo.boss ? ' boss' : ''}" style="left:${Math.round(fo.at * 100)}%"`
+        + ` src="images/portrait/${(ENEMIES[fo.key] || {}).portrait || 'portrait_animal'}.png" alt="${esc((ENEMIES[fo.key] || {}).name || '')}" draggable="false">`).join('')
     + `<div class="mx-dot" style="left:${Math.round(exp.t * 100)}%"></div></div>`
     + `<span class="mx-line">${esc(exp.line || '')}</span>`;
   paintIcons(el);
