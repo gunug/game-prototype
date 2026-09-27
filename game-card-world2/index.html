@@ -706,10 +706,17 @@ const FIELDS = [                                                  // v0.9.1: 순
     exp:'기사는 허리까지 오는 풀을 헤치며 씨앗과 벌집을 챙긴다. 풀이 흔들리면 그건 바람이 아닐 때가 있다.' },
   { id:'forest',    name:'숲',   emoji:'🌲', desc:'그늘, 열매, 끈적한 것, 쓴 풀. 길을 잃기 딱 좋다.',
     exp:'기사는 나무 사이를 돌며 열매를 따고 흘러내린 수액을 긁어모은다. 발밑의 쓴 풀도 그냥 두지 않는다.' },
+  // v4.0.0: 🪨 돌가죽 굴 — 첫 던전. 필드와 같은 한 줄 원정이되 🏚 던전 탭에서 들어간다
+  //   확정 55: 필드는 수치로, 던전은 기믹으로 막는다 — 방어 무시가 없으면 주인에게 한 대에 1밖에 못 넣는다
+  { id:'stonehide', name:'돌가죽 굴', emoji:'🪨', dungeon:true, desc:'산이 무너진 자리 아래로 굴이 뚫려 있다. 안쪽 것들은 돌을 덮고 산다.',
+    exp:'기사는 몸을 숙여 굴로 들어간다. 벽에 검은 돌이 박혀 있고, 발밑에서 무언가가 딱딱한 등을 세운다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
+// v4.0.0: 필드 탭엔 바깥 땅, 던전 탭엔 굴 — 같은 원정 장치를 쓰되 화면만 가른다
+const OUT_FIELDS = () => FIELDS.filter(f => !f.dungeon);
+const DUNGEONS = () => FIELDS.filter(f => f.dungeon);
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
 const FIELD_NO_ICON = [];                                         // v3.5.0: 필드 그림 다 있음 (들머리 포함)
 const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
@@ -722,6 +729,7 @@ const FIELD_YIELDS = {
   grassland: ['grass', 'seed', 'honeycomb', 'feather'],        // v0.52.0: 짐승은 뺌 — 들개·들소를 잡으면 같은 재료가 나옴
   forest:    ['vine', 'berry', 'sap', 'herb'],                  // v3.8.2: 나무는 산 몫 — 숲은 덩굴
   river:     ['water', 'soil', 'sand', 'fish'],
+  stonehide: ['obsidian'],                                      // v4.0.0: 굴 벽의 검은 돌
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
 // 2단계 묶음 (v0.5.0) — 2단계는 필드가 없어 쓰임별로 콜렉터북에 묶음
@@ -745,6 +753,7 @@ const DEFS = {
   coal:    { name:'석탄',   kind:'material', step:1, field:'mountain' },
   // 🌲 숲
   tree:    { name:'나무',   kind:'material', step:1, field:'forest' },
+  obsidian: { name:'흑요석', kind:'material', step:1, field:'stonehide' },   // v4.0.0: 🪨 던전 안에서만
   vine:    { name:'덩굴',   kind:'material', step:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
   berry:   { name:'열매',   kind:'material', step:1, field:'forest' },
   sap:     { name:'수액',   kind:'material', step:1, field:'forest' },
@@ -827,11 +836,14 @@ const DEFS = {
   shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
   rimshield: { name:'테 두른 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙구슬 목걸이(장신구 방어 +2)
+  obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
+  battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true },       // v4.0.0: 방어를 0으로 치는 무기
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙구슬 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
+  stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
   bearclaw:  { name:'곰의 발톱',   kind:'material', step:1, group:'loot' },   // v3.8.0: 보스 전용 전리품도 1단계
   bisonhorn: { name:'들소 뿔',     kind:'material', step:1, group:'loot' },
   mosspelt:  { name:'이끼 낀 곰가죽', kind:'material', step:1, group:'loot' },
@@ -866,6 +878,8 @@ const USE = {
   rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], barbtip:['무기재료'],
   nacre:['장신구', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],
   smokedfish:['요리재료'], leatherstrap:['갑옷재료', '도구재료'],
+  obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
+  stonepelt:['갑옷재료'],
   vine:['건축재료', '도구재료'], pincer:['도구재료', '장신구'], tallow:['요리재료', '약품재료', '생산재료'],
   furpelt:['갑옷재료', '건축재료'], shellpiece:['장신구', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3단계
@@ -917,6 +931,10 @@ const DESC = {
   sinew:     '질기다. 끊으려 들면 손이 먼저 아프다.',
   claw:      '땅을 헤집던 것. 끝이 안으로 굽어 잘 걸린다.',
   scale:     '겹쳐 대면 물도 칼도 미끄러진다.',
+  obsidian:  '검은 유리 돌. 깨진 자리가 칼보다 날카롭다.',
+  obsidianblade:'흑요석을 쳐서 얇게 떼어 냈다. 돌도 가죽처럼 가른다.',
+  battleaxe: '흑요석 날을 도끼에 물렸다. 두꺼운 것일수록 잘 들어간다.',
+  stonepelt: '돌을 덮고 살던 가죽. 벗겨 놓아도 여전히 무겁다.',
   vine:      '숲이 스스로 꼬아 놓은 줄. 끊기 전에는 잘 풀리지도 않는다.',
   drymeat:   '연기에 오래 걸어 두었다. 이제 급할 것이 없다.',
   fletching: '뼈대에 깃을 붙였다. 날아가는 것에는 꼬리가 있어야 한다.',
@@ -1055,6 +1073,9 @@ const RECIPES = [
   // v2.1.0: 🌲 숲 — 수액이 있어야 테를 붙인다 (숲에서만 나는 부품)
   { id:'shieldrim',    a:{ card:'plank' },      b:{ card:'sap' },      out:['shieldrim'] },
   { id:'rimshield',    a:{ card:'woodshield' }, b:{ card:'shieldrim' }, out:['rimshield'] },
+  // v4.0.0: 던전 열쇠 — 흑요석 날 → 전투 도끼(방어 무시)
+  { id:'obsidianblade', a:{ card:'obsidian' },  b:{ card:'blade' },    out:['obsidianblade'] },
+  { id:'battleaxe',     a:{ card:'handaxe' },   b:{ card:'obsidianblade' }, out:['battleaxe'] },
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
@@ -1156,7 +1177,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.14.3';
+const VERSION = 'v4.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2365,7 +2386,7 @@ TREES.battle = { name:'필드 트리', icon:'🗡️',
 // v1.7.0: **부품 기준**으로 다시 짬 — 던전 보스의 기믹 → 그걸 푸는 무기 → 그 무기에 성격을 주는 **열쇠 부품**
 //   이 트리는 아래로 갈수록 '무엇이 필요한가'를 따라 내려간다 (무기 · 갑옷 · 도구 트리의 '무엇으로 만드는가'와 반대 방향)
 TREES.dungeon = { name:'던전 트리', icon:'🏚',
-  note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 보스 아래에 그걸 푸는 무기, 그 아래에 무기에 성격을 주는 열쇠 부품. 전부 계획뿐.', branches: [
+  note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 보스 아래에 그걸 푸는 무기, 그 아래에 무기에 성격을 주는 열쇠 부품. 🪨 돌가죽 굴은 만들어졌고 나머지는 계획.', branches: [
   { name:'🔑 열쇠 부품', kind:'성격을 주는 부품', nodes: [
     { d:0, name:'흑요석 날',  make:'방어 무시 · 출혈 — 흑요석 + 뗀석기', tags:['돌가죽 굴','늪지 무덤'] },
     { d:0, id:'fang',        role:'관통',               tags:['껍질 동굴'] },
@@ -2373,10 +2394,13 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:0, name:'활대 · 시위', make:'원거리 — 나무 자루 + 뗀석기 / 섬유끈 + 수액', tags:['거미 둥지'] },
     { d:0, id:'feather',     role:'던지기',                   tags:['거미 둥지'] },
   ] },
-  { name:'🪨 돌가죽 굴', kind:'방어가 무지막지', nodes: [
-    { d:0, name:'돌가죽 주인', make:'방어가 매우 높아 보통 공격이 1밖에 안 박힘', tags:['해법: 방어 무시'] },
-    { d:1, name:'전투 도끼',   make:'손도끼 + 흑요석 날',  tags:['방어 무시'] },
-    { d:2, name:'🔑 흑요석 날', make:'흑요석 + 뗀석기' },
+  { field:'stonehide', name:'🪨 돌가죽 굴', kind:'첫 던전 · 방어가 무지막지', nodes: [
+    { d:0, name:'돌벌레',      make:'체6 · 공4 · 방4 — 흑요석을 떨굼', on:true },
+    { d:0, name:'⚔ 바위 등껍질', make:'체16 · 공8 · 방9', on:true },
+    { d:0, name:'👑 돌가죽 주인', make:'체30 · 공10 · 방11 — 방어 무시가 없으면 한 대에 1', on:true, tags:['해법: 방어 무시'] },
+    { d:1, id:'battleaxe',     role:'해법',  tags:['방어 무시'] },
+    { d:2, id:'obsidianblade', role:'🔑 열쇠' },
+    { d:3, id:'obsidian',      role:'굴 안에서만' },
   ] },
   { name:'🕸 거미 둥지', kind:'가까이 가면 반격', nodes: [
     { d:0, name:'둥지 주인',   make:'붙어서 치면 그만큼 되돌려받음', tags:['해법: 원거리 · 던지기'] },
@@ -2775,7 +2799,7 @@ function renderTabs(){                                            // v0.21.0: �
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => tab === 'battle' || tab === 'gearup' || tab === 'aim';   // v3.0.0: 목적도 줄 화면
+const isRowScreen = tab => tab === 'battle' || tab === 'gearup' || tab === 'aim' || tab === 'dungeon';   // v3.0.0 · v4.0.0: 던전도 줄 화면
 // ── 🎯 목적 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
@@ -2942,8 +2966,9 @@ function screenRows(){
     return [{ card, slots: [{ id:'aim:goal', open:true, card: !!g, type: g, icon: g ? iconHtml(g) : '',
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'목표' }] }];
   }
-  if (S.tab === 'battle'){
-    return FIELDS.filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {   // v3.1.0: 튜토리얼이 끝나면 들머리는 사라짐
+  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0: 던전도 같은 줄 화면
+    return (S.tab === 'dungeon' ? DUNGEONS() : OUT_FIELDS())
+      .filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
@@ -2979,7 +3004,7 @@ function screenRows(){
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
-  if (S.tab === 'battle') return [{ token: 'knight', html: knightCardHtml(true) }];
+  if (S.tab === 'battle' || S.tab === 'dungeon') return [{ token: 'knight', html: knightCardHtml(true) }];   // v4.0.0
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
     // v3.0.7: 카드 위엔 할 일을 적지 않는다 — 상태는 테두리 빛으로만, 자세한 건 탭했을 때 인스펙터에서
@@ -3084,11 +3109,11 @@ function renderScreen(){
     + '</div>'
     + '<div class="botarea">'
     + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
-    + (S.tab === 'battle' ? knightSayHtml() : '') + '</div>'
+    + (S.tab === 'battle' || S.tab === 'dungeon' ? knightSayHtml() : '') + '</div>'
     + (S.tab === 'aim' ? goalPlanHtml() : '')                     // v3.0.0: 목표까지의 차례
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
-    + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요'
+    + `<div class="gather-hint">${S.tab === 'battle' || S.tab === 'dungeon' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요'
       : S.tab === 'aim' ? '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   paintIcons(gatherEl);                                           // v3.5.0
   syncTopH();
@@ -3100,7 +3125,7 @@ const renderSlots = () => {};                                     // v0.29.0: �
 function dropOnSlot(id, token){
   const [rowKey, slotKey] = id.split(':');
   if (S.tab === 'aim'){ setGoal(token); return; }                 // v3.0.0
-  if (S.tab === 'battle'){
+  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0
     if (token !== 'knight') return;
     const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
     expStart(rowKey, fel);
@@ -3115,7 +3140,7 @@ function dropOnSlot(id, token){
 function slotTakes(id, token){
   const [, slotKey] = id.split(':');
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
-  if (S.tab === 'battle') return token === 'knight';
+  if (S.tab === 'battle' || S.tab === 'dungeon') return token === 'knight';   // v4.0.0
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key) && useOf(token).includes(sl.tag);   // v0.56.0: 잠긴 칸은 안 받음
 }
@@ -3333,7 +3358,7 @@ function setTab(tab){
   if (S.tab !== 'book') lastTab = S.tab;                          // v3.3.0: 책에서 나올 때 돌아갈 곳
   S.tab = tab;
   renderTabs();
-  dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
+  dungeonEl.hidden = true;                                        // v4.0.0: 던전도 줄 화면이라 안내판은 안 씀
   document.getElementById('setpage').hidden = tab !== 'settings';  // v3.7.3
   bookEl.hidden = tab !== 'book';                                 // v3.3.0
   setTimeout(() => { expBuild(); renderMiniExp(); }, 0);          // v3.13.0 · v3.14.0
@@ -3346,7 +3371,7 @@ function setTab(tab){
   }
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
-  table.hidden = isRowScreen(tab) || tab === 'dungeon' || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
+  table.hidden = isRowScreen(tab) || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
   fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목적 화면 전용 배치
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
@@ -3423,6 +3448,13 @@ const ENEMIES = {
   // v2.1.0: 🏞️ 강가 — 가재(잡몹) · 악어(중간보스) · 큰 메기(필드보스)
   //   숲 장비로는 악어에서 막힘. 강가 무기(+9) · 15레벨 장신구(+2)를 가정해 맞춘 수치 (약 10판, Lv15) — 둘 다 아직 없음
   // v3.8.4: 🏞️ 강가 전리품 넷 — 생선살 · 비늘 · 집게발 · 조개껍데기 (+ 보스 메기 수염)
+  // v4.0.0: 🪨 돌가죽 굴 — 방어가 높아 방어 무시가 없으면 한 대에 1
+  stonebug:  { name:'돌벌레',   portrait:'portrait_stonebug',  atk:4, def:4, hp:6,
+    loot: [['obsidian', 60, 1], ['stonepelt', 40, 1]] },
+  shellback: { name:'바위 등껍질', portrait:'portrait_shellback', atk:8, def:9, hp:16,
+    loot: [['obsidian', 50, 2], ['stonepelt', 50, 1]] },
+  stonelord: { name:'돌가죽 주인', portrait:'portrait_stonelord', atk:10, def:11, hp:30,
+    loot: [['stonepelt', 60, 2], ['obsidian', 40, 2]] },
   crayfish:  { name:'가재',     portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
     loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
   crocodile: { name:'악어',     portrait:'portrait_crocodile', atk:7, def:3, hp:44,
@@ -3438,6 +3470,7 @@ const gearStat = key => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => 
   return sum + (t ? (DEFS[t][key] || 0) : 0);
 }, 0);
 const bestOf = key => gearStat(key);                              // 옛 이름 (인스펙터에서 씀)
+const knightPierce = () => { const w = equipped('weapon'); return !!(w && DEFS[w] && DEFS[w].pierce); };   // v4.0.0
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -3489,7 +3522,18 @@ const PRELUDE_PLAN = [                                            // v3.5.1: 채
 ];
 const PRELUDE_LOOT = [['stone'], ['flint'], ['stone'], ['tree']]; // 지점 순서대로 — 한 판이면 뗀석기 칼 재료가 다 모인다
 const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
+// v4.0.0: 🪨 던전 대본 — 채집(검은 돌) 사이사이 돌벌레, 중간에 등껍질, 끝에 주인
+const DUNGEON_PLAN = [
+  { loot:1, at:0.12 },
+  { fight:'stonebug', at:0.28 },
+  { loot:1, at:0.42 },
+  { fight:'stonebug', at:0.56 },
+  { fight:'shellback', mid:true, at:0.72 },
+  { loot:1, at:0.82 },
+  { fight:'stonelord', boss:true, at:0.93 },
+];
 const EXP_PLAN = {
+  stonehide: DUNGEON_PLAN,
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
@@ -3577,7 +3621,7 @@ function expTick(dt){
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
 function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
-  const kd = Math.max(1, knightAtk() - def.def);
+  const kd = Math.max(1, knightAtk() - (knightPierce() ? 0 : def.def));   // v4.0.0: 방어 무시
   e.hp -= kd;
   expSwing('knight', exp.foe, kd);
   const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
@@ -3600,6 +3644,10 @@ function expBeat(){
       S.cleared = S.cleared || [];
       if (!S.cleared.includes(exp.id)){
         S.cleared.push(exp.id);
+        if (exp.id === 'mountain' && S.fields.stonehide){          // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
+          S.fields.stonehide.locked = false;
+          knightSay('산이 무너진 자리에 굴이 있다');
+        }
         unlockNextField(exp.id);
       }
       expEnd('boss');
@@ -3804,7 +3852,7 @@ function flyToCraft(t, r){
 function expBuild(){
   const el = document.getElementById('exp');
   if (!el) return;
-  const on = !!exp && S.tab === 'battle';                         // v3.14.0: 필드 탭에서만 큰 화면, 다른 탭은 미니
+  const on = !!exp && (S.tab === 'battle' || S.tab === 'dungeon');   // v3.14.0 · v4.0.0: 필드 · 던전 탭에서 큰 화면
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1: 열고 닫힐 때 부드럽게
   if (!exp){ setTimeout(() => { if (!exp){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
@@ -3836,10 +3884,10 @@ const statBox = (atk, def, hp, max) =>
 function renderMiniExp(){
   const el = document.getElementById('miniexp');
   if (!el) return;
-  const on = !!exp && S.tab !== 'battle';                          // 필드 탭에선 큰 화면이 이미 보임
+  const on = !!exp && S.tab !== 'battle' && S.tab !== 'dungeon';    // 필드 · 던전 탭에선 큰 화면이 이미 보임
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1
-  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle')){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
+  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle' && S.tab !== 'dungeon')){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
   // v3.14.2: **한 번만 짓고 그 뒤엔 값만 고친다** — 매 틱 다시 그려 그림이 깜빡이던 것
   const key = `${exp.id}|${exp.spots.length}|${exp.foes.map(f => f.key).join(',')}`;
   if (el._key !== key){
@@ -3872,7 +3920,7 @@ function expPaint(){
   renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
   if (!el || !exp) return;
-  if (S.tab === 'battle' && !el.firstChild) expBuild();           // v3.14.0: 필드 탭으로 돌아오면 다시 만듦
+  if ((S.tab === 'battle' || S.tab === 'dungeon') && !el.firstChild) expBuild();   // v3.14.0: 돌아오면 다시 만듦
   if (!el.firstChild || el.hidden) return;
   const lane = el.querySelector('.exp-lane');
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
@@ -4143,8 +4191,8 @@ function fieldNeed(id){
   return prev ? `${prev.name} 클리어` : '잠김';                    // v0.98.1: '필요' 뺌
 }
 function unlockNextField(afterId){
-  const i = FIELDS.findIndex(f => f.id === afterId);
-  const next = FIELDS.slice(i + 1).find(f => fieldLocked(f.id)) || FIELDS.find(f => fieldLocked(f.id));
+  const i = OUT_FIELDS().findIndex(f => f.id === afterId);
+  const next = OUT_FIELDS().slice(i + 1).find(f => fieldLocked(f.id)) || OUT_FIELDS().find(f => fieldLocked(f.id));   // v4.0.0: 던전은 따로 열림
   if (!next) return;
   S.fields[next.id].locked = false;
   save();
