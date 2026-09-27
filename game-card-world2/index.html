@@ -526,10 +526,6 @@
   .dungeon .dg-t{font-size:calc(var(--cw) * .28);font-weight:900;color:var(--ink);}
   .dungeon .dg-s{font-size:calc(var(--cw) * .17);color:var(--muted);line-height:1.6;max-width:26em;}
   /* v0.96.0: 필드(1:1 네모) 안에 붙는다. 예전엔 body 바로 밑이라 가로 화면에서 UI 뒤로 숨었음 */
-  .treebtn{position:absolute;right:8px;top:8px;z-index:12;padding:4px 10px;border-radius:var(--r-pill);
-    border:1px solid var(--hairline);background:rgba(20,18,15,.82);color:var(--ink);font:inherit;font-size:12px;font-weight:800;cursor:pointer;}
-  .treebtn[hidden]{display:none;}
-  .treebtn:hover{border-color:rgba(255,212,0,.5);}
   .trow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:3px 0;font-size:12px;}   /* v2.8.1: 재료 이름이 길면 줄바꿈 */
   .trow .tpad{flex:none;color:var(--muted);opacity:.55;white-space:pre;font-variant-numeric:tabular-nums;}
   .trow .tname{font-weight:800;white-space:nowrap;}
@@ -658,7 +654,6 @@
     </div>
     <div class="set-note">에디터 모드는 잠긴 화면 · 필드 · 카드를 모두 열어 본다. 저장과 별개로 새로 고쳐도 유지된다.</div>
   </div>
-  <button class="treebtn" id="treeBtn" hidden></button>
 </div>
 <div class="ui side" id="ui">
   <div class="insp" id="insp"></div>
@@ -1130,7 +1125,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.12.0';
+const VERSION = 'v3.12.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2458,13 +2453,8 @@ function treeRowHtml(n, ctx){
 }
 // v3.4.0: 🌳 트리 팝업 없앰 — 콜렉터북의 '🌳 길' 탭이 같은 내용을 보여 준다
 //   🌳 단추는 그 탭으로 데려다 주는 지름길
-const treeBtn = document.getElementById('treeBtn');
-treeBtn.addEventListener('click', () => { if (TREES[S.tab]) openBookTree(S.tab); });
-function renderTreeBtn(){                                         // 도구·무기 화면에서만 보임
-  const t = TREES[S.tab];
-  treeBtn.hidden = !t;
-  if (t){ treeBtn.innerHTML = `🌳 ${esc(t.name)}`; paintIcons(treeBtn); }   // v3.5.0
-}
+// v3.12.1: 🌳 트리 단추 삭제 — 트리는 📖 콜렉터북의 '🌳 길' 탭에서만 본다
+function renderTreeBtn(){}
 // 콜렉터북 🌳 길 탭 열기 (필요하면 그 줄로 스크롤 + 잠깐 밝힘)
 function openBookTree(treeId, node){
   bookTier = TREE_TAB;
