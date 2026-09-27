@@ -1265,7 +1265,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.0.0';
+const VERSION = 'v6.1.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3035,8 +3035,13 @@ function sideReachKnown(sd, d){                                   // 그 재료�
   return aimRecipes(sd.card).some(x => sideReachKnown(x.a, d - 1) && sideReachKnown(x.b, d - 1));
 }
 const aimReady = t => aimRecipes(t).some(x => sideReachKnown(x.a, 3) && sideReachKnown(x.b, 3));
+// v6.1.0: 목적은 **기능이 있는 것**만 건다 — 무기 · 방어구 · 방패 · 장신구 · 도구 · 거점 · 소모품.
+//   기능 태그가 없는 것은 지금은 끝물이어도 언젠가 다른 것의 재료가 된다 (걸 까닭이 없다).
+//   중간 재료는 후보에서만 빠질 뿐, 목표까지의 **차례 안에는 그대로** 나온다
+const FUNCTION_USES = ['무기', '근접무기', '원거리무기', '방어구', '방패', '장신구', '도구', '거점', '소모품'];
+const aimGoalOk = t => useOf(t).some(u => FUNCTION_USES.includes(u));
 function aimCandidates(){                                         // 만들 줄 아는 것 — 이미 가진 것과 지금 목표는 뺌
-  return CRAFT_TYPES.filter(t => t !== S.goal && have(t) <= 0 && aimReady(t))
+  return CRAFT_TYPES.filter(t => t !== S.goal && have(t) <= 0 && aimGoalOk(t) && aimReady(t))
     .sort((a, b) => aimRank(a) - aimRank(b) || (DEFS[a].step || 0) - (DEFS[b].step || 0));
 }
 const aimUseCandidates = use => aimCandidates().filter(t => useOf(t).includes(use));   // v3.0.3: 그 쓰임의 후보
