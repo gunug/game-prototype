@@ -522,6 +522,7 @@
   .aim-step.now{color:var(--ink);background:rgba(255,212,0,.08);border-left:2px solid var(--brand-yellow);padding-left:6px;}
   .aim-step.done{opacity:.5;text-decoration:line-through;}
   .aim-box{font-size:13px;}
+  .fneed{position:absolute;top:2px;left:4px;font-size:10px;color:var(--brand-yellow);background:rgba(0,0,0,.45);border-radius:var(--r-pill);padding:0 5px;}
   .aim-empty{margin:8px 10px;font-size:12px;color:var(--muted);}
   .aim-st{position:absolute;left:0;right:0;bottom:2px;display:flex;justify-content:center;}
   .cw.unseen .name{color:var(--muted);}
@@ -1018,7 +1019,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.0.0';
+const VERSION = 'v3.0.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1068,15 +1069,18 @@ const QUESTS = {
                 say:'할 수 있는 게 없네… 일단 산으로 가볼까' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
-  arm:        { name:'맨손으론 무리', text:() => { if (haveWeapon()) return '만든 무기를 손에 쥐자';   // v2.4.1: 다음 한 걸음 기준
-                  const st = nextStep('근접무기');
-                  return !st ? '⛰️ 산에서 쓸 만한 걸 더 모으자' : st.final ? '쥘 만한 걸 만들어 보자' : '부품부터 만들자'; },
-                goal:1, key:'equip:weapon',
+  // v3.0.1: **퀘스트는 무엇을 할지만 말하고, 어떻게는 🎯 목적이 안내한다**
+  //   ① 목적에 등록하기 → ② 목적이 적어 준 차례대로 만들기 → ③ 쥐기
+  aimweapon:  { name:'무엇을 쥘까',   text:'🎯 목적에 만들 무기를 등록하자', goal:1, key:'aim-use:근접무기',
                 say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🎯 목적에 적힌 차례대로 만들자',
+                goal:1, key:'equip:weapon' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
                 say:'늑대부터 넘어야 앞으로 가겠군' },
   // v0.72.0: 이 대사는 퀘스트를 받을 때가 아니라 **곰에게 지고 돌아온 뒤**에 한다 (expEnd)
-  better:     { name:'이걸론 부족해', text:'더 센 무기를 쥐자',     goal:1, key:'equip:atk2' },
+  aimbetter:  { name:'더 센 것을 고르자', text:'🎯 목적에 더 센 무기를 등록하자', goal:1, key:'aim-atk2' },
+  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🎯 목적에 적힌 차례대로 만들자' : '더 센 무기를 쥐자',
+                goal:1, key:'equip:atk2' },
   bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 가 보자',      goal:1, key:'exp-start:grassland',
@@ -1094,7 +1098,7 @@ const QUESTS = {
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { gomountain:'arm', arm:'wolf', wolf:'better', better:'bear', bear:'grass',
+const QUEST_NEXT = { gomountain:'aimweapon', aimweapon:'arm', arm:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
   grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
@@ -1104,6 +1108,11 @@ function questSelfCheck(){
   if (w && (DEFS[w].atk || 0) >= 2) questHit('equip:atk2');
   if (w && (DEFS[w].atk || 0) >= 3) questHit('equip:atk3');       // v2.0.0
   if (equipped('armor')) questHit('equip:armor');
+  if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목적에 이미 걸어 두었으면 바로 인정
+    for (const u of useOf(S.goal)) questHit(`aim-use:${u}`);
+    if ((DEFS[S.goal].atk || 0) >= 2) questHit('aim-atk2');
+    if ((DEFS[S.goal].atk || 0) >= 3) questHit('aim-atk3');
+  }
   for (let lv = 2; lv <= knightLv(); lv++) questHit(`level:${lv}`);
   for (const k of (S.killed || [])) questHit(`kill:${k}`);         // v0.66.0: 퀘스트를 받기 전에 이미 잡았어도 인정
   for (const id in (S.marks || {})) questHit(`exp-end:${id}`);
@@ -2556,6 +2565,13 @@ function goalPlan(t, depth = 4, seen = new Set()){
   return sub.concat([{ type:t, kind:'make', r:x }]);
 }
 const planStepDone = st => st.kind === 'make' || st.kind === 'get' ? have(st.type) > 0 : sideHave({ use: st.use });
+// v3.0.2: 목표에 필요한데 아직 없는 '주워 올 것' — 필드 카드에 ⭐로 표시
+function goalNeeds(){
+  const g = S.goal;
+  if (!g || !DEFS[g]) return [];
+  return goalPlan(g).filter(st => st.kind === 'get' && have(st.type) <= 0).map(st => st.type);
+}
+const goalNeedsAt = id => goalNeeds().filter(t => yieldsOf(id).includes(t) || lootTypes(id).includes(t));
 function aimWhere(t){                                             // 어디서 구하나 — 떨구는 놈 · 줍는 곳
   const d = dropText(t);
   if (d) return d;
@@ -2589,6 +2605,8 @@ function setGoal(t){
   S.goal = t;
   questHit('aim');                                                // v3.0.0: '목적에 등록하기' 퀘스트
   for (const u of useOf(t)) questHit(`aim-use:${u}`);
+  if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
+  if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
   toast(`🎯 목적 — ${aimName(t)}`);
   renderScreen(); renderInsp(); renderHint(); save();
 }
@@ -2617,6 +2635,7 @@ function screenRows(){
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
         + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b>` : '')     // v0.98.0: 자물쇠 위에 조건
+        + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">⭐ ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
         + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
         + (lootTypes(f.id).length
@@ -3686,15 +3705,21 @@ function questHint(){
           { key, text, sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
           { key, text: text + ' (🗡️ 필드 탭)', sel:['#tabs [data-tab="battle"]'] }));
   if (questOn('gomountain')) return go('기사를 ⛰️ 산 출전 칸에 놓아 다녀와요', 'q:gomountain');
+  if (questOn('aimweapon')) return keep(aimTip('만들 무기를'));    // v3.0.1: 먼저 목적에 등록
   if (questOn('arm')){
     if (haveWeapon())
       return keep(onTab('gearup',
         { key:'q:arm', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
         { key:'q:arm', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] }));
-    return go('⛰️ 산으로 출전해 무기 재료를 더 모아요', 'q:arm');   // 지금 할 조합이 없을 때 (있으면 ④가 먼저)
+    const gh = goalHint();                                        // v3.0.1: 목적이 적어 준 다음 한 걸음
+    if (gh) return keep(gh);
+    return keep(aimTip('만들 무기를'));
   }
   if (questOn('wolf')) return go('무기를 쥐었으니 다시 ⛰️ 산으로 — 늑대를 넘어요', 'q:wolf');
+  if (questOn('aimbetter')) return keep(aimTip('더 센 무기를'));  // v3.0.1
   if (questOn('better')){                                        // v2.5.2: 쥐여 주기 → 만들기 → 트리 → 모으기
+    const gh = S.goal && (DEFS[S.goal].atk || 0) >= 2 ? goalHint() : null;
+    if (gh) return keep(gh);
     const strong = t => (DEFS[t].atk || 0) >= 2;
     if (CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && strong(t) && have(t) > 0))
       return keep(onTab('gearup',
@@ -3717,6 +3742,10 @@ function questHint(){
   return null;                                                    // 틈은 renderHint의 lastHint가 메움 (v2.5.3)
 }
 let lastQH = null, lastHint = null;
+// v3.0.1: 목적 탭으로 보내는 팁
+const aimTip = what => S.tab === 'aim'
+  ? { key:'q:aim', text:`${what} 골라 🎯 칸에 끌어다 놓으세요 — 만드는 차례를 적어 줘요`, sel:['[data-slot-id="aim:goal"]'] }
+  : { key:'q:aim', text:`🎯 목적 탭에서 ${what} 정하면 만드는 차례를 알려 줘요`, sel:['#tabs [data-tab="aim"]'] };
 const keep = h => (lastQH = h);
 function renderHint(){
   const H = S.hints || (S.hints = {});
