@@ -649,7 +649,7 @@ const FIELDS = [                                                  // v0.9.1: 순
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
-const FIELD_NO_ICON = ['prelude'];                                // v3.1.0: 아직 그림이 없는 필드는 이모지로 (나중에 아이콘 생성)
+const FIELD_NO_ICON = [];                                         // v3.5.0: 필드 그림 다 있음 (들머리 포함)
 const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
   : `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
 // v0.20.0: 필드에서 나오는 재료는 따로 적음 (카드의 소속 필드 = 콜렉터북 묶음과 별개).
@@ -1025,7 +1025,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.4.0';
+const VERSION = 'v3.5.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1616,10 +1616,58 @@ function toast(s){
   const t = document.createElement('div');
   t.className = 'toast';
   t.innerHTML = rich(s);
+  paintIcons(t);                                                  // v3.5.0
   document.getElementById('toasts').appendChild(t);
   setTimeout(() => t.remove(), 2700);
 }
 
+// ── 그림 표 (v3.5.0) ────────────────────────────────
+// 화면에 이모지를 그대로 두면 기기마다 다른 그림이 나온다. **id → 파일** 한 표로만 관리하고,
+// 그려 놓은 글자 속 이모지는 paintIcons()가 그림으로 바꿔 끼운다
+const ICONS = {
+  aim:'ui_aim', tree:'ui_tree', book:'ui_book', craft:'ui_craft', gear:'ui_gear', field:'ui_field',
+  settings:'ui_settings', recipe:'ui_recipe', trace:'ui_trace', tag:'ui_tag', boss:'ui_boss',
+  key:'ui_key', gather:'ui_basket', paw:'ui_paw', parts:'ui_parts', fire:'ui_fire', shield:'ui_shield',
+  star:'ui_star', pin:'ui_pin', note:'ui_note', hand:'ui_hand', xp:'ui_xp', down:'ui_down',
+  warn:'ui_warn', nature:'ui_nature', forge:'ui_forge', tools:'ui_tools', build:'ui_build',
+  food:'ui_food', trident:'ui_trident', bow:'ui_bow', rope:'ui_rope', bag:'ui_bag', rock:'ui_rock',
+  web:'ui_web', mushroom:'ui_mushroom', shell:'ui_shell', run:'ui_run', clip:'ui_clip',
+  lock:'ui_lock', unlock:'ui_lock-open',
+  dungeon:'card_dungeon', bone:'card_bone', cloth:'card_leatherarmor', trinket:'card_claynecklace',
+  prelude:'card_prelude', mountain:'card_mountain', grassland:'card_grassland', forest:'card_forest', river:'card_river',
+};
+const uiIcon = (id, cls = 'inline') => ICONS[id]
+  ? `<img class="icon ${cls}" src="images/icon/${ICONS[id]}.png" alt="" draggable="false">` : '';
+// 글자 속 이모지 → 그림 (한 곳에서만 바꾼다)
+const EMOJI_ICON = {
+  '🎯':'aim', '🌳':'tree', '📖':'book', '🔨':'craft', '🔧':'gear', '🗡':'field', '⚙':'settings',
+  '🧪':'recipe', '📜':'trace', '🏷':'tag', '👑':'boss', '🔑':'key', '🧺':'gather', '🐾':'paw',
+  '🔩':'parts', '🔥':'fire', '🛡':'shield', '⭐':'star', '📌':'pin', '📓':'note', '👆':'hand',
+  '✨':'xp', '🩸':'down', '⚠':'warn', '🌿':'nature', '⚒':'forge', '🛠':'tools', '🧱':'build',
+  '🍖':'food', '🔱':'trident', '🏹':'bow', '🪢':'rope', '🎒':'bag', '🪨':'rock', '🕸':'web',
+  '🍄':'mushroom', '🐚':'shell', '🏃':'run', '📋':'clip', '🔒':'lock', '🔓':'unlock',
+  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket',
+  '🏕':'prelude', '⛰':'mountain', '🌾':'grassland', '🌲':'forest', '🏞':'river',
+  '⚔':'field',                                                   // 중간보스 표시도 같은 칼 그림
+};
+const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?', 'g');
+function paintIcons(root){
+  if (!root || !root.querySelectorAll) return;
+  const SHOW_TEXT = 4;                                            // NodeFilter.SHOW_TEXT (검사용 가짜 DOM엔 NodeFilter가 없음)
+  const walk = document.createTreeWalker(root, SHOW_TEXT);
+  const hits = [];
+  for (let n = walk.nextNode(), i = 0; n && i < 4000; n = walk.nextNode(), i++){
+    if (typeof n.nodeValue !== 'string') break;
+    EMOJI_RE.lastIndex = 0;
+    if (EMOJI_RE.test(n.nodeValue)) hits.push(n);
+  }
+  for (const n of hits){
+    const html = esc(n.nodeValue).replace(EMOJI_RE, (_, ch) => uiIcon(EMOJI_ICON[ch]));
+    const box = document.createElement('span');
+    box.innerHTML = html;
+    n.replaceWith(...box.childNodes);
+  }
+}
 // ── 카드 추가 / 제거 ─────────────────────────────────
 // v0.8.0: 이미 있는 종류면 수량만 +1 (카드는 그 자리에서 톡 튐), 없으면 새 카드
 // v0.20.0: 어떤 카드를 처음 만들면 화면이 열림 (작업대 → 무기)
@@ -1955,6 +2003,7 @@ function renderInsp(){
         : '<div class="i-muted">이 화면에서 만들 수는 없음</div>');
   }
   inspEl.innerHTML = h;
+  paintIcons(inspEl);                                             // v3.5.0
 }
 
 // ── 콜렉터북 (v0.4.0) ────────────────────────────────
@@ -2277,7 +2326,7 @@ treeBtn.addEventListener('click', () => { if (TREES[S.tab]) openBookTree(S.tab);
 function renderTreeBtn(){                                         // 도구·무기 화면에서만 보임
   const t = TREES[S.tab];
   treeBtn.hidden = !t;
-  if (t) treeBtn.textContent = `🌳 ${t.name}`;
+  if (t){ treeBtn.innerHTML = `🌳 ${esc(t.name)}`; paintIcons(treeBtn); }   // v3.5.0
 }
 // 콜렉터북 🌳 길 탭 열기 (필요하면 그 줄로 스크롤 + 잠깐 밝힘)
 function openBookTree(treeId, node){
@@ -2354,6 +2403,7 @@ function renderBook(){
   const body = bookEl.querySelector('.book-body');
   const keep = body ? body.scrollTop : 0;
   bookEl.innerHTML = h + '</div></div>';
+  paintIcons(bookEl);                                             // v3.5.0
   bookEl.querySelector('.book-body').scrollTop = keep;
 }
 // v2.9.4: 🌳 길 탭 — 위에 트리 고르는 줄, 아래는 트리 화면과 같은 줄(같은 함수라 늘 같은 내용)
@@ -2515,6 +2565,7 @@ function renderTabs(){                                            // v0.21.0: �
       '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>'])
     .concat(BOARDS.filter(b => b.id !== 'gearup').map(boardBtn)).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
+  paintIcons(wrap);                                               // v3.5.0
   for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -2803,6 +2854,7 @@ function renderScreen(){
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
     + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요'
       : S.tab === 'aim' ? '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+  paintIcons(gatherEl);                                           // v3.5.0
   syncTopH();
   if (S.tab === 'battle') expBuild();
 }
@@ -3700,6 +3752,7 @@ function renderQuest(){
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
   }).join('') + goalRow
     + (note ? `<div class="q-op">👆 ${esc(note)}</div>` : '');
+  paintIcons(el);                                                 // v3.5.0
   if (goalRow && goalStepKey() !== lastGoalStep){                 // 한 단계 끝나면 다음 단계가 새 퀘스트처럼 올라옴
     lastGoalStep = goalStepKey();
     const row = el.querySelector('.q-row.goal');
@@ -4014,6 +4067,7 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
+paintIcons(document.body);                                        // v3.5.0: 고정 HTML(안내문 · 던전 판) 속 이모지도 그림으로
 if (!S.tab) S.tab = 'battle';
 renderAll();
 setTab(S.tab);
