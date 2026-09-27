@@ -1044,7 +1044,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.6.5';
+const VERSION = 'v3.6.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3843,11 +3843,11 @@ function goalStepKey(){
 function goalRowHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '';
-  const plan = goalSteps(g), left = plan.filter(x => !planStepDone(x)).length;
+  const plan = goalSteps(g);
   const st = plan.find(x => !planStepDone(x));
   const body = st ? goalStepBody(st) : `${rcpIcon(g, true)} ${esc(aimName(g))} <span class="i-muted">재료가 다 모였다 — 만들기만 하면 된다</span>`;
   return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}</b>`
-    + `<span class="q-text">${body}${left > 1 ? ` <span class="q-prog">남은 ${left}</span>` : ''}</span>`
+    + `<span class="q-text">${body}</span>`                       // v3.6.6: '남은 N' 은 헷갈려서 뺌
     + `<span class="q-n"></span></div>`;
 }
 // v0.44.0: 퀘스트 줄 표시 통일 — 오른쪽 끝은 **끝났을 때 ✓** 만.
