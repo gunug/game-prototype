@@ -1044,7 +1044,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.6.1';
+const VERSION = 'v3.6.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2622,27 +2622,46 @@ function aimCandidates(){                                         // 만들 줄 
 const aimUseCandidates = use => aimCandidates().filter(t => useOf(t).includes(use));   // v3.0.3: 그 쓰임의 후보
 const aimRank = t => cardState(t) === 'can' ? 0 : nextStepTo(t) ? 1 : S.seen.includes(t) ? 2 : 3;
 // 목표까지의 차례 — 아래(구할 것)부터 위(마지막 조합)까지
-function goalPlan(t, depth = 4, seen = new Set()){
-  if (have(t) > 0 || seen.has(t) || depth <= 0) return [];
-  seen.add(t);
-  const x = aimRecipes(t).find(y => sideReachKnown(y.a, 3) && sideReachKnown(y.b, 3)) || aimRecipes(t)[0];
-  if (!x) return [{ type:t, kind:'get' }];                        // 조합이 없으면 주워 오는 것
-  const sub = [];
-  for (const sd of [x.a, x.b]){
-    if (sideHave(sd)) continue;
-    if (sd.card){ sub.push(...goalPlan(sd.card, depth - 1, seen)); continue; }
-    // 🏷️ 태그 재료 — 앞 차례에서 만드는 것이 그 태그를 가지면 따로 적지 않는다
-    if (sub.some(st => st.type && useOf(st.type).includes(sd.use))) continue;
-    sub.push({ use: sd.use, kind:'need' });
-  }
-  return sub.concat([{ type:t, kind:'make', r:x }]);
+// v3.6.2: **개수까지 센다.** 가진 것을 먼저 쓰고, 모자란 만큼만 적는다
+//   (작업대처럼 같은 부품이 두 번 들어가는 길은 '뗀석기 ×2' 로 보인다)
+function goalPlan(t, depth = 5){
+  const stock = {};                                               // 지금 가진 것 — 쓰면 줄어든다
+  for (const c of S.cards) if (c.n > 0) stock[c.type] = (stock[c.type] || 0) + c.n;
+  const steps = [];
+  const need = (type, n, d) => {
+    const used = Math.min(stock[type] || 0, n);
+    stock[type] = (stock[type] || 0) - used;
+    let left = n - used;
+    if (left <= 0) return;
+    const x = aimRecipes(type).find(y => sideReachKnown(y.a, 3) && sideReachKnown(y.b, 3)) || aimRecipes(type)[0];
+    if (!x || d <= 0){ steps.push({ kind:'get', type, n:left }); return; }
+    const per = (x.out || []).filter(o => o === type).length || 1;   // 한 번 만들면 몇 장 나오나
+    const runs = Math.ceil(left / per);
+    for (const sd of [x.a, x.b]){
+      if (sd.card) need(sd.card, runs, d - 1);
+      else steps.push({ kind:'need', use: sd.use, n: runs });
+    }
+    steps.push({ kind:'make', type, r:x, n:runs });
+  };
+  need(t, 1, depth);
+  return mergeSteps(steps);
 }
-const planStepDone = st => st.kind === 'make' || st.kind === 'get' ? have(st.type) > 0 : sideHave({ use: st.use });
+function mergeSteps(list){                                        // 같은 줄은 하나로 묶고 개수를 더함
+  const out = [];
+  for (const st of list){
+    const same = out.find(o => o.kind === st.kind
+      && (st.kind === 'need' ? o.use === st.use : st.kind === 'make' ? o.r === st.r : o.type === st.type));
+    if (same) same.n += st.n;
+    else out.push({ ...st });
+  }
+  return out;
+}
+const planStepDone = st => st.kind === 'need' ? sideHave({ use: st.use }) : have(st.type) >= (st.n || 1);
 // v3.0.2: 목표에 필요한데 아직 없는 '주워 올 것' — 필드 카드에 ⭐로 표시
 function goalNeeds(){
   const g = S.goal;
   if (!g || !DEFS[g]) return [];
-  return goalPlan(g).filter(st => st.kind === 'get' && have(st.type) <= 0).map(st => st.type);
+  return goalPlan(g).filter(st => st.kind === 'get').map(st => st.type);
 }
 const goalNeedsAt = id => goalNeeds().filter(t => yieldsOf(id).includes(t) || lootTypes(id).includes(t));
 // v3.5.2: 줍는 줄도 장소를 먼저 — "⛰️ 산에서 돌 줍기" · "늑대 60% 떨굼 작은 이빨"
@@ -2663,12 +2682,13 @@ function aimWhere(t){                                             // 어디서 �
 // v3.0.5: 목표까지의 차례 (앞 차례가 만들어 주는 🏷️ 태그 줄은 뺌) — 수첩 줄과 목적 탭이 같은 것을 본다
 const goalSteps = g => goalPlan(g).filter((st, i, all) =>
   st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
+const stepN = st => (st.n || 1) > 1 ? ` <span class="q-prog">×${st.n}</span>` : '';   // v3.6.2
 // v3.2.3: 조합 줄엔 어느 탭에서 만드는지도 같이. v3.5.2: **장소를 먼저, 조합식을 나중**
 const stepWhere = r => { const b = recipeBoards(r).map(boardLabel).join(' · ');
   return b ? `<span class="i-muted">${esc(b)}에서</span> ` : ''; };
-const goalStepBody = st => st.kind === 'make' ? stepWhere(st.r) + aimLine(st.r)
+const goalStepBody = st => (st.kind === 'make' ? stepWhere(st.r) + aimLine(st.r)
   : st.kind === 'get' ? getStepBody(st.type)
-  : `<span class="i-muted">이 태그가 붙은 재료</span> 🏷️ ${esc(st.use)}`;
+  : `<span class="i-muted">이 태그가 붙은 재료</span> 🏷️ ${esc(st.use)}`) + stepN(st);
 function goalPlanHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 만드는 차례를 적어 줍니다.</div>';
