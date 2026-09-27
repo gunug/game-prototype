@@ -1242,7 +1242,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v5.3.1';
+const VERSION = 'v5.3.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2134,7 +2134,10 @@ table.addEventListener('pointerdown', e => {
   drag = { c, el, sx: e.clientX, sy: e.clientY, ox: c.x, oy: c.y, moved: false };
   try { el.setPointerCapture(e.pointerId); } catch (err) {}        // v0.28.2: 캡처가 안 돼도 끌기는 되게
 });
-table.addEventListener('pointermove', e => {
+// v5.3.2: 끌기 중 움직임·놓기는 **창 전체**에서 듣는다.
+//   끌기 시작하면 카드를 필드로 옮겨 붙이는데(v0.28.1) 그때 포인터 캡처가 풀려,
+//   판(table) 리스너만으로는 포인터가 판 밖(위 격자)으로 나가는 순간 끌기가 끊겼다 — 위 격자에 못 놓던 버그
+addEventListener('pointermove', e => {
   if (!drag) return;
   const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
   if (!drag.moved){
@@ -2239,8 +2242,8 @@ function endDrag(e){
   if (m && !craft(d.c, tgt, m)) flash(d.el, 'fail', 1500);     // 겹친 채 놓인 카드는 밀어내기가 벌려 줌
   renderMeta(); renderInsp(); save();
 }
-table.addEventListener('pointerup', endDrag);
-table.addEventListener('pointercancel', endDrag);
+addEventListener('pointerup', endDrag);                           // v5.3.2
+addEventListener('pointercancel', endDrag);
 
 // ── 인스펙터 ────────────────────────────────────────
 const UNK = '<span class="i-muted">???</span>';
