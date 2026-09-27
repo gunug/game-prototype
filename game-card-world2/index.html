@@ -369,6 +369,20 @@
   }
   /* v0.38.0: 끝낸 퀘스트 — 노랗게 두 번 반짝인 뒤 사라짐 */
   /* v0.40.0: 끝낸 퀘스트는 조용히 — 색 없이 흐려지며 사라짐 (0.5초) */
+  /* v3.13.0: 미니 원정 줄 — 다른 탭에서도 기사가 어디까지 갔는지 */
+  .miniexp{display:flex;align-items:center;gap:8px;padding:5px 12px 7px;border-top:1px solid var(--hairline);font-size:12px;}
+  .miniexp[hidden]{display:none;}
+  .miniexp .mx-pic{width:22px;height:22px;object-fit:cover;object-position:top center;border-radius:4px;flex:none;}
+  .miniexp .mx-hp{width:52px;height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden;flex:none;}
+  .miniexp .mx-hp i{display:block;height:100%;background:#7ddc7d;}
+  .miniexp .mx-hp.low i{background:#e06b5a;}
+  .miniexp .mx-lane{position:relative;flex:1 1 auto;height:12px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .miniexp .mx-lane .mx-bar{position:absolute;left:0;top:0;bottom:0;background:rgba(255,212,0,.22);}
+  .miniexp .mx-lane .mx-dot{position:absolute;top:1px;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--brand-yellow);}
+  .miniexp .mx-lane .mx-foe{position:absolute;top:3px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#e06b5a;}
+  .miniexp .mx-lane .mx-foe.dead{background:rgba(255,255,255,.25);}
+  .miniexp .mx-lane .mx-spot{position:absolute;top:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(255,255,255,.45);}
+  .miniexp .mx-line{flex:none;max-width:42%;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .q-pic{width:18px;height:18px;object-fit:cover;object-position:top center;border-radius:3px;vertical-align:middle;}
   .q-pic.emo{display:inline-block;text-align:center;font-size:13px;line-height:18px;}
   .q-op{font-size:11px;color:var(--muted);padding:2px 0 0 18px;white-space:normal;line-height:1.35;}
@@ -635,6 +649,7 @@
       <span class="meta ver-out" id="ver"></span>
     </div>
     <div class="quest" id="quest"></div>
+    <div class="miniexp" id="miniexp" hidden></div>
   </div>
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
@@ -1125,7 +1140,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.12.2';
+const VERSION = 'v3.13.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3302,6 +3317,7 @@ function setTab(tab){
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
   document.getElementById('setpage').hidden = tab !== 'settings';  // v3.7.3
   bookEl.hidden = tab !== 'book';                                 // v3.3.0
+  setTimeout(renderMiniExp, 0);                                   // v3.13.0
   bookOpen = tab === 'book';
   renderBook();                                                   // v3.4.0: 탭에 들어오면 바로 그림
   if (bookOpen){                                                  // 새 카드는 들어오자마자 끼움
@@ -3618,7 +3634,7 @@ function expEnd(kind){
   }
   setTimeout(() => {
     exp = null;
-    renderGather(); renderInsp(); save(); renderHint();          // v2.4.5
+    renderGather(); renderInsp(); save(); renderHint(); renderMiniExp();   // v2.4.5 · v3.13.0
   }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
@@ -3790,7 +3806,27 @@ function expBuild(){
 const statBox = (atk, def, hp, max) =>
   `<span class="ln"><span>${statImg('atk')}${atk}</span><span>${statImg('def')}${def}</span></span>`
   + `<span class="ln hp-n">${statImg('hp')}${hp}/${max}</span>`;
+// v3.13.0: 수첩 아래 한 줄 — 기사 얼굴 · 체력 · 길 위 위치 · 지금 하는 일
+function renderMiniExp(){
+  const el = document.getElementById('miniexp');
+  if (!el) return;
+  const on = !!exp && S.tab !== 'battle';                          // 필드 탭에선 큰 화면이 이미 보임
+  el.hidden = !on;
+  if (!on){ syncHeadH(); return; }
+  const f = FIELD_BY_ID[exp.id] || {}, max = knightMaxHp(), hp = Math.max(0, S.knight.hp);
+  el.innerHTML = '<img class="mx-pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false">'
+    + `<div class="mx-hp${hp / max <= 0.35 ? ' low' : ''}"><i style="width:${Math.round(hp / max * 100)}%"></i></div>`
+    + `<span class="mx-field">${f.emoji || ''}</span>`
+    + '<div class="mx-lane"><div class="mx-bar" style="width:' + Math.round(exp.t * 100) + '%"></div>'
+    + exp.spots.map(sp => `<div class="mx-spot" style="left:${Math.round(sp.at * 100)}%"></div>`).join('')
+    + exp.foes.map(fo => `<div class="mx-foe${fo.dead ? ' dead' : ''}" style="left:${Math.round(fo.at * 100)}%"></div>`).join('')
+    + `<div class="mx-dot" style="left:${Math.round(exp.t * 100)}%"></div></div>`
+    + `<span class="mx-line">${esc(exp.line || '')}</span>`;
+  paintIcons(el);
+  syncHeadH();
+}
 function expPaint(){
+  renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
   if (!el || !exp || !el.firstChild) return;
   const lane = el.querySelector('.exp-lane');
