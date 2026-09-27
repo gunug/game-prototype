@@ -136,7 +136,8 @@
   .tabbtn .lockm{margin-right:3px;}
   .tabbtn .tabic{width:1.35em;height:1.35em;margin-right:3px;vertical-align:-.35em;}   /* v0.33.0: 탭 그림 */
   .gather-row{display:grid;grid-template-columns:repeat(4, 1fr);gap:calc(var(--cw) * .1);width:100%;}   /* v0.17.0: 네 칸 한 줄 고정 */
-  .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);}
+  .gather .cw.field{position:relative;width:100%;height:auto;aspect-ratio:1 / 1.36;cursor:pointer;--cf:calc(var(--cw) / .7 * .8 * 1.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:calc(var(--cw) * .1);gap:calc(var(--cw) * .04);}
   .gather .cw.field .emoji{font-size:calc(var(--cw) * 1.35 * .42);}
   .gather .cw.field .yields{display:flex;gap:2px;justify-content:center;font-size:calc(var(--cw) * .2);margin-top:2px;pointer-events:none;}
   /* v0.18.3: 두 번째 줄 — 크리처 전리품 */
@@ -227,7 +228,12 @@
   .nbadge[hidden]{display:none;}
   /* v0.9.0: 잠긴 필드 — 어둡게 + 자물쇠 */
   .gather .cw.field.field-locked{cursor:default;}
-  .gather .cw.field.field-locked > :not(.lock):not(.lockneed){filter:brightness(.3) saturate(.15);}
+  .gather .cw.field.field-locked > :not(.lockbox):not(.name){filter:brightness(.3) saturate(.15);}   /* v3.12.0: 이름은 또렷하게 */
+  .gather .cw.field.field-locked .name{opacity:.85;}
+  .gather .cw.field .lockbox{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);z-index:5;
+    display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;}
+  .gather .cw.field .lockbox .lock{width:calc(var(--cw) * .3);height:auto;position:static;transform:none;}
+  .gather .cw.field .lockbox .lockneed{position:static;transform:none;font-size:calc(var(--cf) * .08);}
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
   /* 기사 줄 · 원정 트랙 (v0.13.0) */
@@ -1124,7 +1130,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.11.0';
+const VERSION = 'v3.12.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2914,16 +2920,15 @@ function screenRows(){
   }
   if (S.tab === 'battle'){
     return FIELDS.filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {   // v3.1.0: 튜토리얼이 끝나면 들머리는 사라짐
-      const locked = fieldLocked(f.id), ys = yieldsOf(f.id);
+      // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
+      //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
+      const locked = fieldLocked(f.id);
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
-        + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
-          + `<b class="lockneed">${esc(fieldNeed(f.id))}</b>` : '')     // v0.98.0: 자물쇠 위에 조건
-        + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">⭐ ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
-        + `<div class="yields">${ys.map(t => `<span class="${S.seen.includes(t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
-        + (lootTypes(f.id).length
-          ? `<div class="yields loot">${lootTypes(f.id).map(t => `<span class="${lootKnown(f.id, t) ? '' : 'locked'}">${iconHtml(t, true)}</span>`).join('')}</div>`
-          : '') + '</div>';
+        + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
+          + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>` : '')
+        + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">⭐ ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2
+        + '</div>';
       const slots = PARTY.map((open, i) => ({
         id: `${f.id}:${i}`, open: open && !locked,                // v0.35.0: 잠긴 필드는 출전 칸도 잠김
         card: open && exp && exp.id === f.id && i === 0,
