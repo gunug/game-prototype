@@ -150,4 +150,23 @@ try {
   else console.log('✓ 같은 두 재료는 결과가 하나뿐');
 } catch (e){ report('같은 재료 · 다른 결과', e); }
 
+// 8) 단계 규칙 (v3.11.0) — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다
+try {
+  const bad = vm.runInContext(`(function(){
+    const out = [], nm = t => (DEFS[t] ? DEFS[t].name : t);
+    for (const r of CRAFT_RECIPES){
+      if (r.cook || !r.a.card || !r.b.card) continue;
+      const sa = DEFS[r.a.card].step || 0, sb = DEFS[r.b.card].step || 0;
+      for (const o of (r.out || [])){
+        const so = DEFS[o].step || 0, hi = Math.max(sa, sb), lo = Math.min(sa, sb);
+        if (so !== hi + 1 || hi - lo > 1)
+          out.push(nm(o) + '(' + so + ') <- ' + nm(r.a.card) + '(' + sa + ') + ' + nm(r.b.card) + '(' + sb + ')');
+      }
+    }
+    return out;
+  })()`, ctx);
+  if (bad.length) report('단계 규칙', new Error(bad.join(' | ')));
+  else console.log('✓ 단계 규칙 (N = 아래 단계 + 1, 두 재료의 단계 차는 1 이하)');
+} catch (e){ report('단계 규칙', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
