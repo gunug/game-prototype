@@ -630,6 +630,10 @@
 // 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
 const FIELDS = [                                                  // v0.9.1: 순서 산 · 초원 · 숲 · 강가 (열린 필드 먼저)
   // v0.18.0: exp — 기사가 그곳에서 무엇을 하는지 (시스템 설명이 아니라 세계관 안의 말)
+  // v3.1.0: 🏕️ 들머리 — **튜토리얼 전용 필드.** 확률이 없다. 세 판의 대본이 정해져 있고, 언제 다시 가도 같은 것이 나온다
+  //   보스를 잡으면 ⛰️ 산이 열리고 들머리는 목록에서 사라진다
+  { id:'prelude',   name:'들머리', emoji:'🏕️', desc:'산으로 오르기 전 야트막한 길목. 돌과 마른 나무가 널려 있다.',
+    exp:'기사는 길목을 따라 걸으며 발끝에 걸리는 것을 줍는다. 여기까지는 아직 아무도 기사를 해치지 않는다.' },
   { id:'mountain',  name:'산',   emoji:'⛰️', desc:'올라갈수록 돌이 많아지고, 캘수록 반짝이는 게 나온다.',
     exp:'기사는 비탈을 따라 올라가며 무너진 돌더미를 뒤진다. 인기척에 놀란 토끼가 바위 틈에서 튀어나오고, 더 깊은 굴에는 곰이 산다.' },
   { id:'grassland', name:'초원', emoji:'🌾', desc:'바람이 풀을 쓰다듬는 곳. 풀숲 너머에 뭔가 있다.',
@@ -641,10 +645,13 @@ const FIELDS = [                                                  // v0.9.1: 순
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
-const fieldIcon = f => `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
+const FIELD_NO_ICON = ['prelude'];                                // v3.1.0: 아직 그림이 없는 필드는 이모지로 (나중에 아이콘 생성)
+const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
+  : `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
 // v0.20.0: 필드에서 나오는 재료는 따로 적음 (카드의 소속 필드 = 콜렉터북 묶음과 별개).
 //   산은 샘물 대신 나무가 나옴 — 샘물은 카드로 남지만 지금은 나오는 곳이 없음
 const FIELD_YIELDS = {
+  prelude:   ['stone', 'flint', 'tree'],                        // v3.1.0: 들머리 — 실제로 무엇이 나오는지는 대본이 정함
   mountain:  ['stone', 'flint', 'coal', 'tree'],
   grassland: ['grass', 'seed', 'honeycomb', 'feather'],        // v0.52.0: 짐승은 뺌 — 들개·들소를 잡으면 같은 재료가 나옴
   forest:    ['tree', 'berry', 'sap', 'herb'],
@@ -1021,7 +1028,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.0.7';
+const VERSION = 'v3.1.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1055,7 +1062,7 @@ let CW = 70, CH = 95;
 // v0.24.0: 에디터 모드 — 설정(⚙)에서 켬. 저장하지 않음 (새로고침하면 꺼짐)
 //   켜면 모든 잠금이 풀린 것처럼 보임: 필드 · 화면(도구·무기·정비) · 콜렉터북
 let editMode = false;
-const START_FIELDS = ['mountain'];                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
+const START_FIELDS = ['prelude'];                                // v3.1.0: 튜토리얼 필드부터                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
 const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !START_FIELDS.includes(f.id) }]));
 const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24.0
 // v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
@@ -1067,8 +1074,13 @@ const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24
 //        ② 하나가 끝나면 **바로 다음이 붙는다** — 할 일이 빈 순간을 만들지 않는다
 //        ③ 한 번에 한 줄. key 하나로 판정한다
 const QUESTS = {
-  gomountain: { name:'산으로',       text:'⛰️ 산에 다녀오자',        goal:1, key:'exp-end:mountain',
-                say:'할 수 있는 게 없네… 일단 산으로 가볼까' },
+  // v3.1.0: 튜토리얼은 🏕️ 들머리에서 — 대본이 정해져 있어 언제나 같은 차례를 겪는다
+  goprelude:  { name:'첫 걸음',       text:'🏕️ 들머리에 다녀오자',     goal:1, key:'exp-end:prelude',
+                say:'할 수 있는 게 없네… 일단 나가 보자' },
+  preludeboss:{ name:'길목의 주인',   text:'👑 굶주린 들개를 넘자',     goal:1, key:'kill:strayhound',
+                say:'이걸 쥐었으니 저 녀석도 넘겠지' },
+  gomountain: { name:'산으로',       text:'⛰️ 산에 올라 보자',        goal:1, key:'exp-end:mountain',
+                say:'길목은 넘었다. 이제 산이다' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
   // v3.0.1: **퀘스트는 무엇을 할지만 말하고, 어떻게는 🎯 목적이 안내한다**
@@ -1105,7 +1117,7 @@ const QUESTS = {
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { gomountain:'aimweapon', aimweapon:'arm', arm:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
+const QUEST_NEXT = { goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
   grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
@@ -2653,7 +2665,7 @@ function screenRows(){
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'목표' }] }];
   }
   if (S.tab === 'battle'){
-    return FIELDS.map(f => {
+    return FIELDS.filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {   // v3.1.0: 튜토리얼이 끝나면 들머리는 사라짐
       const locked = fieldLocked(f.id), ys = yieldsOf(f.id);
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
         + (locked ? '<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
@@ -2741,7 +2753,7 @@ function knightIntro(){
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
   save();
-  giveQuest('gomountain');                                        // v0.60.0: 첫 메인 퀘스트 (기사 대사도 여기서)
+  giveQuest('goprelude');                                         // v0.60.0: 첫 메인 퀘스트 (기사 대사도 여기서). v3.1.0: 들머리
 }
 function knightCardHtml(drag){
   const k = S.knight;
@@ -3100,6 +3112,9 @@ const ENEMIES = {
     loot: [['meat', 40, 2], ['toughhide', 30, 1], ['smalltooth', 15, 1], ['bearclaw', 10, 1], ['fang', 5, 1]] },
   // v2.0.0: 🌾 초원 — 들개(잡몹) · 멧돼지(중간보스) · 들소(필드보스). 시뮬레이션으로 맞춘 세기 (확정 58)
   //   이빨 단검으로는 멧돼지에서 막히고, 손도끼면 멧돼지를 넘고 들소에서 막히고, 5레벨 갑옷이면 클리어 (약 7판, Lv5)
+  // v3.1.0: 들머리 보스 — 맨손(공 1)으론 못 잡고 뗀석기 칼(공 2)이면 잡힌다. 그림은 들개 것을 같이 씀
+  strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:7,
+    loot: [['smalltooth', 100, 1]] },
   wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:2, def:0, hp:6,
     loot: [['meat', 40, 1], ['hide', 30, 1], ['smalltooth', 30, 1]] },
   boar:   { name:'멧돼지', portrait:'portrait_boar', atk:3, def:0, hp:10,   // 초원의 핵심 부품: 억센 가죽
@@ -3169,13 +3184,28 @@ function lanePlan(mob, mid, boss){
   const last = stops.length - 1;
   return stops.map((st, i) => Object.assign({ at: +(0.06 + (0.97 - 0.06) * (i / last)).toFixed(3) }, st));
 }
+// v3.1.0: 들머리 세 판 — 확률 없음. 판마다 대본이 다르고, 같은 판을 다시 가면 똑같다
+//   1판 줍기만 · 2판 약한 적 하나 (맨손이면 아프다) · 3판 보스 (무기가 없으면 못 넘는다)
+const PRELUDE_PLANS = [
+  [{ loot:1, at:0.30 }, { loot:1, at:0.70 }],
+  [{ loot:1, at:0.22 }, { fight:'animal', at:0.55 }, { loot:1, at:0.85 }],
+  [{ loot:1, at:0.28 }, { fight:'strayhound', boss:true, at:0.90 }],
+];
+// 판마다 채집 지점에서 **무엇이 몇 개** 나오는지 (지점 순서대로)
+const PRELUDE_LOOT = [
+  [['stone', 'stone'], ['flint']],
+  [['tree', 'tree'], ['stone']],
+  [['flint', 'stone']],
+];
+const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
+const preludeStage = () => Math.min(S.prelude || 0, PRELUDE_PLANS.length - 1);
 const EXP_PLAN = {
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
   river:     lanePlan('crayfish', 'crocodile', 'catfish'),        // v2.1.0
 };
-const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
+const planOf = id => id === 'prelude' ? PRELUDE_PLANS[preludeStage()] : (EXP_PLAN[id] || EXP_PLAN.mountain);
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
 const LANE_PAD = 5;                                              // 트랙 좌우 여백 (%) — v0.58.0: 자리가 13개라 여백을 줄여 간격을 벌림
 const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
@@ -3314,6 +3344,8 @@ function expEnd(kind){
   exp.beatMark = exp.fail && exp.t > best + 0.02 && best > 0.02;
   if (exp.t > best) S.marks[exp.id] = exp.t;
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
+  if (exp.id === 'prelude' && !(S.cleared || []).includes('prelude') && preludeStage() < PRELUDE_PLANS.length - 1)
+    S.prelude = (S.prelude || 0) + 1;                             // v3.1.0: 다음 판 대본으로
   expPaint();
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
@@ -3333,9 +3365,11 @@ function dropLoot(def, foeIdx){
   const r = from ? from.getBoundingClientRect() : gatherEl.getBoundingClientRect();
   const table = def.loot || [];
   if (!table.length) return;
+  const key0 = exp.foes[foeIdx] ? exp.foes[foeIdx].key : null;
+  const fixed = exp.id === 'prelude' && key0 ? PRELUDE_DROP[key0] : null;   // v3.1.0: 들머리는 확률을 굴리지 않는다
   let roll = Math.random() * table.reduce((sum, l) => sum + l[1], 0);   // v0.15.2: 확률대로 하나를 뽑음 (빈손 없음)
   const hit = table.find(l => (roll -= l[1]) < 0) || table[0];
-  const got = Array.from({ length: hit[2] }, () => hit[0]);
+  const got = fixed ? fixed.slice() : Array.from({ length: hit[2] }, () => hit[0]);
   exp.line = `${def.name} — ${got.map(t => DEFS[t].name).join(' · ')}`;
   const key = exp.foes[foeIdx] ? exp.foes[foeIdx].key : null;     // v0.18.2: 이 크리처에게서 받아 봤다고 기록
   if (key){
@@ -3348,12 +3382,21 @@ function dropLoot(def, foeIdx){
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
+  const tok = document.querySelector('#exp .tok.knight');
+  const box = tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect();
+  if (exp.id === 'prelude'){                                      // v3.1.0: 대본대로 — 언제 다시 와도 같은 것
+    const list = (PRELUDE_LOOT[preludeStage()] || [])[Math.max(0, exp.spots.filter(sp => sp.done).length)] || [];
+    if (!list.length) return;
+    exp.line = `${list.map(t => DEFS[t].name).join(' · ')}을(를) 주웠다`;
+    list.forEach((t, i) => setTimeout(() => flyToCraft(t, box), i * 220));
+    expPaint();
+    return;
+  }
   const pool = yieldsOf(exp.id);                                  // v0.20.0
   if (!pool.length) return;
   const t = pick(pool);
-  const tok = document.querySelector('#exp .tok.knight');
   exp.line = `${DEFS[t].name}을(를) 주웠다`;
-  flyToCraft(t, tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect());
+  flyToCraft(t, box);
   expPaint();
 }
 // v0.22.1: 지금 화면에 안 올라오는 카드가 만들어졌을 때 — 그 자리에 잠깐 떠 있다가 위로 사라짐
@@ -3623,7 +3666,8 @@ function currentHint(){
   // ① 첫 출전
   if (!H.sortie && S.knight.hp > 0)
     return onTab('battle',
-      { key:'sortie', text:'기사 카드를 끌어 ⛰️ 산 줄의 출전 칸에 놓아 보세요', sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
+      { key:'sortie', text:`기사 카드를 끌어 ${fieldLabel(firstFieldId())} 줄의 출전 칸에 놓아 보세요`,
+        sel:['.chars [data-token="knight"]', `[data-slot-id="${firstFieldId()}:0"]`] },
       { key:'sortie', text:'🗡️ 필드 탭에서 기사를 출전시킬 수 있어요', sel:['#tabs [data-tab="battle"]'] });
   // ② 쓰러짐 — 쉬면 돌아온다는 것 (처음 한 번)
   if (!H.down && S.knight.hp <= 0)
@@ -3696,6 +3740,10 @@ function expTipText(id){
 // v2.5.0: 언락 팁 — 곰을 잡은 뒤 새 개념이 열리면 하나씩 (장비 칸 · 탭 · 필드 …)
 //   열린 순서대로 쌓아 두고 맨 앞 하나만 보여 줌. 그곳에 가 보고 떠나거나, 실제로 해 보면 끝
 const bearDone = () => (S.killed || []).includes('bear');
+// v3.1.0: 지금 나갈 수 있는 첫 필드 — 튜토리얼이 끝나기 전엔 🏕️ 들머리
+const firstFieldId = () => (FIELDS.find(f => !fieldLocked(f.id)
+  && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude'))) || FIELDS[1] || FIELDS[0]).id;
+const fieldLabel = id => { const f = FIELD_BY_ID[id]; return f ? `${f.emoji} ${f.name}` : '필드'; };
 function addUnlock(kind, id){
   if (!bearDone()) return;                                        // 곰 전엔 초반 팁이 이미 안내함
   const H = S.hints || (S.hints = {});
@@ -3738,13 +3786,16 @@ function unlockHint(){
 }
 // v2.4.5: 바닥 팁 — 곰을 잡기 전까진 **늘 하나는** 보인다. 한 번 보고 끝나는 팁이 다 지나가도 지금 퀘스트 기준으로 다음 할 일
 function questHint(){
+  const fid = firstFieldId();                                     // v3.1.0: 지금 나갈 수 있는 첫 필드 (들머리 → 산)
   const go = (text, key) => keep(exp && exp.phase !== 'end'           // v2.5.3: 끝 화면은 원정 중이 아님
     ? { key, text:'기사가 원정 중 — 그동안 🔨 조합 탭에서 모은 재료를 합쳐 볼 수 있어요', sel:[] }
     : S.knight.hp <= 0
       ? { key, text:'기사가 쉬는 중 — 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] }
       : onTab('battle',
-          { key, text, sel:['.chars [data-token="knight"]', '[data-slot-id="mountain:0"]'] },
+          { key, text, sel:['.chars [data-token="knight"]', `[data-slot-id="${fid}:0"]`] },
           { key, text: text + ' (🗡️ 필드 탭)', sel:['#tabs [data-tab="battle"]'] }));
+  if (questOn('goprelude')) return go('기사를 🏕️ 들머리 출전 칸에 놓아 다녀와요', 'q:goprelude');   // v3.1.0
+  if (questOn('preludeboss')) return go('🏕️ 들머리로 다시 — 길목의 주인을 넘어요', 'q:preludeboss');
   if (questOn('gomountain')) return go('기사를 ⛰️ 산 출전 칸에 놓아 다녀와요', 'q:gomountain');
   if (questOn('aimweapon')) return aimUseCandidates('근접무기').length ? keep(aimTip('만들 무기를'))   // v3.0.1 · v3.0.3
     : go('⛰️ 산으로 출전해 재료를 더 발견해요 — 재료를 알면 🎯 목적에 무기가 올라와요', 'q:aimweapon');
@@ -3757,7 +3808,7 @@ function questHint(){
     if (gh) return keep(gh);
     return keep(aimTip('만들 무기를'));
   }
-  if (questOn('wolf')) return go('무기를 쥐었으니 다시 ⛰️ 산으로 — 늑대를 넘어요', 'q:wolf');
+  if (questOn('wolf')) return go('⛰️ 산으로 — 늑대를 넘어요', 'q:wolf');
   if (questOn('aimbetter')) return aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? keep(aimTip('더 센 무기를'))   // v3.0.1 · v3.0.3
     : go('⛰️ 출전해 재료를 더 발견해요 — 더 센 무기는 새 재료에서 나와요', 'q:aimbetter');
   if (questOn('better')){                                        // v2.5.2: 쥐여 주기 → 만들기 → 트리 → 모으기
