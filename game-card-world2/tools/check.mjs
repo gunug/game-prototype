@@ -128,6 +128,15 @@ try {
     for (const tab of ['aim', 'battle', 'gearup']){ S.tab = tab; screenRows(); screenTokens(); }
     S.tab = 'aim'; aimCandidates();
     for (const t of CRAFT_TYPES.slice(0, 12)){ inspType = t; S.tab = 'tool'; renderInsp(); }
+    // v4.6.0: 조합 탭마다 위 격자 · 아래 재료가 비지 않는지
+    const empty = [];
+    for (const b of BOARDS){
+      if (!b.dyn) continue;
+      S.tab = b.id; renderTopGrid(); renderTabs();
+      const top = CRAFT_TYPES.filter(t => onTopGrid(t, b.id)), bot = CRAFT_TYPES.filter(t => onBoard(t, b.id));
+      if (!top.length || !bot.length) empty.push(b.name + '(위 ' + top.length + ' · 아래 ' + bot.length + ')');
+    }
+    if (empty.length) throw new Error('빈 조합 탭: ' + empty.join(' / '));
     return 1;
   })()`, ctx);
   console.log('✓ 화면 조각 렌더 (콜렉터북 · 트리 · 수첩 · 목적 · 인스펙터)');

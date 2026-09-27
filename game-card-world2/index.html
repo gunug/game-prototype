@@ -1203,7 +1203,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.5.0';
+const VERSION = 'v4.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1458,8 +1458,13 @@ const BOARDS = [
   { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'],
     top:'무기', tops:['무기'], dyn:['무기'] },                     // v0.33.0: 이모지 대신 작업대 그림
   // v0.93.0: 몸을 지키는 것들. v0.95.0: 연장도 `갑옷재료` 태그로 정식으로 아래에 놓임 (topIds 꼼수 없앰)
-  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구', '방패', '장신구'],
-    top:'방어구', tops:['방어구', '방패', '장신구'], dyn:['방어구', '방패', '장신구'] },   // v2.3.0: 장신구도 몸을 지키는 것 — 갑옷 탭   // v1.0.0: 갑옷 조합식에 직접 들어가는 것
+  // v4.6.0: 갑옷 하나였던 탭을 **방어구 · 방패 · 장신구 셋으로 쪼갬** — 몸에 차는 칸마다 만드는 자리가 따로
+  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구'],
+    top:'방어구', tops:['방어구'], dyn:['방어구'] },
+  { id:'shield', name:'방패', icon:'card_woodshield', tags:['갑옷재료', '방패'],
+    top:'방패',  tops:['방패'],  dyn:['방패'] },
+  { id:'trinket',name:'장신구', icon:'card_claynecklace', tags:['갑옷재료', '장신구'],
+    top:'장신구', tops:['장신구'], dyn:['장신구'] },
   // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '장신구', '거점'] },
 ];
@@ -1531,7 +1536,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], hints: {}, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], hints: {}, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -1586,7 +1591,7 @@ function load(){
     }
     s.madeRecipes = Array.isArray(s.madeRecipes) ? s.madeRecipes.filter(id => RECIPES.some(r => r.id === id)) : [];   // v0.45.0
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : [];
-    for (const id of ['tool', 'weapon', 'armor']) if (!s.boards.includes(id)) s.boards.push(id);   // v0.56.0 · v0.93.0
+    for (const id of ['tool', 'weapon', 'armor', 'shield', 'trinket']) if (!s.boards.includes(id)) s.boards.push(id);   // v0.56.0 · v0.93.0 · v4.6.0
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     s.marks = s.marks && typeof s.marks === 'object' ? s.marks : {};   // v0.61.0: 필드마다 가장 멀리 간 지점
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
