@@ -745,7 +745,8 @@ const DEFS = {
   copperore: { name:'구리 원석',  kind:'material', tier:2, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
   // 🍖 음식
   meat: { name:'붉은 고기',   kind:'material', tier:1, group:'food' },     // v3.8.0: ⛰️ 산 · 🌾 초원
-  fatmeat: { name:'기름진 고기', kind:'material', tier:1, group:'food' },    // v3.8.0: 🌲 숲 · 🏞️ 강가
+  fatmeat: { name:'기름진 고기', kind:'material', tier:1, group:'food' },    // v3.8.0 · v3.8.4: 🌲 숲 전용
+  toughmeat: { name:'질긴 고기', kind:'material', tier:1, group:'food' },    // v3.8.4: 🌾 초원
   fillet: { name:'생선살',     kind:'material', tier:1, group:'food' },
   honey: { name:'꿀',         kind:'material', tier:2, group:'food' },
   flour: { name:'곡물 가루',  kind:'material', tier:2, group:'food' },
@@ -761,6 +762,8 @@ const DEFS = {
   scale: { name:'비늘',       kind:'material', tier:1, group:'loot' },       // v3.8.0: 🏞️ 강가
   pincer: { name:'집게발',     kind:'material', tier:1, group:'loot' },      // v3.8.2: 🏞️ 강가 — 갑각
   tallow: { name:'짐승 기름',   kind:'material', tier:1, group:'loot' },      // v3.8.3: ⛰️ 산 — 요리 · 가죽 손질
+  furpelt: { name:'털가죽',     kind:'material', tier:1, group:'loot' },      // v3.8.4: 🌲 숲 — 털이 붙은 채
+  shellpiece: { name:'조개껍데기', kind:'material', tier:1, group:'loot' },   // v3.8.4: 🏞️ 강가 — 갈면 꾸밈·연마
   juice: { name:'열매즙',     kind:'material', tier:2, group:'body' },
   salve: { name:'약초 연고',  kind:'material', tier:2, group:'body' },
   // ── 3티어 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
@@ -809,10 +812,11 @@ const USE = {
   shieldboard:['갑옷재료'], curedleather:['갑옷재료'],
   longhandle:['무기재료'], handaxe:['무기', '근접무기'],   // v2.0.0   // v1.2.0: 갑옷 부품
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
-  meat:['요리재료'], fatmeat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
+  meat:['요리재료'], fatmeat:['요리재료'], toughmeat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
   bone:['무기재료', '도구재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료', '장신구'],
-  vine:['건축재료', '도구재료'], pincer:['도구재료', '장신구'], tallow:['요리재료', '약품재료', '생산재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
+  vine:['건축재료', '도구재료'], pincer:['도구재료', '장신구'], tallow:['요리재료', '약품재료', '생산재료'],
+  furpelt:['갑옷재료', '건축재료'], shellpiece:['장신구', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
   // 3티어
   toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'],
@@ -865,6 +869,9 @@ const DESC = {
   vine:      '숲이 스스로 꼬아 놓은 줄. 끊기 전에는 잘 풀리지도 않는다.',
   pincer:    '물속에서 무언가를 놓지 않으려던 것. 지금도 꽉 물려 있다.',
   tallow:    '굳으면 초가 되고, 녹으면 가죽을 먹인다. 냄새는 참아야 한다.',
+  toughmeat: '오래 달린 다리의 고기. 씹는 데 시간이 걸린다.',
+  furpelt:   '털이 그대로 붙어 있다. 겨울을 아는 두께.',
+  shellpiece:'물결이 갈아 놓은 무늬. 더 갈면 장신구가 된다.',
   fillet:    '뼈를 발라냈더니 표정이 사라졌다.',
   honey:     '끈적한 행복. 손가락이 먼저 찾아간다.',
   flour:     '빻아서 고와졌다. 재채기 조심.',
@@ -1063,7 +1070,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.8.3';
+const VERSION = 'v3.8.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3284,31 +3291,31 @@ const ENEMIES = {
   // v3.1.0: 들머리 보스 — 맨손(공 1)으론 못 잡고 뗀석기 칼(공 2)이면 잡힌다. 그림은 들개 것을 같이 씀
   strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:6,
     loot: [['smalltooth', 100, 1]] },
-  // v3.8.1: 🌾 초원 전리품 넷 — 억센 가죽 · 힘줄 · 붉은 고기 · 뼈 (+ 보스 들소 뿔)
+  // v3.8.4: 🌾 초원 전리품 넷 — 억센 가죽 · 힘줄 · 질긴 고기 · 뼈 (+ 보스 들소 뿔)
   wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:2, def:0, hp:6,
-    loot: [['meat', 40, 1], ['bone', 35, 1], ['sinew', 25, 1]] },
+    loot: [['toughmeat', 40, 1], ['bone', 35, 1], ['sinew', 25, 1]] },
   boar:   { name:'멧돼지', portrait:'portrait_boar', atk:3, def:0, hp:10,   // 초원의 핵심 부품: 억센 가죽
-    loot: [['toughhide', 45, 1], ['sinew', 30, 1], ['meat', 25, 1]] },
+    loot: [['toughhide', 45, 1], ['sinew', 30, 1], ['toughmeat', 25, 1]] },
   bison:  { name:'들소', portrait:'portrait_bison',  atk:4, def:1, hp:14,   // v2.1.0: 들소 뿔 10%
-    loot: [['toughhide', 40, 1], ['bone', 30, 1], ['sinew', 20, 1], ['bisonhorn', 10, 1]] },
+    loot: [['toughhide', 35, 1], ['toughmeat', 30, 2], ['bone', 25, 1], ['bisonhorn', 10, 1]] },
   // v2.1.0: 🌲 숲 — 여우(잡몹) · 늑대 두목(중간보스) · 숲곰(필드보스). 시뮬레이션으로 맞춤
   //   손도끼로는 늑대 두목에서 막히고, 긴 창이면 숲곰에서 막히고, 10레벨 방패면 클리어 (약 9판, Lv10)
-  // v3.8.0: 🌲 숲 전리품 넷 — 날카로운 송곳니 · 발톱 · 기름진 고기 · 부드러운 가죽 (+ 보스 이끼 낀 곰가죽)
+  // v3.8.4: 🌲 숲 전리품 넷 — 날카로운 송곳니 · 발톱 · 기름진 고기 · 털가죽 (+ 보스 이끼 낀 곰가죽)
   fox:        { name:'여우',     portrait:'portrait_fox',        atk:3, def:0, hp:16,
-    loot: [['fatmeat', 40, 1], ['hide', 40, 1], ['claw', 20, 1]] },
+    loot: [['fatmeat', 40, 1], ['furpelt', 40, 1], ['claw', 20, 1]] },
   wolfleader: { name:'늑대 두목', portrait:'portrait_wolfleader', atk:4, def:1, hp:22,   // 송곳니의 주 출처
-    loot: [['fang', 40, 1], ['claw', 35, 1], ['hide', 25, 1]] },
+    loot: [['fang', 40, 1], ['claw', 35, 1], ['furpelt', 25, 1]] },
   forestbear: { name:'숲곰',     portrait:'portrait_forestbear', atk:6, def:2, hp:30,
     loot: [['fatmeat', 30, 2], ['claw', 30, 1], ['fang', 30, 1], ['mosspelt', 10, 1]] },
   // v2.1.0: 🏞️ 강가 — 가재(잡몹) · 악어(중간보스) · 큰 메기(필드보스)
   //   숲 장비로는 악어에서 막힘. 강가 무기(+9) · 15레벨 장신구(+2)를 가정해 맞춘 수치 (약 10판, Lv15) — 둘 다 아직 없음
-  // v3.8.2: 🏞️ 강가 전리품 넷 — 생선살 · 비늘 · 집게발 · 기름진 고기 (+ 보스 메기 수염)
+  // v3.8.4: 🏞️ 강가 전리품 넷 — 생선살 · 비늘 · 집게발 · 조개껍데기 (+ 보스 메기 수염)
   crayfish:  { name:'가재',     portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
-    loot: [['fillet', 45, 1], ['pincer', 35, 1], ['scale', 20, 1]] },
+    loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
   crocodile: { name:'악어',     portrait:'portrait_crocodile', atk:7, def:3, hp:44,
-    loot: [['scale', 40, 1], ['pincer', 30, 1], ['fatmeat', 30, 2]] },
+    loot: [['scale', 45, 1], ['pincer', 30, 1], ['shellpiece', 25, 1]] },
   catfish:   { name:'큰 메기',  portrait:'portrait_catfish',   atk:9, def:3, hp:60,
-    loot: [['fillet', 40, 2], ['scale', 30, 1], ['fatmeat', 20, 1], ['catfishwhisker', 10, 1]] },
+    loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
