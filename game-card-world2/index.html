@@ -81,7 +81,8 @@
   /* v0.25.0: 정비 화면 — 필드 위쪽에 장비 칸 줄. 카드를 끌어다 놓음 */
   /* v0.27.0: 화면을 위아래로 — 위는 줄 목록(넘치면 세로 스크롤), 아래는 카드를 놓는 자리 */
   /* v2.7.0: 위는 카드 **한 줄** — 자리가 모자라면 가로로 민다. 높이는 줄 높이만(--toph), 나머지는 전부 아래 자리 */
-  .toplist{position:absolute;left:0;right:0;top:0;z-index:4;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
+  /* v5.3.0: 위 줄은 아래 자리보다 낮은 뎁스 — 아래 카드와 말풍선이 위 줄에 가리지 않는다 */
+  .toplist{position:absolute;left:0;right:0;top:0;z-index:3;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
     display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:safe center;
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);
     background:rgba(10,10,7,.55);border-bottom:1px solid var(--hairline);
@@ -115,6 +116,7 @@
   .toplist.grid .empty-lab{flex:1 0 auto;color:var(--muted);font-size:calc(var(--cf) * .105);text-align:center;padding:calc(var(--cw) * .2) 0;}
   .lhint{flex:none;font-size:calc(var(--cf) * .1);color:var(--muted);text-align:center;}
   .table.half{top:var(--toph, 50%);}                               /* v2.7.0: 위 줄 밑부터 화면 끝까지 */
+  .table{z-index:4;}                                               /* v5.3.0: 아래 카드가 위 줄보다 앞 */
   .slotbar[hidden]{display:none;}
   .slotbox{display:flex;flex-direction:column;align-items:center;gap:3px;}
   .slotbox .box{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
@@ -124,7 +126,7 @@
   .slotbox.sel .box{border-color:rgba(255,255,255,.55);}
   .slotbox .lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* v0.27.0: 전투 화면 — 위에 필드마다 한 줄(필드 카드 + 출전 칸 5개), 아래에 캐릭터 카드 */
-  .botarea{position:absolute;left:0;right:0;top:var(--toph, 50%);bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  .botarea{position:absolute;left:0;right:0;top:var(--toph, 50%);bottom:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:calc(var(--cw) * .1);padding:calc(var(--cw) * .1);box-sizing:border-box;}
   .chars{position:relative;display:flex;align-items:center;gap:calc(var(--cw) * .2);}   /* v0.37.1: 대사 말풍선의 기준 */
   /* v3.5.3: 🎯 목적의 아래 칸 — 카드가 많으면 줄을 내리고, 줄이 넘치면 세로로 굴림 */
@@ -933,16 +935,16 @@ const USE = {
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
   meat:['요리재료'], fatmeat:['요리재료'], toughmeat:['요리재료'], fillet:['요리재료'], honey:['요리재료', '약품재료'], flour:['요리재료'],
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
-  bone:['무기재료', '도구재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료', '장신구'],
+  bone:['무기재료', '도구재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료'],   // v5.3.0: 비늘은 재료 — '장신구' 태그를 뗌
   drymeat:['요리재료'], jerky:['요리재료'], renderfat:['요리재료', '약품재료'],
   fletching:['무기재료'], tannedfur:['갑옷재료'], fishoil:['약품재료', '생산재료'],
   rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], barbtip:['무기재료'],
-  nacre:['장신구', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],
+  nacre:['갑옷재료', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],   // v5.3.0
   smokedfish:['요리재료'], leatherstrap:['갑옷재료', '도구재료'],
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
   stonepelt:['갑옷재료'],
-  vine:['건축재료', '도구재료'], pincer:['도구재료', '장신구'], tallow:['요리재료', '약품재료', '생산재료'],
-  furpelt:['갑옷재료', '건축재료'], shellpiece:['장신구', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
+  vine:['건축재료', '도구재료'], pincer:['도구재료', '갑옷재료'], tallow:['요리재료', '약품재료', '생산재료'],   // v5.3.0
+  furpelt:['갑옷재료', '건축재료'], shellpiece:['갑옷재료', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],   // v5.3.0
   // 3단계
   toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'],
@@ -1238,7 +1240,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v5.2.1';
+const VERSION = 'v5.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1552,7 +1554,9 @@ const onBoardStatic = (type, id) => { const b = boardOf(id); return useOf(type).
 const onBoard = (type, id) => {
   const b = boardOf(id);
   if (!b.dyn) return onBoardStatic(type, id);
-  if (BOARD_IN[b.id].has(type)) return true;                       // boardOf는 모르는 id(필드 등)면 조합 탭을 돌려줌
+  // v5.3.0: 그 탭의 위 격자에 있는 것(완성품)은 아래 재료 자리에 내려오지 않는다
+  //   강화 조합은 **아래 재료를 위 격자의 완성품에 끌어다 놓는** 방식(v0.81.0)으로 그대로 된다
+  if (BOARD_IN[b.id].has(type)) return !onTopGrid(type, b.id);     // boardOf는 모르는 id(필드 등)면 조합 탭을 돌려줌
   if (b.dyn === 'rest'){                                           // 어느 탭에도 자리가 없으면 조합 탭에
     return !BOARDS.some(o => o.id !== b.id && o.dyn && (BOARD_IN[o.id].has(type) || onTopGrid(type, o.id)))
       && !onTopGrid(type, b.id) && !useOf(type).some(u => SPECIFIC_OUT.includes(u));   // v4.8.0: 도구 · 거점(모닥불)도 조합 판에
