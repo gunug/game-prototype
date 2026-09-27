@@ -16,6 +16,11 @@
      크기는 JS layout() 이 잼 — --fs 필드 한 변, --ps 팝업 한 변 */
   :root{--fs:320px;}
   .field{position:fixed;overflow:hidden;background:#0f0f0a;box-shadow:0 0 0 1px var(--hairline);}
+  /* v4.4.0: 모바일 모드 — 화면을 휴대폰 크기로 가둔다 (갤럭시 S22 울트라 412×915) */
+  body.mobile-mode{background:#07070a;}
+  .phone-frame{position:fixed;z-index:1;pointer-events:none;border:2px solid rgba(255,255,255,.18);border-radius:22px;
+    box-shadow:0 0 0 9999px rgba(0,0,0,.55);}
+  .phone-frame[hidden]{display:none;}
   .ui{position:fixed;z-index:2147482900;display:flex;flex-direction:column;box-sizing:border-box;background:rgba(20,20,16,.96);}
   .ui.side{border-left:1px solid var(--hairline);}
   .ui.bottom{border-top:1px solid var(--hairline);}
@@ -689,6 +694,7 @@
   <div class="setpage" id="setpage" hidden>
     <div class="set-t">⚙ 설정</div>
     <span class="meta" id="seenMeta"></span>
+    <label class="edit-mode"><input type="checkbox" id="mobileMode">모바일 모드 <span class="meta">412 × 915 (갤럭시 S22 울트라)</span></label>
     <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
     <div class="set-btns">
       <button class="reset" id="dumpBtn">진행도</button>
@@ -700,6 +706,7 @@
 <div class="ui side" id="ui">
   <div class="insp" id="insp"></div>
 </div>
+<div class="phone-frame" id="frame" hidden></div>
 <div class="toasts" id="toasts"></div>
 <script>
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 단계) ─────────
@@ -1188,7 +1195,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.3.0';
+const VERSION = 'v4.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1604,17 +1611,41 @@ const have = type => cardOf(type)?.n || 0;                       // 보유 수�
 // v0.16.0: 필드는 1:1, UI는 남는 공간, 팝업은 1:1 (확정 50)
 const UI_MIN = 240;                                              // UI가 최소로 가져가는 폭/높이
 let FS = 320;
+// v4.4.0: 모바일 모드 — 갤럭시 S22 울트라 기준 화면(412×915 CSS 픽셀)으로 가둬 본다
+const MOBILE_W = 412, MOBILE_H = 915;
+const MOBILE_KEY = 'card-world2.mobile';
+let mobileMode = false;
+try { mobileMode = localStorage.getItem(MOBILE_KEY) === '1'; } catch (e) {}
+function setMobileMode(on){
+  mobileMode = !!on;
+  try { on ? localStorage.setItem(MOBILE_KEY, '1') : localStorage.removeItem(MOBILE_KEY); } catch (e) {}
+  document.body.classList.toggle('mobile-mode', mobileMode);
+  measure();
+}
 function layout(){
-  const W = innerWidth, H = innerHeight, land = W >= H;
+  // v4.4.0: 모바일 모드면 **논리 크기는 412×915 그대로** 두고, 창이 작으면 통째로 줄여 보여 준다
+  const k = mobileMode ? Math.min(1, innerWidth / MOBILE_W, innerHeight / MOBILE_H) : 1;
+  const W = mobileMode ? MOBILE_W : innerWidth, H = mobileMode ? MOBILE_H : innerHeight;
+  const ox = Math.round((innerWidth - W * k) / 2), oy = Math.round((innerHeight - H * k) / 2);
+  const put = (el, x, y, w, h) => {
+    el.style.cssText = `left:${Math.round(ox + x * k)}px;top:${Math.round(oy + y * k)}px;width:${Math.round(w)}px;height:${Math.round(h)}px`
+      + (k === 1 ? '' : `;transform:scale(${k});transform-origin:0 0`);
+  };
+  const land = W >= H;
   FS = Math.max(220, Math.min(land ? H : W, (land ? W : H) - UI_MIN));
   const fieldEl = document.getElementById('field'), uiEl = document.getElementById('ui');
+  const frame = document.getElementById('frame');
+  if (frame){
+    frame.hidden = !mobileMode;
+    if (mobileMode) frame.style.cssText = `left:${ox}px;top:${oy}px;width:${Math.round(W * k)}px;height:${Math.round(H * k)}px`;
+  }
   if (land){
-    fieldEl.style.cssText = `left:0;top:${Math.round((H - FS) / 2)}px;width:${FS}px;height:${FS}px`;
-    uiEl.style.cssText = `left:${FS}px;right:0;top:0;bottom:0`;
+    put(fieldEl, 0, (H - FS) / 2, FS, FS);
+    put(uiEl, FS, 0, W - FS, H);
     uiEl.className = 'ui side';
   } else {
-    fieldEl.style.cssText = `left:${Math.round((W - FS) / 2)}px;top:0;width:${FS}px;height:${FS}px`;
-    uiEl.style.cssText = `left:0;right:0;top:${FS}px;bottom:0`;
+    put(fieldEl, (W - FS) / 2, 0, FS, FS);
+    put(uiEl, 0, FS, W, H - FS);
     uiEl.className = 'ui bottom';
   }
   const fr = fieldEl.getBoundingClientRect();                    // 알림은 필드 위쪽 가운데
@@ -4401,6 +4432,9 @@ function setEditMode(on, quiet){
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 }
 document.getElementById('editMode').addEventListener('change', e => setEditMode(e.target.checked));
+document.getElementById('mobileMode').addEventListener('change', e => setMobileMode(e.target.checked));   // v4.4.0
+document.getElementById('mobileMode').checked = mobileMode;
+document.body.classList.toggle('mobile-mode', mobileMode);
 // v2.6.0: 진행도 — 지금 상태를 JSON 으로 클립보드에 (AI 에게 붙여 넣어 진행을 보여 주기 위한 것)
 //   에디터 모드면 시험용 상태가 아니라 **진짜 저장본**을 뜬다
 function progressSnapshot(){
