@@ -344,6 +344,9 @@
   }
   /* v0.38.0: 끝낸 퀘스트 — 노랗게 두 번 반짝인 뒤 사라짐 */
   /* v0.40.0: 끝낸 퀘스트는 조용히 — 색 없이 흐려지며 사라짐 (0.5초) */
+  .q-pic{width:18px;height:18px;object-fit:cover;object-position:top center;border-radius:3px;vertical-align:middle;}
+  .q-pic.emo{display:inline-block;text-align:center;font-size:13px;line-height:18px;}
+  .q-op{font-size:11px;color:var(--muted);padding:2px 0 0 18px;white-space:normal;line-height:1.35;}
   .q-row.goal .q-tag{filter:drop-shadow(0 0 4px rgba(255,212,0,.6));}
   .q-row.q-step-in{animation:questIn 1.2s cubic-bezier(.2,.8,.3,1);}
   .q-row.q-done-flash{animation:questDone .5s ease-in forwards;}
@@ -595,7 +598,6 @@
 <body>
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
-  <div class="hintbar" id="hintbar" hidden></div>
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
@@ -1028,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.1.3';
+const VERSION = 'v3.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2638,6 +2640,7 @@ function checkGoalDone(){
 }
 function setGoal(t){
   S.goal = t;
+  hintDone('aim');                                                // v3.2.0: 목적 등록 조작을 해 봤다
   questHit('aim');                                                // v3.0.0: '목적에 등록하기' 퀘스트
   for (const u of useOf(t)) questHit(`aim-use:${u}`);
   if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
@@ -3229,7 +3232,6 @@ function expStart(id, cardEl){
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   unlockDone('field', id);                                        // v2.5.0
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
-  exp.tip = expTipText(id);                                       // v3.0.4: 나갈 때 한 번 정하고 원정 내내 안 바뀜
   setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
@@ -3642,215 +3644,26 @@ function healTick(dt){
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
 // v0.16.1: 퀘스트가 없으면 줄 자체를 숨겨 자리를 차지하지 않음. 여러 개면 한 줄씩 쌓이고, 많으면 UI 높이의 40%까지만 쓰고 스크롤
 let questClear = 0;                                               // v0.41.1: 다 접힌 뒤에 내용을 비움
-// ── 조작 힌트 (v2.2.0) ──────────────────────────────
-// 조작법은 퀘스트(기사의 수첩)에 적지 않고 여기서 따로 알려 줌. 한 번 해 보면 다시 안 나옴
-//   대상에 노란 빛을 두르고, 필드 아래에 한 줄
-// v2.4.0: 곰을 잡기 전까지의 팁 — 위에서부터 먼저 걸리는 하나만 보여 줌
+// ── 수첩 도우미 (v3.2.0) ────────────────────────────
 const questOn = id => (S.quests || []).some(q => q.id === id && !q.done);
-const onTab = (id, here, there) => S.tab === id ? here : there;
-function currentHint(){
-  const H = S.hints || {};
-  if (bearDone()) return unlockHint() || goalHint();              // v2.5.0: 초반 팁은 곰까지. 그 뒤엔 새로 열린 것 · 찍어 둔 목표
-  // v2.4.6: 원정 중엔 **한 줄 고정** (단계마다 바뀌던 팁은 뺌)
-  // v3.0.4: 게임 설명 대신 **지금 뭘 하러 나갔는지** — 목표 재료 · 퀘스트 · 발견
-  if (exp){
-    if (exp.phase !== 'end')
-    return { key:'exp', text: exp.tip || expTipText(exp.id), sel:[] };
-  }
-  // ① 첫 출전
-  if (!H.sortie && S.knight.hp > 0)
-    return onTab('battle',
-      { key:'sortie', text:`기사 카드를 끌어 ${fieldLabel(firstFieldId())} 줄의 출전 칸에 놓아 보세요`,
-        sel:['.chars [data-token="knight"]', `[data-slot-id="${firstFieldId()}:0"]`] },
-      { key:'sortie', text:'🗡️ 필드 탭에서 기사를 출전시킬 수 있어요', sel:['#tabs [data-tab="battle"]'] });
-  // ② 쓰러짐 — 쉬면 돌아온다는 것 (처음 한 번)
-  if (!H.down && S.knight.hp <= 0)
-    return onTab('battle',
-      { key:'down', text:'기사가 쓰러졌어요 — 쉬는 동안 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] },
-      { key:'down', text:'기사가 쓰러졌어요 — 🗡️ 필드 탭에서 체력이 차오르는 걸 볼 수 있어요', sel:['#tabs [data-tab="battle"]'] });
-  // ③ 첫 조합 — v2.5.3: 뺌. ④가 합칠 두 카드를 빛내며 대신 (조합할 게 없는데 '합쳐 보세요'가 떠 막히던 것)
-  // ④ 무기 만들기 — v2.4.1: 목표에서 거꾸로 **지금 할 수 있는 한 걸음**을 찾아 그 탭으로 (부품이 먼저면 조합 탭)
-  //   첫 무기를 만들기 전까지만 합칠 두 카드를 빛냄 (그 뒤론 탭만 알려 줌 — 조합식은 직접 찾기)
-  if (questOn('arm') && !haveWeapon()){
-    const st = nextStep('근접무기');
-    if (st){
-      const bd = BOARD_BY_ID[st.board] || BOARDS[0];
-      const what = st.final ? '무기' : '부품';
-      if (S.tab !== bd.id)
-        return { key:'forge', text:`${bd.name} 탭에서 ${st.final ? '무기를 만들 수 있어요' : '먼저 부품을 만들어요'}`, sel:[`#tabs [data-tab="${bd.id}"]`] };
-      const pair = [st.r.a, st.r.b].map(sd => sd.card || CRAFT_TYPES.find(t => useOf(t).includes(sd.use) && have(t) > 0));
-      const sel = H.firstWeapon ? [] : pair.flatMap(t => {
-        const c = cardOf(t);
-        return [c ? `.cw[data-id="${c.id}"]` : '', `[data-topcard="${t}"]`].filter(Boolean);
-      });
-      return { key:'forge', text: H.firstWeapon
-        ? `재료를 끌어 합쳐 ${what}${st.final ? '를' : '을'} 만들어 보세요`
-        : `빛나는 두 카드를 서로 끌어 합치면 ${what}${st.final ? '가' : '이'} 돼요`, sel, blink: !H.firstWeapon };
-    }
-  }
-  // ⑤ 장착
-  if (!H.equip && haveWeapon())
-    return onTab('gearup',
-      { key:'equip', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
-      { key:'equip', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] });
-  // ⑥⑦ 콜렉터북 · 필드 정보 팁은 뺌 (v2.5.1) — 퀘스트 길 사이에 끼어 흐름을 끊음
-  // ⑧ 더 센 무기 — v2.5.2: 퀘스트 바닥 팁(questHint) 안으로 옮김 (장착 → 만들기 → 트리 → 모으기 순)
-  // ⑨ 곰 앞 — 체력이 모자라면 채우고 가라
-  if (!H.bearReady && questOn('bear') && S.knight.hp < knightMaxHp())
-    return { key:'bearReady', text:'곰은 셉니다 — 기사 체력이 가득 찬 뒤에 나가세요', sel:[S.tab === 'battle' ? '.chars [data-token="knight"]' : '#tabs [data-tab="battle"]'] };
-  return questHint() || goalHint();                               // v2.9.3: 퀘스트 팁이 없으면 찍어 둔 목표
-}
-// v2.9.3: 목표 팁 — 트리에서 📌로 찍은 카드까지 가는 **다음 한 걸음**. 다 만들면 저절로 풀림
-const objP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '을' : '를');   // v3.0.4: 을/를
-const subP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '이' : '가');   // v2.9.4: 이/가
-function goalHint(){
-  const g = S.goal;
-  if (!g || !DEFS[g]) return null;
-  if (have(g) > 0){ checkGoalDone(); return null; }               // v3.0.6
-  const nm = DEFS[g].name, st = nextStepTo(g);
-  if (!st){
-    const m = lackOf(g);
-    return { key:'goal', text:`🎯 ${nm} — ${m ? subP(m) + ' 모자라요' : '재료가 모자라요'}`, sel:[] };
-  }
-  const bd = BOARD_BY_ID[st.board] || BOARDS[0];
-  const made = st.final ? nm : ((st.r.out || []).map(o => DEFS[o] ? DEFS[o].name : o)[0] || '부품');
-  return S.tab === bd.id
-    ? { key:'goal', text:`🎯 ${nm} — 재료를 끌어 합쳐 ${made}${st.final ? '' : '부터'} 만들어요`, sel:[] }
-    : { key:'goal', text:`🎯 ${nm} — ${bd.name} 탭에서 ${made}${st.final ? '를 만들 수 있어요' : '부터 만들어요'}`, sel:[`#tabs [data-tab="${bd.id}"]`] };
-}
-// v3.0.4: 원정 중 한 줄 — 지금 진행 중인 일로
-function expTipText(id){
-  const f = FIELD_BY_ID[id] || { emoji:'', name:'필드' };
-  const want = S.goal && DEFS[S.goal] ? goalNeedsAt(id) : [];
-  if (want.length) return `🎯 ${DEFS[S.goal].name} 재료를 찾는 중 — ${want.slice(0, 3).map(t => DEFS[t].name).join(' · ')}`;
-  if (S.goal && DEFS[S.goal]) return `🎯 ${objP(DEFS[S.goal].name)} 만들 참 — 여기선 쓸 재료가 안 나와요`;
-  const q = (S.quests || []).find(x => !x.done && QUESTS[x.id]);
-  if (q){
-    const d = QUESTS[q.id];
-    return `📓 ${d.name} — ${typeof d.text === 'function' ? d.text() : d.text}`;
-  }
-  return `${f.emoji} ${f.name}에서 새 재료를 찾는 중`;
-}
-// v2.5.0: 언락 팁 — 곰을 잡은 뒤 새 개념이 열리면 하나씩 (장비 칸 · 탭 · 필드 …)
-//   열린 순서대로 쌓아 두고 맨 앞 하나만 보여 줌. 그곳에 가 보고 떠나거나, 실제로 해 보면 끝
-const bearDone = () => (S.killed || []).includes('bear');
-// v3.1.0: 지금 나갈 수 있는 첫 필드 — 튜토리얼이 끝나기 전엔 🏕️ 들머리
-const firstFieldId = () => (FIELDS.find(f => !fieldLocked(f.id)
-  && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude'))) || FIELDS[1] || FIELDS[0]).id;
-const fieldLabel = id => { const f = FIELD_BY_ID[id]; return f ? `${f.emoji} ${f.name}` : '필드'; };
-function addUnlock(kind, id){
-  if (!bearDone()) return;                                        // 곰 전엔 초반 팁이 이미 안내함
-  const H = S.hints || (S.hints = {});
-  H.unlocks = H.unlocks || [];
-  if (H.unlocks.some(u => u.kind === kind && u.id === id)) return;
-  H.unlocks.push({ kind, id });
-  setTimeout(renderHint, 0);
-}
-function unlockDone(kind, id){
-  const u = ((S.hints || {}).unlocks || []).find(u => !u.done && u.kind === kind && (id == null || u.id === id));
-  if (!u) return;
-  u.done = true;
-  renderHint(); save();
-}
-const unlockTab = u => u.kind === 'slot' ? 'gearup' : u.kind === 'board' ? u.id : 'battle';
-function unlockHint(){
-  const u = ((S.hints || {}).unlocks || []).find(u => !u.done);
-  if (!u) return null;
-  const tab = unlockTab(u), there = BOARD_BY_ID[tab] || { name:'🗡️ 필드' };
-  const away = text => ({ key:'unlock', text, sel:[`#tabs [data-tab="${tab}"]`], unlock: u });
-  if (u.kind === 'slot'){
-    const sl = slotByKey(u.id);
-    return S.tab === tab
-      ? { key:'unlock', text:`기사 줄의 ${sl.name} 칸에 ${sl.tag} 카드를 끌어다 놓으세요`, sel:[`[data-slot-id="knight:${sl.key}"]`], unlock: u }
-      : away(`🔓 ${sl.name} 칸이 열렸어요 — ${there.name} 탭에서 기사에게 채워 줄 수 있어요`);
-  }
-  if (u.kind === 'board'){
-    const b = BOARD_BY_ID[u.id];
-    return S.tab === tab
-      ? { key:'unlock', text: tab === 'gearup' ? '만든 장비를 기사 줄의 칸으로 끌어다 놓아 쥐여 줘요' : '모은 재료를 끌어 합쳐 새 카드를 만들어 보세요', sel:[], unlock: u }
-      : away(`🔓 ${b.name} 탭이 열렸어요`);
-  }
-  if (u.kind === 'field'){
-    const f = FIELD_BY_ID[u.id];
-    return S.tab === tab
-      ? { key:'unlock', text:`기사를 ${f.emoji} ${f.name} 줄의 출전 칸에 놓으면 새 땅으로 가요`, sel:['.chars [data-token="knight"]', `[data-slot-id="${f.id}:0"]`], unlock: u }
-      : away(`🔓 ${f.emoji} ${f.name} — 새 필드가 열렸어요. 🗡️ 필드 탭에서 출전할 수 있어요`);
-  }
-  return null;
-}
-// v2.4.5: 바닥 팁 — 곰을 잡기 전까진 **늘 하나는** 보인다. 한 번 보고 끝나는 팁이 다 지나가도 지금 퀘스트 기준으로 다음 할 일
-function questHint(){
-  const fid = firstFieldId();                                     // v3.1.0: 지금 나갈 수 있는 첫 필드 (들머리 → 산)
-  const go = (text, key) => keep(exp && exp.phase !== 'end'           // v2.5.3: 끝 화면은 원정 중이 아님
-    ? { key, text:'기사가 원정 중 — 그동안 🔨 조합 탭에서 모은 재료를 합쳐 볼 수 있어요', sel:[] }
-    : S.knight.hp <= 0
-      ? { key, text:'기사가 쉬는 중 — 카드 안 체력이 차오르면 다시 나갈 수 있어요', sel:['.chars [data-token="knight"]'] }
-      : onTab('battle',
-          { key, text, sel:['.chars [data-token="knight"]', `[data-slot-id="${fid}:0"]`] },
-          { key, text: text + ' (🗡️ 필드 탭)', sel:['#tabs [data-tab="battle"]'] }));
-  if (questOn('goprelude')) return go('기사를 🏕️ 들머리 출전 칸에 놓아 다녀와요', 'q:goprelude');   // v3.1.0
-  if (questOn('preludeboss')) return go('🏕️ 들머리로 다시 — 길목의 주인을 넘어요', 'q:preludeboss');
-  if (questOn('gomountain')) return go('기사를 ⛰️ 산 출전 칸에 놓아 다녀와요', 'q:gomountain');
-  if (questOn('aimweapon')) return aimUseCandidates('근접무기').length ? keep(aimTip('만들 무기를'))   // v3.0.1 · v3.0.3
-    : go('⛰️ 산으로 출전해 재료를 더 발견해요 — 재료를 알면 🎯 목적에 무기가 올라와요', 'q:aimweapon');
-  if (questOn('arm')){
-    if (haveWeapon())
-      return keep(onTab('gearup',
-        { key:'q:arm', text:'무기 카드를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
-        { key:'q:arm', text:'정비 탭에서 만든 무기를 기사에게 쥐여 줄 수 있어요', sel:['#tabs [data-tab="gearup"]'] }));
-    const gh = goalHint();                                        // v3.0.1: 목적이 적어 준 다음 한 걸음
-    if (gh) return keep(gh);
-    return keep(aimTip('만들 무기를'));
-  }
-  if (questOn('wolf')) return go('⛰️ 산으로 — 늑대를 넘어요', 'q:wolf');
-  if (questOn('aimbetter')) return aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? keep(aimTip('더 센 무기를'))   // v3.0.1 · v3.0.3
-    : go('⛰️ 출전해 재료를 더 발견해요 — 더 센 무기는 새 재료에서 나와요', 'q:aimbetter');
-  if (questOn('better')){                                        // v2.5.2: 쥐여 주기 → 만들기 → 트리 → 모으기
-    const gh = S.goal && (DEFS[S.goal].atk || 0) >= 2 ? goalHint() : null;
-    if (gh) return keep(gh);
-    const strong = t => (DEFS[t].atk || 0) >= 2;
-    if (CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && strong(t) && have(t) > 0))
-      return keep(onTab('gearup',
-        { key:'q:better', text:'더 센 무기를 기사 줄의 근접무기 칸으로 끌어다 놓으세요', sel:['[data-slot-id="knight:weapon"]'] },
-        { key:'q:better', text:'정비 탭에서 더 센 무기를 기사에게 쥐여 줘요', sel:['#tabs [data-tab="gearup"]'] }));
-    const st = nextStep('근접무기', 3, strong);
-    if (st){
-      const bd = BOARD_BY_ID[st.board] || BOARDS[0];
-      return keep(S.tab === bd.id
-        ? { key:'q:better', text: st.final ? '재료를 끌어 합쳐 더 센 무기를 만들어 보세요' : '재료를 끌어 합쳐 먼저 부품을 만들어요', sel:[] }
-        : { key:'q:better', text:`${bd.name} 탭에서 ${st.final ? '더 센 무기를 만들 수 있어요' : '먼저 부품을 만들어요'}`, sel:[`#tabs [data-tab="${bd.id}"]`] });
-    }
-    if (!(S.hints || {}).tree && !exp)
-      return keep(onTab('weapon',
-        { key:'q:better', text:'오른쪽 위 🌳 트리에서 더 센 무기로 가는 길을 볼 수 있어요', sel:['#treeBtn'] },
-        { key:'q:better', text:'무기 탭의 🌳 트리에서 더 센 무기에 필요한 재료를 볼 수 있어요', sel:['#tabs [data-tab="weapon"]'] }));
-    return go('⛰️ 산으로 출전해 더 센 무기 재료를 모아요', 'q:better');
-  }
-  if (questOn('bear')) return go('새 무기를 쥐었으니 다시 ⛰️ 산으로 — 곰을 쓰러뜨려요', 'q:bear');
-  return null;                                                    // 틈은 renderHint의 lastHint가 메움 (v2.5.3)
-}
-let lastQH = null, lastHint = null;
-// v3.0.1: 목적 탭으로 보내는 팁
-const aimTip = what => S.tab === 'aim'
-  ? { key:'q:aim', text:`${what} 골라 🎯 칸에 끌어다 놓으세요 — 만드는 차례를 적어 줘요`, sel:['[data-slot-id="aim:goal"]'] }
-  : { key:'q:aim', text:`🎯 목적 탭에서 ${what} 정하면 만드는 차례를 알려 줘요`, sel:['#tabs [data-tab="aim"]'] };
-const keep = h => (lastQH = h);
+// v3.2.0: **팁 줄(노란 알약)·빛내기 없앰.** 길 안내는 수첩이 하고, 조작 설명은 처음 한 번만 수첩 줄 아래 작은 글씨로.
+//   빛나는 곳만 누르던 버릇이 생기면 빛이 꺼진 순간 길을 잃는다 — 이름과 그림이 맞으면 찾을 수 있다
 function renderHint(){
   const H = S.hints || (S.hints = {});
   if (S.knight.hp <= 0) H.sawDown = true;                         // v2.4.0
   else if (H.sawDown && !H.down) H.down = true;
-  if (questOn('bear') && S.knight.hp >= knightMaxHp() && H.sawBearHint) H.bearReady = true;
-  if (questOn('bear') && S.knight.hp < knightMaxHp()) H.sawBearHint = true;
   for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow', 'hint-blink');
-  const bar = document.getElementById('hintbar');
-  let h = currentHint();
-  if (!h && !bearDone() && !exp) h = lastHint;                    // v2.5.3: 곰 전엔 틈(퀘스트 넘김 등)에도 앞 팁 유지
-  if (h && !bearDone()) lastHint = h;
-  bar.hidden = !h;
-  if (!h) return;
-  bar.textContent = '👆 ' + h.text;
-  if (h.unlock && S.tab === unlockTab(h.unlock)) h.unlock.seen = true;   // v2.5.0: 그 자리에서 봤음
-  for (const q of h.sel) document.querySelector(q)?.classList.add('hint-glow', ...(h.blink ? ['hint-blink'] : []));
+  for (const u of (H.unlocks || [])) if (!u.done && S.tab === unlockTab(u)) u.seen = true;   // v2.5.0: 그 자리에서 봤음
+}
+// 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
+function opNote(){
+  const H = S.hints || {};
+  if (!H.sortie) return '기사 카드를 필드 줄의 출전 칸으로 끌어다 놓는다';
+  if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))) return '🎯 목적 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
+  if (!H.craft && S.cards.length >= 2) return '카드를 다른 카드 위로 끌어다 놓으면 합쳐진다';
+  if (!H.equip && haveWeapon()) return '🔧 정비 탭에서 무기를 기사의 근접무기 칸으로 끌어다 놓는다';
+  if (!H.book && (S.newCards.length + (S.newTraces || []).length) >= 3) return '📖 콜렉터북을 열면 새 카드가 끼워진다';
+  return null;
 }
 function hintDone(key){
   if ((S.hints || {})[key]) return;
@@ -3872,10 +3685,12 @@ function renderQuest(){
   }
   clearTimeout(questClear);
   // v2.2.0: 퀘스트 줄 = 기사의 수첩 — 할 일은 게임의 지시가 아니라 기사가 스스로 적은 메모
+  const note = opNote();                                          // v3.2.0: 처음 해 보는 조작만 작은 글씨로
   el.innerHTML = '<div class="q-book">📓 기사의 수첩</div>' + list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
-  }).join('') + goalRow;
+  }).join('') + goalRow
+    + (note ? `<div class="q-op">👆 ${esc(note)}</div>` : '');
   if (goalRow && goalStepKey() !== lastGoalStep){                 // 한 단계 끝나면 다음 단계가 새 퀘스트처럼 올라옴
     lastGoalStep = goalStepKey();
     const row = el.querySelector('.q-row.goal');
@@ -3901,10 +3716,26 @@ function goalRowHtml(){
 }
 // v0.44.0: 퀘스트 줄 표시 통일 — 오른쪽 끝은 **끝났을 때 ✓** 만.
 //   진행 수는 할 일 글 뒤에 작게 (3/5). 단계형은 수를 아예 안 보여 줌 (몇 개를 만들라는 말로 읽혀서)
+// v3.2.0: 수첩 줄에 **그림**을 함께 — 빛으로 가리키는 대신 이름과 그림이 맞으면 찾아갈 수 있게
+const foePic = k => ENEMIES[k] && ENEMIES[k].portrait
+  ? `<img class="q-pic" src="images/portrait/${ENEMIES[k].portrait}.png" alt="" draggable="false">` : '';
+const fieldPic = id => { const f = FIELD_BY_ID[id]; if (!f) return '';
+  return FIELD_NO_ICON.includes(id) ? `<span class="q-pic emo">${f.emoji}</span>`
+    : `<img class="q-pic" src="images/icon/card_${id}.png" alt="" draggable="false">`; };
+const QUEST_PIC = {
+  goprelude: () => fieldPic('prelude'),   gomountain: () => fieldPic('mountain'),
+  grass: () => fieldPic('grassland'),     forest: () => fieldPic('forest'),
+  preludeboss: () => foePic('strayhound'), wolf: () => foePic('wolf'), bear: () => foePic('bear'),
+  boar: () => foePic('boar'),             bison: () => foePic('bison'),
+  aimweapon: () => '<span class="q-pic emo">🎯</span>', aimbetter: () => '<span class="q-pic emo">🎯</span>',
+  arm: () => '<span class="q-pic emo">🔧</span>',  better: () => '<span class="q-pic emo">🔧</span>',
+  gweapon: () => '<span class="q-pic emo">🔧</span>', garmor: () => '<span class="q-pic emo">🛡</span>',
+  lv5: () => '<span class="q-pic emo">⬆</span>',
+};
 function questRowHtml(q, def){
   const goal = questGoal(def);
   const prog = def.steps || q.done || goal <= 1 ? '' : ` <span class="q-prog">${Math.min(q.n, goal)}/${goal}</span>`;
-  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span><b class="q-name">${esc(def.name)}</b>`
+  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${(QUEST_PIC[q.id] || (() => ''))()}<b class="q-name">${esc(def.name)}</b>`
     + `<span class="q-text">${esc(q.done ? '했다' : questText(def, q))}${prog}</span>`
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
 }
