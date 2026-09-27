@@ -1177,7 +1177,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.1.1';
+const VERSION = 'v4.1.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3659,14 +3659,9 @@ function expBeat(){
       // v0.51.1: 그 필드를 **처음** 정복했을 때만 다음 필드가 열림
       //   (보스를 다시 잡을 때마다 열려 산 하나로 초원·숲·강가가 다 열리던 것)
       S.cleared = S.cleared || [];
-      if (!S.cleared.includes(exp.id)){
-        S.cleared.push(exp.id);
-        if (exp.id === 'mountain' && S.fields.stonehide){          // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
-          S.fields.stonehide.locked = false;
-          knightSay('산이 무너진 자리에 굴이 있다');
-        }
-        unlockNextField(exp.id);
-      }
+      const first = !S.cleared.includes(exp.id);
+      if (first) S.cleared.push(exp.id);
+      syncUnlocks(first ? exp.id : null);                          // v4.1.2: 처음이든 다시 깨든, 깬 곳 다음은 열려 있어야 한다
       expEnd('boss');
       return;
     }
@@ -4209,6 +4204,27 @@ function fieldNeed(id){
   const prev = i > 0 ? FIELDS[i - 1] : null;
   return prev ? `${prev.name} 클리어` : '잠김';                    // v0.98.1: '필요' 뺌
 }
+// v4.1.2: 깬 곳의 **다음 땅은 언제나 열려 있게** 맞춰 둔다 (예전 저장 · 다시 깬 경우도)
+//   newly: 방금 처음 깬 곳이면 그 id — 자물쇠 열리는 연출을 한 번 보여 준다
+function syncUnlocks(newly){
+  const cleared = S.cleared || [];
+  const outs = OUT_FIELDS();
+  for (const id of cleared){
+    const i = outs.findIndex(f => f.id === id);
+    const next = i >= 0 ? outs[i + 1] : null;
+    if (next && S.fields[next.id] && S.fields[next.id].locked){
+      if (newly === id) unlockNextField(id);                       // 연출과 함께
+      else S.fields[next.id].locked = false;                       // 조용히 맞춤
+    }
+  }
+  if (cleared.includes('mountain') && S.fields.stonehide && S.fields.stonehide.locked){
+    S.fields.stonehide.locked = false;                             // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
+    if (newly === 'mountain') knightSay('산이 무너진 자리에 굴이 있다');
+    addUnlockNote('stonehide');
+  }
+  save();
+}
+function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f) toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); }
 function unlockNextField(afterId){
   const i = OUT_FIELDS().findIndex(f => f.id === afterId);
   const next = OUT_FIELDS().slice(i + 1).find(f => fieldLocked(f.id)) || OUT_FIELDS().find(f => fieldLocked(f.id));   // v4.0.0: 던전은 따로 열림
@@ -4419,6 +4435,7 @@ document.getElementById('reset').addEventListener('click', () => {
 });
 addEventListener('resize', () => { measure(); renderAll(); });
 measure();
+syncUnlocks(null);                                                // v4.1.2: 저장을 불러온 뒤 잠금 상태를 맞춤
 paintIcons(document.body);                                        // v3.5.0: 고정 HTML(안내문 · 던전 판) 속 이모지도 그림으로
 if (!S.tab) S.tab = 'battle';
 renderAll();
