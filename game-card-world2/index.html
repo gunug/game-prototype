@@ -1155,7 +1155,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.14.1';
+const VERSION = 'v3.14.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3834,20 +3834,34 @@ function renderMiniExp(){
   const on = !!exp && S.tab !== 'battle';                          // 필드 탭에선 큰 화면이 이미 보임
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1
-  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle')) el.innerHTML = ''; }, 320); syncHeadH(); return; }
-  const f = FIELD_BY_ID[exp.id] || {}, max = knightMaxHp(), hp = Math.max(0, S.knight.hp);
-  el.innerHTML = '<img class="mx-pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false">'
-    + `<div class="mx-hp${hp / max <= 0.35 ? ' low' : ''}"><i style="width:${Math.round(hp / max * 100)}%"></i></div>`
-    + `<span class="mx-field">${f.emoji || ''}</span>`
-    + '<div class="mx-lane"><div class="mx-bar" style="width:' + Math.round(exp.t * 100) + '%"></div>'
-    + exp.spots.map(sp => `<img class="mx-spot${sp.done ? ' done' : ''}" style="left:${Math.round(sp.at * 100)}%"`
-        + ` src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집" draggable="false">`).join('')
-    + exp.foes.map(fo => `<img class="mx-foe${fo.dead ? ' dead' : ''}${fo.boss ? ' boss' : ''}" style="left:${Math.round(fo.at * 100)}%"`
-        + ` src="images/portrait/${(ENEMIES[fo.key] || {}).portrait || 'portrait_animal'}.png" alt="${esc((ENEMIES[fo.key] || {}).name || '')}" draggable="false">`).join('')
-    + `<div class="mx-dot" style="left:${Math.round(exp.t * 100)}%"></div></div>`
-    + `<span class="mx-line">${esc(exp.line || '')}</span>`;
-  paintIcons(el);
-  syncHeadH();
+  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle')){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
+  // v3.14.2: **한 번만 짓고 그 뒤엔 값만 고친다** — 매 틱 다시 그려 그림이 깜빡이던 것
+  const key = `${exp.id}|${exp.spots.length}|${exp.foes.map(f => f.key).join(',')}`;
+  if (el._key !== key){
+    const f = FIELD_BY_ID[exp.id] || {};
+    el.innerHTML = '<img class="mx-pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false">'
+      + '<div class="mx-hp"><i></i></div>'
+      + `<span class="mx-field">${f.emoji || ''}</span>`
+      + '<div class="mx-lane"><div class="mx-bar"></div>'
+      + exp.spots.map(sp => `<img class="mx-spot" style="left:${Math.round(sp.at * 100)}%"`
+          + ` src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집" draggable="false">`).join('')
+      + exp.foes.map(fo => `<img class="mx-foe${fo.boss ? ' boss' : ''}" style="left:${Math.round(fo.at * 100)}%"`
+          + ` src="images/portrait/${(ENEMIES[fo.key] || {}).portrait || 'portrait_animal'}.png" alt="${esc((ENEMIES[fo.key] || {}).name || '')}" draggable="false">`).join('')
+      + '<div class="mx-dot"></div></div><span class="mx-line"></span>';
+    paintIcons(el);
+    el._key = key;
+    syncHeadH();
+  }
+  const max = knightMaxHp(), hp = Math.max(0, S.knight.hp), pct = Math.round(exp.t * 100);
+  const hpBox = el.querySelector('.mx-hp');
+  hpBox.classList.toggle('low', hp / max <= 0.35);
+  hpBox.firstElementChild.style.width = Math.round(hp / max * 100) + '%';
+  el.querySelector('.mx-bar').style.width = pct + '%';
+  el.querySelector('.mx-dot').style.left = pct + '%';
+  el.querySelectorAll('.mx-spot').forEach((im, i) => im.classList.toggle('done', !!(exp.spots[i] || {}).done));
+  el.querySelectorAll('.mx-foe').forEach((im, i) => im.classList.toggle('dead', !!(exp.foes[i] || {}).dead));
+  const line = el.querySelector('.mx-line');
+  if (line.textContent !== (exp.line || '')) line.textContent = exp.line || '';
 }
 function expPaint(){
   renderMiniExp();                                                // v3.13.0
