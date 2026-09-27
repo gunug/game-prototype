@@ -344,6 +344,8 @@
   }
   /* v0.38.0: 끝낸 퀘스트 — 노랗게 두 번 반짝인 뒤 사라짐 */
   /* v0.40.0: 끝낸 퀘스트는 조용히 — 색 없이 흐려지며 사라짐 (0.5초) */
+  .q-row.goal .q-tag{filter:drop-shadow(0 0 4px rgba(255,212,0,.6));}
+  .q-row.q-step-in{animation:questIn 1.2s cubic-bezier(.2,.8,.3,1);}
   .q-row.q-done-flash{animation:questDone .5s ease-in forwards;}
   @keyframes questDone{0%{opacity:1;}100%{opacity:0;transform:translateY(-2px);}}
   .tabbtn.catch{animation:tabCatch .35s ease-out;}
@@ -1019,7 +1021,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.0.4';
+const VERSION = 'v3.0.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2584,20 +2586,22 @@ function aimWhere(t){                                             // 어디서 �
   const w = fieldText(t);
   return w ? `${w}에서 주움` : '구할 곳을 아직 모름';
 }
+// v3.0.5: 목표까지의 차례 (앞 차례가 만들어 주는 🏷️ 태그 줄은 뺌) — 수첩 줄과 목적 탭이 같은 것을 본다
+const goalSteps = g => goalPlan(g).filter((st, i, all) =>
+  st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
+const goalStepBody = st => st.kind === 'make' ? aimLine(st.r)
+  : st.kind === 'get' ? `${rcpIcon(st.type, true)} ${esc(aimName(st.type))} <span class="i-muted">${esc(aimWhere(st.type))}</span>`
+  : `🏷️ ${esc(st.use)} <span class="i-muted">이 태그가 붙은 재료</span>`;
 function goalPlanHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 만드는 차례를 적어 줍니다.</div>';
-  const plan = goalPlan(g).filter((st, i, all) =>                  // 앞 차례가 그 태그를 만들어 주면 태그 줄은 뺌
-    st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
+  const plan = goalSteps(g);
   const first = plan.findIndex(st => !planStepDone(st));
   return `<div class="aim-plan"><div class="aim-t">🎯 ${esc(aimName(g))} 만들기</div>`
     + (plan.length ? plan.map((st, i) => {
         const done = planStepDone(st);
-        const body = st.kind === 'make' ? aimLine(st.r)
-          : st.kind === 'get' ? `${rcpIcon(st.type, true)} ${esc(aimName(st.type))} <span class="i-muted">${esc(aimWhere(st.type))}</span>`
-          : `🏷️ ${esc(st.use)} <span class="i-muted">이 태그가 붙은 재료</span>`;
         return `<div class="aim-step${done ? ' done' : i === first ? ' now' : ''}">`
-          + `<span class="aim-box">${done ? '☑' : '☐'}</span>${body}</div>`;
+          + `<span class="aim-box">${done ? '☑' : '☐'}</span>${goalStepBody(st)}</div>`;
       }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
     + '</div>';
 }
@@ -3651,7 +3655,7 @@ const subP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '이' : '가
 function goalHint(){
   const g = S.goal;
   if (!g || !DEFS[g]) return null;
-  if (have(g) > 0){ S.goal = null; save(); toast(`🎯 목표 달성 — ${DEFS[g].name}`); return null; }
+  if (have(g) > 0){ S.goal = null; save(); toast(`🎯 목표 달성 — ${DEFS[g].name}`); renderQuest(); return null; }
   const nm = DEFS[g].name, st = nextStepTo(g);
   if (!st){
     const m = lackOf(g);
@@ -3800,11 +3804,12 @@ function renderQuest(){
   setTimeout(renderHint, 0);                                      // v2.5.2: 퀘스트가 바뀌면 팁도 바로 다음으로
   const el = document.getElementById('quest');
   const list = S.quests || [];
+  const goalRow = goalRowHtml();                                  // v3.0.5: 목적에 건 목표의 **지금 한 단계**
   el.hidden = false;
-  el.classList.toggle('show', list.length > 0 && !knightLine);    // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
-  if (!list.length){
+  el.classList.toggle('show', (list.length > 0 || !!goalRow) && !knightLine);   // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
+  if (!list.length && !goalRow){
     clearTimeout(questClear);
-    questClear = setTimeout(() => { if (!(S.quests || []).length) el.innerHTML = ''; }, 360);
+    questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml()) el.innerHTML = ''; }, 360);
     return;
   }
   clearTimeout(questClear);
@@ -3812,7 +3817,29 @@ function renderQuest(){
   el.innerHTML = '<div class="q-book">📓 기사의 수첩</div>' + list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
-  }).join('');
+  }).join('') + goalRow;
+  if (goalRow && goalStepKey() !== lastGoalStep){                 // 한 단계 끝나면 다음 단계가 새 퀘스트처럼 올라옴
+    lastGoalStep = goalStepKey();
+    const row = el.querySelector('.q-row.goal');
+    if (row) flash(row, 'q-step-in', 1400);
+  }
+}
+let lastGoalStep = null;
+function goalStepKey(){
+  const g = S.goal;
+  if (!g || !DEFS[g]) return null;
+  const plan = goalSteps(g);
+  return `${g}:${plan.filter(planStepDone).length}/${plan.length}`;
+}
+function goalRowHtml(){
+  const g = S.goal;
+  if (!g || !DEFS[g]) return '';
+  const plan = goalSteps(g), left = plan.filter(x => !planStepDone(x)).length;
+  const st = plan.find(x => !planStepDone(x));
+  const body = st ? goalStepBody(st) : `${rcpIcon(g, true)} ${esc(aimName(g))} <span class="i-muted">재료가 다 모였다 — 만들기만 하면 된다</span>`;
+  return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}</b>`
+    + `<span class="q-text">${body}${left > 1 ? ` <span class="q-prog">남은 ${left}</span>` : ''}</span>`
+    + `<span class="q-n"></span></div>`;
 }
 // v0.44.0: 퀘스트 줄 표시 통일 — 오른쪽 끝은 **끝났을 때 ✓** 만.
 //   진행 수는 할 일 글 뒤에 작게 (3/5). 단계형은 수를 아예 안 보여 줌 (몇 개를 만들라는 말로 읽혀서)
