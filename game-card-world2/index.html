@@ -506,6 +506,14 @@
   .trow .tchip{font-size:10px;padding:1px 6px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--muted);}
   .trow .tchip.atk{border-color:rgba(255,212,0,.45);color:#ffe08a;}
   .trow .tchip.plan{border-style:dashed;}
+  /* v2.9.1: 상태 한 벌 — 보유(초록) · 지금 가능(노랑) · 모자람(흐림) · 못 봄(점선) */
+  .tchip.have{border-color:rgba(120,220,140,.45);color:#9fe0ad;}
+  .tchip.can{border-color:rgba(255,212,0,.55);color:var(--brand-yellow);background:rgba(255,212,0,.08);}
+  .tchip.lack{color:var(--muted);}
+  .tchip.unk{border-style:dotted;color:var(--muted);}
+  .trow.st-unknown .tname{opacity:.55;}
+  .rcp-line.now{border-left:2px solid var(--brand-yellow);padding-left:6px;background:rgba(255,212,0,.06);}
+  .combo-row.now{background:rgba(255,212,0,.1);}
   .tnote{font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.5;}
   .book-back{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:opacity .3s;}
   .book-back.open{opacity:1;pointer-events:auto;}
@@ -943,12 +951,36 @@ function rcpOut(r, known){
 const rcpLine = (r, withHave) => `${rcpSide(r.a, withHave)} <span class="combo-op">+</span> ${rcpSide(r.b, withHave)}`
   + ` <span class="combo-op">=</span> ${rcpOut(r, comboDone(r))}`;
 
+// v2.9.1: **세 화면이 같은 말로 상태를 보인다** — 보유 · 지금 가능 · 재료 부족 · 못 본 것
+//   트리 · 인스펙터 · 콜렉터북이 저마다 다르게 칠하던 것을 한 군데로 모음
+function cardState(t){
+  if (!DEFS[t]) return 'none';
+  if (!editMode && !(S.seen || []).includes(t)) return 'unknown';
+  if (have(t) > 0) return 'have';
+  const rs = CRAFT_RECIPES.filter(x => (x.out || []).includes(t));
+  if (!rs.length) return 'none';
+  return rs.some(x => sideHave(x.a) && sideHave(x.b)) ? 'can' : 'lack';
+}
+function lackOf(t){                                               // 모자란 재료 — 가장 가까운 조합식 기준
+  const x = CRAFT_RECIPES.find(y => (y.out || []).includes(t));
+  if (!x) return '';
+  return [x.a, x.b].filter(sd => !sideHave(sd)).map(sideLabel).join(' · ');
+}
+function stateChip(t){
+  const st = cardState(t);
+  if (st === 'have') return `<span class="tchip have">보유 ${have(t)}</span>`;
+  if (st === 'can')  return '<span class="tchip can">지금 가능</span>';
+  if (st === 'lack'){ const m = lackOf(t); return `<span class="tchip lack">모자람${m ? ' ' + esc(m) : ''}</span>`; }
+  return '';                                                      // 못 본 것은 칩 없이 흐리게만 (트리엔 이름이 이미 보임)
+  return '';
+}
+const recipeNow = x => sideHave(x.a) && sideHave(x.b);            // 지금 두 재료가 다 있는 조합
 // ── 공용 도우미 ───────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.9.0';
+const VERSION = 'v2.9.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1826,7 +1858,7 @@ function renderInsp(){
       if (!sideMatch(mine, t)) continue;
       if (r.cook && mine.tag === '날것' && !d.cooked) continue;
       const keep = (r.keep === 'a' && mine === r.a) || (r.keep === 'b' && mine === r.b);
-      uses.push(`<div class="row rcp-line">${rcpLine(r, true)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
+      uses.push(`<div class="row rcp-line${recipeNow(r) ? ' now' : ''}">${rcpLine(r, true)}${keep ? ' <span class="i-muted">(남음)</span>' : ''}</div>`);
       break;
     }
   }
@@ -1838,7 +1870,7 @@ function renderInsp(){
   const makes = here ? all.filter(r => recipeBoards(r).includes(here)) : all;
   if (all.length){                                                // 조합으로 안 나오는 카드(채집물)는 이 칸 자체가 없음
     h += '<div class="sub">만드는 법</div>'
-      + (makes.length ? makes.map(r => `<div class="row rcp-line">${rcpLine(r, true)}</div>`).join('')
+      + (makes.length ? makes.map(r => `<div class="row rcp-line${recipeNow(r) ? ' now' : ''}">${rcpLine(r, true)}</div>`).join('')
         : '<div class="i-muted">이 화면에서 만들 수는 없음</div>');
   }
   inspEl.innerHTML = h;
@@ -2156,10 +2188,12 @@ function treeRowHtml(n, ctx){
   const make = auto ? (n.role ? `${n.role} — ${auto}` : auto) + (n.note ? ` · ${n.note}` : '')
     : (n.make || n.note || '');
   const pad = n.d ? '   '.repeat(n.d - 1) + '└ ' : '';
-  const chips = (atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
+  const st = d ? cardState(n.id) : '';                             // v2.9.1: 같은 상태 표기
+  const chips = (d ? [stateChip(n.id)].filter(Boolean) : [])
+    .concat(atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
     .concat((n.tags || []).map(x => `<span class="tchip">${esc(x)}</span>`))
     .concat(on ? [] : ['<span class="tchip plan">아직 없음</span>']);
-  return `<div class="trow${on ? '' : ' plan'}">`
+  return `<div class="trow${on ? '' : ' plan'}${st ? ' st-' + st : ''}"${d ? ` data-tnode="${n.id}"` : ''}>`
     + `<span class="tpad">${pad}</span>`
     + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
     + `<span class="tmake">${esc(make)}</span><span class="tchips">${chips.join('')}</span></div>`;
@@ -2207,9 +2241,10 @@ const sideOnBoard = (sd, id) => sd.card ? sideHere(sd.card, id)
 const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
+  const now = recipeNow(r);                                       // v2.9.1: 지금 두 재료가 다 있음
   const where = `<span class="combo-where">${recipeBoards(r).map(boardLabel).join(' · ')}에서</span>`;
-  return `<div class="combo-row${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
-    + `${rcpLine(r, false)}${where}</div>`;                       // v0.63.0: 인스펙터와 같은 표기
+  return `<div class="combo-row${now ? ' now' : ''}${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
+    + `${rcpLine(r, false)}${where}${now ? '<span class="tchip can">지금 가능</span>' : ''}</div>`;   // v0.63.0: 인스펙터와 같은 표기
 }
 // 재료를 둘 다 알고 있는데 아직 안 해 본 조합
 const sideKnown = sd => sd.card ? S.seen.includes(sd.card) : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && S.seen.includes(t));
