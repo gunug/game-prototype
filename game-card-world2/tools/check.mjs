@@ -134,7 +134,7 @@ try {
     // v4.6.0: 조합 탭마다 위 격자 · 아래 재료가 비지 않는지
     const empty = [];
     for (const b of BOARDS){
-      if (!b.dyn) continue;
+      if (!b.tops) continue;                                       // v4.8.0: 조합 탭은 한 판 — 위 격자가 없다
       S.tab = b.id; renderTopGrid(); renderTabs();
       const top = CRAFT_TYPES.filter(t => onTopGrid(t, b.id)), bot = CRAFT_TYPES.filter(t => onBoard(t, b.id));
       if (!top.length || !bot.length) empty.push(b.name + '(위 ' + top.length + ' · 아래 ' + bot.length + ')');

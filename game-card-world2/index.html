@@ -1213,7 +1213,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.7.0';
+const VERSION = 'v4.8.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1461,7 +1461,9 @@ const PARTY = [true, false, false];                               // v0.26.0 · 
 const BOARDS = [
   // v0.34.0: 위 절반은 완성품 격자(top), 아래 절반은 재료 카드 자리(bottom)
   // v1.0.0: '도구' → '조합'. 무기 · 갑옷 같은 **특정 탭에 속하지 못하는 모든 조합**을 여기서 한다
-  { id:'tool',   name:'🔨 조합', tags:['도구재료', '도구'], top:'도구', tops:['도구'], dyn:'rest' },
+  // v4.8.0: 조합 탭은 **한 판**. 위 격자에 올라가던 건 도구 넷과 '아직 쓸 데 없는 결과' 열일곱이었고,
+  //   앞엣것은 각자 탭이 생기면 옮겨 가고 뒤엣것은 조합식이 채워지면 사라진다 — 나눌 까닭이 없다
+  { id:'tool',   name:'🔨 조합', tags:['도구재료', '도구'], dyn:'rest' },
   // v0.53.0: 위 격자엔 완성품, 아래엔 그 재료들. v0.56.0: 처음부터 열려 있음
   // v0.93.0: 방어구·방패는 갑옷 화면으로 내보냄 — 무기 화면은 무기만
   // v1.0.0: 아래 재료 자리 = **무기가 되기 직전의 재료만** — 무기 조합식에 직접 들어가는 것 (dyn)
@@ -1520,9 +1522,7 @@ const BOARD_IN = {};                                               // 탭 id →
 for (const b of BOARDS) if (b.dyn) BOARD_IN[b.id] = new Set();
 for (const r of CRAFT_RECIPES) for (const t of recipeInputs(r)) BOARD_IN[recipeKind(r)]?.add(t);
 // 조합 탭의 위 격자 = 도구 + 다른 데 쓰이지 않는 조합 결과(요리 · 약품 따위의 끝물)
-const USED_AS_INPUT = new Set(CRAFT_RECIPES.flatMap(recipeInputs));
-const REST_TOP = new Set(CRAFT_RECIPES.filter(r => recipeKind(r) === 'tool' && !r.cook).flatMap(r => r.out || [])
-  .filter(t => !USED_AS_INPUT.has(t) && !useOf(t).some(u => SPECIFIC_OUT.includes(u) || u === '도구')));
+// v4.8.0: 조합 탭이 한 판이 되며 '끝물만 위로' 표(REST_TOP)는 필요 없어져 없앰
 const onBoardStatic = (type, id) => { const b = boardOf(id); return useOf(type).some(u => b.tags.includes(u)); };
 const onBoard = (type, id) => {
   const b = boardOf(id);
@@ -1530,14 +1530,14 @@ const onBoard = (type, id) => {
   if (BOARD_IN[b.id].has(type)) return true;                       // boardOf는 모르는 id(필드 등)면 조합 탭을 돌려줌
   if (b.dyn === 'rest'){                                           // 어느 탭에도 자리가 없으면 조합 탭에
     return !BOARDS.some(o => o.id !== b.id && o.dyn && (BOARD_IN[o.id].has(type) || onTopGrid(type, o.id)))
-      && !onTopGrid(type, b.id) && !useOf(type).some(u => SPECIFIC_OUT.includes(u) || u === '거점');
+      && !onTopGrid(type, b.id) && !useOf(type).some(u => SPECIFIC_OUT.includes(u));   // v4.8.0: 도구 · 거점(모닥불)도 조합 판에
   }
   return false;
 };
 // 위 절반 격자에 보이는 카드 (완성품)
 // v0.53.0: 위 격자 — tops 중 하나라도 맞으면 (무기 화면은 무기·방어구·방패)
 const onTopGrid = (type, id) => { const b = boardOf(id);
-  return !!b.tops && (useOf(type).some(u => b.tops.includes(u)) || (b.dyn === 'rest' && REST_TOP.has(type))); };
+  return !!b.tops && useOf(type).some(u => b.tops.includes(u)); };
 const boardFor = type => (BOARDS.find(b => b.dyn && boardOpen(b) && (onBoard(type, b.id) || onTopGrid(type, b.id)))   // v1.0.0
   || BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
 const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
