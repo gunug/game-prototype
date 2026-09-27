@@ -753,7 +753,7 @@ const DEFS = {
   clay: { name:'점토',       kind:'material', step:2, made:'river', group:'build' },
   cord: { name:'섬유끈',     kind:'material', step:2, made:'grassland', group:'build' },
   plank: { name:'나무판자',   kind:'material', step:2, made:'mountain', group:'tool' },   // v0.20.0: 도구재료
-  shieldboard: { name:'방패판', kind:'material', step:3, group:'gear' },
+  shieldboard: { name:'방패판', kind:'material', step:2, made:'mountain', group:'gear' },
   longhandle: { name:'나무 자루', kind:'material', step:3, group:'gear' },   // v2.0.0: 긴 자루 — 나무 손잡이 + 섬유끈
   handaxe: { name:'손도끼', kind:'material', step:4, group:'gear', atk:3 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
   curedleather: { name:'손질된 가죽', kind:'material', step:2, made:'mountain', group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
@@ -789,12 +789,12 @@ const DEFS = {
   fishhook: { name:'낚싯바늘',    kind:'material', step:3, group:'gear' },
   roastmeat: { name:'구운 고기',   kind:'material', step:3, group:'food' },
   workbench: { name:'작업대',      kind:'material', step:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
-  woodshield: { name:'나무 방패',  kind:'material', step:4, group:'gear', def:1 },   // v0.51.0: 방패 칸
+  woodshield: { name:'나무 방패',  kind:'material', step:3, group:'gear', def:1 },   // v0.51.0: 방패 칸
   campfire:  { name:'모닥불',      kind:'material', step:3, group:'gear' },
   // v2.1.0: 🌲 숲 — 긴 창(근접무기 +5) · 방패테 · 테 두른 방패(방패 +2)
   longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5 },
   shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
-  rimshield: { name:'테 두른 방패', kind:'material', step:5, group:'gear', def:2 },
+  rimshield: { name:'테 두른 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙구슬 목걸이(장신구 방어 +2)
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9 },
@@ -1019,7 +1019,7 @@ const RECIPES = [
   { id:'roastmeat',    a:{ card:'meat' },       b:{ card:'ember' },    out:['roastmeat'] },
   // v0.20.0: 도구 화면 — 나무를 뗀석기로 켜서 나무판자, 나무판자 + 뗀석기로 작업대 (작업대를 만들면 무기 화면이 열림)
   { id:'workbench',    a:{ card:'plank' },      b:{ card:'blade' },   out:['workbench'] },   // v0.94.0
-  { id:'shieldboard',  a:{ card:'plank' },      b:{ card:'hide' },    out:['shieldboard'] },   // v1.2.0. v3.7.1: 나무판자+뗀석기가 작업대와 똑같아 고침 — 판에 가죽을 덧대 팔에 거는 몸
+  { id:'shieldboard',  a:{ card:'tree' },       b:{ card:'hide' },    out:['shieldboard'] },   // v3.12.2: 널빤지에 가죽을 덧댄 '가공 재료' — 첫 방패가 완성품 칸에 오도록 한 단 내림
   { id:'woodshield',   a:{ card:'shieldboard' }, b:{ card:'leatherstrap' }, out:['woodshield'] },   // v0.51.0 · v3.11.0: 방패판 + 가죽끈 (단계 차를 하나로)
   // v2.1.0: 🌲 숲 — 수액이 있어야 테를 붙인다 (숲에서만 나는 부품)
   { id:'shieldrim',    a:{ card:'plank' },      b:{ card:'sap' },      out:['shieldrim'] },
@@ -1125,7 +1125,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.12.1';
+const VERSION = 'v3.12.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1141,7 +1141,7 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 //   ③ 쓸 화면이 아직 없는 용도 태그 ④ 어느 화면에서도 만들 수 없는 조합
 // 콜렉터북 탭 이름 — '1단계' 같은 제작 용어 대신 플레이어가 아는 말로
 // v3.11.0: 단계 규칙 — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다 (위로 갈수록 좁아지는 깔때기)
-const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 강화', 5:'👑 명품' };
+const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 상급', 5:'👑 최상급' };
 const stepName = n => STEP_NAME[n] || `${n}`;
 const SHOWN_USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '도구재료', '도구'];
 const shownUses = t => useOf(t).filter(u => SHOWN_USES.includes(u));
