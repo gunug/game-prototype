@@ -515,6 +515,16 @@
   .rcp-line[data-totree], .combo-row[data-totree]{cursor:pointer;}
   .trow[data-tnode]{cursor:pointer;}
   .book-row.treepicks{flex-wrap:wrap;gap:4px;}
+  /* v3.0.0: 🎯 목적 */
+  .aim-plan{margin:6px 10px 0;padding:8px 10px;border:1px solid var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.03);}
+  .aim-t{font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .aim-step{display:flex;align-items:center;gap:6px;font-size:13px;padding:3px 0;color:var(--muted);}
+  .aim-step.now{color:var(--ink);background:rgba(255,212,0,.08);border-left:2px solid var(--brand-yellow);padding-left:6px;}
+  .aim-step.done{opacity:.5;text-decoration:line-through;}
+  .aim-box{font-size:13px;}
+  .aim-empty{margin:8px 10px;font-size:12px;color:var(--muted);}
+  .aim-st{position:absolute;left:0;right:0;bottom:2px;display:flex;justify-content:center;}
+  .cw.unseen .name{color:var(--muted);}
   .tpin{background:none;border:0;padding:0 4px 0 0;font-size:12px;opacity:.28;cursor:pointer;line-height:1;}
   .tpin:hover{opacity:.7;}
   .tpin.on{opacity:1;filter:drop-shadow(0 0 4px rgba(255,212,0,.8));}
@@ -1008,7 +1018,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v2.9.4';
+const VERSION = 'v3.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1365,7 +1375,7 @@ function load(){
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
     s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
-    const freeTab = t => t === 'battle' || t === 'dungeon';       // v0.91.0: 보드가 아닌 화면
+    const freeTab = t => t === 'battle' || t === 'dungeon' || t === 'aim';   // v0.91.0: 보드가 아닌 화면
     if (!BOARD_BY_ID[s.tab] && !freeTab(s.tab)) s.tab = 'battle';
     if (!freeTab(s.tab) && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
     delete s.quest;
@@ -2501,6 +2511,7 @@ function renderTabs(){                                            // v0.21.0: �
   const gearBoard = BOARD_BY_ID['gearup'];
   const html = (gearBoard ? [boardBtn(gearBoard)] : [])
     .concat(['<button class="tabbtn" data-tab="battle">🗡️ 필드</button>',
+      '<button class="tabbtn" data-tab="aim">🎯 목적</button>',          // v3.0.0
       '<button class="tabbtn" data-tab="dungeon">🏚 던전</button>'])
     .concat(BOARDS.filter(b => b.id !== 'gearup').map(boardBtn)).join('');
   wrap.insertAdjacentHTML('afterbegin', html);
@@ -2512,7 +2523,75 @@ function renderTabs(){                                            // v0.21.0: �
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => tab === 'battle' || tab === 'gearup';
+const isRowScreen = tab => tab === 'battle' || tab === 'gearup' || tab === 'aim';   // v3.0.0: 목적도 줄 화면
+// ── 🎯 목적 (v3.0.0) ─────────────────────────────────
+// 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
+//   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
+const aimRecipes = t => CRAFT_RECIPES.filter(x => !x.cook && (x.out || []).includes(t) && recipeBoards(x).length);
+function sideReachKnown(sd, d){                                   // 그 재료를 구할 줄 아나 — 본 적 있거나, 아는 재료로 만들 수 있거나
+  if (sideKnown(sd)) return true;
+  if (!sd.card || d <= 0) return false;
+  return aimRecipes(sd.card).some(x => sideReachKnown(x.a, d - 1) && sideReachKnown(x.b, d - 1));
+}
+const aimReady = t => aimRecipes(t).some(x => sideReachKnown(x.a, 3) && sideReachKnown(x.b, 3));
+function aimCandidates(){                                         // 만들 줄 아는 것 — 이미 가진 것과 지금 목표는 뺌
+  return CRAFT_TYPES.filter(t => t !== S.goal && have(t) <= 0 && aimReady(t))
+    .sort((a, b) => aimRank(a) - aimRank(b) || (DEFS[a].tier || 0) - (DEFS[b].tier || 0));
+}
+const aimRank = t => cardState(t) === 'can' ? 0 : nextStepTo(t) ? 1 : S.seen.includes(t) ? 2 : 3;
+// 목표까지의 차례 — 아래(구할 것)부터 위(마지막 조합)까지
+function goalPlan(t, depth = 4, seen = new Set()){
+  if (have(t) > 0 || seen.has(t) || depth <= 0) return [];
+  seen.add(t);
+  const x = aimRecipes(t).find(y => sideReachKnown(y.a, 3) && sideReachKnown(y.b, 3)) || aimRecipes(t)[0];
+  if (!x) return [{ type:t, kind:'get' }];                        // 조합이 없으면 주워 오는 것
+  const sub = [];
+  for (const sd of [x.a, x.b]){
+    if (sideHave(sd)) continue;
+    if (sd.card){ sub.push(...goalPlan(sd.card, depth - 1, seen)); continue; }
+    // 🏷️ 태그 재료 — 앞 차례에서 만드는 것이 그 태그를 가지면 따로 적지 않는다
+    if (sub.some(st => st.type && useOf(st.type).includes(sd.use))) continue;
+    sub.push({ use: sd.use, kind:'need' });
+  }
+  return sub.concat([{ type:t, kind:'make', r:x }]);
+}
+const planStepDone = st => st.kind === 'make' || st.kind === 'get' ? have(st.type) > 0 : sideHave({ use: st.use });
+function aimWhere(t){                                             // 어디서 구하나 — 떨구는 놈 · 줍는 곳
+  const d = dropText(t);
+  if (d) return d;
+  const w = fieldText(t);
+  return w ? `${w}에서 주움` : '구할 곳을 아직 모름';
+}
+function goalPlanHtml(){
+  const g = S.goal;
+  if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 만드는 차례를 적어 줍니다.</div>';
+  const plan = goalPlan(g).filter((st, i, all) =>                  // 앞 차례가 그 태그를 만들어 주면 태그 줄은 뺌
+    st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
+  const first = plan.findIndex(st => !planStepDone(st));
+  return `<div class="aim-plan"><div class="aim-t">🎯 ${esc(aimName(g))} 만들기</div>`
+    + (plan.length ? plan.map((st, i) => {
+        const done = planStepDone(st);
+        const body = st.kind === 'make' ? aimLine(st.r)
+          : st.kind === 'get' ? `${rcpIcon(st.type, true)} ${esc(aimName(st.type))} <span class="i-muted">${esc(aimWhere(st.type))}</span>`
+          : `🏷️ ${esc(st.use)} <span class="i-muted">이 태그가 붙은 재료</span>`;
+        return `<div class="aim-step${done ? ' done' : i === first ? ' now' : ''}">`
+          + `<span class="aim-box">${done ? '☑' : '☐'}</span>${body}</div>`;
+      }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
+    + '</div>';
+}
+// v3.0.0: 목적 탭에서는 **이름을 가리지 않는다** — 여기 실리는 것은 '재료를 구할 줄 아는 것'뿐이고,
+//   가려 놓으면 안내가 안 된다 (다른 화면의 ??? 규칙은 그대로)
+const aimName = t => DEFS[t] ? DEFS[t].name : t;
+const aimSide = sd => sd.card ? `${rcpIcon(sd.card, true)} ${esc(aimName(sd.card))}` : `🏷️ ${esc(sd.use || sd.tag || '')}`;
+const aimLine = x => `${aimSide(x.a)} <span class="combo-op">+</span> ${aimSide(x.b)}`
+  + ` <span class="combo-op">=</span> ${(x.out || []).map(o => `${rcpIcon(o, true)} ${esc(aimName(o))}`).join(' · ')}`;
+function setGoal(t){
+  S.goal = t;
+  questHit('aim');                                                // v3.0.0: '목적에 등록하기' 퀘스트
+  for (const u of useOf(t)) questHit(`aim-use:${u}`);
+  toast(`🎯 목적 — ${aimName(t)}`);
+  renderScreen(); renderInsp(); renderHint(); save();
+}
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
 function slotHtmlOf(sl){
   const inner = sl.card
@@ -2525,6 +2604,13 @@ function slotHtmlOf(sl){
 }
 // 이 화면의 줄 목록
 function screenRows(){
+  if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
+    const g = S.goal && DEFS[S.goal] ? S.goal : null;
+    const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
+      + '<div class="name">목적</div><div class="sub-lab">하나만</div></div>';
+    return [{ card, slots: [{ id:'aim:goal', open:true, card: !!g, type: g, icon: g ? iconHtml(g) : '',
+      cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'목표' }] }];
+  }
   if (S.tab === 'battle'){
     return FIELDS.map(f => {
       const locked = fieldLocked(f.id), ys = yieldsOf(f.id);
@@ -2563,6 +2649,13 @@ function screenRows(){
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
   if (S.tab === 'battle') return [{ token: 'knight', html: knightCardHtml(true) }];
+  if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
+    token: t,
+    html: `<div class="cw framed f-${frameOf(DEFS[t])}${S.seen.includes(t) ? '' : ' unseen'}">`
+      + `<div class="emoji">${iconHtml(t)}</div>`
+      + `<div class="name">${esc(aimName(t))}</div>`
+      + `<div class="aim-st">${stateChip(t) || `<span class="tchip lack">${esc(lackOf(t) || '재료를 구해야 함')}</span>`}</div></div>`,
+  }));
   return S.cards.filter(c => onBoard(c.type, 'gearup') && c.n > 0).map(c => ({
     token: c.type,
     html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${statsHtml(c.type)}`   // v0.88.0: 수치를 맨 앞에
@@ -2660,7 +2753,9 @@ function renderScreen(){
     + '<div class="botarea">' + (S.tab === 'battle' ? '<div class="exp" id="exp" hidden></div>' : '')
     + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
     + (S.tab === 'battle' ? knightSayHtml() : '') + '</div>'
-    + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+    + (S.tab === 'aim' ? goalPlanHtml() : '')                     // v3.0.0: 목표까지의 차례
+    + `<div class="gather-hint">${S.tab === 'battle' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요'
+      : S.tab === 'aim' ? '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   syncTopH();
   if (S.tab === 'battle') expBuild();
 }
@@ -2669,6 +2764,7 @@ const renderSlots = () => {};                                     // v0.29.0: �
 // 칸에 놓았을 때
 function dropOnSlot(id, token){
   const [rowKey, slotKey] = id.split(':');
+  if (S.tab === 'aim'){ setGoal(token); return; }                 // v3.0.0
   if (S.tab === 'battle'){
     if (token !== 'knight') return;
     const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
@@ -2683,6 +2779,7 @@ function dropOnSlot(id, token){
 // 그 칸에 이 카드를 넣을 수 있나
 function slotTakes(id, token){
   const [, slotKey] = id.split(':');
+  if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (S.tab === 'battle') return token === 'knight';
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key) && useOf(token).includes(sl.tag);   // v0.56.0: 잠긴 칸은 안 받음
@@ -2720,7 +2817,7 @@ gatherEl.addEventListener('pointerdown', e => {
   if (!el) return;
   const fromSlot = !tokEl && slotEl ? slotEl.dataset.slotId : null;
   if (fromSlot && !slotEl.classList.contains('filled')) return;    // 빈 칸은 끌 것이 없음
-  const token = tokEl ? tokEl.dataset.token : equipped((fromSlot || '').split(':')[1]);
+  const token = tokEl ? tokEl.dataset.token : (S.tab === 'aim' ? S.goal : equipped((fromSlot || '').split(':')[1]));
   if (!token) return;
   const r0 = el.getBoundingClientRect();
   tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false };
@@ -2771,7 +2868,8 @@ addEventListener('pointerup', e => {
     if (d.fromSlot) unequipSlot(slotByKey(d.fromSlot.split(':')[1]));
     dropOnSlot(hit, d.token);
   } else if (d.fromSlot && !hit){
-    unequipSlot(slotByKey(d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
+    if (S.tab === 'aim'){ S.goal = null; toast('목표를 풀었다'); renderHint(); save(); }   // v3.0.0
+    else unequipSlot(slotByKey(d.fromSlot.split(':')[1]));   // 칸 밖으로 빼기
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
 });
@@ -2897,7 +2995,7 @@ function renderFieldInsp(){
 function setTab(tab){
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
-  if (tab !== 'battle' && tab !== 'dungeon' && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
+  if (tab !== 'battle' && tab !== 'dungeon' && tab !== 'aim' && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
   for (const u of (S.hints || {}).unlocks || [])                  // v2.5.0: 언락 팁을 그 탭에서 보고 떠나면 끝
     if (!u.done && u.seen && tab !== S.tab && unlockTab(u) === S.tab) u.done = true;
   S.tab = tab;
@@ -3830,7 +3928,7 @@ function setEditMode(on, quiet){
   try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; slotPick = null; knightPick = false;
   renderTabs();
-  if (S.tab !== 'battle' && S.tab !== 'dungeon' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
+  if (S.tab !== 'battle' && S.tab !== 'dungeon' && S.tab !== 'aim' && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
   setTab(S.tab);
   renderAll(); renderBook(); renderInsp();
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
