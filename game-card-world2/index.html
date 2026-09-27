@@ -1030,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.4';
+const VERSION = 'v3.2.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1089,9 +1089,10 @@ const QUESTS = {
   //   ① 목적에 등록하기 → ② 목적이 적어 준 차례대로 만들기 → ③ 쥐기
   aimweapon:  { name:'무엇을 쥘까',   goal:1, key:'aim-use:근접무기',
                 // v3.0.3: 목적에 올릴 게 없으면 먼저 재료를 발견해야 한다는 걸 퀘스트가 말한다
+                // v3.2.5: 한마디는 없음 — 이 퀘스트는 보스에게 지고 돌아온 직후에 붙어서,
+                //   그때 하는 '맨손으론 저 이빨을…' 한마디에 묻힌다
                 text:() => aimUseCandidates('근접무기').length ? '🎯 목적에 만들 무기를 등록하자'
-                  : '⛰️ 산에서 무기가 될 재료를 발견하자',
-                say:'맨손으론 안 되겠어. 뭐라도 쥐어야겠다' },
+                  : '🏕️ 들머리에서 무기가 될 재료를 더 모으자' },
   arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🎯 목적에 적힌 차례대로 만들자',
                 goal:1, key:'equip:weapon' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
@@ -3352,6 +3353,14 @@ function expBeat(){
   }
   save();
 }
+// v3.2.5: 보스에게 지고 돌아왔을 때 — 땅마다
+const BOSS_LOSS_SAY = {
+  prelude:  '맨손으론 저 이빨을 못 당하겠군',
+  mountain: '돌조각으론 곰을 당해낼 수 없겠어',
+  grassland:'가죽만으론 저 뿔을 못 막겠어',
+  forest:   '저 덩치는 창이 아니면 안 되겠군',
+  river:    '물살까지 상대할 줄은 몰랐군',
+};
 function expEnd(kind){
   const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
@@ -3370,15 +3379,17 @@ function expEnd(kind){
   questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
+  const lossId = exp.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
   if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
+  // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
+  const lossKey = `bossloss:${lossId}`;
+  if (bearLoss && !S.said.includes(lossKey)){
+    S.said.push(lossKey);
+    setTimeout(() => { knightSay(BOSS_LOSS_SAY[lossId] || '맨손으론 어림도 없군'); save(); }, 700);
+  }
   setTimeout(() => {
     exp = null;
     renderGather(); renderInsp(); save(); renderHint();          // v2.4.5
-    if (bearLoss && !S.said.includes('bossloss')){                // v0.72.0: 보스에게 처음 졌을 때 한 번
-      S.said.push('bossloss');
-      knightSay('돌조각으론 곰을 당해낼 수 없겠어');
-      save();
-    }
   }, exp && exp.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
