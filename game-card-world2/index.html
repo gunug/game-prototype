@@ -44,6 +44,14 @@
   /* 필드 */  /* 필드 */
   /* v3.6.0: 필드 맨 위 머리 — 탭 줄 + 수첩. 아래 화면들은 그만큼 내려서 시작한다 */
   .fieldhead{position:absolute;left:0;right:0;top:0;z-index:6;background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);}
+  /* v4.7.0: 좁은 화면 — 메인 탭을 ☰ 메뉴로 접는다 */
+  .navbtn{font-weight:800;}
+  .navmenu{position:absolute;left:6px;right:6px;z-index:8;display:flex;flex-direction:column;gap:6px;
+    padding:8px;border-radius:12px;background:rgba(16,16,13,.98);border:1px solid var(--hairline);
+    box-shadow:0 10px 24px rgba(0,0,0,.55);max-height:60vh;overflow-y:auto;}
+  .navmenu[hidden]{display:none;}
+  .navmenu .tabgroup{display:flex;flex-wrap:wrap;width:100%;}
+  .navmenu .tabbtn{flex:1 1 auto;justify-content:center;}
   /* v4.5.0: 탭 묶음 — 같은 결끼리 바탕을 공유하고 묶음 사이에만 틈 */
   .tabgroup{display:inline-flex;align-items:center;gap:3px;padding:3px;border-radius:calc(var(--r-pill) + 3px);
     background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);flex:none;}
@@ -683,10 +691,12 @@
   <!-- v3.6.0: 메인 탭은 필드 맨 위, 기사의 수첩은 바로 그 밑 -->
   <div class="fieldhead" id="fieldhead">
     <div class="uibar" id="tabs">
+      <button class="tabbtn navbtn" id="navBtn" hidden>☰ <span id="navNow"></span><span class="nbadge" id="navBadge" hidden></span></button>
       <button class="tabbtn" id="bookBtn" data-tab="book">📖 콜렉터북<span class="nbadge" id="bookBadge" hidden></span></button>
       <button class="tabbtn" id="setBtn" data-tab="settings">⚙ 설정</button>
       <span class="meta ver-out" id="ver"></span>
     </div>
+    <div class="navmenu" id="navmenu" hidden></div>
     <div class="quest" id="quest"></div>
     <div class="exp" id="exp" hidden></div>
     <div class="miniexp" id="miniexp" hidden></div>
@@ -1203,7 +1213,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.6.0';
+const VERSION = 'v4.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1626,6 +1636,8 @@ const UI_MIN = 240;                                              // UI가 최소
 let FS = 320;
 // v4.4.0: 모바일 모드 — 갤럭시 S22 울트라 기준 화면(412×915 CSS 픽셀)으로 가둬 본다
 const MOBILE_W = 412, MOBILE_H = 915;
+const NARROW_FS = 560;                                            // v4.7.0: 필드가 이보다 좁으면 메인 탭을 접는다
+let narrowUI = false, navOpen = false;
 const MOBILE_KEY = 'card-world2.mobile';
 let mobileMode = false;
 try { mobileMode = localStorage.getItem(MOBILE_KEY) === '1'; } catch (e) {}
@@ -1666,6 +1678,8 @@ function layout(){
     { left: fr.left + 'px', width: FS + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
   const root = document.documentElement.style;
   root.setProperty('--fs', FS + 'px');
+  const nw = mobileMode || FS < NARROW_FS;                        // v4.7.0: 모바일 모드거나 필드가 좁으면 ☰
+  if (nw !== narrowUI){ narrowUI = nw; navOpen = false; renderTabs(); }
   syncHeadH();                                                    // v3.6.0
 }
 function syncHeadH(){                                             // v3.6.0: 머리(탭 + 수첩) 높이 → --headh
@@ -2854,9 +2868,11 @@ function lockPop(btn, text){
 }
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
+  const menu = document.getElementById('navmenu');                // v4.7.0: 좁은 화면에서 탭이 들어가는 판
+  const host = narrowUI ? menu : wrap;
   const FIXED = ['bookBtn', 'setBtn'];                            // v3.3.0 · v3.7.3: 📖 · ⚙ 단추는 고정
-  for (const b of wrap.querySelectorAll('[data-tab]')) if (!FIXED.includes(b.id)) b.remove();
-  for (const g of wrap.querySelectorAll('.tabgroup')) if (!g.firstElementChild) g.remove();   // v4.5.0: 빈 묶음은 치운다
+  for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) if (!FIXED.includes(b.id)) b.remove();
+  for (const g of document.querySelectorAll('#tabs .tabgroup, #navmenu .tabgroup')) if (!g.firstElementChild) g.remove();   // v4.5.0: 빈 묶음은 치운다
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
   const boardBtn = b => boardOpen(b)
@@ -2872,19 +2888,41 @@ function renderTabs(){                                            // v0.21.0: �
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup').map(boardBtn) },
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
-  wrap.insertAdjacentHTML('afterbegin', html);
-  // 📖 콜렉터북 · ⚙ 설정은 고정 단추 — 각자 한 묶음으로 감싸 둔다
+  host.insertAdjacentHTML('afterbegin', html);
+  // 📖 콜렉터북 · ⚙ 설정은 고정 단추 — 각자 한 묶음으로 감싸 둔다 (좁으면 판 안으로 옮겨 간다)
   for (const id of ['bookBtn', 'setBtn']){
     const b = document.getElementById(id);
-    if (!b || b.parentElement.classList.contains('tabgroup')) continue;
-    const g = document.createElement('span');
-    g.className = 'tabgroup tg-' + (id === 'bookBtn' ? 'book' : 'set');
-    b.parentElement.insertBefore(g, b);
-    g.appendChild(b);
+    if (!b) continue;
+    let g = b.parentElement.classList.contains('tabgroup') ? b.parentElement : null;
+    if (!g){
+      g = document.createElement('span');
+      g.className = 'tabgroup tg-' + (id === 'bookBtn' ? 'book' : 'set');
+      b.parentElement.insertBefore(g, b);
+      g.appendChild(b);
+    }
+    if (g.parentElement !== host){                                 // v4.7.0: 좁으면 판, 넓으면 다시 줄로
+      if (host === wrap) wrap.insertBefore(g, document.getElementById('ver'));   // 버전은 줄 오른쪽 끝에 그대로
+      else host.appendChild(g);
+    }
   }
-  paintIcons(wrap);                                               // v3.5.0
-  for (const b of wrap.querySelectorAll('[data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
+  // ☰ 단추 — 좁을 때만. 지금 보고 있는 탭 이름을 달고 있는다
+  const nav = document.getElementById('navBtn');
+  nav.hidden = !narrowUI;
+  menu.hidden = !narrowUI || !navOpen;
+  nav.classList.toggle('on', navOpen);
+  if (narrowUI){
+    document.getElementById('navNow').textContent = tabName(S.tab);
+    menu.style.top = (wrap.offsetHeight + 2) + 'px';
+    const bd = document.getElementById('bookBadge'), nb = document.getElementById('navBadge');
+    nb.hidden = bd.hidden; nb.textContent = bd.textContent;       // 새 카드 알림은 ☰ 에도 붙는다
+  }
+  paintIcons(wrap); paintIcons(menu);                             // v3.5.0
+  for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
+// v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
+const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', aim:'🎯 목적', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
+function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
 // 전투와 정비가 같은 UI를 씀: 위 절반은 `주체 카드 + 칸들` 줄 목록(넘치면 세로 스크롤),
 // 아래 절반은 끌어 올릴 카드들. 아래 카드를 칸에 끌어다 놓으면 그 화면의 일이 일어난다
@@ -3499,7 +3537,13 @@ function setTab(tab){
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
   renderGather(); renderInsp(); save();
 }
-document.getElementById('tabs').addEventListener('click', e => {
+document.getElementById('navBtn').addEventListener('click', () => setNavOpen(!navOpen));   // v4.7.0
+document.addEventListener('pointerdown', e => {                   // v4.7.0: 판 바깥을 누르면 닫힘
+  if (!navOpen) return;
+  if (e.target.closest('#navmenu') || e.target.closest('#navBtn')) return;
+  setNavOpen(false);
+}, true);
+function onTabClick(e){
   const btn = e.target.closest('[data-tab]');
   if (!btn) return;
   const b = BOARD_BY_ID[btn.dataset.tab];
@@ -3508,8 +3552,11 @@ document.getElementById('tabs').addEventListener('click', e => {
     lockPop(btn, `🔒 ${DEFS[b.needs].name} 필요`);                 // v0.21.3: 버튼 바로 위 말풍선
     return;
   }
+  setNavOpen(false);                                              // v4.7.0: 고르면 판은 닫는다
   setTab(btn.dataset.tab);
-});
+}
+document.getElementById('tabs').addEventListener('click', onTabClick);
+document.getElementById('navmenu').addEventListener('click', onTabClick);   // v4.7.0
 gatherEl.addEventListener('click', e => {
   if (paused) return;
   if (e.target.closest('[data-knight]')){                         // v0.13.0: 기사 탭 → 인스펙터에 기사

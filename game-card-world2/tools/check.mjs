@@ -128,6 +128,9 @@ try {
     for (const tab of ['aim', 'battle', 'gearup']){ S.tab = tab; screenRows(); screenTokens(); }
     S.tab = 'aim'; aimCandidates();
     for (const t of CRAFT_TYPES.slice(0, 12)){ inspType = t; S.tab = 'tool'; renderInsp(); }
+    // v4.7.0: 좁은 화면 ☰ 메뉴 — 접고 펴고 다시 넓혀도 단추가 살아 있는지
+    for (const nw of [true, false, true, false]){ narrowUI = nw; setNavOpen(nw); renderTabs(); tabName(S.tab); }
+    narrowUI = false; setNavOpen(false);   // 가짜 DOM이라 개수는 못 셈 — 접고 펴며 터지는지만 본다
     // v4.6.0: 조합 탭마다 위 격자 · 아래 재료가 비지 않는지
     const empty = [];
     for (const b of BOARDS){
