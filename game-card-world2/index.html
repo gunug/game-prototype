@@ -1025,7 +1025,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.5.0';
+const VERSION = 'v3.5.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3236,13 +3236,15 @@ function lanePlan(mob, mid, boss){
 // v3.1.3: 들머리는 **한 판뿐이고 늘 같다** — 채집 지점 둘, 토끼 하나, 길 끝에 보스.
 //   맨손으로 가면 보스 앞에서 반드시 쓰러진다. 그 실패까지가 튜토리얼이다.
 //   몇 번을 다시 와도 같은 자리에서 같은 것이 나온다 (재료가 넘치는 건 괜찮다)
-const PRELUDE_PLAN = [
-  { loot:1, at:0.20 },
-  { fight:'animal', at:0.42 },
-  { loot:1, at:0.62 },
+const PRELUDE_PLAN = [                                            // v3.5.1: 채집 지점 넷 — 한 곳에서 하나씩
+  { loot:1, at:0.14 },
+  { loot:1, at:0.30 },
+  { fight:'animal', at:0.45 },
+  { loot:1, at:0.60 },
+  { loot:1, at:0.75 },
   { fight:'strayhound', boss:true, at:0.90 },
 ];
-const PRELUDE_LOOT = [['stone', 'flint'], ['stone', 'tree']];     // 지점 순서대로 — 한 판이면 뗀석기 칼 재료가 다 모인다
+const PRELUDE_LOOT = [['stone'], ['flint'], ['stone'], ['tree']]; // 지점 순서대로 — 한 판이면 뗀석기 칼 재료가 다 모인다
 const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
 const EXP_PLAN = {
   mountain:  lanePlan('animal', 'wolf', 'bear'),
@@ -3301,9 +3303,9 @@ function expTick(dt){
       else if (ev.fight){
         exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
-        exp.line = ev.boss ? `👑 ${ENEMIES[ev.fight].name}이 길을 막았다`
-          : ev.mid ? `⚔ ${ENEMIES[ev.fight].name}이 앞을 가로막았다`                // v0.58.0: 중간보스
-          : `${ENEMIES[ev.fight].name}과 마주쳤다`;
+        exp.line = ev.boss ? `👑 ${subP2(ENEMIES[ev.fight].name)} 길을 막았다`   // v3.5.1: 조사 맞춤
+          : ev.mid ? `⚔ ${subP2(ENEMIES[ev.fight].name)} 앞을 가로막았다`          // v0.58.0: 중간보스
+          : `${withP(ENEMIES[ev.fight].name)} 마주쳤다`;
         if (ev.boss){ toast(`👑 보스 — ${ENEMIES[ev.fight].name}`); S.metBoss = true; }   // v0.21.1: 보스를 만나 봤음
         else if (ev.mid) toast(`⚔ 중간보스 — ${ENEMIES[ev.fight].name}`);   // v0.58.0
       }
@@ -3343,7 +3345,7 @@ function expBeat(){
     e.dead = true;
     exp.foe = -1;
     exp.phase = 'run';
-    exp.line = `${def.name}을 쓰러뜨렸다`;
+    exp.line = `${objP(def.name)} 쓰러뜨렸다`;
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     gainXp(enemyXp(def));                                         // v0.71.0: 잡는 즉시 오른다 (카드에 바로 보이게)
     S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
@@ -3439,7 +3441,7 @@ function expLoot(){
   if (exp.id === 'prelude'){                                      // v3.1.0: 대본대로 — 언제 다시 와도 같은 것
     const list = PRELUDE_LOOT[Math.max(0, exp.lootIdx || 0)] || [];
     if (!list.length) return;
-    exp.line = `${list.map(t => DEFS[t].name).join(' · ')}을(를) 주웠다`;
+    exp.line = `${objP(list.map(t => DEFS[t].name).join(' · '))} 주웠다`;
     list.forEach((t, i) => setTimeout(() => flyToCraft(t, box), i * 220));
     expPaint();
     return;
@@ -3447,7 +3449,7 @@ function expLoot(){
   const pool = yieldsOf(exp.id);                                  // v0.20.0
   if (!pool.length) return;
   const t = pick(pool);
-  exp.line = `${DEFS[t].name}을(를) 주웠다`;
+  exp.line = `${objP(DEFS[t].name)} 주웠다`;
   flyToCraft(t, box);
   expPaint();
 }
@@ -3711,7 +3713,10 @@ function renderHint(){
   else if (H.sawDown && !H.down) H.down = true;
   for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow', 'hint-blink');
 }
-const objP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '을' : '를');   // v3.2.2: 을/를
+const hasJong = w => (w.charCodeAt(w.length - 1) - 0xAC00) % 28 > 0;   // 받침이 있나
+const objP = w => w + (hasJong(w) ? '을' : '를');                 // v3.2.2: 을/를
+const subP2 = w => w + (hasJong(w) ? '이' : '가');                // v3.5.1: 이/가
+const withP = w => w + (hasJong(w) ? '과' : '와');                // v3.5.1: 과/와
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
   const H = S.hints || {};
