@@ -133,4 +133,21 @@ try {
   console.log('✓ 화면 조각 렌더 (콜렉터북 · 트리 · 수첩 · 목적 · 인스펙터)');
 } catch (e){ report('화면 렌더', e); }
 
+// 7) 같은 두 재료가 서로 다른 결과를 내는 조합식이 있는지 (v3.7.1) — 어느 쪽이 만들어질지 모르게 된다
+try {
+  const dup = vm.runInContext(`(function(){
+    const seen = {}, out = [];
+    for (const r of CRAFT_RECIPES){
+      if (r.cook || !r.a.card || !r.b.card) continue;
+      const key = [r.a.card, r.b.card].sort().join('+');
+      const res = (r.out || []).join('/');
+      if (seen[key] && seen[key] !== res) out.push(key + ' -> ' + seen[key] + ' / ' + res);
+      else seen[key] = res;
+    }
+    return out;
+  })()`, ctx);
+  if (dup.length) report('같은 재료 · 다른 결과', new Error(dup.join(' | ')));
+  else console.log('✓ 같은 두 재료는 결과가 하나뿐');
+} catch (e){ report('같은 재료 · 다른 결과', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
