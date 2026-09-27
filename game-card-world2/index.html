@@ -627,8 +627,6 @@
     </div>
   </div>
 </div>
-<div class="book-back" id="treeBack"></div>
-<div class="book" id="tree"></div>
 <div class="toasts" id="toasts"></div>
 <script>
 // ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
@@ -1018,23 +1016,16 @@ const treeAttr = x => {
   const t = (x.out || []).find(o => treeOf(o));
   return t ? ` data-totree="${t}" title="🌳 트리에서 보기"` : '';
 };
-function openTreeAt(t){                                           // 그 줄이 보이게 트리를 열고 잠깐 밝힘
+function openTreeAt(t){                                           // v3.4.0: 콜렉터북 🌳 길 탭의 그 줄로
   const id = treeOf(t);
-  if (!id) return;
-  openTree(id);
-  setTimeout(() => {
-    const el = treeEl.querySelector(`[data-tnode="${t}"]`);
-    if (!el) return;
-    el.scrollIntoView({ block:'center' });
-    flash(el, 'tflash', 1200);
-  }, 30);
+  if (id) openBookTree(id, t);
 }
 // ── 공용 도우미 ───────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.3.2';
+const VERSION = 'v3.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2237,12 +2228,6 @@ TREES.armor = { name:'갑옷 트리', icon:'🛡',
     { d:0, name:'손질lv2',     make:'더 좋은 연장이 있어야 만들 수 있는 단계를 둘지' },
   ] },
 ] };
-const treeEl = document.getElementById('tree');
-const treeBack = document.getElementById('treeBack');
-const treeBtn = document.getElementById('treeBtn');
-let treeOpen = null;                                              // 열려 있는 트리 id
-// v2.9.0: '무엇으로 만드나'를 **조합식 · 전리품 · 채집터에서 바로 뽑는다** — 손으로 적어 두면 규칙이 바뀔 때 어긋난다
-//   ① 만드는 조합식이 있으면 그 재료  ② 없으면 떨구는 크리처(확률)  ③ 그것도 없으면 줍는 곳
 const sideLabel = sd => sd.card ? (DEFS[sd.card] ? DEFS[sd.card].name : sd.card)
   : `🏷️ ${sd.use || sd.tag || ''}`;
 function dropText(t, field){                                      // 떨구는 크리처 — 확률 높은 셋만
@@ -2285,48 +2270,25 @@ function treeRowHtml(n, ctx){
     + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
     + `<span class="tmake">${esc(make)}</span><span class="tchips">${chips.join('')}</span></div>`;
 }
-function renderTree(){
-  const t = TREES[treeOpen];
-  if (!t) return;
-  treeEl.innerHTML = '<div class="book-grip"></div>'
-    + `<div class="book-head"><div class="book-title">${t.icon} ${esc(t.name)}</div>`
-    + '<div class="book-tabs"></div><span class="meta">계획 — 아직 만들 수 없는 것이 섞여 있음</span>'
-    + '<button class="book-close" data-treeclose="1">✕</button></div>'
-    + `<div class="book-detail">${esc(t.note)}</div>`
-    + '<div class="book-body"><div class="book-inner">'
-    + t.branches.map(b => `<div class="book-field"><div class="book-fname">${esc(b.name)} <span class="i-muted">— ${esc(b.kind)}</span></div>`
-        + b.nodes.map(n => treeRowHtml(n, b)).join('') + '</div>').join('')
-    + '</div></div>';
-}
-function openTree(id){
-  treeOpen = id;
-  if (id) hintDone('tree');                                       // v2.4.0
-  if (id) renderTree();
-  treeEl.classList.toggle('open', !!id);
-  treeBack.classList.toggle('open', !!id);
-}
-treeBack.addEventListener('click', () => openTree(null));
-treeEl.addEventListener('click', e => {
-  if (e.target.closest('[data-treeclose]')) return openTree(null);
-  const p = e.target.closest('[data-pin]');                       // v2.9.3: 목표 찍기 · 풀기
-  if (p){
-    S.goal = S.goal === p.dataset.pin ? null : p.dataset.pin;
-    toast(S.goal ? `🎯 목표 — ${DEFS[S.goal].name}` : '목표를 풀었다');
-    renderTree(); renderHint(); save();
-    return;
-  }
-  const row = e.target.closest('[data-tnode]');                   // v2.9.2: 트리 줄 → 인스펙터에 그 카드
-  if (!row) return;
-  const t = row.dataset.tnode;
-  openTree(null);
-  inspType = t; selected = null; knightPick = false; slotPick = null;
-  renderInsp();
-});
-treeBtn.addEventListener('click', () => openTree(TREES[S.tab] ? S.tab : null));
+// v3.4.0: 🌳 트리 팝업 없앰 — 콜렉터북의 '🌳 길' 탭이 같은 내용을 보여 준다
+//   🌳 단추는 그 탭으로 데려다 주는 지름길
+const treeBtn = document.getElementById('treeBtn');
+treeBtn.addEventListener('click', () => { if (TREES[S.tab]) openBookTree(S.tab); });
 function renderTreeBtn(){                                         // 도구·무기 화면에서만 보임
   const t = TREES[S.tab];
   treeBtn.hidden = !t;
   if (t) treeBtn.textContent = `🌳 ${t.name}`;
+}
+// 콜렉터북 🌳 길 탭 열기 (필요하면 그 줄로 스크롤 + 잠깐 밝힘)
+function openBookTree(treeId, node){
+  bookTier = TREE_TAB;
+  bookTree = treeId || bookTree;
+  setTab('book');
+  if (!node) return;
+  setTimeout(() => {
+    const el = bookEl.querySelector(`[data-tnode="${node}"]`);
+    if (el){ el.scrollIntoView({ block:'center' }); flash(el, 'tflash', 1200); }
+  }, 40);
 }
 // v0.46.0: 조합 탭.
 // v0.59.0: 가리는 단위를 **재료 한 장씩**으로 바꿈 — 발견한 재료는 이름이 보이고 못 찾은 재료만 ???.
@@ -3086,6 +3048,7 @@ function setTab(tab){
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
   bookEl.hidden = tab !== 'book';                                 // v3.3.0
   bookOpen = tab === 'book';
+  renderBook();                                                   // v3.4.0: 탭에 들어오면 바로 그림
   if (bookOpen){                                                  // 새 카드는 들어오자마자 끼움
     hintDone('book');
     runInserts();

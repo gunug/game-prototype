@@ -115,4 +115,22 @@ try {
   else console.log('✓ 같은 두 장은 어느 탭에서나 같은 결과');
 } catch (e){ report('탭마다 다른 결과', e); }
 
+// 6) 화면 조각을 실제로 그려 본다 (v3.4.0) — 지우다 만 함수처럼 '그릴 때만 터지는' 오류를 잡음
+try {
+  vm.runInContext(`(function(){
+    S.seen = CRAFT_TYPES.slice(0, 8); S.cards = [{ id:1, type:CRAFT_TYPES[0], n:2, x:0, y:0 }];
+    bookOpen = true;
+    for (const t of BOOK_BOARDS().map(b => b.id).concat([COMBO_TAB, TRACE_TAB, TREE_TAB])){ bookTier = t; renderBook(); }
+    bookTier = TREE_TAB;
+    for (const id in TREES){ bookTree = id; renderBook(); }
+    S.goal = CRAFT_TYPES.find(t => CRAFT_RECIPES.some(r => (r.out || []).includes(t))) || null;
+    goalRowHtml(); goalPlanHtml(); opNote(); renderQuest();
+    for (const tab of ['aim', 'battle', 'gearup']){ S.tab = tab; screenRows(); screenTokens(); }
+    S.tab = 'aim'; aimCandidates();
+    for (const t of CRAFT_TYPES.slice(0, 12)){ inspType = t; S.tab = 'tool'; renderInsp(); }
+    return 1;
+  })()`, ctx);
+  console.log('✓ 화면 조각 렌더 (콜렉터북 · 트리 · 수첩 · 목적 · 인스펙터)');
+} catch (e){ report('화면 렌더', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
