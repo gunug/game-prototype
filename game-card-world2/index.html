@@ -1030,7 +1030,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.2.1';
+const VERSION = 'v3.2.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -3661,11 +3661,16 @@ function renderHint(){
   else if (H.sawDown && !H.down) H.down = true;
   for (const el of document.querySelectorAll('.hint-glow')) el.classList.remove('hint-glow', 'hint-blink');
 }
+const objP = w => w + ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? '을' : '를');   // v3.2.2: 을/를
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
   const H = S.hints || {};
   if (!H.sortie) return '기사 카드를 필드 줄의 출전 칸으로 끌어다 놓는다';
-  if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))) return '🎯 목적 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
+  if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
+    const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
+    return pick2 ? `🎯 목적 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
+      : '🎯 목적 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
+  }
   if (!H.craft && S.cards.length >= 2) return '카드를 다른 카드 위로 끌어다 놓으면 합쳐진다';
   if (!H.equip && haveWeapon()) return '🔧 정비 탭에서 무기를 기사의 근접무기 칸으로 끌어다 놓는다';
   if (!H.book && (S.newCards.length + (S.newTraces || []).length) >= 3) return '📖 콜렉터북을 열면 새 카드가 끼워진다';
