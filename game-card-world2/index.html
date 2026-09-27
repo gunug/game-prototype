@@ -1177,7 +1177,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.0.0';
+const VERSION = 'v4.1.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2177,22 +2177,46 @@ function renderInsp(){
 // 아래에서 올라오는 모달. 단계 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
 // 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
-let bookTier = 'tool';                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
+let bookTier = 'field';                                           // v4.1.0                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
 const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
 const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
 let bookTree = 'weapon';
 // v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 단계로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
 //   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 단계별로 본다
+// v4.1.0: 콜렉터북 큰 갈래 다섯 — 필드 · 던전 · 조합 · 무기 · 갑옷
 const BOOK_TABS = [
-  { id:'tool',   name:'카드' },
+  { id:'field',  name:'🗡️ 필드' },
+  { id:'dungeon',name:'🏚 던전' },
+  { id:'craft',  name:'🔨 조합' },
   { id:'weapon', name:'무기', icon:'card_workbench' },
   { id:'armor',  name:'갑옷', icon:'card_leatherarmor' },
 ];
 const BOOK_BOARDS = () => BOOK_TABS;
 const BOOK_USES = { weapon:['무기', '근접무기', '원거리무기'], armor:['방어구', '방패', '장신구'] };
-const bookCardsOf = id => id === 'tool' ? CRAFT_TYPES.slice()
-  : CRAFT_TYPES.filter(t => useOf(t).some(u => (BOOK_USES[id] || []).includes(u)));
+// 던전에서만 나오거나 던전 재료로 만드는 것
+const dungeonCards = () => {
+  const src = new Set();
+  for (const f of DUNGEONS()){ for (const t of yieldsOf(f.id)) src.add(t); for (const t of lootTypes(f.id)) src.add(t); }
+  let grew = true;
+  while (grew){
+    grew = false;
+    for (const x of CRAFT_RECIPES){
+      if (x.cook || !x.a.card || !x.b.card) continue;
+      if (!src.has(x.a.card) && !src.has(x.b.card)) continue;
+      for (const o of (x.out || [])) if (!src.has(o)){ src.add(o); grew = true; }
+    }
+  }
+  return CRAFT_TYPES.filter(t => src.has(t));
+};
+function bookCardsOf(id){
+  if (id === 'weapon' || id === 'armor') return CRAFT_TYPES.filter(t => useOf(t).some(u => (BOOK_USES[id] || []).includes(u)));
+  if (id === 'dungeon') return dungeonCards();
+  const dun = new Set(dungeonCards());
+  const gear = new Set(CRAFT_TYPES.filter(t => useOf(t).some(u => BOOK_USES.weapon.includes(u) || BOOK_USES.armor.includes(u))));
+  if (id === 'field') return CRAFT_TYPES.filter(t => (DEFS[t].step || 0) === 1 && !dun.has(t));
+  return CRAFT_TYPES.filter(t => (DEFS[t].step || 0) >= 2 && !dun.has(t) && !gear.has(t));   // 조합 = 가공 · 도구 · 음식
+}
 // v3.10.0: 이 가공품은 어느 땅 재료로 만드나 — DEFS.made 가 있으면 그것, 없으면 재료가 나오는 곳
 function madeAt(t){
   if (DEFS[t] && DEFS[t].made) return DEFS[t].made;
@@ -2206,7 +2230,7 @@ function madeAt(t){
   }
   return null;
 }
-const bookTabOf = t => (BOOK_TABS.slice(1).find(b => bookCardsOf(b.id).includes(t)) || BOOK_TABS[0]).id;
+const bookTabOf = t => (BOOK_TABS.find(b => bookCardsOf(b.id).includes(t)) || BOOK_TABS[0]).id;
 const bookBoardLabel = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
@@ -2580,48 +2604,41 @@ function renderBook(){
   else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
-    // v3.7.0: 카드 탭은 **단계로** 나누고, 무기 · 갑옷 탭은 완성품만 한 줄로
-    if (bookTier === 'tool'){
-      // v3.8.0: 자연(1단계)은 **나오는 곳으로** 다시 나눔 — 필드마다 줍는 것 · 떨구는 것
-      const t1 = inTab.filter(t => (DEFS[t].step || 0) === 1);
-      const shown = new Set();
-      const sec = (title, list) => {
-        const only = list.filter(t => t1.includes(t) && !shown.has(t));
-        if (!only.length) return '';
-        for (const t of only) shown.add(t);
-        return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
-          + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
-      };
-      for (const f of FIELDS){
+    // v4.1.0: 탭마다 배치가 다르다 — 필드는 땅별, 조합은 단계별, 무기 · 갑옷은 **트리 갈래대로**
+    const sect = (title, list, seen) => {
+      const only = list.filter(t => inTab.includes(t) && !seen.has(t));
+      if (!only.length) return '';
+      for (const t of only) seen.add(t);
+      return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
+        + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
+    };
+    if (bookTier === 'field' || bookTier === 'dungeon'){
+      const seen = new Set();
+      for (const f of (bookTier === 'dungeon' ? DUNGEONS() : OUT_FIELDS())){
         if (f.id === 'prelude') continue;                         // 들머리는 튜토리얼 전용 — 산이 같은 재료를 갖는다
-        const g = yieldsOf(f.id), d = lootTypes(f.id);
-        h += sec(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 줍는 것</span>`, g);
-        h += sec(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 떨구는 것</span>`, d);
+        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 줍는 것</span>`, yieldsOf(f.id), seen);
+        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 떨구는 것</span>`, lootTypes(f.id), seen);
       }
-      h += sec('그 밖', t1);
-      // v3.10.0: 가공(2단계)도 **어느 땅 재료로 만드나**로 나눔 (DEFS.made)
-      const t2 = inTab.filter(t => (DEFS[t].step || 0) === 2);
-      const shown2 = new Set();
-      const sec2 = (title, list) => {
-        const only = list.filter(t => !shown2.has(t));
-        if (!only.length) return '';
-        for (const t of only) shown2.add(t);
-        return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
-          + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
-      };
-      for (const f of FIELDS){
+      for (let st = 2; st <= 9; st++)                              // 던전 탭: 그 재료로 만드는 것들
+        h += sect(esc(stepName(st)), inTab.filter(t => (DEFS[t].step || 0) === st), seen);
+      h += sect('그 밖', inTab, seen);
+    } else if (bookTier === 'craft'){
+      const seen = new Set();
+      for (const f of OUT_FIELDS()){
         if (f.id === 'prelude') continue;
-        h += sec2(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 가공</span>`, t2.filter(t => madeAt(t) === f.id));
+        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 가공</span>`,
+          inTab.filter(t => (DEFS[t].step || 0) === 2 && madeAt(t) === f.id), seen);
       }
-      h += sec2('⚒ 그 밖의 가공', t2);
-      for (let st = 3; st <= 9; st++){                              // v3.11.0: 완성품 위로도 단계별로
-        const list = inTab.filter(t => (DEFS[t].step || 0) === st);
-        if (!list.length) continue;
-        h += `<div class="book-field"><div class="book-fname">${esc(stepName(st))} <span class="i-muted">${list.filter(shownSeen).length}/${list.length}</span></div>`
-          + `<div class="book-row">${list.map(slotHtml).join('')}</div></div>`;
-      }
+      h += sect('⚒ 그 밖의 가공', inTab.filter(t => (DEFS[t].step || 0) === 2), seen);
+      for (let st = 3; st <= 9; st++)
+        h += sect(esc(stepName(st)), inTab.filter(t => (DEFS[t].step || 0) === st), seen);
+      h += sect('그 밖', inTab, seen);
     } else {
-      h += `<div class="book-field"><div class="book-row">${inTab.map(slotHtml).join('')}</div></div>`;
+      // 무기 · 갑옷 — 🌳 트리의 갈래 그대로 (부품 · 날붙이 · 자루 …)
+      const tree = TREES[bookTier], seen = new Set();
+      if (tree) for (const b of tree.branches)
+        h += sect(esc(b.name), b.nodes.map(n => n.id).filter(Boolean), seen);
+      h += sect('그 밖', inTab, seen);
     }
   }
   const body = bookEl.querySelector('.book-body');
@@ -3849,10 +3866,12 @@ function flyToCraft(t, r){
   })();
 }
 // 트랙 만들기 (원정이 시작·끝날 때) / 그리기 (매 틱)
+// v4.1.1: 지금 원정이 '어느 탭의 것'인가 — 굴이면 🏚 던전, 바깥 땅이면 🗡️ 필드
+const expHomeTab = () => (exp && (FIELD_BY_ID[exp.id] || {}).dungeon) ? 'dungeon' : 'battle';
 function expBuild(){
   const el = document.getElementById('exp');
   if (!el) return;
-  const on = !!exp && (S.tab === 'battle' || S.tab === 'dungeon');   // v3.14.0 · v4.0.0: 필드 · 던전 탭에서 큰 화면
+  const on = !!exp && S.tab === expHomeTab();                      // v4.1.1: 그 원정이 속한 탭에서만 큰 화면
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1: 열고 닫힐 때 부드럽게
   if (!exp){ setTimeout(() => { if (!exp){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
@@ -3884,10 +3903,10 @@ const statBox = (atk, def, hp, max) =>
 function renderMiniExp(){
   const el = document.getElementById('miniexp');
   if (!el) return;
-  const on = !!exp && S.tab !== 'battle' && S.tab !== 'dungeon';    // 필드 · 던전 탭에선 큰 화면이 이미 보임
+  const on = !!exp && S.tab !== expHomeTab();                       // v4.1.1: 그 원정의 탭이 아니면 미니로
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1
-  if (!on){ setTimeout(() => { if (!(exp && S.tab !== 'battle' && S.tab !== 'dungeon')){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
+  if (!on){ setTimeout(() => { if (!(exp && S.tab !== expHomeTab())){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
   // v3.14.2: **한 번만 짓고 그 뒤엔 값만 고친다** — 매 틱 다시 그려 그림이 깜빡이던 것
   const key = `${exp.id}|${exp.spots.length}|${exp.foes.map(f => f.key).join(',')}`;
   if (el._key !== key){
@@ -3920,7 +3939,7 @@ function expPaint(){
   renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
   if (!el || !exp) return;
-  if ((S.tab === 'battle' || S.tab === 'dungeon') && !el.firstChild) expBuild();   // v3.14.0: 돌아오면 다시 만듦
+  if (S.tab === expHomeTab() && !el.firstChild) expBuild();       // v3.14.0: 돌아오면 다시 만듦
   if (!el.firstChild || el.hidden) return;
   const lane = el.querySelector('.exp-lane');
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
