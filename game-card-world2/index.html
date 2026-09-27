@@ -659,9 +659,9 @@
 </div>
 <div class="toasts" id="toasts"></div>
 <script>
-// ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 티어) ─────────
-// 레거시 조합식·재료는 쓰지 않음. 1티어만 있고, 2티어가 정해질 때까지 조합식 없음
-// 1티어 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
+// ── world2 카드 데이터 (v0.3.0, 확정 48: 크래프트 단계) ─────────
+// 레거시 조합식·재료는 쓰지 않음. 1단계만 있고, 2단계가 정해질 때까지 조합식 없음
+// 1단계 = 자연에서 얻는 원물. 필드마다 4종 (v0.3.1: 석탄·약초·물고기·벌집 추가)
 const FIELDS = [                                                  // v0.9.1: 순서 산 · 초원 · 숲 · 강가 (열린 필드 먼저)
   // v0.18.0: exp — 기사가 그곳에서 무엇을 하는지 (시스템 설명이 아니라 세계관 안의 말)
   // v3.1.0: 🏕️ 들머리 — **튜토리얼 전용 필드.** 확률이 없다. 세 판의 대본이 정해져 있고, 언제 다시 가도 같은 것이 나온다
@@ -692,131 +692,131 @@ const FIELD_YIELDS = {
   river:     ['water', 'soil', 'sand', 'fish'],
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
-// 2티어 묶음 (v0.5.0) — 2티어는 필드가 없어 쓰임별로 콜렉터북에 묶음
+// 2단계 묶음 (v0.5.0) — 2단계는 필드가 없어 쓰임별로 콜렉터북에 묶음
 const GROUPS = [
   { id:'tool',  name:'도구 · 불',  emoji:'🛠️' },
   { id:'build', name:'건축 재료',  emoji:'🧱' },
   { id:'food',  name:'음식',       emoji:'🍖' },
   { id:'body',  name:'몸 · 약',    emoji:'🧪' },
   { id:'loot',  name:'전리품',     emoji:'🐾' },   // v0.15.0: 크리처에게서 나오는 부위 — 생물 이름 대신 성질 이름
-  { id:'gear',  name:'장비 · 도구', emoji:'🗡️' },   // v0.15.0: 3티어
+  { id:'gear',  name:'장비 · 도구', emoji:'🗡️' },   // v0.15.0: 3단계
 ];
 const GROUP_BY_ID = Object.fromEntries(GROUPS.map(g => [g.id, g]));
-// 카드가 속한 필드(1티어) 또는 묶음(2티어)
+// 카드가 속한 필드(1단계) 또는 묶음(2단계)
 const placeOf = t => FIELD_BY_ID[DEFS[t].field] || GROUP_BY_ID[DEFS[t].group] || null;
-const groupsOfTier = n => n === 1 ? FIELDS : GROUPS;
+const groupsOfStep = n => n === 1 ? FIELDS : GROUPS;
 const DEFS = {
   // ⛰️ 산
-  stone:   { name:'돌',     kind:'material', tier:1, field:'mountain' },
-  flint:   { name:'부싯돌', kind:'material', tier:1, field:'mountain' },
-  ore:     { name:'광석',   kind:'material' },   // v0.13.0: 1티어에서 뺌 — 추후 '광산'(구리 광석·철광석 등)으로. 구리 원석 조합은 지금 만들 수 없음
-  coal:    { name:'석탄',   kind:'material', tier:1, field:'mountain' },
+  stone:   { name:'돌',     kind:'material', step:1, field:'mountain' },
+  flint:   { name:'부싯돌', kind:'material', step:1, field:'mountain' },
+  ore:     { name:'광석',   kind:'material' },   // v0.13.0: 1단계에서 뺌 — 추후 '광산'(구리 광석·철광석 등)으로. 구리 원석 조합은 지금 만들 수 없음
+  coal:    { name:'석탄',   kind:'material', step:1, field:'mountain' },
   // 🌲 숲
-  tree:    { name:'나무',   kind:'material', tier:1, field:'forest' },
-  vine:    { name:'덩굴',   kind:'material', tier:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
-  berry:   { name:'열매',   kind:'material', tier:1, field:'forest' },
-  sap:     { name:'수액',   kind:'material', tier:1, field:'forest' },
-  herb:    { name:'약초',   kind:'material', tier:1, field:'forest' },
+  tree:    { name:'나무',   kind:'material', step:1, field:'forest' },
+  vine:    { name:'덩굴',   kind:'material', step:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
+  berry:   { name:'열매',   kind:'material', step:1, field:'forest' },
+  sap:     { name:'수액',   kind:'material', step:1, field:'forest' },
+  herb:    { name:'약초',   kind:'material', step:1, field:'forest' },
   // 🏞️ 강가
-  water:   { name:'물',     kind:'material', tier:1, field:'river' },
-  soil:    { name:'흙',     kind:'material', tier:1, field:'river' },
-  sand:    { name:'모래',   kind:'material', tier:1, field:'river' },
-  fish:    { name:'물고기', kind:'material', tier:1, field:'river' },
+  water:   { name:'물',     kind:'material', step:1, field:'river' },
+  soil:    { name:'흙',     kind:'material', step:1, field:'river' },
+  sand:    { name:'모래',   kind:'material', step:1, field:'river' },
+  fish:    { name:'물고기', kind:'material', step:1, field:'river' },
   // 🌾 초원
-  grass:   { name:'풀',     kind:'material', tier:1, field:'grassland' },
-  seed:    { name:'씨앗',   kind:'material', tier:1, field:'grassland' },
-  feather: { name:'깃털',   kind:'material', tier:1, field:'grassland' },   // v0.52.0: 초원 채집 — 짐승 자리
-  honeycomb:{ name:'벌집',  kind:'material', tier:1, field:'grassland' },
-  // ── 2티어 (v0.5.0, 추천안 그대로 — 미확정). 그림 없음: emoji 로 대신 ──
+  grass:   { name:'풀',     kind:'material', step:1, field:'grassland' },
+  seed:    { name:'씨앗',   kind:'material', step:1, field:'grassland' },
+  feather: { name:'깃털',   kind:'material', step:1, field:'grassland' },   // v0.52.0: 초원 채집 — 짐승 자리
+  honeycomb:{ name:'벌집',  kind:'material', step:1, field:'grassland' },
+  // ── 2단계 (v0.5.0, 추천안 그대로 — 미확정). 그림 없음: emoji 로 대신 ──
   // 🛠️ 도구 · 불
-  blade: { name:'뗀석기',     kind:'material', tier:2, made:'mountain', group:'tool' },   // v1.0.0: 더는 무기가 아니라 무기재료 (날)
-  stoneknife: { name:'뗀석기 칼', kind:'material', tier:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
-  drymeat: { name:'말린 고기', kind:'material', tier:2, made:'mountain', group:'food' },   // v3.10.1
-  fletching: { name:'화살깃',  kind:'material', tier:2, made:'grassland', group:'gear' },
-  jerky: { name:'육포',       kind:'material', tier:2, made:'grassland', group:'food' },
-  tannedfur: { name:'무두질 털가죽', kind:'material', tier:2, made:'forest', group:'loot' },
-  renderfat: { name:'기름 덩이', kind:'material', tier:2, made:'forest', group:'food' },
-  fishoil: { name:'생선 기름',  kind:'material', tier:2, made:'river', group:'body' },
-  rope: { name:'밧줄',       kind:'material', tier:2, group:'build', made:'forest' },    // v3.10.0
-  glue: { name:'아교',       kind:'material', tier:2, group:'build', made:'forest' },
-  barbtip: { name:'가시 촉',  kind:'material', tier:2, group:'gear',  made:'forest' },
-  nacre: { name:'자개',      kind:'material', tier:2, group:'build', made:'river' },
-  scaleplate: { name:'비늘판', kind:'material', tier:2, group:'gear', made:'river' },
-  boneneedle: { name:'뼈바늘', kind:'material', tier:2, group:'gear', made:'grassland' },
-  smokedfish: { name:'훈제 생선', kind:'material', tier:2, group:'food', made:'river' },
-  leatherstrap: { name:'가죽끈', kind:'material', tier:2, group:'gear', made:'grassland' },
-  whetstone: { name:'숫돌',       kind:'material', tier:2, made:'river', group:'tool' },
-  ember: { name:'불씨',       kind:'material', tier:2, made:'mountain', group:'tool' },
-  firewood: { name:'나무 손잡이', kind:'material', tier:2, made:'mountain', group:'tool' },   // v0.92.0 통나무 → 나무 손잡이. v1.2.0: → 나무 손잡이 (무기 부품, id는 그대로)
+  blade: { name:'뗀석기',     kind:'material', step:2, made:'mountain', group:'tool' },   // v1.0.0: 더는 무기가 아니라 무기재료 (날)
+  stoneknife: { name:'뗀석기 칼', kind:'material', step:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
+  drymeat: { name:'말린 고기', kind:'material', step:2, made:'mountain', group:'food' },   // v3.10.1
+  fletching: { name:'화살깃',  kind:'material', step:2, made:'grassland', group:'gear' },
+  jerky: { name:'육포',       kind:'material', step:2, made:'grassland', group:'food' },
+  tannedfur: { name:'무두질 털가죽', kind:'material', step:2, made:'forest', group:'loot' },
+  renderfat: { name:'기름 덩이', kind:'material', step:2, made:'forest', group:'food' },
+  fishoil: { name:'생선 기름',  kind:'material', step:2, made:'river', group:'body' },
+  rope: { name:'밧줄',       kind:'material', step:2, group:'build', made:'forest' },    // v3.10.0
+  glue: { name:'아교',       kind:'material', step:2, group:'build', made:'forest' },
+  barbtip: { name:'가시 촉',  kind:'material', step:2, group:'gear',  made:'forest' },
+  nacre: { name:'자개',      kind:'material', step:2, group:'build', made:'river' },
+  scaleplate: { name:'비늘판', kind:'material', step:2, group:'gear', made:'river' },
+  boneneedle: { name:'뼈바늘', kind:'material', step:2, group:'gear', made:'grassland' },
+  smokedfish: { name:'훈제 생선', kind:'material', step:2, group:'food', made:'river' },
+  leatherstrap: { name:'가죽끈', kind:'material', step:2, group:'gear', made:'grassland' },
+  whetstone: { name:'숫돌',       kind:'material', step:2, made:'river', group:'tool' },
+  ember: { name:'불씨',       kind:'material', step:2, made:'mountain', group:'tool' },
+  firewood: { name:'나무 손잡이', kind:'material', step:2, made:'mountain', group:'tool' },   // v0.92.0 통나무 → 나무 손잡이. v1.2.0: → 나무 손잡이 (무기 부품, id는 그대로)
   // 🧱 건축 재료
-  clay: { name:'점토',       kind:'material', tier:2, made:'river', group:'build' },
-  cord: { name:'섬유끈',     kind:'material', tier:2, made:'grassland', group:'build' },
-  plank: { name:'나무판자',   kind:'material', tier:2, made:'mountain', group:'tool' },   // v0.20.0: 도구재료
-  shieldboard: { name:'방패판', kind:'material', tier:3, group:'gear' },
-  longhandle: { name:'나무 자루', kind:'material', tier:3, group:'gear' },   // v2.0.0: 긴 자루 — 나무 손잡이 + 섬유끈
-  handaxe: { name:'손도끼', kind:'material', tier:3, group:'gear', atk:3 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
-  curedleather: { name:'손질된 가죽', kind:'material', tier:2, made:'mountain', group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
-  wax: { name:'밀랍',       kind:'material', tier:3, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
+  clay: { name:'점토',       kind:'material', step:2, made:'river', group:'build' },
+  cord: { name:'섬유끈',     kind:'material', step:2, made:'grassland', group:'build' },
+  plank: { name:'나무판자',   kind:'material', step:2, made:'mountain', group:'tool' },   // v0.20.0: 도구재료
+  shieldboard: { name:'방패판', kind:'material', step:3, group:'gear' },
+  longhandle: { name:'나무 자루', kind:'material', step:3, group:'gear' },   // v2.0.0: 긴 자루 — 나무 손잡이 + 섬유끈
+  handaxe: { name:'손도끼', kind:'material', step:3, group:'gear', atk:3 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
+  curedleather: { name:'손질된 가죽', kind:'material', step:2, made:'mountain', group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
+  wax: { name:'밀랍',       kind:'material', step:3, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
   // 🍖 음식
-  meat: { name:'붉은 고기',   kind:'material', tier:1, group:'food' },     // v3.8.0: ⛰️ 산 · 🌾 초원
-  fatmeat: { name:'기름진 고기', kind:'material', tier:1, group:'food' },    // v3.8.0 · v3.8.4: 🌲 숲 전용
-  toughmeat: { name:'질긴 고기', kind:'material', tier:1, group:'food' },    // v3.8.4: 🌾 초원
-  fillet: { name:'생선살',     kind:'material', tier:1, group:'food' },
-  honey: { name:'꿀',         kind:'material', tier:2, made:'grassland', group:'food' },
-  flour: { name:'곡물 가루',  kind:'material', tier:2, made:'grassland', group:'food' },
+  meat: { name:'붉은 고기',   kind:'material', step:1, group:'food' },     // v3.8.0: ⛰️ 산 · 🌾 초원
+  fatmeat: { name:'기름진 고기', kind:'material', step:1, group:'food' },    // v3.8.0 · v3.8.4: 🌲 숲 전용
+  toughmeat: { name:'질긴 고기', kind:'material', step:1, group:'food' },    // v3.8.4: 🌾 초원
+  fillet: { name:'생선살',     kind:'material', step:1, group:'food' },
+  honey: { name:'꿀',         kind:'material', step:2, made:'grassland', group:'food' },
+  flour: { name:'곡물 가루',  kind:'material', step:2, made:'grassland', group:'food' },
   // 🧪 몸 · 약
   // 🐾 전리품 (v0.15.0) — 토끼·곰이 함께 쓰는 부위. 생물이 늘어도 카드는 안 늘어남
-  hide: { name:'부드러운 가죽', kind:'material', tier:1, group:'loot' },   // v0.15.0: '가죽'을 흡수. v3.8.0: 1티어
-  toughhide: { name:'억센 가죽',   kind:'material', tier:1, group:'loot' },
-  smalltooth: { name:'작은 이빨',   kind:'material', tier:1, group:'loot' },
-  fang: { name:'날카로운 송곳니', kind:'material', tier:1, group:'loot' },
-  bone: { name:'뼈',         kind:'material', tier:1, group:'loot' },        // v3.8.0: ⛰️ 산 전리품 (짐승 해체 폐기)
-  sinew: { name:'힘줄',       kind:'material', tier:1, group:'loot' },       // v3.8.0: 🌾 초원
-  claw: { name:'발톱',        kind:'material', tier:1, group:'loot' },       // v3.8.0: 🌲 숲
-  scale: { name:'비늘',       kind:'material', tier:1, group:'loot' },       // v3.8.0: 🏞️ 강가
-  pincer: { name:'집게발',     kind:'material', tier:1, group:'loot' },      // v3.8.2: 🏞️ 강가 — 갑각
-  tallow: { name:'짐승 기름',   kind:'material', tier:1, group:'loot' },      // v3.8.3: ⛰️ 산 — 요리 · 가죽 손질
-  furpelt: { name:'털가죽',     kind:'material', tier:1, group:'loot' },      // v3.8.4: 🌲 숲 — 털이 붙은 채
-  shellpiece: { name:'조개껍데기', kind:'material', tier:1, group:'loot' },   // v3.8.4: 🏞️ 강가 — 갈면 꾸밈·연마
-  juice: { name:'열매즙',     kind:'material', tier:2, made:'forest', group:'body' },
-  salve: { name:'약초 연고',  kind:'material', tier:2, made:'forest', group:'body' },
-  // ── 3티어 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
-  toothdagger: { name:'이빨 단검',  kind:'material', tier:3, group:'gear', atk:2 },
-  fangspear: { name:'송곳니 창',   kind:'material', tier:3, group:'gear', atk:4 },
-  leatherarmor: { name:'가죽 갑옷', kind:'material', tier:3, group:'gear', def:1 },
-  pouch: { name:'가죽 주머니', kind:'material', tier:3, group:'gear' },
-  fishhook: { name:'낚싯바늘',    kind:'material', tier:3, group:'gear' },
-  roastmeat: { name:'구운 고기',   kind:'material', tier:3, group:'food' },
-  workbench: { name:'작업대',      kind:'material', tier:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
-  woodshield: { name:'나무 방패',  kind:'material', tier:3, group:'gear', def:1 },   // v0.51.0: 방패 칸
-  campfire:  { name:'모닥불',      kind:'material', tier:3, group:'gear' },
+  hide: { name:'부드러운 가죽', kind:'material', step:1, group:'loot' },   // v0.15.0: '가죽'을 흡수. v3.8.0: 1단계
+  toughhide: { name:'억센 가죽',   kind:'material', step:1, group:'loot' },
+  smalltooth: { name:'작은 이빨',   kind:'material', step:1, group:'loot' },
+  fang: { name:'날카로운 송곳니', kind:'material', step:1, group:'loot' },
+  bone: { name:'뼈',         kind:'material', step:1, group:'loot' },        // v3.8.0: ⛰️ 산 전리품 (짐승 해체 폐기)
+  sinew: { name:'힘줄',       kind:'material', step:1, group:'loot' },       // v3.8.0: 🌾 초원
+  claw: { name:'발톱',        kind:'material', step:1, group:'loot' },       // v3.8.0: 🌲 숲
+  scale: { name:'비늘',       kind:'material', step:1, group:'loot' },       // v3.8.0: 🏞️ 강가
+  pincer: { name:'집게발',     kind:'material', step:1, group:'loot' },      // v3.8.2: 🏞️ 강가 — 갑각
+  tallow: { name:'짐승 기름',   kind:'material', step:1, group:'loot' },      // v3.8.3: ⛰️ 산 — 요리 · 가죽 손질
+  furpelt: { name:'털가죽',     kind:'material', step:1, group:'loot' },      // v3.8.4: 🌲 숲 — 털이 붙은 채
+  shellpiece: { name:'조개껍데기', kind:'material', step:1, group:'loot' },   // v3.8.4: 🏞️ 강가 — 갈면 꾸밈·연마
+  juice: { name:'열매즙',     kind:'material', step:2, made:'forest', group:'body' },
+  salve: { name:'약초 연고',  kind:'material', step:2, made:'forest', group:'body' },
+  // ── 3단계 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
+  toothdagger: { name:'이빨 단검',  kind:'material', step:3, group:'gear', atk:2 },
+  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4 },
+  leatherarmor: { name:'가죽 갑옷', kind:'material', step:3, group:'gear', def:1 },
+  pouch: { name:'가죽 주머니', kind:'material', step:3, group:'gear' },
+  fishhook: { name:'낚싯바늘',    kind:'material', step:3, group:'gear' },
+  roastmeat: { name:'구운 고기',   kind:'material', step:3, group:'food' },
+  workbench: { name:'작업대',      kind:'material', step:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
+  woodshield: { name:'나무 방패',  kind:'material', step:3, group:'gear', def:1 },   // v0.51.0: 방패 칸
+  campfire:  { name:'모닥불',      kind:'material', step:3, group:'gear' },
   // v2.1.0: 🌲 숲 — 긴 창(근접무기 +5) · 방패테 · 테 두른 방패(방패 +2)
-  longspear: { name:'긴 창',       kind:'material', tier:3, group:'gear', atk:5 },
-  shieldrim: { name:'방패테',      kind:'material', tier:3, group:'gear' },
-  rimshield: { name:'테 두른 방패', kind:'material', tier:3, group:'gear', def:2 },
+  longspear: { name:'긴 창',       kind:'material', step:3, group:'gear', atk:5 },
+  shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
+  rimshield: { name:'테 두른 방패', kind:'material', step:3, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙구슬 목걸이(장신구 방어 +2)
-  barb:      { name:'미늘',        kind:'material', tier:3, group:'gear' },
-  harpoon:   { name:'작살',        kind:'material', tier:3, group:'gear', atk:9 },
-  claybead:  { name:'흙구슬',      kind:'material', tier:3, group:'gear' },
-  claynecklace:{ name:'흙구슬 목걸이', kind:'material', tier:3, group:'gear', def:2 },
+  barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
+  harpoon:   { name:'작살',        kind:'material', step:3, group:'gear', atk:9 },
+  claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
+  claynecklace:{ name:'흙구슬 목걸이', kind:'material', step:3, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
-  bearclaw:  { name:'곰의 발톱',   kind:'material', tier:1, group:'loot' },   // v3.8.0: 보스 전용 전리품도 1티어
-  bisonhorn: { name:'들소 뿔',     kind:'material', tier:1, group:'loot' },
-  mosspelt:  { name:'이끼 낀 곰가죽', kind:'material', tier:1, group:'loot' },
-  catfishwhisker: { name:'메기 수염', kind:'material', tier:1, group:'loot' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
+  bearclaw:  { name:'곰의 발톱',   kind:'material', step:1, group:'loot' },   // v3.8.0: 보스 전용 전리품도 1단계
+  bisonhorn: { name:'들소 뿔',     kind:'material', step:1, group:'loot' },
+  mosspelt:  { name:'이끼 낀 곰가죽', kind:'material', step:1, group:'loot' },
+  catfishwhisker: { name:'메기 수염', kind:'material', step:1, group:'loot' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
 };
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
 const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료'];   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
 const USE = {
-  // 1티어
+  // 1단계
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료'],   // v0.46.1: 조합 화면에서 불씨를 만들 수 있게
   tree:['무기재료', '건축재료', '생산재료', '도구재료'],   // v0.20.0: 산에서도 나옴
   berry:['요리재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],   // v0.49.0: 줄 끝 주석에 묻혀 태그가 없던 것 되살림
   water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
   grass:['건축재료', '도구재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
-  // 2티어
+  // 2단계
   blade:['무기재료', '도구재료'], whetstone:['도구재료'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장. v3.6.1: '손질lv1' 태그 폐기 — 조합식에 뗀석기를 그대로 적는다
   stoneknife:['무기', '근접무기'],   // v1.9.0: 기사가 드는 건 근접무기뿐
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
@@ -836,7 +836,7 @@ const USE = {
   smokedfish:['요리재료'], leatherstrap:['갑옷재료', '도구재료'],
   vine:['건축재료', '도구재료'], pincer:['도구재료', '장신구'], tallow:['요리재료', '약품재료', '생산재료'],
   furpelt:['갑옷재료', '건축재료'], shellpiece:['장신구', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],
-  // 3티어
+  // 3단계
   toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['요리재료'],
   longspear:['무기', '근접무기'], shieldrim:['갑옷재료'], rimshield:['방패'],   // v2.1.0: 숲
@@ -937,7 +937,7 @@ const DESC = {
 // 카드 그림: images/icon/card_<id>.png
 function iconHtml(t, inline){
   const d = DEFS[t];
-  if (d.emoji) return `<span class="icon emo${inline ? ' inline' : ''}">${d.emoji}</span>`;   // v0.5.0: 그림이 없는 2티어
+  if (d.emoji) return `<span class="icon emo${inline ? ' inline' : ''}">${d.emoji}</span>`;   // v0.5.0: 그림이 없는 2단계
   return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
 }
 // v3.9.0: 보스만 떨구는 전리품은 루비 박힌 테두리로 — 한눈에 귀한 것임을 알 수 있게
@@ -961,9 +961,9 @@ const rich = s => esc(s).replace(ICON_TOKEN, (_, t) => DEFS[t] ? iconHtml(t, tru
 
 // 2장 조합 — 각 쪽은 { card } 또는 { tag, lv }. keep: 'a'/'b' = 남는 쪽
 // v0.9.0: 모든 재료는 조합하면 수량이 줄어듦 → 남는 쪽(keep) 없앰
-// v0.3.0: 레거시 조합식을 비움. v0.5.0: 2티어 추천안 16장 (미확정). 남는 쪽(돌·부싯돌)은 도구 규칙이 정해질 때까지 가안
+// v0.3.0: 레거시 조합식을 비움. v0.5.0: 2단계 추천안 16장 (미확정). 남는 쪽(돌·부싯돌)은 도구 규칙이 정해질 때까지 가안
 const RECIPES = [
-  // ── 2티어: **1티어 둘로만** 만드는 가공 재료 (v3.10.0). 필드마다 다섯
+  // ── 2단계: **1단계 둘로만** 만드는 가공 재료 (v3.10.0). 필드마다 다섯
   // ⛰️ 산
   { id:'blade',      a:{ card:'stone' },  b:{ card:'flint' },     out:['blade'] },   // v0.7.6: 자기+자기 조합 없음
   { id:'ember',      a:{ card:'flint' },  b:{ card:'coal' },      out:['ember'] },
@@ -994,7 +994,7 @@ const RECIPES = [
   { id:'scaleplate', a:{ card:'scale' },  b:{ card:'sinew' },     out:['scaleplate'] },   // 비늘을 힘줄로 엮음
   { id:'smokedfish', a:{ card:'fillet' }, b:{ card:'coal' },      out:['smokedfish'] },
   { id:'fishoil',    a:{ card:'fish' },   b:{ card:'smalltooth' }, out:['fishoil'] },     // v3.10.1: 물고기를 갈라 기름을
-  // 3티어 (v0.15.0): 전리품으로 만드는 장비·도구·음식
+  // 3단계 (v0.15.0): 전리품으로 만드는 장비·도구·음식
   // v1.0.0: 첫 무기. v1.4.0: 뗀석기 + **나무 손잡이** (날 + 자루) — '뗀석기 + 나무'는 조합 탭에서 나무판자가 되어
   //   같은 두 장이 탭마다 다른 결과를 내던 것을 없앰
   { id:'stoneknife',   a:{ card:'blade' },      b:{ card:'firewood' }, out:['stoneknife'] },
@@ -1024,7 +1024,7 @@ const RECIPES = [
   { id:'shieldrim',    a:{ card:'plank' },      b:{ card:'sap' },      out:['shieldrim'] },
   { id:'rimshield',    a:{ card:'woodshield' }, b:{ card:'shieldrim' }, out:['rimshield'] },
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
-  { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3티어 — 벌집을 불씨에 녹임
+  { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -1126,21 +1126,21 @@ const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
 const VERSION = 'v3.10.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
-// 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
-const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
+// 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
+const craftable = t => !!DEFS[t] && !!DEFS[t].step;
 const CRAFT_TYPES = Object.keys(DEFS).filter(craftable);
-const TIERS = [...new Set(CRAFT_TYPES.map(t => DEFS[t].tier))].sort((x, y) => x - y);
+const TIERS = [...new Set(CRAFT_TYPES.map(t => DEFS[t].step))].sort((x, y) => x - y);
 // 크래프팅 탭에서 쓸 수 있는 조합식: 양쪽 다 크래프팅 카드로 채울 수 있고, 결과도 크래프팅 카드
 const CRAFT_RECIPES = RECIPES.filter(r => [r.a, r.b].every(sd => CRAFT_TYPES.some(t => sideMatch(sd, t)))
   && (r.out || []).every(craftable));
 // v0.8.0: 월드 최대 생성 개수(SPAWN_CAP) 없앰 — 종류마다 카드 한 장 + 보유 수량(n)
 const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}` : ''; };
 // v0.74.0: **인스펙터·콜렉터북에 기획 용어를 쓰지 않는다.**
-//   가리는 것 ① 티어 숫자(1·2·3티어) ② 카드 수·'추천안' 같은 제작 메모
+//   가리는 것 ① 단계 숫자(1·2·3단계) ② 카드 수·'추천안' 같은 제작 메모
 //   ③ 쓸 화면이 아직 없는 용도 태그 ④ 어느 화면에서도 만들 수 없는 조합
-// 콜렉터북 탭 이름 — '1티어' 같은 제작 용어 대신 플레이어가 아는 말로
-const TIER_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품' };
-const tierName = n => TIER_NAME[n] || `${n}`;
+// 콜렉터북 탭 이름 — '1단계' 같은 제작 용어 대신 플레이어가 아는 말로
+const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품' };
+const stepName = n => STEP_NAME[n] || `${n}`;
 const SHOWN_USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '도구재료', '도구'];
 const shownUses = t => useOf(t).filter(u => SHOWN_USES.includes(u));
 
@@ -2117,7 +2117,7 @@ function renderInsp(){
 }
 
 // ── 콜렉터북 (v0.4.0) ────────────────────────────────
-// 아래에서 올라오는 모달. 티어 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
+// 아래에서 올라오는 모달. 단계 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
 // 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
 let bookTier = 'tool';                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
@@ -2125,8 +2125,8 @@ const COMBO_TAB = 'combo';                                        // v0.46.0: �
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
 const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
 let bookTree = 'weapon';
-// v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 티어로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
-//   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 티어별로 본다
+// v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 단계로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
+//   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 단계별로 본다
 const BOOK_TABS = [
   { id:'tool',   name:'카드' },
   { id:'weapon', name:'무기', icon:'card_workbench' },
@@ -2512,10 +2512,10 @@ function renderBook(){
   const tre = isTree ? (TREES[bookTree] || TREES.weapon) : null;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
-    + BOOK_BOARDS().map(b => `<button class="tabbtn${b.id === bookTier ? ' on' : ''}" data-tier="${b.id}">${bookBoardLabel(b)}</button>`).join('')
-    + `<button class="tabbtn${isCombo ? ' on' : ''}" data-tier="${COMBO_TAB}">🧪 조합법</button>`
-    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-tier="${TRACE_TAB}">📜 흔적</button>`
-    + `<button class="tabbtn${isTree ? ' on' : ''}" data-tier="${TREE_TAB}">🌳 길</button></div>`
+    + BOOK_BOARDS().map(b => `<button class="tabbtn${b.id === bookTier ? ' on' : ''}" data-btab="${b.id}">${bookBoardLabel(b)}</button>`).join('')
+    + `<button class="tabbtn${isCombo ? ' on' : ''}" data-btab="${COMBO_TAB}">🧪 조합법</button>`
+    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-btab="${TRACE_TAB}">📜 흔적</button>`
+    + `<button class="tabbtn${isTree ? ' on' : ''}" data-btab="${TREE_TAB}">🌳 길</button></div>`
     + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span></div>`
     + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
       : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
@@ -2525,10 +2525,10 @@ function renderBook(){
   else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
-    // v3.7.0: 카드 탭은 **티어로** 나누고, 무기 · 갑옷 탭은 완성품만 한 줄로
+    // v3.7.0: 카드 탭은 **단계로** 나누고, 무기 · 갑옷 탭은 완성품만 한 줄로
     if (bookTier === 'tool'){
-      // v3.8.0: 자연(1티어)은 **나오는 곳으로** 다시 나눔 — 필드마다 줍는 것 · 떨구는 것
-      const t1 = inTab.filter(t => (DEFS[t].tier || 0) === 1);
+      // v3.8.0: 자연(1단계)은 **나오는 곳으로** 다시 나눔 — 필드마다 줍는 것 · 떨구는 것
+      const t1 = inTab.filter(t => (DEFS[t].step || 0) === 1);
       const shown = new Set();
       const sec = (title, list) => {
         const only = list.filter(t => t1.includes(t) && !shown.has(t));
@@ -2544,8 +2544,8 @@ function renderBook(){
         h += sec(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 떨구는 것</span>`, d);
       }
       h += sec('그 밖', t1);
-      // v3.10.0: 가공(2티어)도 **어느 땅 재료로 만드나**로 나눔 (DEFS.made)
-      const t2 = inTab.filter(t => (DEFS[t].tier || 0) === 2);
+      // v3.10.0: 가공(2단계)도 **어느 땅 재료로 만드나**로 나눔 (DEFS.made)
+      const t2 = inTab.filter(t => (DEFS[t].step || 0) === 2);
       const shown2 = new Set();
       const sec2 = (title, list) => {
         const only = list.filter(t => !shown2.has(t));
@@ -2559,8 +2559,8 @@ function renderBook(){
         h += sec2(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 가공</span>`, t2.filter(t => madeAt(t) === f.id));
       }
       h += sec2('⚒ 그 밖의 가공', t2);
-      const t3 = inTab.filter(t => (DEFS[t].tier || 0) === 3);
-      if (t3.length) h += `<div class="book-field"><div class="book-fname">${esc(tierName(3))} <span class="i-muted">${t3.filter(shownSeen).length}/${t3.length}</span></div>`
+      const t3 = inTab.filter(t => (DEFS[t].step || 0) === 3);
+      if (t3.length) h += `<div class="book-field"><div class="book-fname">${esc(stepName(3))} <span class="i-muted">${t3.filter(shownSeen).length}/${t3.length}</span></div>`
         + `<div class="book-row">${t3.map(slotHtml).join('')}</div></div>`;
     } else {
       h += `<div class="book-field"><div class="book-row">${inTab.map(slotHtml).join('')}</div></div>`;
@@ -2642,14 +2642,14 @@ function setPaused(on){
 }
 let inserting = false;
 function pendingInsertReset(){ inserting = false; setPaused(false); }   // v0.37.0: 끼우던 것 멈춤
-// v0.9.0: 콜렉터북을 열면 새 카드를 티어 순으로 한꺼번에 끼움. 끼울 때마다 NEW 뱃지·버튼 수가 하나씩 줄어듦
+// v0.9.0: 콜렉터북을 열면 새 카드를 단계 순으로 한꺼번에 끼움. 끼울 때마다 NEW 뱃지·버튼 수가 하나씩 줄어듦
 async function runInserts(){
   if (inserting || !S.newCards.length) return;
   inserting = true;
   setPaused(true);
   if (drag) endDrag({ type: 'pointercancel' });                  // 끌던 카드는 그 자리에 놓음
   await wait(420);                                                // 올라오는 시간
-  const order = S.newCards.slice().sort((x, y) => DEFS[x].tier - DEFS[y].tier || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
+  const order = S.newCards.slice().sort((x, y) => DEFS[x].step - DEFS[y].step || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
   for (const t of order){
     if (bookTier !== bookTabOf(t)){ bookTier = bookTabOf(t); renderBook(); }   // 끼울 땐 그 카드가 나오는 탭으로 (v2.2.0)
     const slot = bookEl.querySelector(`[data-book="${t}"]`);
@@ -2678,8 +2678,8 @@ async function runInserts(){
 bookEl.addEventListener('click', e => {
   if (paused) return;
   if (e.target.closest('[data-close]')) return setTab(lastTab || 'battle');   // v3.3.0: 탭이라 '닫기'는 돌아가기
-  const tab = e.target.closest('[data-tier]');
-  if (tab){ bookTier = tab.dataset.tier; return renderBook(); }    // v2.2.0: 탭 id 그대로
+  const tab = e.target.closest('[data-btab]');
+  if (tab){ bookTier = tab.dataset.btab; return renderBook(); }    // v2.2.0: 탭 id 그대로
   const slot = e.target.closest('[data-book]');
   if (slot){                                                      // v3.3.2: 인스펙터로
     bookPick = slot.dataset.book;
@@ -2689,7 +2689,7 @@ bookEl.addEventListener('click', e => {
 });
 
 // ── 탭 · 채집 (v0.6.0) ───────────────────────────────
-// 채집 탭: 필드 4곳(산·숲·강가·초원)을 큰 카드로 늘어놓음. 탭하면 인스펙터에 필드 정보 · 나오는 1티어
+// 채집 탭: 필드 4곳(산·숲·강가·초원)을 큰 카드로 늘어놓음. 탭하면 인스펙터에 필드 정보 · 나오는 1단계
 // 판단: 아직 채집 동작은 없음 (카드 배치만)
 let fieldPick = null;
 let knightPick = false;                                           // v0.13.0: 인스펙터에 기사
@@ -2754,7 +2754,7 @@ function sideReachKnown(sd, d){                                   // 그 재료�
 const aimReady = t => aimRecipes(t).some(x => sideReachKnown(x.a, 3) && sideReachKnown(x.b, 3));
 function aimCandidates(){                                         // 만들 줄 아는 것 — 이미 가진 것과 지금 목표는 뺌
   return CRAFT_TYPES.filter(t => t !== S.goal && have(t) <= 0 && aimReady(t))
-    .sort((a, b) => aimRank(a) - aimRank(b) || (DEFS[a].tier || 0) - (DEFS[b].tier || 0));
+    .sort((a, b) => aimRank(a) - aimRank(b) || (DEFS[a].step || 0) - (DEFS[b].step || 0));
 }
 const aimUseCandidates = use => aimCandidates().filter(t => useOf(t).includes(use));   // v3.0.3: 그 쓰임의 후보
 const aimRank = t => cardState(t) === 'can' ? 0 : nextStepTo(t) ? 1 : S.seen.includes(t) ? 2 : 3;
