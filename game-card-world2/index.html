@@ -261,6 +261,13 @@
   .rcp-ic.unk .icon{filter:brightness(0) opacity(.45);}
   .rcp-line{display:flex;align-items:center;flex-wrap:wrap;gap:4px;}
   /* v1.1.0: 없는 재료 — 누르면 그걸 얻는 곳으로 */
+  /* v5.2.0: 목적 줄에서 누를 수 있는 곳 — 장소는 알약, 재료는 밑줄 */
+  .go-tab{cursor:pointer;padding:1px 7px;border-radius:var(--r-pill);background:rgba(255,212,0,.14);
+    color:var(--brand-yellow);font-weight:800;}
+  .go-tab:hover{background:rgba(255,212,0,.28);}
+  .go-card{cursor:pointer;border-bottom:1px dashed rgba(255,255,255,.35);}
+  .go-card:hover{color:var(--brand-yellow);border-bottom-color:var(--brand-yellow);}
+  .cw.hi{box-shadow:0 0 0 3px var(--brand-yellow),0 0 18px rgba(255,212,0,.7);z-index:9;}
   .rcp-jump{cursor:pointer;border-bottom:1px dashed rgba(255,212,0,.6);}
   .rcp-jump:hover{color:var(--brand-yellow);}
   .rcp-jump::after{content:' ↗';font-size:.85em;color:var(--brand-yellow);}
@@ -1231,7 +1238,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v5.1.0';
+const VERSION = 'v5.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3058,8 +3065,10 @@ const goalSteps = g => goalPlan(g).filter((st, i, all) =>
   st.kind !== 'need' || !all.slice(0, i).some(p => p.type && useOf(p.type).includes(st.use)));
 const stepN = st => (st.n || 1) > 1 ? ` <span class="q-prog">×${st.n}</span>` : '';   // v3.6.2
 // v3.2.3: 조합 줄엔 어느 탭에서 만드는지도 같이. v3.5.2: **장소를 먼저, 조합식을 나중**
-const stepWhere = r => { const b = recipeBoards(r).map(boardLabel).join(' · ');
-  return b ? `<span class="i-muted">${esc(b)}에서</span> ` : ''; };
+// v5.2.0: 장소는 눌러서 바로 그 탭으로, 재료는 눌러서 그 탭에서 하이라이트
+const stepWhere = r => { const ids = recipeBoards(r);
+  return ids.length ? ids.map(id => `<span class="go-tab" data-goboard="${id}">${esc(boardLabel(id))}</span>`).join(' · ')
+    + '<span class="i-muted">에서</span> ' : ''; };
 const goalStepBody = st => (st.kind === 'make' ? stepWhere(st.r) + aimLine(st.r)
   : st.kind === 'get' ? getStepBody(st.type)
   : `<span class="i-muted">이 태그가 붙은 재료</span> 🏷️ ${esc(st.use)}`) + stepN(st);
@@ -3079,9 +3088,10 @@ function goalPlanHtml(){
 // v3.0.0: 목적 탭에서는 **이름을 가리지 않는다** — 여기 실리는 것은 '재료를 구할 줄 아는 것'뿐이고,
 //   가려 놓으면 안내가 안 된다 (다른 화면의 ??? 규칙은 그대로)
 const aimName = t => DEFS[t] ? DEFS[t].name : t;
-const aimSide = sd => sd.card ? `${rcpIcon(sd.card, true)} ${esc(aimName(sd.card))}` : `🏷️ ${esc(sd.use || sd.tag || '')}`;
+const goCard = t => `<span class="go-card" data-gocard="${t}">${rcpIcon(t, true)} ${esc(aimName(t))}</span>`;   // v5.2.0
+const aimSide = sd => sd.card ? goCard(sd.card) : `🏷️ ${esc(sd.use || sd.tag || '')}`;
 const aimLine = x => `${aimSide(x.a)} <span class="combo-op">+</span> ${aimSide(x.b)}`
-  + ` <span class="combo-op">=</span> ${(x.out || []).map(o => `${rcpIcon(o, true)} ${esc(aimName(o))}`).join(' · ')}`;
+  + ` <span class="combo-op">=</span> ${(x.out || []).map(goCard).join(' · ')}`;
 // v3.0.6: 목표를 손에 넣으면 그 자리에서 끝 — 목적 칸도 비고 수첩 🎯 줄도 사라짐
 function checkGoalDone(){
   const g = S.goal;
@@ -3699,6 +3709,41 @@ const HEAL_FULL_CAMP_MS = 15000;                                 // 거점이 �
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
+// v5.2.0: 목적 줄의 장소 · 재료를 눌렀을 때
+function goBoard(id){
+  const b = BOARD_BY_ID[id];
+  if (!b){ setTab(id); return; }
+  if (!boardOpen(b)){ toast(`🔒 ${boardLabel(id)} — 아직 잠겨 있음`); return; }
+  setTab(id);
+}
+function hiCard(type){                                            // 지금 화면에서 그 카드를 찾아 빛냄
+  const c = cardOf(type);
+  const el = (c && els.get(c.id)) || document.querySelector(`[data-topcard="${type}"]`);
+  if (!el) return false;
+  if (el.scrollIntoView) el.scrollIntoView({ block:'center' });
+  flash(el, 'hi', 1400);
+  return true;
+}
+function goCardTap(type){
+  const b = BOARDS.find(x => boardOpen(x) && (onBoard(type, x.id) || onTopGrid(type, x.id)));
+  if (b && have(type) > 0){                                       // 그 탭에 실제로 놓여 있을 때만 하이라이트
+    setTab(b.id);
+    inspType = type; selected = null; knightPick = false;
+    renderInsp();
+    setTimeout(() => { if (!hiCard(type)) toast(`${DEFS[type].name} — 이 탭에 있음`); }, 0);
+    return;
+  }
+  jumpTo(type);                                                   // 아직 없으면 얻는 곳 · 만드는 곳으로
+}
+function goalJumpClick(e){
+  const b = e.target.closest('[data-goboard]');
+  if (b){ goBoard(b.dataset.goboard); return true; }
+  const c = e.target.closest('[data-gocard]');
+  if (c && DEFS[c.dataset.gocard]){ goCardTap(c.dataset.gocard); return true; }
+  return false;
+}
+document.getElementById('quest').addEventListener('click', goalJumpClick);
+document.getElementById('gather').addEventListener('click', goalJumpClick);
 function jumpTo(t){
   const r = CRAFT_RECIPES.find(x => !x.cook && (x.out || []).includes(t));
   if (r){
