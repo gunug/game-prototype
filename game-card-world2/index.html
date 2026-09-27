@@ -1044,7 +1044,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.6.6';
+const VERSION = 'v3.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -2045,11 +2045,18 @@ const COMBO_TAB = 'combo';                                        // v0.46.0: �
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
 const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
 let bookTree = 'weapon';
-const BOOK_BOARDS = () => BOARDS.filter(b => b.dyn);               // 카드를 만드는 탭 — 조합 · 무기 · 갑옷
-// 그 탭에 나오는 카드 — 게임 화면과 같은 기준 (위 격자 = 완성품, 아래 = 재료). 어디에도 없는 카드는 조합 탭으로
-const bookCardsOf = id => CRAFT_TYPES.filter(t => onTopGrid(t, id) || onBoard(t, id)
-  || (id === 'tool' && !BOOK_BOARDS().some(b => onTopGrid(t, b.id) || onBoard(t, b.id))));
-const bookTabOf = t => (BOOK_BOARDS().find(b => bookCardsOf(b.id).includes(t)) || BOARDS[0]).id;
+// v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 티어로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
+//   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 티어별로 본다
+const BOOK_TABS = [
+  { id:'tool',   name:'카드' },
+  { id:'weapon', name:'무기', icon:'card_workbench' },
+  { id:'armor',  name:'갑옷', icon:'card_leatherarmor' },
+];
+const BOOK_BOARDS = () => BOOK_TABS;
+const BOOK_USES = { weapon:['무기', '근접무기', '원거리무기'], armor:['방어구', '방패', '장신구'] };
+const bookCardsOf = id => id === 'tool' ? CRAFT_TYPES.slice()
+  : CRAFT_TYPES.filter(t => useOf(t).some(u => (BOOK_USES[id] || []).includes(u)));
+const bookTabOf = t => (BOOK_TABS.slice(1).find(b => bookCardsOf(b.id).includes(t)) || BOOK_TABS[0]).id;
 const bookBoardLabel = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
@@ -2425,10 +2432,17 @@ function renderBook(){
   else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
-    // v2.2.0: 게임 화면처럼 — 위 격자에 오르는 완성품, 아래에 놓이는 재료
-    const tops = inTab.filter(t => onTopGrid(t, bookTier)), mats = inTab.filter(t => !tops.includes(t));
-    if (tops.length) h += `<div class="book-field"><div class="book-fname">완성품</div><div class="book-row">${tops.map(slotHtml).join('')}</div></div>`;
-    if (mats.length) h += `<div class="book-field"><div class="book-fname">재료</div><div class="book-row">${mats.map(slotHtml).join('')}</div></div>`;
+    // v3.7.0: 카드 탭은 **티어로** 나누고, 무기 · 갑옷 탭은 완성품만 한 줄로
+    if (bookTier === 'tool'){
+      for (const tier of [1, 2, 3]){
+        const list = inTab.filter(t => (DEFS[t].tier || 0) === tier);
+        if (!list.length) continue;
+        h += `<div class="book-field"><div class="book-fname">${esc(tierName(tier))} <span class="i-muted">${list.filter(shownSeen).length}/${list.length}</span></div>`
+          + `<div class="book-row">${list.map(slotHtml).join('')}</div></div>`;
+      }
+    } else {
+      h += `<div class="book-field"><div class="book-row">${inTab.map(slotHtml).join('')}</div></div>`;
+    }
   }
   const body = bookEl.querySelector('.book-body');
   const keep = body ? body.scrollTop : 0;
