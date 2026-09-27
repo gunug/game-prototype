@@ -263,7 +263,7 @@
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
   .kstat .hpbar i{display:block;height:100%;background:#ff7a7a;transition:width .2s;}
-  .exp{width:100%;}
+  .exp{width:100%;box-sizing:border-box;padding:4px 10px 6px;border-top:1px solid var(--hairline);}   /* v3.14.0: 수첩 아래 자리 */
   .exp[hidden]{display:none;}
   .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
@@ -653,6 +653,7 @@
       <span class="meta ver-out" id="ver"></span>
     </div>
     <div class="quest" id="quest"></div>
+    <div class="exp" id="exp" hidden></div>
     <div class="miniexp" id="miniexp" hidden></div>
   </div>
   <div class="table" id="table">
@@ -1144,7 +1145,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.13.2';
+const VERSION = 'v3.14.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3070,7 +3071,7 @@ function renderScreen(){
   gatherEl.innerHTML = '<div class="toplist">'
     + rows.map(row => `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
-    + '<div class="botarea">' + (S.tab === 'battle' ? '<div class="exp" id="exp" hidden></div>' : '')
+    + '<div class="botarea">'
     + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
     + (S.tab === 'battle' ? knightSayHtml() : '') + '</div>'
     + (S.tab === 'aim' ? goalPlanHtml() : '')                     // v3.0.0: 목표까지의 차례
@@ -3080,7 +3081,7 @@ function renderScreen(){
       : S.tab === 'aim' ? '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   paintIcons(gatherEl);                                           // v3.5.0
   syncTopH();
-  if (S.tab === 'battle') expBuild();
+  expBuild();                                                     // v3.14.0: 원정 줄은 수첩 아래 고정 자리
 }
 const renderGather = renderScreen;                                // 옛 이름
 const renderSlots = () => {};                                     // v0.29.0: 줄 목록이 화면에 들어옴
@@ -3324,7 +3325,7 @@ function setTab(tab){
   dungeonEl.hidden = tab !== 'dungeon';                           // v0.91.0
   document.getElementById('setpage').hidden = tab !== 'settings';  // v3.7.3
   bookEl.hidden = tab !== 'book';                                 // v3.3.0
-  setTimeout(renderMiniExp, 0);                                   // v3.13.0
+  setTimeout(() => { expBuild(); renderMiniExp(); }, 0);          // v3.13.0 · v3.14.0
   bookOpen = tab === 'book';
   renderBook();                                                   // v3.4.0: 탭에 들어오면 바로 그림
   if (bookOpen){                                                  // 새 카드는 들어오자마자 끼움
@@ -3792,8 +3793,9 @@ function flyToCraft(t, r){
 function expBuild(){
   const el = document.getElementById('exp');
   if (!el) return;
-  el.hidden = !exp;
-  if (!exp){ el.innerHTML = ''; return; }
+  el.hidden = !exp || S.tab !== 'battle';                         // v3.14.0: 필드 탭에서만 큰 화면, 다른 탭은 미니
+  if (!exp){ el.innerHTML = ''; syncHeadH(); return; }
+  if (el.hidden){ syncHeadH(); return; }
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   el.innerHTML = '<div class="exp-lane">'
@@ -3837,7 +3839,9 @@ function renderMiniExp(){
 function expPaint(){
   renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
-  if (!el || !exp || !el.firstChild) return;
+  if (!el || !exp) return;
+  if (S.tab === 'battle' && !el.firstChild) expBuild();           // v3.14.0: 필드 탭으로 돌아오면 다시 만듦
+  if (!el.firstChild || el.hidden) return;
   const lane = el.querySelector('.exp-lane');
   lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
   const mk = lane.querySelector('.mark');                         // v0.61.0: 지난 기록을 넘어서면 깃발이 흐려짐
