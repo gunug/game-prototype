@@ -359,6 +359,8 @@
   @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
   @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
   .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .dmg.heal{color:#8fe08f;text-shadow:0 0 6px rgba(80,220,80,.6);font-weight:900;}   /* v6.0.0 */
+  .exp-lane .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
   .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   .exp-lane .dmg{position:absolute;z-index:5;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
     color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1s ease-out forwards;}
@@ -778,6 +780,11 @@ const FIELDS = [                                                  // v0.9.1: 순
   //   확정 55: 필드는 수치로, 던전은 기믹으로 막는다 — 방어 무시가 없으면 주인에게 한 대에 1밖에 못 넣는다
   { id:'stonehide', name:'돌가죽 굴', emoji:'🪨', dungeon:true, desc:'산이 무너진 자리 아래로 굴이 뚫려 있다. 안쪽 것들은 돌을 덮고 산다.',
     exp:'기사는 몸을 숙여 굴로 들어간다. 벽에 검은 돌이 박혀 있고, 발밑에서 무언가가 딱딱한 등을 세운다.' },
+  // v6.0.0: 🍄 늪지 무덤 — 둘째 던전. 주인은 때려도 때려도 도로 차오른다 (확정 55: 던전은 기믹으로 막는다)
+  //   해법은 **출혈** — 피가 흐르는 동안에는 살이 차오르지 않는다
+  { id:'swamptomb', name:'늪지 무덤', emoji:'🍄', dungeon:true,
+    desc:'굴 아래로 물이 고인 자리. 무너진 돌무덤을 이끼가 덮었고, 그 속에서 무언가가 아직 숨을 쉰다.',
+    exp:'기사는 정강이까지 잠기는 물을 헤치며 걷는다. 발밑에서 포자가 피어오르고, 무덤 안쪽에서 축축한 것이 몸을 일으킨다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
 ];
@@ -798,6 +805,7 @@ const FIELD_YIELDS = {
   forest:    ['vine', 'berry', 'sap', 'herb'],                  // v3.8.2: 나무는 산 몫 — 숲은 덩굴
   river:     ['water', 'soil', 'sand', 'fish'],
   stonehide: ['obsidian'],                                      // v4.0.0: 굴 벽의 검은 돌
+  swamptomb: ['bogmoss'],                                       // v6.0.0: 무덤을 덮은 이끼
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
 // 2단계 묶음 (v0.5.0) — 2단계는 필드가 없어 쓰임별로 콜렉터북에 묶음
@@ -822,6 +830,7 @@ const DEFS = {
   // 🌲 숲
   tree:    { name:'나무',   kind:'material', step:1, field:'forest' },
   obsidian: { name:'흑요석', kind:'material', step:1, field:'stonehide' },   // v4.0.0: 🪨 던전 안에서만
+  bogmoss:  { name:'늪 이끼', kind:'material', step:1, field:'swamptomb' },   // v6.0.0: 🍄 무덤 안에서만
   vine:    { name:'덩굴',   kind:'material', step:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
   berry:   { name:'열매',   kind:'material', step:1, field:'forest' },
   sap:     { name:'수액',   kind:'material', step:1, field:'forest' },
@@ -906,12 +915,15 @@ const DEFS = {
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙구슬 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
   battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true },       // v4.0.0: 방어를 0으로 치는 무기
+  obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:2 },         // v6.0.0: 출혈 — 회복을 끊는다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙구슬 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
   stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
+  toadhide:  { name:'두꺼비 가죽', kind:'material', step:1, group:'loot' },   // v6.0.0: 🍄 늪지 무덤
+  graveseal: { name:'무덤 인장',   kind:'material', step:1, group:'loot' },   // v6.0.0: 무덤 주인만 떨굼
   bearclaw:  { name:'곰의 발톱',   kind:'material', step:1, group:'loot' },   // v3.8.0: 보스 전용 전리품도 1단계
   bisonhorn: { name:'들소 뿔',     kind:'material', step:1, group:'loot' },
   mosspelt:  { name:'이끼 낀 곰가죽', kind:'material', step:1, group:'loot' },
@@ -947,6 +959,8 @@ const USE = {
   nacre:['갑옷재료', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],   // v5.3.0
   smokedfish:['요리재료'], leatherstrap:['갑옷재료', '도구재료'],
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
+  obsidianknife:['무기', '근접무기'],                              // v6.0.0
+  bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료'], graveseal:['건축재료'],
   stonepelt:['갑옷재료'],
   vine:['건축재료', '도구재료'], pincer:['도구재료', '갑옷재료'], tallow:['요리재료', '약품재료', '생산재료'],   // v5.3.0
   furpelt:['갑옷재료', '건축재료'], shellpiece:['갑옷재료', '도구재료'], juice:['요리재료', '약품재료'], salve:['약품재료'],   // v5.3.0
@@ -1000,6 +1014,10 @@ const DESC = {
   claw:      '땅을 헤집던 것. 끝이 안으로 굽어 잘 걸린다.',
   scale:     '겹쳐 대면 물도 칼도 미끄러진다.',
   obsidian:  '검은 유리 돌. 깨진 자리가 칼보다 날카롭다.',
+  obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
+  bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
+  toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
+  graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
   obsidianblade:'흑요석을 쳐서 얇게 떼어 냈다. 돌도 가죽처럼 가른다.',
   battleaxe: '흑요석 날을 도끼에 물렸다. 두꺼운 것일수록 잘 들어간다.',
   stonepelt: '돌을 덮고 살던 가죽. 벗겨 놓아도 여전히 무겁다.',
@@ -1059,7 +1077,7 @@ function iconHtml(t, inline){
   return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
 }
 // v3.9.0: 보스만 떨구는 전리품은 루비 박힌 테두리로 — 한눈에 귀한 것임을 알 수 있게
-const BOSS_LOOT = ['bearclaw', 'bisonhorn', 'mosspelt', 'catfishwhisker'];
+const BOSS_LOOT = ['bearclaw', 'bisonhorn', 'mosspelt', 'catfishwhisker', 'graveseal'];   // v6.0.0
 const BOSS_LOOT_NAMES = new Set(BOSS_LOOT.map(t => (DEFS[t] || {}).name));
 const frameOf = d => d && BOSS_LOOT_NAMES.has(d.name) ? 'boss' : 'wood';
 const ICON_TOKEN = /⟦(\w+)⟧/g;
@@ -1144,6 +1162,8 @@ const RECIPES = [
   // v4.0.0: 던전 열쇠 — 흑요석 날 → 전투 도끼(방어 무시)
   { id:'obsidianblade', a:{ card:'obsidian' },  b:{ card:'blade' },    out:['obsidianblade'] },
   { id:'battleaxe',     a:{ card:'handaxe' },   b:{ card:'obsidianblade' }, out:['battleaxe'] },
+  // v6.0.0: 🍄 늪지 무덤 열쇠 — 이빨 단검(3) + 흑요석 날(3) = 흑요석 칼(4), 출혈
+  { id:'obsidianknife', a:{ card:'toothdagger' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
@@ -1245,7 +1265,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v5.4.0';
+const VERSION = 'v6.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1325,6 +1345,11 @@ const QUESTS = {
   // v4.3.0: 🪨 돌가죽 굴 — 한 번 막혀 본 뒤에 길이 열린다
   pierce:     { name:'돌을 가르는 것', text:'🎯 목적에 방어를 무시하는 무기를 등록하자', goal:1, key:'aim-pierce',
                 say:'그 검은 돌을 쪼개면 날이 서겠지' },
+  // v6.0.0: 🍄 늪지 무덤 — 회복을 끊는 길
+  bleed:      { name:'피를 흐르게', text:'🎯 목적에 출혈이 붙은 무기를 등록하자', goal:1, key:'aim-bleed',
+                say:'아물기 전에 다시 베면 된다' },
+  tombkeeper: { name:'무덤의 주인',   text:'👑 무덤 주인을 넘자',   goal:1, key:'kill:tombkeeper',
+                say:'이 날이면 아물 틈이 없다' },
   stonelord:  { name:'굴의 주인',     text:'👑 돌가죽 주인을 넘자',   goal:1, key:'kill:stonelord',
                 say:'이 날이면 돌가죽도 갈린다' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 가 보자',      goal:1, key:'exp-start:grassland',
@@ -1342,7 +1367,7 @@ const QUESTS = {
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { pierce:'stonelord', goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
+const QUEST_NEXT = { pierce:'stonelord', bleed:'tombkeeper', goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
   grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
@@ -1357,6 +1382,7 @@ function questSelfCheck(){
     if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');
     if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
     if (DEFS[t].pierce) questHit('aim-pierce');                   // v4.3.0
+    if (DEFS[t].bleed) questHit('aim-bleed');                     // v6.0.0
   }
   if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목적에 이미 걸어 두었으면 바로 인정
     for (const u of useOf(S.goal)) questHit(`aim-use:${u}`);
@@ -1790,7 +1816,8 @@ function statsHtml(t){
   // v0.86.0: 거점(모닥불)은 초당 회복량을 적는다 — '본래의 두 배' 같은 모호한 말 대신 실제 수치
   const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</span>` : '';
   if (!d.atk && !d.def && !camp) return '';
-  const trait = d.pierce ? '<span class="s-trait">방어 무시</span>' : '';   // v4.3.0
+  const trait = d.pierce ? '<span class="s-trait">방어 무시</span>'         // v4.3.0
+    : d.bleed ? '<span class="s-trait">출혈</span>' : '';                   // v6.0.0
   return '<div class="stats">' + trait                            // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
     + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
@@ -2283,6 +2310,7 @@ function renderInsp(){
   const chips = shownUses(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그. v0.74.0: 쓸 화면이 있는 것만
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
+  if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // 쓰이는 조합 — 이 카드가 들어가는 조합
@@ -2574,10 +2602,13 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:1, name:'투창',        make:'송곳니 창 + 깃털',      tags:['던지기'] },
     { d:2, id:'feather' },
   ] },
-  { name:'🍄 늪지 무덤', kind:'계속 회복', nodes: [
-    { d:0, name:'무덤 주인',   make:'때려도 때려도 도로 차오름', tags:['해법: 출혈'] },
-    { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석 날', tags:['출혈'] },
-    { d:2, name:'🔑 흑요석 날', make:'흑요석 + 뗀석기' },
+  { field:'swamptomb', name:'🍄 늪지 무덤', kind:'둘째 던전 · 계속 회복', nodes: [
+    { d:0, name:'이끼 두꺼비',  make:'체12 · 공6 · 방2 — 박자마다 1 회복', on:true },
+    { d:0, name:'⚔ 수렁 팔',    make:'체20 · 공9 · 방4 — 박자마다 3 회복', on:true },
+    { d:0, name:'👑 무덤 주인',  make:'체30 · 공10 · 방3 — 박자마다 10 회복', on:true, tags:['해법: 출혈'] },
+    { d:1, id:'obsidianknife', role:'해법', tags:['출혈'] },
+    { d:2, id:'obsidianblade', role:'🔑 열쇠' },
+    { d:3, id:'toothdagger',   role:'몸이 될 단검' },
   ] },
   { name:'🐚 껍질 동굴', kind:'단단한 껍질', nodes: [
     { d:0, name:'동굴 주인',   make:'겉껍질을 뚫지 못하면 안쪽에 닿지 않음', tags:['해법: 관통'] },
@@ -3141,6 +3172,7 @@ function setGoal(t){
   if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
   if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
   if (DEFS[t].pierce) questHit('aim-pierce');                     // v4.3.0: 방어 무시 무기를 목표로 걸었다
+  if (DEFS[t].bleed) questHit('aim-bleed');                       // v6.0.0
   toast(`🎯 목적 — ${aimName(t)}`);
   questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
   renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
@@ -3529,6 +3561,7 @@ function renderFoeInsp(){
         + `<div class="row">${statImg('def')} 방어 <b>${e.def}</b></div>`
         + `<div class="row">${statImg('hp')} 체력 <b>${e.hp}</b></div></div>`
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
+        + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. <b>출혈</b>이 걸린 동안에는 차오르지 않는다.</div>` : '')   // v6.0.0
         + '<div class="sub">떨구는 것</div><div class="rows">'
         + (e.loot || []).map(l => `<div class="row">${iconHtml(l[0], true)} ${esc(DEFS[l[0]].name)} <span class="i-muted">${l[1]}%</span></div>`).join('')
         + '</div>'
@@ -3715,6 +3748,13 @@ const ENEMIES = {
     loot: [['obsidian', 50, 2], ['stonepelt', 50, 1]] },
   stonelord: { name:'돌가죽 주인', portrait:'portrait_stonelord', atk:10, def:11, hp:30,
     loot: [['stonepelt', 60, 2], ['obsidian', 40, 2]] },
+  // v6.0.0: 🍄 늪지 무덤 — 박자마다 살이 차오른다(regen). 출혈이 걸리면 멈춘다
+  mosstoad:  { name:'이끼 두꺼비', portrait:'portrait_mosstoad', atk:6, def:2, hp:12, regen:1,
+    loot: [['bogmoss', 55, 1], ['toadhide', 45, 1]] },
+  bogarm:    { name:'수렁 팔',    portrait:'portrait_bogarm',   atk:9, def:4, hp:20, regen:3,
+    loot: [['toadhide', 50, 2], ['bogmoss', 50, 1]] },
+  tombkeeper:{ name:'무덤 주인',  portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,
+    loot: [['graveseal', 100, 1], ['toadhide', 50, 2]] },
   crayfish:  { name:'가재',     portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
     loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
   crocodile: { name:'악어',     portrait:'portrait_crocodile', atk:7, def:3, hp:44,
@@ -3731,6 +3771,7 @@ const gearStat = key => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => 
 }, 0);
 const bestOf = key => gearStat(key);                              // 옛 이름 (인스펙터에서 씀)
 const knightPierce = () => { const w = equipped('weapon'); return !!(w && DEFS[w] && DEFS[w].pierce); };   // v4.0.0
+const knightBleed = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].bleed) || 0; };   // v6.0.0: 출혈
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -3822,8 +3863,19 @@ const DUNGEON_PLAN = [
   { loot:1, at:0.82 },
   { fight:'stonelord', boss:true, at:0.93 },
 ];
+// v6.0.0: 🍄 늪지 무덤 대본 — 이끼를 뜯으며 들어가고, 수렁 팔을 지나 주인에게
+const SWAMP_PLAN = [
+  { loot:1, at:0.12 },
+  { fight:'mosstoad', at:0.26 },
+  { loot:1, at:0.40 },
+  { fight:'mosstoad', at:0.54 },
+  { fight:'bogarm', mid:true, at:0.70 },
+  { loot:1, at:0.82 },
+  { fight:'tombkeeper', boss:true, at:0.93 },
+];
 const EXP_PLAN = {
   stonehide: DUNGEON_PLAN,
+  swamptomb: SWAMP_PLAN,
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
@@ -3918,6 +3970,15 @@ function expBeat(){
   const kd = Math.max(1, raw);
   e.hp -= kd;
   expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());   // v4.3.0: 피해가 1/3 이하로 깎이면 '막힘'
+  // v6.0.0: 출혈이 걸리면 살이 차오르지 않고 덧피해까지 — 없으면 박자마다 regen 만큼 도로 찬다
+  const bleed = knightBleed();
+  if (bleed && e.hp > 0){
+    e.hp -= bleed;
+    expSwing('knight', exp.foe, bleed, false, 'bleed');
+  } else if (def.regen && e.hp > 0){
+    const heal = Math.min(def.regen, def.hp - e.hp);
+    if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
+  }
   const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
   k.hp = Math.max(0, k.hp - ed);
   expSwing(exp.foe, 'knight', ed);
@@ -3957,6 +4018,7 @@ function expBeat(){
 // v3.2.5: 보스에게 지고 돌아왔을 때 — 땅마다
 const BOSS_LOSS_SAY = {
   stonehide:'돌 같은 가죽이다. 보통 날로는 흠집도 안 난다',      // v4.3.0
+  swamptomb:'벤 자리가 그대로 아문다. 피를 흘리게 해야 한다',    // v6.0.0
   prelude:  '맨손으론 저 이빨을 못 당하겠군',
   mountain: '돌조각으론 곰을 당해낼 수 없겠어',
   grassland:'가죽만으론 저 뿔을 못 막겠어',
@@ -3986,6 +4048,8 @@ function expEnd(kind){
   // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
   if (bearLoss && lossId === 'stonehide' && !(S.questDone || []).includes('pierce'))
     setTimeout(() => giveQuest('pierce'), 1800);                  // v4.3.0: 막혀 본 뒤에 길을 준다
+  if (bearLoss && lossId === 'swamptomb' && !(S.questDone || []).includes('bleed'))
+    setTimeout(() => giveQuest('bleed'), 1800);                   // v6.0.0
   const lossKey = `bossloss:${lossId}`;
   if (bearLoss && !S.said.includes(lossKey)){
     S.said.push(lossKey);
@@ -4250,14 +4314,24 @@ function expPaint(){
 }
 // 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
 const tokOf = who => document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
-function expSwing(from, to, dmg, blocked){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
+// v6.0.0: 회복 숫자 (초록 +N)
+function expHeal(idx, n){
+  const el = tokOf(idx);
+  if (!el) return;
+  const f = document.createElement('b');
+  f.className = 'dmg heal';
+  f.textContent = `+${n}`;
+  el.appendChild(f);
+  setTimeout(() => f.remove(), 700);
+}
+function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
   const a = tokOf(from), b = tokOf(to);
   if (a) flash(a, 'atk', 300);
   if (b){
     flash(b, 'hurt', 300);
     const f = document.createElement('div');
-    f.className = 'dmg' + (blocked ? ' blocked' : '');
-    f.textContent = blocked ? `-${dmg} 막힘` : `-${dmg}`;
+    f.className = 'dmg' + (blocked ? ' blocked' : '') + (kind === 'bleed' ? ' bleedhit' : '');
+    f.textContent = kind === 'bleed' ? `-${dmg} 출혈` : blocked ? `-${dmg} 막힘` : `-${dmg}`;
     f.style.left = b.style.left || '5%';
     f.style.bottom = 'calc(var(--ch) * .7)';
     b.parentElement.appendChild(f);
@@ -4496,6 +4570,11 @@ function syncUnlocks(newly){
       if (newly === id) unlockNextField(id);                       // 연출과 함께
       else S.fields[next.id].locked = false;                       // 조용히 맞춤
     }
+  }
+  if (cleared.includes('stonehide') && S.fields.swamptomb && S.fields.swamptomb.locked){
+    S.fields.swamptomb.locked = false;                             // v6.0.0: 굴을 깨면 그 아래 물길이 보인다
+    if (newly === 'stonehide') knightSay('굴 아래로 물 흐르는 소리가 난다');
+    addUnlockNote('swamptomb');
   }
   if (cleared.includes('mountain') && S.fields.stonehide && S.fields.stonehide.locked){
     S.fields.stonehide.locked = false;                             // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
