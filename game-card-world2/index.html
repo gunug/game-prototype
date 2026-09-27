@@ -32,6 +32,13 @@
     background:rgba(28,28,23,.98);border:1px solid var(--hairline);border-radius:var(--r-md);box-shadow:var(--sh-lg);padding:10px 12px;}
 
   /* 필드 */  /* 필드 */
+  /* v3.6.0: 필드 맨 위 머리 — 탭 줄 + 수첩. 아래 화면들은 그만큼 내려서 시작한다 */
+  .fieldhead{position:absolute;left:0;right:0;top:0;z-index:6;background:rgba(20,20,16,.96);border-bottom:1px solid var(--hairline);}
+  .fieldhead .uibar{border-top:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:rgba(255,212,0,.45) transparent;}
+  .fieldhead .uibar::-webkit-scrollbar{height:5px;}
+  .fieldhead .uibar::-webkit-scrollbar-thumb{background:rgba(255,212,0,.45);border-radius:3px;}
+  .fieldhead .quest{background:transparent;}
+  .fieldhead .quest.show{max-height:38vh;}
   .table{position:absolute;inset:0;overflow:hidden;touch-action:none;
     background:radial-gradient(ellipse at 50% 40%,#25251d 0%,var(--canvas) 72%);}
   /* 채집 탭 (v0.6.0) — 크래프팅 필드와 같은 자리에 필드 카드 4장 */
@@ -499,6 +506,8 @@
   /* v0.80.0: 트리 버튼 · 트리 팝업 (콜렉터북과 같은 옷) */
   /* v0.91.0: 던전 화면 — 아직 들어갈 던전이 없어 안내와 계획표 버튼만 */
   .dungeon[hidden]{display:none;}
+  /* v3.6.0: 머리 높이만큼 내려서 시작 */
+  .field > .table,.field > .gather,.field > .dungeon,.field > .book.inline,.field > .toplist{top:var(--headh, 0px);}
   .dungeon{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
     box-sizing:border-box;padding:calc(var(--cw) * .3);text-align:center;
     background:radial-gradient(ellipse at 50% 40%,#231d22 0%,var(--canvas) 72%);}
@@ -610,6 +619,21 @@
 <body>
 <!-- v0.16.0 화면 구조 (확정 50): 필드(1:1) · UI(남는 공간) · 팝업(1:1 레이어) -->
 <div class="field" id="field">
+  <!-- v3.6.0: 메인 탭은 필드 맨 위, 기사의 수첩은 바로 그 밑 -->
+  <div class="fieldhead" id="fieldhead">
+    <div class="uibar" id="tabs">
+      <button class="tabbtn" id="bookBtn" data-tab="book">📖<span class="nbadge" id="bookBadge" hidden></span></button>
+      <button class="tabbtn" id="setBtn">⚙</button>
+      <span class="meta ver-out" id="ver"></span>
+      <div class="setpan" id="setpan" hidden>
+        <span class="meta" id="seenMeta"></span>
+        <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
+        <button class="reset" id="dumpBtn">진행도</button>
+        <button class="reset" id="reset">처음부터</button>
+      </div>
+    </div>
+    <div class="quest" id="quest"></div>
+  </div>
   <div class="table" id="table">
     <div class="hint" id="hint">🧺 <b>채집</b>에서 필드를 탭해 재료를 모으고<br>여기서 카드를 끌어 조합해 보세요</div>
   </div>
@@ -620,19 +644,7 @@
   <button class="treebtn" id="treeBtn" hidden></button>
 </div>
 <div class="ui side" id="ui">
-  <div class="quest" id="quest"></div>
   <div class="insp" id="insp"></div>
-  <div class="uibar" id="tabs">
-    <button class="tabbtn" id="bookBtn" data-tab="book">📖<span class="nbadge" id="bookBadge" hidden></span></button>
-    <button class="tabbtn" id="setBtn">⚙</button>
-    <span class="meta ver-out" id="ver"></span>   <!-- v0.47.1: 설정을 안 열어도 보이게 -->
-    <div class="setpan" id="setpan" hidden>
-      <span class="meta" id="seenMeta"></span>
-      <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
-      <button class="reset" id="dumpBtn">진행도</button>
-      <button class="reset" id="reset">처음부터</button>
-    </div>
-  </div>
 </div>
 <div class="toasts" id="toasts"></div>
 <script>
@@ -1032,7 +1044,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v3.5.4';
+const VERSION = 'v3.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 티어가 있는 카드 (v0.3.0: 1티어 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].tier;
@@ -1459,6 +1471,17 @@ function layout(){
     { left: fr.left + 'px', width: FS + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
   const root = document.documentElement.style;
   root.setProperty('--fs', FS + 'px');
+  syncHeadH();                                                    // v3.6.0
+}
+function syncHeadH(){                                             // v3.6.0: 머리(탭 + 수첩) 높이 → --headh
+  const h = document.getElementById('fieldhead');
+  if (!h) return;
+  document.documentElement.style.setProperty('--headh', h.offsetHeight + 'px');
+}
+if (typeof ResizeObserver === 'function'){                        // v3.6.0: 머리 높이가 바뀌면 바로 따라감
+  const ro = new ResizeObserver(() => syncHeadH());
+  const hd = document.getElementById('fieldhead');
+  if (hd) ro.observe(hd);
 }
 function measure(){
   layout();
@@ -3756,6 +3779,8 @@ function hintDone(key){
   renderHint(); save();
 }
 function renderQuest(){
+  setTimeout(syncHeadH, 0);                                       // v3.6.0: 수첩이 늘고 줄면 아래 화면도 따라 내려감
+  setTimeout(syncHeadH, 400);
   setTimeout(renderHint, 0);                                      // v2.5.2: 퀘스트가 바뀌면 팁도 바로 다음으로
   const el = document.getElementById('quest');
   const list = S.quests || [];
