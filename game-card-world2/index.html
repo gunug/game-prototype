@@ -135,6 +135,12 @@
   .aim-tab .chars::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px;}
   .aim-tab .chars::-webkit-scrollbar-track{background:transparent;}
   .chars .cw.knight{position:relative;flex:none;cursor:grab;}
+  /* v5.1.0: 원정 중인 캐릭터 — 끌 수 없고 '출전중' 딱지가 붙는다 */
+  .cw.knight.out{cursor:default;filter:grayscale(.55) brightness(.72);}
+  .cw.knight.out .out-lab{position:absolute;left:0;right:0;top:38%;z-index:3;display:flex;flex-direction:column;align-items:center;
+    gap:1px;padding:2px 0;background:rgba(0,0,0,.62);color:var(--brand-yellow);font-weight:900;
+    font-size:calc(var(--cf) * .13);letter-spacing:.04em;filter:none;}
+  .cw.knight.out .out-where{font-size:calc(var(--cf) * .1);font-weight:700;color:var(--ink);opacity:.85;}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
   .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
@@ -1225,7 +1231,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v5.0.0';
+const VERSION = 'v5.1.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3179,7 +3185,8 @@ function screenRows(){
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
-  if (S.tab === 'battle' || S.tab === 'dungeon') return [{ token: 'knight', html: knightCardHtml(true) }];   // v4.0.0
+  // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
+  if (S.tab === 'battle' || S.tab === 'dungeon') return [{ token: exp ? null : 'knight', html: knightCardHtml(!exp) }];   // v4.0.0
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
     // v3.0.7: 카드 위엔 할 일을 적지 않는다 — 상태는 테두리 빛으로만, 자세한 건 탭했을 때 인스펙터에서
@@ -3235,7 +3242,9 @@ function knightIntro(){
 }
 function knightCardHtml(drag){
   const k = S.knight;
-  return `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}" data-knight="1"${drag ? ' data-token="knight"' : ''}>`
+  const out = !!exp;                                              // v5.1.0: 원정 중
+  return `<div class="cw framed f-gold knight${knightPick ? ' sel' : ''}${out ? ' out' : ''}" data-knight="1"${drag && !out ? ' data-token="knight"' : ''}>`
+    + (out ? `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[exp.id].name)}</span></div>` : '')
     + '<div class="emoji"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
     + '<div class="name">기사</div>'
     // v0.70.0: 카드가 좁으니 줄을 늘리지 않는다 — **숫자를 막대 위에 겹쳐** 올린다
@@ -3283,12 +3292,13 @@ function renderScreen(){
     + rows.map(row => `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
     + '<div class="botarea">'
-    + '<div class="chars">' + toks.map(t => t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`)).join('')
+    + '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('')
     + (S.tab === 'battle' || S.tab === 'dungeon' ? knightSayHtml() : '') + '</div>'
     + (S.tab === 'aim' ? goalPlanHtml() : '')                     // v3.0.0: 목표까지의 차례
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
-    + `<div class="gather-hint">${S.tab === 'battle' || S.tab === 'dungeon' ? '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요'
+    + `<div class="gather-hint">${S.tab === 'battle' || S.tab === 'dungeon'
+      ? (exp ? `🏃 ${esc(FIELD_BY_ID[exp.id].name)} 원정 중 — 돌아올 때까지 기다리세요` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요' : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   paintIcons(gatherEl);                                           // v3.5.0
   syncTopH();
@@ -4625,7 +4635,7 @@ document.getElementById('reset').addEventListener('click', () => {
   clearTimeout(knightSayT); knightLine = null; knightSayDone = null;   // 기사 대사
   clearTimeout(lockPopT); document.querySelector('.lockpop')?.remove();
   clearTimeout(pushSaveTimer);
-  openBook(false); bookTier = 'tool'; bookPick = null;             // 콜렉터북
+  openBook(false); bookTier = 'field'; bookPick = null;            // 콜렉터북 (v5.1.0: 'tool' 갈래는 v4.1.0에서 없어졌음)
   pendingInsertReset();
   // 고른 것 · 화면 상태
   selected = null; inspType = null; fieldPick = null; knightPick = false; slotPick = null;
