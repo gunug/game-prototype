@@ -315,6 +315,7 @@
   @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
   @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
   .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   .exp-lane .dmg{position:absolute;z-index:5;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
     color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);animation:floatUp 1s ease-out forwards;}
   /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
@@ -437,6 +438,7 @@
   /* v0.82.0: 카드 **아래쪽**에 `⚔ +2` 꼴. v0.87.0: 글씨 크기는 이름과 같게(.13), 색은 그림과 같게 */
   /* v0.88.0: 수치가 있는 카드만 그림·이름을 조금 위로 올리고, 수치도 살짝 올림 */
   .cw .stats ~ .emoji,.cw .stats ~ .name{position:relative;top:calc(var(--cw) * -.07);}
+  .s-trait{font-size:calc(var(--cw) * .11);color:var(--brand-yellow);font-weight:800;}   /* v4.3.0 */
   .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .09);display:flex;justify-content:center;gap:4px;
     font-size:calc(var(--cf) * .13);font-weight:800;line-height:1;pointer-events:none;
     text-shadow:0 1px 3px rgba(0,0,0,.85);}
@@ -500,6 +502,7 @@
   .insp .desc{color:var(--muted);font-style:italic;margin:2px 0 8px;}
   .insp .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
   .insp .chip{font-size:11px;padding:2px 8px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--ink);}
+  .insp .chip.trait{border-color:rgba(255,212,0,.6);color:var(--brand-yellow);background:rgba(255,212,0,.1);font-weight:800;}   /* v4.3.0 */
   .insp .chip.use{border-color:rgba(255,212,0,.45);color:#ffe08a;}   /* v0.19.0: 용도 태그 */
   .insp .chip .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
   .insp .sub{font-size:11px;font-weight:800;color:var(--brand-yellow);margin:8px 0 4px;letter-spacing:.02em;}
@@ -1185,7 +1188,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v4.2.0';
+const VERSION = 'v4.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1261,6 +1264,11 @@ const QUESTS = {
                 goal:1, key:'equip:atk2' },
   bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
+  // v4.3.0: 🪨 돌가죽 굴 — 한 번 막혀 본 뒤에 길이 열린다
+  pierce:     { name:'돌을 가르는 것', text:'🎯 목적에 방어를 무시하는 무기를 등록하자', goal:1, key:'aim-pierce',
+                say:'그 검은 돌을 쪼개면 날이 서겠지' },
+  stonelord:  { name:'굴의 주인',     text:'👑 돌가죽 주인을 넘자',   goal:1, key:'kill:stonelord',
+                say:'이 날이면 돌가죽도 갈린다' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 가 보자',      goal:1, key:'exp-start:grassland',
                 say:'산 너머에 다른 땅이 열렸군' },
   // v2.0.0: 🌾 초원 사슬 — 공통 질문 '어떻게 강해지지?'의 초원 답 = 방어(갑옷). 그 전에 무기 하나 더
@@ -1276,7 +1284,7 @@ const QUESTS = {
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
+const QUEST_NEXT = { pierce:'stonelord', goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
   grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
@@ -1290,6 +1298,7 @@ function questSelfCheck(){
     for (const u of useOf(t)) questHit(`aim-use:${u}`);
     if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');
     if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
+    if (DEFS[t].pierce) questHit('aim-pierce');                   // v4.3.0
   }
   if (S.goal && DEFS[S.goal]){                                    // v3.0.1: 목적에 이미 걸어 두었으면 바로 인정
     for (const u of useOf(S.goal)) questHit(`aim-use:${u}`);
@@ -1663,7 +1672,8 @@ function statsHtml(t){
   // v0.86.0: 거점(모닥불)은 초당 회복량을 적는다 — '본래의 두 배' 같은 모호한 말 대신 실제 수치
   const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${hpPerSec(HEAL_FULL_CAMP_MS)}/s</span>` : '';
   if (!d.atk && !d.def && !camp) return '';
-  return '<div class="stats">'                                    // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
+  const trait = d.pierce ? '<span class="s-trait">방어 무시</span>' : '';   // v4.3.0
+  return '<div class="stats">' + trait                            // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
     + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
     + camp + '</div>';
@@ -2130,7 +2140,7 @@ function select(id){
   renderInsp();
 }
 function renderInsp(){
-  if (S.tab === 'battle') return renderFieldInsp();
+  if (S.tab === 'battle' || S.tab === 'dungeon') return renderFieldInsp();   // v4.3.0: 던전도 같은 정보 칸
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
   if (S.tab === 'gearup' && knightPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
   const c = selected != null && byId(selected);
@@ -2150,6 +2160,7 @@ function renderInsp(){
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
   const chips = shownUses(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그. v0.74.0: 쓸 화면이 있는 것만
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
+  if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // 쓰이는 조합 — 이 카드가 들어가는 조합
@@ -2774,7 +2785,7 @@ bookEl.addEventListener('click', e => {
 // ── 탭 · 채집 (v0.6.0) ───────────────────────────────
 // 채집 탭: 필드 4곳(산·숲·강가·초원)을 큰 카드로 늘어놓음. 탭하면 인스펙터에 필드 정보 · 나오는 1단계
 // 판단: 아직 채집 동작은 없음 (카드 배치만)
-let fieldPick = null;
+let fieldPick = null, foePick = null;                             // v4.3.0: 고른 크리처
 let knightPick = false;                                           // v0.13.0: 인스펙터에 기사
 // v0.18.3: 그 필드 원정에 나오는 크리처의 전리품 종류 · 받아 봤는지
 function foesOf(id){ return [...new Set(planOf(id).filter(e => e.fight).map(e => e.fight))]; }
@@ -2968,6 +2979,7 @@ function setGoal(t){
   for (const u of useOf(t)) questHit(`aim-use:${u}`);
   if ((DEFS[t].atk || 0) >= 2) questHit('aim-atk2');               // v3.0.1: 더 센 무기를 골랐다
   if ((DEFS[t].atk || 0) >= 3) questHit('aim-atk3');
+  if (DEFS[t].pierce) questHit('aim-pierce');                     // v4.3.0: 방어 무시 무기를 목표로 걸었다
   toast(`🎯 목적 — ${aimName(t)}`);
   questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
   renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
@@ -3336,7 +3348,28 @@ function gameTick(){
   expTick(dt);                                                    // v0.13.0: 원정 진행
   healTick(dt);                                                   // v0.13.0: 기사 회복
 }
+// v4.3.0: 크리처 정보 — 한 번 싸워 본 적만 수치가 보인다
+function renderFoeInsp(){
+  const k = foePick, e = ENEMIES[k];
+  if (!e) return false;
+  const known = (S.killed || []).includes(k) || (S.metFoes || []).includes(k) || editMode;
+  inspEl.innerHTML = `<div class="head"><div class="pic${known ? '' : ' locked'}">`
+    + `<img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
+    + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
+    + (known
+      ? '<div class="rows">'
+        + `<div class="row">${statImg('atk')} 공격 <b>${e.atk}</b></div>`
+        + `<div class="row">${statImg('def')} 방어 <b>${e.def}</b></div>`
+        + `<div class="row">${statImg('hp')} 체력 <b>${e.hp}</b></div></div>`
+        + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
+        + '<div class="sub">떨구는 것</div><div class="rows">'
+        + (e.loot || []).map(l => `<div class="row">${iconHtml(l[0], true)} ${esc(DEFS[l[0]].name)} <span class="i-muted">${l[1]}%</span></div>`).join('')
+        + '</div>'
+      : '<div class="desc">아직 마주쳐 보지 못했다.</div>');
+  return true;
+}
 function renderFieldInsp(){
+  if (foePick && renderFoeInsp()) return;                         // v4.3.0
   if (knightPick){                                                // v0.13.0: 기사를 탭했을 때
     const k = S.knight;
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
@@ -3427,12 +3460,14 @@ gatherEl.addEventListener('click', e => {
     if (!knightPick){ knightPick = true; fieldPick = null; renderGather(); renderInsp(); }
     return;
   }
+  const fc = e.target.closest('[data-foe-card]');                 // v4.3.0: 왼쪽 크리처 카드를 탭하면 정보
+  if (fc){ foePick = fc.dataset.foeCard; fieldPick = null; knightPick = false; renderScreen(); renderInsp(); return; }
   const card = e.target.closest('[data-field]');
   if (!card) return;
   if (knightPick){ knightPick = false; gatherEl.querySelector('.cw.knight')?.classList.remove('sel'); }
   if (fieldPick !== card.dataset.field){                          // v0.26.0: 탭은 고르기만. 출전은 기사 카드를 칸에 끌어다 놓기
     for (const el of gatherEl.querySelectorAll('[data-field]')) el.classList.toggle('sel', el === card);
-    fieldPick = card.dataset.field;
+    fieldPick = card.dataset.field; foePick = null;
     hintDone('fieldInfo');                                        // v2.4.0
     renderInsp();
   }
@@ -3625,6 +3660,8 @@ function expTick(dt){
         exp.line = ev.boss ? `👑 ${subP2(ENEMIES[ev.fight].name)} 길을 막았다`   // v3.5.1: 조사 맞춤
           : ev.mid ? `⚔ ${subP2(ENEMIES[ev.fight].name)} 앞을 가로막았다`          // v0.58.0: 중간보스
           : `${withP(ENEMIES[ev.fight].name)} 마주쳤다`;
+        S.metFoes = S.metFoes || [];                              // v4.3.0: 마주친 적은 정보가 열린다
+        if (!S.metFoes.includes(ev.fight)) S.metFoes.push(ev.fight);
         if (ev.boss){ toast(`👑 보스 — ${ENEMIES[ev.fight].name}`); S.metBoss = true; }   // v0.21.1: 보스를 만나 봤음
         else if (ev.mid) toast(`⚔ 중간보스 — ${ENEMIES[ev.fight].name}`);   // v0.58.0
       }
@@ -3653,9 +3690,11 @@ function expTick(dt){
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
 function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
-  const kd = Math.max(1, knightAtk() - (knightPierce() ? 0 : def.def));   // v4.0.0: 방어 무시
+  const pierce = knightPierce();                                  // v4.0.0: 방어 무시
+  const raw = knightAtk() - (pierce ? 0 : def.def);
+  const kd = Math.max(1, raw);
   e.hp -= kd;
-  expSwing('knight', exp.foe, kd);
+  expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());   // v4.3.0: 피해가 1/3 이하로 깎이면 '막힘'
   const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
   k.hp = Math.max(0, k.hp - ed);
   expSwing(exp.foe, 'knight', ed);
@@ -3694,6 +3733,7 @@ function expBeat(){
 }
 // v3.2.5: 보스에게 지고 돌아왔을 때 — 땅마다
 const BOSS_LOSS_SAY = {
+  stonehide:'돌 같은 가죽이다. 보통 날로는 흠집도 안 난다',      // v4.3.0
   prelude:  '맨손으론 저 이빨을 못 당하겠군',
   mountain: '돌조각으론 곰을 당해낼 수 없겠어',
   grassland:'가죽만으론 저 뿔을 못 막겠어',
@@ -3721,6 +3761,8 @@ function expEnd(kind){
   const lossId = exp.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
   if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
   // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
+  if (bearLoss && lossId === 'stonehide' && !(S.questDone || []).includes('pierce'))
+    setTimeout(() => giveQuest('pierce'), 1800);                  // v4.3.0: 막혀 본 뒤에 길을 준다
   const lossKey = `bossloss:${lossId}`;
   if (bearLoss && !S.said.includes(lossKey)){
     S.said.push(lossKey);
@@ -3985,14 +4027,14 @@ function expPaint(){
 }
 // 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
 const tokOf = who => document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
-function expSwing(from, to, dmg){
+function expSwing(from, to, dmg, blocked){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
   const a = tokOf(from), b = tokOf(to);
   if (a) flash(a, 'atk', 300);
   if (b){
     flash(b, 'hurt', 300);
     const f = document.createElement('div');
-    f.className = 'dmg';
-    f.textContent = `-${dmg}`;
+    f.className = 'dmg' + (blocked ? ' blocked' : '');
+    f.textContent = blocked ? `-${dmg} 막힘` : `-${dmg}`;
     f.style.left = b.style.left || '5%';
     f.style.bottom = 'calc(var(--ch) * .7)';
     b.parentElement.appendChild(f);
