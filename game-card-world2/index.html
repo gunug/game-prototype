@@ -1000,7 +1000,51 @@ const USE = {
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'], campfire:['도구', '거점'],
 };
-const useOf = t => USE[t] || [];
+// v7.17.0: **재료 갈래(`~재료`)는 손으로 적지 않고 조합식에서 거꾸로 파생한다.**
+//   완성품(무기 · 방어구 · 방패 · 장신구 · 도구 · 음식 · 약품 · 건축)에서 조합식을 거슬러 올라가며
+//   그 길에 놓인 모든 재료에 그 갈래의 `~재료` 를 붙인다. 여러 갈래에 쓰이면 여러 개가 붙는다.
+//   · 손으로 적은 것 중 **기능 태그**(무기 · 방어구 · 도구 · 거점 · 음식 …)는 그대로 쓴다
+//   · 어느 완성품으로도 이어지지 않는 재료는 **갈래가 없다** — 그런 것은 🔨 조합 탭에 모인다
+//   조합식을 고치면 태그가 저절로 따라오므로 둘이 어긋날 일이 없다
+const MAT_OF = {
+  무기재료: ['무기', '근접무기', '원거리무기'],
+  갑옷재료: ['방어구'],
+  방패재료: ['방패'],
+  장신구재료: ['장신구'],
+  도구재료: ['도구', '거점'],
+  음식재료: ['음식'],
+  약품재료: ['약품'],
+  건축재료: ['건축'],
+};
+let MAT_TAGS_CACHE = null;                                        // 조합식(RECIPES)은 아래에서 만들어지므로 처음 쓸 때 센다
+const matTags = () => MAT_TAGS_CACHE || (MAT_TAGS_CACHE = (() => {
+  const rawUse = t => USE[t] || [];
+  const out = {};
+  for (const [tag, uses] of Object.entries(MAT_OF)){
+    const fin = Object.keys(DEFS).filter(t => rawUse(t).some(u => uses.includes(u)));
+    const seen = new Set(fin);
+    let frontier = fin.slice();
+    while (frontier.length){
+      const next = [];
+      for (const t of frontier) for (const r of RECIPES){
+        if (r.cook || !(r.out || []).includes(t)) continue;
+        for (const sd of [r.a, r.b]){
+          const c = sd.card;
+          if (!c || seen.has(c)) continue;
+          seen.add(c); next.push(c);
+          (out[c] = out[c] || []).push(tag);
+        }
+      }
+      frontier = next;
+    }
+  }
+  return out;
+})());
+const useOf = t => {
+  const raw = (USE[t] || []).filter(u => !u.endsWith('재료'));     // 손으로 적은 `~재료` 는 무시 (파생이 맡는다)
+  const mats = matTags()[t] || [];
+  return raw.concat(mats.filter(u => !raw.includes(u)));
+};
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
   stone: '어디에나 있다. 그래서 아무도 고마워하지 않는다.',
@@ -1298,7 +1342,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.16.0';
+const VERSION = 'v7.17.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
