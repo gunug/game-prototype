@@ -1297,7 +1297,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.11.0';
+const VERSION = 'v7.12.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2053,6 +2053,12 @@ const TAB_LINK = {
   '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
 };
 const TAB_LINK_RE = new RegExp('(' + Object.keys(TAB_LINK).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g');
+// v7.12.0: 땅 이름(⛰️ 산 · 🪨 돌가죽 굴 …)도 링크 — 누르면 그 탭으로 가고 그 땅을 골라 인스펙터에 띄운다
+let LAND_LINK_RE = null;
+const landLinkRe = () => LAND_LINK_RE || (LAND_LINK_RE =
+  new RegExp('(' + FIELDS.map(f => `${f.emoji} ${f.name}`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g'));
+const landByLabel = {};
+for (const f of FIELDS) landByLabel[`${f.emoji} ${f.name}`] = f.id;
 function linkTabs(root){
   if (!root || !root.querySelectorAll) return;
   const SHOW_TEXT = 4;
@@ -2060,11 +2066,14 @@ function linkTabs(root){
   const hits = [];
   for (let n = walk.nextNode(), i = 0; n && i < 4000; n = walk.nextNode(), i++){
     if (typeof n.nodeValue !== 'string') break;
-    TAB_LINK_RE.lastIndex = 0;
-    if (TAB_LINK_RE.test(n.nodeValue) && !(n.parentElement && n.parentElement.closest('[data-gotab]'))) hits.push(n);
+    TAB_LINK_RE.lastIndex = 0; landLinkRe().lastIndex = 0;
+    if ((TAB_LINK_RE.test(n.nodeValue) || landLinkRe().test(n.nodeValue))
+      && !(n.parentElement && n.parentElement.closest('[data-gotab], [data-goland]'))) hits.push(n);
   }
   for (const n of hits){
-    const html = esc(n.nodeValue).replace(TAB_LINK_RE, (m) => `<span class="go-tab" data-gotab="${TAB_LINK[m]}">${m}</span>`);
+    const html = esc(n.nodeValue)
+      .replace(landLinkRe(), (m) => `<span class="go-tab" data-goland="${landByLabel[m]}">${m}</span>`)
+      .replace(TAB_LINK_RE, (m) => `<span class="go-tab" data-gotab="${TAB_LINK[m]}">${m}</span>`);
     const box = document.createElement('span');
     box.innerHTML = html;
     n.replaceWith(...box.childNodes);
@@ -3979,6 +3988,15 @@ const healPerSec = () => campHeal(equipped('camp'));
 const healFullMs = () => Math.round(knightMaxHp() / healPerSec() * 1000);   // 빈사 → 가득 (보여 주기용)
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
 // v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
+// v7.12.0: 그 땅으로 — 굴이면 던전 탭, 아니면 필드 탭. 가서 그 땅을 골라 둔다
+function goLand(id){
+  const f = FIELD_BY_ID[id];
+  if (!f) return;
+  if (fieldLocked(id)){ toast(`🔒 ${f.emoji} ${f.name} — 아직 잠겨 있음`); return; }
+  setTab(f.dungeon ? 'dungeon' : 'battle');
+  fieldPick = id; knightPick = false; foePick = null; inspType = null;
+  renderScreen(); renderInsp();
+}
 function goBoard(id){
   const b = BOARD_BY_ID[id];
   if (!b){ setTab(id); return; }                                  // 자유 화면(필드 · 던전 · 목표 · 책 · 설정)
@@ -4004,6 +4022,8 @@ function goCardTap(type){
   renderInsp();
 }
 function goalJumpClick(e){
+  const l = e.target.closest('[data-goland]');                    // v7.12.0: 글 속 땅 이름
+  if (l){ goLand(l.dataset.goland); return true; }
   const g = e.target.closest('[data-gotab]');                     // v7.8.0: 글 속 탭 이름
   if (g){ goBoard(g.dataset.gotab); return true; }
   const b = e.target.closest('[data-goboard]');
