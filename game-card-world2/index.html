@@ -755,10 +755,11 @@
     </div>
     <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
     <div class="set-btns">
-      <button class="reset" id="dumpBtn">진행도</button>
+      <button class="reset" id="dumpBtn">진행도 + 기록</button>
       <button class="reset" id="reset">처음부터</button>
     </div>
-    <div class="set-note">에디터 모드는 잠긴 화면 · 필드 · 카드를 모두 열어 본다. 저장과 별개로 새로 고쳐도 유지된다.</div>
+    <div class="set-note">에디터 모드는 잠긴 화면 · 필드 · 카드를 모두 열어 본다. 저장과 별개로 새로 고쳐도 유지된다.<br>
+      <b>진행도 + 기록</b>은 지금 상태와 <b>처음 켠 때부터의 모든 걸음</b>(고른 탭 · 원정 · 조합 · 목표에 걸린 시간)을 JSON 으로 복사한다.</div>
   </div>
 </div>
 <div class="ui side" id="ui">
@@ -1281,7 +1282,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.5.0';
+const VERSION = 'v7.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1921,6 +1922,7 @@ function renderNew(){
 function discover(type){
   if (S.seen.includes(type)) return;
   S.seen.push(type);
+  logEv('find', { type, step: DEFS[type] && DEFS[type].step });    // v7.6.0
   S.newCards.push(type);
   toast(`✨ 새 카드: ${ic(type)} ${DEFS[type].name}`);
   renderMeta(); renderNew(); renderInsp();                        // v0.18.0: 인스펙터의 ??? 도 바로 풀림
@@ -2142,7 +2144,9 @@ function craft(drag, tgt, m){
   const eaten = [a, b];                                          // v0.9.0: 두 재료 모두 한 장씩 줄어듦 (남는 쪽 없음)
   const from = { x: tgt.x, y: tgt.y };
   S.madeRecipes = S.madeRecipes || [];                            // v0.45.0: 해 본 조합 기록
-  if (!S.madeRecipes.includes(r.id)) S.madeRecipes.push(r.id);
+  const firstTime = !S.madeRecipes.includes(r.id);
+  if (firstTime) S.madeRecipes.push(r.id);
+  logEv('craft', { recipe: r.id, out: outs.slice(), tab: S.tab, 처음: firstTime });   // v7.6.0
   for (const c of eaten) useOne(c);
   spawnMany(outs, tgt.x, tgt.y, from, true);                    // v0.2.2: 제작 성공 깜빡임
   // v2.4.7: 팁은 **만든 카드가 들어간 뒤** 다시 — 전엔 넣기 전에 그려 무기를 만들어도 '만들어 보세요'가 남았음
@@ -3201,6 +3205,7 @@ function checkGoalDone(){
   const g = S.goal;
   if (!g || !DEFS[g] || have(g) <= 0) return false;
   S.goal = null;
+  logEv('goalDone', { type: g, ms: logSince('goalSet', e => e.type === g) });   // v7.6.0: 목표 하나에 걸린 시간
   toast(`🎯 목표 달성 — ${DEFS[g].name}`);
   save();
   if (isRowScreen(S.tab)) renderScreen();
@@ -3225,6 +3230,7 @@ function questRegress(){
 }
 function setGoal(t){
   S.goal = t;
+  logEv('goalSet', { type: t, step: DEFS[t].step, 걸음수: goalSteps(t).length });   // v7.6.0
   hintDone('aim');                                                // v3.2.0: 목표 등록 조작을 해 봤다
   questHit('aim');                                                // v3.0.0: '목표에 등록하기' 퀘스트
   for (const u of useOf(t)) questHit(`aim-use:${u}`);
@@ -3452,6 +3458,7 @@ function equipCard(sl, type){
   if (old === type) return;
   const c = cardOf(type);
   if (!c || c.n <= 0) return;
+  logEv('equip', { slot: sl.key, type, was: old || null });       // v7.6.0
   S.equip[sl.key] = type;
   useOne(c);                                                      // 한 장만 칸으로
   if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
@@ -3693,6 +3700,7 @@ function renderFieldInsp(){
       }).join('');
 }
 function setTab(tab){
+  if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
   if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
   if (paused) return;
@@ -3970,6 +3978,8 @@ function expStart(id, cardEl){
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  logEv('expStart', { field: id, lv: S.knight.lv, atk: knightAtk(), def: knightDef(), hp: S.knight.hp,   // v7.6.0
+    weapon: equipped('weapon') || null, dungeon: !!FIELD_BY_ID[id].dungeon });
   setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
   fieldPick = id;                                                 // v0.49.2: 출전하면 그 필드를 인스펙터에 (직접 탭하지 않아도)
   knightPick = false; slotPick = null; inspType = null; selected = null;
@@ -4055,6 +4065,7 @@ function expBeat(){
     S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
     if (!S.killed.includes(e.key)) S.killed.push(e.key);
     questHit(`kill:${e.key}`);                                    // v0.60.0
+    logEv('kill', { foe: e.key, boss: !!e.boss, mid: !!e.mid, field: exp.id, hp: k.hp });   // v7.6.0
     if (e.boss){                                                  // v0.14.0: 그 필드의 마지막 보스를 잡으면 원정 끝
       // v0.51.1: 그 필드를 **처음** 정복했을 때만 다음 필드가 열림
       //   (보스를 다시 잡을 때마다 열려 산 하나로 초원·숲·강가가 다 열리던 것)
@@ -4088,6 +4099,8 @@ const BOSS_LOSS_SAY = {
   river:    '물살까지 상대할 줄은 몰랐군',
 };
 function expEnd(kind){
+  logEv('expEnd', { field: exp && exp.id, how: kind, ms: logSince('expStart', e => e.field === (exp && exp.id)),   // v7.6.0
+    hp: S.knight.hp, lv: S.knight.lv, far: exp ? Math.round(exp.t * 100) / 100 : null });
   const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : '원정을 마쳤다';
@@ -4437,6 +4450,7 @@ function gainXp(n){
     k.xp -= xpNeed(k.lv);
     k.lv++;
     ups.push(k.lv);
+    logEv('levelUp', { lv: k.lv });                                // v7.6.0
     questHit(`level:${k.lv}`);                                     // v2.0.0: 레벨 퀘스트
   }
   save();
@@ -4601,6 +4615,7 @@ function questStep(id){
   q.n++;
   if (q.n >= questGoal(def)){
     q.done = true;
+    logEv('questDone', { id: q.id, ms: logSince('questGet', e => e.id === q.id) });   // v7.6.0
     toast(`📜 퀘스트 완료: ${def.name}`);
     renderQuest();
     questFade(q);                                                  // v0.38.0: 반짝 뒤 줄에서 사라짐
@@ -4645,12 +4660,13 @@ function syncUnlocks(newly){
   }
   save();
 }
-function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f) toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); }
+function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f){ logEv('unlock', { field: id }); toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); } }   // v7.6.0
 function unlockNextField(afterId){
   const i = OUT_FIELDS().findIndex(f => f.id === afterId);
   const next = OUT_FIELDS().slice(i + 1).find(f => fieldLocked(f.id)) || OUT_FIELDS().find(f => fieldLocked(f.id));   // v4.0.0: 던전은 따로 열림
   if (!next) return;
   S.fields[next.id].locked = false;
+  logEv('unlock', { field: next.id });                             // v7.6.0
   save();
   playUnlock(next);
 }
@@ -4689,6 +4705,7 @@ function questCheckBlocks(){
     const st = questGroupState(def);
     if (!st.all) continue;
     q.done = true;
+    logEv('questDone', { id: q.id, ms: logSince('questGet', e => e.id === q.id) });   // v7.6.0
     toast(`📜 퀘스트 완료: ${def.name}`);
     renderQuest();
     questFade(q);
@@ -4775,6 +4792,47 @@ document.getElementById('mobileMode').checked = mobileMode;
 document.body.classList.toggle('mobile-mode', mobileMode);
 // v2.6.0: 진행도 — 지금 상태를 JSON 으로 클립보드에 (AI 에게 붙여 넣어 진행을 보여 주기 위한 것)
 //   에디터 모드면 시험용 상태가 아니라 **진짜 저장본**을 뜬다
+// ── 플레이 로그 (v7.6.0) ────────────────────────────
+// 처음 켠 순간부터의 걸음을 그대로 쌓는다. 뒤에 무엇을 고쳤는지 사람이 읽어 알 수 있게 **짧은 이름**을 쓴다.
+//   t  = 처음 켠 때로부터 흐른 밀리초 (새로 고쳐도 이어짐) · k = 무슨 일 · 나머지는 그 일의 값
+//   쓰임: 어떤 선택을 하는지 · 어디서 헤매는지 · 목표 하나를 끝내는 데 얼마나 걸리는지
+const LOG_KEY = 'card-world2.log';
+const LOG_MAX = 4000;                                             // 넘치면 오래된 것부터 버리고 버린 수를 센다
+let LOG = { start: Date.now(), startISO: new Date().toISOString(), dropped: 0, sessions: [], ev: [] };
+try {
+  const raw = localStorage.getItem(LOG_KEY);
+  if (raw){
+    const o = JSON.parse(raw);
+    if (o && Array.isArray(o.ev)) LOG = Object.assign(LOG, o);
+  }
+} catch (e){ console.warn('로그 읽기 실패', e); }
+let logSaveT = 0;
+function logSave(){
+  clearTimeout(logSaveT);
+  logSaveT = setTimeout(() => {
+    try { localStorage.setItem(LOG_KEY, JSON.stringify(LOG)); } catch (e){}
+  }, 800);
+}
+function logEv(k, data){
+  const e = Object.assign({ t: Date.now() - LOG.start, k }, data || {});
+  LOG.ev.push(e);
+  if (LOG.ev.length > LOG_MAX){ LOG.ev.splice(0, LOG.ev.length - LOG_MAX); LOG.dropped = (LOG.dropped || 0) + 1; }
+  logSave();
+  return e;
+}
+// 마지막으로 그 일이 일어난 때 — 걸린 시간을 재는 데 쓴다 (목표 · 퀘스트 · 원정)
+const logSince = (k, match) => {
+  for (let i = LOG.ev.length - 1; i >= 0; i--){
+    const e = LOG.ev[i];
+    if (e.k === k && (!match || match(e))) return Date.now() - LOG.start - e.t;
+  }
+  return null;
+};
+function logReset(){                                              // '처음부터' 를 누르면 그 사실만 남기고 새 장으로
+  LOG = { start: Date.now(), startISO: new Date().toISOString(), dropped: 0,
+    sessions: [{ at: new Date().toISOString(), ver: VERSION, note: '처음부터 다시' }], ev: [] };
+  logSave();
+}
 function progressSnapshot(){
   const src = editMode && realS ? realS : S;
   const prev = S;
@@ -4796,6 +4854,9 @@ function progressSnapshot(){
     return {
       version: VERSION,
       at: new Date().toISOString(),
+      // v7.6.0: 처음 켠 때부터의 기록 — 분석용
+      로그: { 시작: LOG.startISO, 흐른시간_분: Math.round((Date.now() - LOG.start) / 60000),
+        버린것: LOG.dropped || 0, 세션: LOG.sessions, 개수: LOG.ev.length, 이벤트: LOG.ev },
       에디터모드: editMode,                                        // true 면 에디터 모드를 켜 둔 채로 뜬 것 (내용은 진짜 저장본)
       기사: { lv: src.knight.lv, xp: src.knight.xp, 다음레벨xp: xpNeed(src.knight.lv),
         hp: src.knight.hp, 최대hp: knightMaxHp(), 공격: knightAtk(), 방어: knightDef() },
@@ -4834,7 +4895,7 @@ document.getElementById('dumpBtn').addEventListener('click', () => {
   try { json = JSON.stringify(progressSnapshot(), null, 2); }
   catch (e){ console.warn('진행도 만들기 실패', e); toast('⚠ 진행도를 못 만들었어요'); return; }
   copyText(json).then(
-    () => toast('📋 진행도 복사됨 — AI 에게 그대로 붙여 넣으세요'),
+    () => toast(`📋 진행도 + 기록 ${LOG.ev.length}줄 복사됨 — AI 에게 그대로 붙여 넣으세요`),
     e => { console.warn('클립보드 복사 실패 — 아래 JSON 을 직접 복사하세요', e); console.log(json);
       toast('⚠ 복사가 막혔어요 — 개발자 콘솔에 찍어 두었어요'); });
 });
@@ -4845,6 +4906,8 @@ document.getElementById('reset').addEventListener('click', () => {
   // 하던 것 끊기
   if (drag) endDrag({ type: 'pointercancel' });
   if (tokenDrag){ if (tokenDrag.moved) tokenDrag.el.remove(); tokenDrag = null; }
+  logEv('reset', {});                                             // v7.6.0: 지운다는 사실만 남기고
+  logReset();
   exp = null; healProg = 0;                                       // 원정 · 회복
   clearTimeout(knightSayT); knightLine = null; knightSayDone = null;   // 기사 대사
   clearTimeout(lockPopT); document.querySelector('.lockpop')?.remove();
@@ -4875,6 +4938,11 @@ try {                                                             // v0.32.1: �
     setEditMode(true, true);
   }
 } catch (e){ console.warn('에디터 모드 복구 실패', e); }   // v0.76.1: 조용히 넘어가지 않게
+// v7.6.0: 이 판이 열린 것을 기록 (새로 고침 · 다시 켜기도 한 줄로 남는다)
+LOG.sessions = LOG.sessions || [];
+LOG.sessions.push({ at: new Date().toISOString(), ver: VERSION, t: Date.now() - LOG.start });
+if (LOG.sessions.length > 200) LOG.sessions.splice(0, LOG.sessions.length - 200);
+logEv('open', { ver: VERSION, lv: S.knight.lv, seen: S.seen.length, cleared: (S.cleared || []).length });
 requestAnimationFrame(pushStep);
 knightIntro();                                                    // v0.36.0: 첫 대사 → 첫 퀘스트
 setInterval(gameTick, 100);
