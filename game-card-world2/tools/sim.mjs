@@ -156,11 +156,58 @@ function makeAI({ ctx, clock }){
       call('expStart', field, ctx.document.createElement('div'));   // flash() 가 만질 가짜 카드
       return g('!!exp') ? 'go' : 'blocked';
     },
-    // 원정이 끝날 때까지 시간을 흘려 보낸다 (최대 5분치)
-    finishExp(){
-      for (let i = 0; i < 600 && g('!!exp'); i++) clock.advance(500);
+    // 원정이 끝날 때까지 시간을 흘려 보낸다. between() 를 주면 **원정이 도는 사이에** 그 일을 한다
+    //   (사람 기록을 보면 원정은 자동이라 그동안 조합 · 장비를 만진다 — 그 리듬을 흉내 낸다)
+    finishExp(between){
+      for (let i = 0; i < 600 && g('!!exp'); i++){
+        clock.advance(500);
+        if (between && i % 6 === 5) between();                     // 3초쯤마다 한 번 손을 놀린다
+      }
       clock.advance(3000);                                         // 끝맺음 타이머(귀환 · 대사)
       return !g('!!exp');
+    },
+    // 그 땅을 지금 넘을 만한가 — 대본의 적들과 실제 규칙(방어 무시 · 출혈 · 회복)으로 셈해 본다
+    canBeat(field){
+      return g(`(function(){
+        const plan = planOf(${JSON.stringify(field)});
+        const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
+        const pierce = knightPierce(), bleed = knightBleed();
+        let hp = knightMaxHp();
+        for (const f of foes){
+          let fhp = f.hp, beats = 0;
+          while (fhp > 0 && beats < 200){
+            beats++;
+            fhp -= Math.max(1, knightAtk() - (pierce ? 0 : f.def));
+            if (fhp > 0){ if (bleed) fhp -= bleed; else if (f.regen) fhp = Math.min(f.hp, fhp + f.regen); }
+            if (fhp <= 0) break;
+            hp -= Math.max(1, f.atk - knightDef());
+            if (hp <= 0) return false;
+          }
+          if (fhp > 0) return false;                               // 아무리 때려도 안 죽는 놈 (회복 기믹)
+        }
+        return true;
+      })()`);
+    },
+    // 그 땅에 맞는 무기로 바꿔 쥔다 (회복하는 놈에겐 출혈, 단단한 놈에겐 방어 무시)
+    armFor(field){
+      return g(`(function(){
+        const plan = planOf(${JSON.stringify(field)});
+        const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
+        const needBleed = foes.some(f => f.regen), needPierce = foes.some(f => f.def >= 9);
+        let bT = null, bV = -1;
+        for (const t of CRAFT_TYPES){
+          if (!useOf(t).includes('근접무기')) continue;
+          const mine = have(t) > 0 || equipped('weapon') === t;
+          if (!mine) continue;
+          const d = DEFS[t];
+          let v = (d.atk || 0);
+          if (needBleed && d.bleed) v += 20;
+          if (needPierce && d.pierce) v += 20;
+          if (v > bV){ bV = v; bT = t; }
+        }
+        if (bT && equipped('weapon') !== bT){ const sl = slotByKey('weapon'); if (have(bT) > 0) equipCard(sl, bT); }
+        return equipped('weapon');
+      })()`);
     },
     restTo(frac = 1){                                              // 체력이 그만큼 찰 때까지 쉰다
       for (let i = 0; i < 600; i++){
@@ -209,14 +256,24 @@ function play(ai, note){
     return null;
   };
   let stuck = 0, lastSig = '';
-  const downs = {};                                               // 땅마다 진 횟수
+  const downs = {}, raids = {};                                   // 땅마다 진 횟수 · 정찰 횟수
+  // 원정이 도는 사이에 하는 일 — 목표 차례의 '지금 만들 수 있는 것'을 하나씩 (사람처럼)
+  const craftStep = () => {
+    const goal = ai.state().goal;
+    if (!goal) return false;
+    for (const x of ai.todo(goal)){
+      if (x.kind !== 'make' || !x.r || !x.r.a || !x.r.b) continue;
+      if (ai.craft(x.r.a.card, x.r.b.card)){ ai.touch(); note(`  (원정 중) 조합 ${x.type}`); return true; }
+    }
+    return false;
+  };
   for (let step = 0; step < 4000; step++){
     if (ai.minutes() > MAX_MIN) return '시간 한계';
     const st = ai.state();
     const sig = `${st.lv}|${st.cleared.length}|${st.seen}|${Object.keys(st.cards).length}|${st.goal}`;
     stuck = sig === lastSig ? stuck + 1 : 0;
     lastSig = sig;
-    if (stuck > 120){
+    if (stuck > 200){
       if (VERBOSE) console.log('   막힘 상태:', JSON.stringify(st), '| 할 일:', JSON.stringify(st.goal ? ai.todo(st.goal) : []).slice(0, 400));
       return '막힘(진척 없음)';
     }
@@ -224,7 +281,7 @@ function play(ai, note){
 
     equipBest();
 
-    // 목표가 없으면 하나 건다 — 가장 센 무기 · 방어구 쪽
+    // ① 목표가 없으면 하나 건다 — 지금 쥔 것보다 나은 장비
     if (!st.goal){
       const cands = ai.candidates();
       if (cands.length){
@@ -235,54 +292,52 @@ function play(ai, note){
           let bT = null, bV = 0;
           for (const t of list){
             const k = slotOf(t);
-            const now = k ? equipped(k) : null;
-            const gain = val(t) - (now ? val(now) : 0);            // 지금 쥔 것보다 나아야 건다
             if (!k || have(t) > 0) continue;
+            const now = k ? equipped(k) : null;
+            const gain = val(t) - (now ? val(now) : 0);
             if (gain > bV){ bV = gain; bT = t; }
           }
           return bT;
         })()`);
-        if (pick){ ai.goal(pick); note(`목표 ${pick}`); continue; }
+        if (pick){ ai.goal(pick); ai.touch(); note(`목표 ${pick}`); continue; }
       }
     }
 
-    // 목표 차례에서 **지금 할 수 있는 걸음**을 하나 민다 (만들기 먼저, 없으면 주우러)
-    if (st.goal){
-      const todo = ai.todo(st.goal);
-      let did = false;
-      for (const x of todo){                                       // ① 지금 만들 수 있는 것
-        if (x.kind !== 'make' || !x.r || !x.r.a || !x.r.b) continue;
-        const a = x.r.a.card, b = x.r.b.card;
-        if (a && b && ai.craft(a, b)){ ai.touch(); note(`조합 ${x.type}`); did = true; break; }
-      }
-      if (did) continue;
-      for (const x of todo){                                       // ② 지금 갈 수 있는 땅에서 주울 것
-        if (x.kind !== 'get') continue;
-        const f = fieldFor(x.type);
-        if (!f) continue;
-        ai.restTo(0.9); ai.touch();
-        if (ai.sortie(f) === 'go'){ ai.finishExp(); note(`원정 ${f} (${x.type})`); did = true; break; }
-      }
-      if (did) continue;
-      if (!todo.length){                                           // ③ 다 모였는데 목표가 안 끝났으면 마지막 조합
-        const last = ai.plan(st.goal).filter(x => x.kind === 'make').pop();
-        if (last && last.r && last.r.a && last.r.b && ai.craft(last.r.a.card, last.r.b.card)){ ai.touch(); note(`조합 ${last.type}`); continue; }
-      }
-    }
+    // ② 목표 차례 — 지금 만들 수 있으면 만든다
+    if (st.goal && craftStep()) continue;
 
-    // 다음 땅 도전 — 못 깬 곳 중 앞선 것. 세 번 지면 더 세질 때까지 쉬어 간다
-    const next = ai.fields().find(f => !f.locked && !st.cleared.includes(f.id));
-    if (next){
-      const fails = downs[next.id] || 0;
-      if (fails >= 3 && st.goal){ ai.advance(20000); continue; }    // 장비부터 갖추러 돌아감
+    // ③ 다음 땅: 넘을 만하면 간다. 아니면 **약한 땅에서 재료 · 경험치**를 벌어 온다 (사람도 그렇게 했다)
+    const list = ai.fields().filter(f => !f.locked);
+    const next = list.find(f => !st.cleared.includes(f.id));
+    const target = next || list[list.length - 1];
+    if (target){
+      ai.armFor(target.id);                                        // 그 땅에 맞는 무기로
+      const ok = ai.canBeat(target.id);
+      let go = target.id;
+      if (!ok){
+        // 못 넘을 것 같으면 — 벌이(재료 · 경험치)와 **정찰**을 번갈아 한다.
+        //   정찰 = 못 넘을 걸 알면서도 새 땅에 들어가 보는 것. 쓰러져도 줍는 것은 건지고, 거기서만 나오는
+        //   재료(흑요석 …)를 손에 넣어야 다음 무기가 열린다 — 사람 기록도 이렇게 굴을 먼저 들이받았다
+        raids[target.id] = raids[target.id] || 0;
+        const scout = !st.cleared.includes(target.id) && (raids[target.id] % 3 === 0);
+        if (scout){ raids[target.id]++; }
+        else {
+          raids[target.id]++;
+          const need = st.goal ? ai.todo(st.goal).find(x => x.kind === 'get') : null;
+          go = (need && fieldFor(need.type))
+            || list.filter(f => st.cleared.includes(f.id) && ai.canBeat(f.id)).map(f => f.id).pop()
+            || list[0].id;
+          ai.armFor(go);
+        }
+      }
       ai.restTo(1); ai.touch();
-      if (ai.sortie(next.id) === 'go'){
-        const hpBefore = ai.state().hp;
-        ai.finishExp();
+      const hpBefore = ai.state().hp;
+      if (ai.sortie(go) === 'go'){
+        ai.finishExp(craftStep);                                   // 원정 중에도 조합
         const after = ai.state();
-        if (after.hp <= 0 || hpBefore > after.hp && !after.cleared.includes(next.id)) downs[next.id] = fails + 1;
-        if (after.cleared.includes(next.id)) downs[next.id] = 0;
-        note(`원정 ${next.id} (도전)`);
+        if (after.cleared.includes(go)) downs[go] = 0;
+        else if (after.hp <= 0) downs[go] = (downs[go] || 0) + 1;
+        note(`원정 ${go}${ok ? '' : ' (벌이)'} — ${after.cleared.includes(go) ? '깸' : after.hp <= 0 ? '쓰러짐' : '귀환'}`);
         continue;
       }
     }
