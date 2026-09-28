@@ -41,6 +41,7 @@
   .setpage .set-btns{display:flex;gap:8px;}
   /* v4.9.0: 화면 방향 고르는 줄 */
   .setpage .set-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);}
+  .setpage .set-row.off{opacity:.45;}                             /* v7.1.0: 모바일 모드가 꺼져 있을 때 */
   .set-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--r-pill);background:rgba(255,255,255,.06);}
   .set-seg button{padding:4px 10px;border:0;border-radius:var(--r-pill);background:transparent;color:var(--ink);
     font:inherit;font-weight:700;cursor:pointer;}
@@ -744,13 +745,13 @@
   <div class="setpage" id="setpage" hidden>
     <div class="set-t">⚙ 설정</div>
     <span class="meta" id="seenMeta"></span>
-    <div class="set-row">화면 방향
-      <span class="set-seg" id="orientSeg">
-        <button data-orient="auto">자동</button><button data-orient="land">가로</button><button data-orient="port">세로</button>
-      </span>
-      <span class="meta">자동은 창 모양을 따른다</span>
-    </div>
     <label class="edit-mode"><input type="checkbox" id="mobileMode">모바일 모드 <span class="meta">412 × 915 (갤럭시 S22 울트라)</span></label>
+    <div class="set-row" id="mobileTurnRow">기기 방향
+      <span class="set-seg" id="mobileTurn">
+        <button data-mland="0">세로</button><button data-mland="1">가로</button>
+      </span>
+      <span class="meta">화면을 통째로 눕힌다 (412 × 915 ↔ 915 × 412)</span>
+    </div>
     <label class="edit-mode"><input type="checkbox" id="editMode">에디터 모드</label>
     <div class="set-btns">
       <button class="reset" id="dumpBtn">진행도</button>
@@ -1278,7 +1279,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.0.0';
+const VERSION = 'v7.1.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1738,20 +1739,22 @@ let FW = 320, FH = 320;                                           // v5.0.0: 필
 // v4.4.0: 모바일 모드 — 갤럭시 S22 울트라 기준 화면(412×915 CSS 픽셀)으로 가둬 본다
 const MOBILE_W = 412, MOBILE_H = 915;
 const NARROW_FS = 560;                                            // v4.7.0: 필드가 이보다 좁으면 메인 탭을 접는다
-// v4.9.0: 화면 방향 — 'auto'(창 모양대로) · 'land'(가로) · 'port'(세로)
-const ORIENT_KEY = 'card-world2.orient';
-let orientMode = 'auto';
-try { const v = localStorage.getItem(ORIENT_KEY); if (v === 'land' || v === 'port') orientMode = v; } catch (e) {}
-function setOrient(mode){
-  orientMode = (mode === 'land' || mode === 'port') ? mode : 'auto';
-  try { orientMode === 'auto' ? localStorage.removeItem(ORIENT_KEY) : localStorage.setItem(ORIENT_KEY, orientMode); } catch (e) {}
-  paintOrientSeg();
+// v7.1.0: 화면 배치는 **늘 창 모양을 따른다** (자동). 고르는 단추는 없앰
+//   대신 모바일 모드에서 기기를 눕힐 수 있다 — 화면 크기 자체가 412×915 ↔ 915×412 로 바뀐다
+const MLAND_KEY = 'card-world2.mobileland';
+let mobileLand = false;
+try { mobileLand = localStorage.getItem(MLAND_KEY) === '1'; } catch (e) {}
+function setMobileLand(on){
+  mobileLand = !!on;
+  try { mobileLand ? localStorage.setItem(MLAND_KEY, '1') : localStorage.removeItem(MLAND_KEY); } catch (e) {}
+  paintMobileTurn();
   measure();
 }
-function paintOrientSeg(){
-  const seg = document.getElementById('orientSeg');
-  if (!seg) return;
-  for (const b of seg.querySelectorAll('[data-orient]')) b.classList.toggle('on', b.dataset.orient === orientMode);
+function paintMobileTurn(){
+  const seg = document.getElementById('mobileTurn'), row = document.getElementById('mobileTurnRow');
+  if (!seg || !row) return;
+  row.classList.toggle('off', !mobileMode);                       // 모바일 모드가 꺼져 있으면 흐리게
+  for (const b of seg.querySelectorAll('[data-mland]')) b.classList.toggle('on', (b.dataset.mland === '1') === mobileLand);
 }
 let narrowUI = false, navOpen = false;
 const MOBILE_KEY = 'card-world2.mobile';
@@ -1761,18 +1764,22 @@ function setMobileMode(on){
   mobileMode = !!on;
   try { on ? localStorage.setItem(MOBILE_KEY, '1') : localStorage.removeItem(MOBILE_KEY); } catch (e) {}
   document.body.classList.toggle('mobile-mode', mobileMode);
+  paintMobileTurn();                                              // v7.1.0
   measure();
 }
 function layout(){
   // v4.4.0: 모바일 모드면 **논리 크기는 412×915 그대로** 두고, 창이 작으면 통째로 줄여 보여 준다
-  const k = mobileMode ? Math.min(1, innerWidth / MOBILE_W, innerHeight / MOBILE_H) : 1;
-  const W = mobileMode ? MOBILE_W : innerWidth, H = mobileMode ? MOBILE_H : innerHeight;
+  const k = mobileMode
+    ? Math.min(1, innerWidth / (mobileLand ? MOBILE_H : MOBILE_W), innerHeight / (mobileLand ? MOBILE_W : MOBILE_H))
+    : 1;
+  const MW = mobileLand ? MOBILE_H : MOBILE_W, MH = mobileLand ? MOBILE_W : MOBILE_H;   // v7.1.0: 눕히면 가로세로가 바뀐다
+  const W = mobileMode ? MW : innerWidth, H = mobileMode ? MH : innerHeight;
   const ox = Math.round((innerWidth - W * k) / 2), oy = Math.round((innerHeight - H * k) / 2);
   const put = (el, x, y, w, h) => {
     el.style.cssText = `left:${Math.round(ox + x * k)}px;top:${Math.round(oy + y * k)}px;width:${Math.round(w)}px;height:${Math.round(h)}px`
       + (k === 1 ? '' : `;transform:scale(${k});transform-origin:0 0`);
   };
-  const land = orientMode === 'land' ? true : orientMode === 'port' ? false : W >= H;   // v4.9.0
+  const land = W >= H;                                            // v7.1.0: 늘 창(또는 기기) 모양을 따른다
   // v5.0.0: 인스펙터는 고정 폭(높이) — 좁은 화면에서는 UI_MIN 까지만 줄어든다
   const iw = Math.max(UI_MIN, Math.min(INSP_W, Math.round(W * 0.32)));
   const ih = Math.max(UI_MIN, Math.min(INSP_H, Math.round(H * 0.34)));
@@ -4768,11 +4775,11 @@ function setEditMode(on, quiet){
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
 }
 document.getElementById('editMode').addEventListener('change', e => setEditMode(e.target.checked));
-document.getElementById('orientSeg').addEventListener('click', e => {   // v4.9.0
-  const b = e.target.closest('[data-orient]');
-  if (b) setOrient(b.dataset.orient);
+document.getElementById('mobileTurn').addEventListener('click', e => {   // v7.1.0
+  const b = e.target.closest('[data-mland]');
+  if (b) setMobileLand(b.dataset.mland === '1');
 });
-paintOrientSeg();
+paintMobileTurn();
 document.getElementById('mobileMode').addEventListener('change', e => setMobileMode(e.target.checked));   // v4.4.0
 document.getElementById('mobileMode').checked = mobileMode;
 document.body.classList.toggle('mobile-mode', mobileMode);
