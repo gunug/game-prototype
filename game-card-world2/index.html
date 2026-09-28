@@ -505,7 +505,12 @@
   /* v0.82.0: 카드 **아래쪽**에 `⚔ +2` 꼴. v0.87.0: 글씨 크기는 이름과 같게(.13), 색은 그림과 같게 */
   /* v0.88.0: 수치가 있는 카드만 그림·이름을 조금 위로 올리고, 수치도 살짝 올림 */
   .cw .stats ~ .emoji,.cw .stats ~ .name{position:relative;top:calc(var(--cw) * -.07);}
-  .s-trait{font-size:calc(var(--cw) * .11);color:var(--brand-yellow);font-weight:800;}   /* v4.3.0 */
+  /* v8.4.0: 무기의 성격 — 카드 위쪽 가운데 라운드 박스 */
+  .cw .trait-b{position:absolute;left:50%;top:calc(var(--cw) * .04);z-index:3;transform:translateX(-50%);
+    padding:0 calc(var(--cf) * .07);height:calc(var(--cf) * .17);display:flex;align-items:center;white-space:nowrap;
+    border-radius:var(--r-pill);background:rgba(255,212,0,.92);color:var(--on-brand);
+    font-size:calc(var(--cf) * .1);font-weight:900;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);}
+  .cw .trait-b.bleed{background:#ff6b6b;color:#1a0d0d;}
   .s-range{color:#f2f2ef;}                                          /* v8.3.0 */
   .s-spd{color:#7fdd8a;}
   .cw .stats{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .09);display:flex;justify-content:center;gap:4px;
@@ -1368,7 +1373,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v8.3.0';
+const VERSION = 'v8.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1981,9 +1986,10 @@ function statsHtml(t){
   const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${campHeal(t)}/s</span>` : '';   // v7.11.0
   const showRange = d.range && d.range > BASE_RANGE;              // v8.3.0: 맨손보다 멀리 닿는 무기만
   if (!d.atk && !d.def && !camp && !showRange && !d.spd) return '';
-  const trait = d.pierce ? '<span class="s-trait">방어 무시</span>'         // v4.3.0
-    : d.bleed ? '<span class="s-trait">출혈</span>' : '';                   // v6.0.0
-  return '<div class="stats">' + trait                            // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
+  // v8.4.0: 성격(방어 무시 · 출혈)은 수치 줄이 아니라 **카드 위쪽 라운드 박스**로 — 한눈에 성격부터 읽히게
+  const trait = d.pierce ? '<div class="trait-b">방어 무시</div>'           // v4.3.0
+    : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>` : '';    // v6.0.0
+  return trait + '<div class="stats">'                             // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
     + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
     + (showRange ? `<span class="s-range">${statImg('range')}${d.range}</span>` : '')   // v8.3.0
