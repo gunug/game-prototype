@@ -153,6 +153,17 @@ try {
   console.log('✓ 화면 조각 렌더 (콜렉터북 · 트리 · 수첩 · 목적 · 인스펙터)');
 } catch (e){ report('화면 렌더', e); }
 
+// 6.5) v7.3.0: 카드 이름 길이 — 다섯 글자 + 띄어쓰기 하나가 한계 (카드가 좁아 두 줄로 접힘)
+try {
+  const long = vm.runInContext(`JSON.stringify(CRAFT_TYPES.filter(t => {
+    const n = DEFS[t].name;
+    return n.replace(/ /g, '').length > 5 || (n.match(/ /g) || []).length > 1;
+  }).map(t => DEFS[t].name))`, ctx);
+  const list = JSON.parse(long);
+  if (list.length) report('카드 이름 길이', new Error('너무 긴 이름: ' + list.join(', ')));
+  else console.log('✓ 카드 이름 (다섯 글자 + 띄어쓰기 하나 안쪽)');
+} catch (e){ report('카드 이름 길이', e); }
+
 // 7) 같은 두 재료가 서로 다른 결과를 내는 조합식이 있는지 (v3.7.1) — 어느 쪽이 만들어질지 모르게 된다
 try {
   const dup = vm.runInContext(`(function(){
