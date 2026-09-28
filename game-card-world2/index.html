@@ -102,11 +102,10 @@
   .cw.being{position:relative;width:var(--cw);height:var(--ch);flex:none;box-sizing:border-box;
     display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;
     padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
-  .cw.being .pic{width:74%;height:46%;object-fit:contain;object-position:center top;margin-top:calc(var(--cw) * .04);
+  /* v8.6.0: 그림과 이름을 크게 — 카드에 담는 것은 그 둘과 레벨뿐 */
+  .cw.being .pic{width:92%;height:72%;object-fit:contain;object-position:center center;margin-top:calc(var(--cw) * .02);
     image-rendering:pixelated;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));}
-  .cw.being .name{margin-top:auto;font-size:calc(var(--cw) * .13);font-weight:800;line-height:1.1;text-align:center;}
-  .cw.being .bstat{display:flex;flex-wrap:wrap;justify-content:center;gap:0 calc(var(--cf) * .06);
-    font-size:calc(var(--cf) * .1);font-weight:800;line-height:1.25;}
+  .cw.being .name{margin-top:auto;font-size:calc(var(--cw) * .17);font-weight:800;line-height:1.1;text-align:center;}
   .cw.being .lv-b{position:absolute;left:calc(var(--cw) * .04);top:calc(var(--cw) * .04);z-index:3;
     padding:0 calc(var(--cf) * .06);border-radius:var(--r-pill);background:rgba(255,212,0,.92);color:var(--on-brand);
     font-size:calc(var(--cf) * .095);font-weight:900;line-height:1.5;}
@@ -121,8 +120,10 @@
   .gather .lrow > .cw.field{width:var(--cw);height:var(--ch);aspect-ratio:auto;}
   .gather .lrow > .cw.field .emoji{font-size:calc(var(--cw) * .38);}
   .gather .lrow .yields{font-size:calc(var(--cw) * .13);}
-  .lrow .pslot{width:var(--cw);height:var(--ch);}                 /* v8.5.0: 출전 칸도 카드와 같은 크기 */
-  .lrow .slotbox .box{width:var(--cw);height:var(--ch);}
+  .lrow .pslot{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}   /* v8.6.0: 줄 옆은 0.8배로 통일 */
+  .lrow .slotbox .box{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
+  .foelist .cw.being{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
+  .foelist .cw.being .name{font-size:calc(var(--cw) * .14);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
   /* v0.34.0: 위 줄엔 완성품 카드. v2.7.0: 격자를 접고 한 줄로 — 많아지면 옆으로 민다 */
   .toplist.grid{gap:calc(var(--cw) * .12);}
@@ -594,6 +595,12 @@
   /* v5.4.0: 인스펙터 안의 목표 차례 */
   .insp .insp-plan{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
   .insp .insp-plan .aim-step{font-size:12px;line-height:1.5;}
+  /* v8.6.0: 상태 표 */
+  .insp .stat-t{width:100%;border-collapse:collapse;margin:4px 0 2px;}
+  .insp .stat-t td{padding:2px 0;font-size:12px;vertical-align:middle;}
+  .insp .stat-t .s-ic{width:1.4em;}
+  .insp .stat-t .s-nm{color:var(--muted);}
+  .insp .stat-t .s-v{text-align:right;font-weight:800;}
   .insp .fit-ok{color:#8fe08f;}                                   /* v7.18.0 */
   .insp .fit-no{color:#ffd166;}
   .insp .armbtn{margin-left:6px;padding:2px 8px;border:0;border-radius:var(--r-pill);
@@ -1384,7 +1391,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v8.5.0';
+const VERSION = 'v8.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3646,19 +3653,16 @@ function knightIntro(){
 // v8.5.0: 캐릭터(기사)와 크리처는 **같은 틀**로 그린다 — 좌상단 레벨 · 그림 · 이름 · 공방체이속사거리 · 체력바
 //   다른 점은 둘뿐: 크리처는 **레벨이 없고 경험치 바도 없다**
 function beingCardHtml(o){
-  // o = { cls, pic, name, atk, def, hp, max, spd, range, lv, xp, xpNeed, extra, attrs, known }
-  const pct = o.max ? Math.max(0, Math.min(100, o.hp / o.max * 100)) : 0;
+  // o = { cls, pic, name, lv, xp, xpNeed, extra, attrs, known }
   return `<div class="cw framed being ${o.cls}"${o.attrs || ''}>`
     + (o.lv != null ? `<div class="lv-b">Lv ${o.lv}</div>` : '')   // 좌상단 레벨 (크리처는 없음)
     + (o.extra || '')
     + `<img class="pic" src="${o.pic}" alt="${esc(o.name)}" draggable="false">`
+    // v8.6.0: 카드에는 **이름과 레벨만**. 수치(공 · 방 · 체 · 이동 · 사거리)는 정보 칸이 맡는다 —
+    //   카드가 작아 다섯 값을 다 넣으면 그림도 이름도 읽히지 않았다
     + `<div class="name">${o.known === false ? '???' : esc(o.name)}</div>`
-    + (o.known === false ? '' :
-        `<div class="bstat"><span>${statImg('atk')}${o.atk}</span><span>${statImg('def')}${o.def}</span>`
-      + `<span>${statImg('spd')}${o.spd}</span><span>${statImg('range')}${o.range}</span></div>`
-      + `<div class="hpbar${o.hp <= 0 ? ' down' : ''}"><i style="width:${pct}%"></i>`
-      + `<b class="barlab">${statImg('hp')}${o.hp}/${o.max}</b></div>`
-      + (o.xpNeed ? `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>` : ''))
+    + (o.known === false || !o.xpNeed ? '' :                        // 경험치만 얇은 막대로 (기사)
+        `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>`)
     + '</div>';
 }
 function knightCardHtml(drag){
@@ -3949,12 +3953,10 @@ function renderFoeInsp(){
     + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
     + foeChips(k)                                                 // v7.10.0: 갈래 태그 (테두리와 같은 뜻을 글로도)
     + (known
-      ? '<div class="rows">'
-        + `<div class="row">${statImg('atk')} 공격 <b>${e.atk}</b></div>`
-        + `<div class="row">${statImg('def')} 방어 <b>${e.def}</b></div>`
-        + `<div class="row">${statImg('hp')} 체력 <b>${e.hp}</b></div>`
-        + `<div class="row">${statImg('spd')} 이동 <b>${foeSpd(e)}</b></div>`      // v8.0.0 · v8.3.0
-        + `<div class="row">${statImg('range')} 사거리 <b>${foeRange(e)}</b></div></div>`
+      ? '<table class="stat-t"><tbody>'                            // v8.6.0: 기사와 같은 표
+        + statRow('atk', '공격', e.atk) + statRow('def', '방어', e.def) + statRow('hp', '체력', e.hp)
+        + statRow('spd', '이동', foeSpd(e)) + statRow('range', '사거리', foeRange(e))
+        + '</tbody></table>'
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
         + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. <b>출혈</b>이 걸린 동안에는 차오르지 않는다.</div>` : '')   // v6.0.0
         + '<div class="sub">떨구는 것</div><div class="rows">'
@@ -3994,6 +3996,9 @@ function fieldArmTip(id){
   return { ok: false, why: needBleed ? '출혈' : '방어 무시', type: mine || null,
     what: needBleed ? '살이 도로 차오른다' : '가죽이 돌처럼 단단하다' };
 }
+// v8.6.0: 상태 표 한 줄 — 그림 · 이름 · 값 (· 덧말)
+const statRow = (k, name, val, cls, note) => `<tr><td class="s-ic">${statImg(k)}</td><td class="s-nm">${name}</td>`
+  + `<td class="s-v"><b class="${cls || ''}">${val}</b>${note ? ` <span class="i-muted">${note}</span>` : ''}</td></tr>`;
 function renderFieldInsp(){
   if (foePick && renderFoeInsp()) return;                         // v4.3.0
   if (knightPick){                                                // v0.13.0: 기사를 탭했을 때
@@ -4001,12 +4006,14 @@ function renderFieldInsp(){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false"></div>'
       + `<div><div class="nm">기사 <span class="i-muted" style="font-weight:700">Lv ${knightLv()}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
-      + '<div class="sub">상태</div><div class="rows">'                // v0.73.0: 능력치는 한 묶음으로 가로 배치
-      + `<div class="row">${statImg('atk')} 공격 <b class="v-atk">${knightAtk()}</b></div>`
-      + `<div class="row">${statImg('def')} 방어 <b class="v-def">${knightDef()}</b></div>`
-      + `<div class="row">${statImg('spd')} 이동 <b>${knightSpd()}</b></div>`      // v8.0.0 · v8.3.0
-      + `<div class="row">${statImg('range')} 사거리 <b>${knightRange()}</b></div>`
-      + `<div class="row">${statImg('hp')} 체력 <b class="v-hp">${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div></div>`
+      // v8.6.0: 상태는 **표**로 — 이름과 값이 세로로 맞아 눈이 한 줄씩 읽는다
+      + '<div class="sub">상태</div><table class="stat-t"><tbody>'
+      + statRow('atk', '공격', knightAtk(), 'v-atk')
+      + statRow('def', '방어', knightDef(), 'v-def')
+      + statRow('hp', '체력', `${k.hp}/${knightMaxHp()}`, 'v-hp', k.hp <= 0 ? '빈사' : '')
+      + statRow('spd', '이동', knightSpd())
+      + statRow('range', '사거리', knightRange())
+      + '</tbody></table>'
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
           + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
