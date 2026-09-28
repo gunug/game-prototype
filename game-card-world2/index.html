@@ -59,7 +59,7 @@
   .navmenu .tabgroup{display:flex;flex-wrap:wrap;width:100%;}
   .navmenu .tabbtn{flex:1 1 auto;justify-content:center;}
   /* v4.5.0: 탭 묶음 — 같은 결끼리 바탕을 공유하고 묶음 사이에만 틈 */
-  .tabgroup{display:inline-flex;align-items:center;gap:3px;padding:3px;border-radius:calc(var(--r-pill) + 3px);
+  .tabgroup{display:inline-flex;flex-wrap:wrap;row-gap:3px;align-items:center;gap:3px;padding:3px;border-radius:calc(var(--r-pill) + 3px);
     background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);flex:none;}
   .tabgroup + .tabgroup{margin-left:8px;}
   .tabgroup .tabbtn{border-color:transparent;background:transparent;}
@@ -320,14 +320,17 @@
   .exp{width:100%;box-sizing:border-box;padding:0 10px;border-top:0 solid var(--hairline);max-height:0;opacity:0;overflow:hidden;
     transition:max-height .3s cubic-bezier(.2,.85,.25,1),opacity .24s,padding .3s,border-top-width .3s;}
   .exp.on{max-height:46vh;opacity:1;padding:4px 10px 6px;border-top-width:1px;}
+  .exp.on{overflow:visible;}                                      /* v6.8.0: 다 열린 뒤에는 상자가 밖으로 나와도 안 자름 */
   .exp[hidden]{display:none;}
   .exp-lane .tok,.exp-lane .spot,.exp-lane .mark{animation:objIn .3s ease-out;}
   @keyframes objIn{from{opacity:0;transform:scale(.7);}to{opacity:1;transform:none;}}
   .exp-lane .tok.knight{animation:none;}                          /* 기사는 계속 움직이므로 그대로 */
   .exp-lane .tok.dead,.exp-lane .spot.done{animation:none;}       /* v3.14.3: 이미 끝난 것은 등장 연출 없이 */
-  .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:4px 0;border-radius:var(--r-md);overflow:hidden;
-    background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);}
-  .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;}
+  /* v6.8.0: 능력치 상자는 트랙 **위쪽 밖**에 뜬다 — 잘리지 않게 트랙은 넘침 허용, 대신 바탕만 트랙 안에 깔린다 */
+  .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:calc(var(--cf) * .34) 0 4px;border-radius:var(--r-md);overflow:visible;
+    background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);
+    background-clip:padding-box;}
+  .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;border-bottom-left-radius:var(--r-md);}
   /* v0.61.0: 여기까지 와 봤다 — 지난번에 가장 멀리 간 자리. 숫자는 쓰지 않는다 */
   .exp-lane .mark{position:absolute;bottom:5px;width:2px;height:calc(var(--ch) * .34);background:rgba(255,212,0,.5);
     margin-left:-1px;pointer-events:none;z-index:1;}
@@ -1272,7 +1275,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.7.0';
+const VERSION = 'v6.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2981,9 +2984,8 @@ function renderTabs(){                                            // v0.21.0: �
   const groups = [
     { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전')] },
     { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표')] },
-    // v6.4.0: 몸에 걸치는 것 / 살림 — 두 묶음으로 나눔 (탭이 아홉이라 한 묶음은 너무 길다)
-    { key:'make',  items: BOARDS.filter(b => ['tool', 'weapon', 'armor', 'shield', 'trinket'].includes(b.id)).map(boardBtn) },
-    { key:'make2', items: BOARDS.filter(b => ['toolbox', 'food', 'potion', 'build'].includes(b.id)).map(boardBtn) },
+    // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
+    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup').map(boardBtn) },
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
   host.insertAdjacentHTML('afterbegin', html);
