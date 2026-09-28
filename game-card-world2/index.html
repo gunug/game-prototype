@@ -357,7 +357,14 @@
   .exp-lane .tok.boss::before{content:'👑';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .26);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
-    display:flex;align-items:flex-end;justify-content:center;transition:left .12s linear;}
+    display:flex;align-items:flex-end;justify-content:center;transition:left .2s linear;}   /* v8.2.0: 걸음이 이어져 보이게 */
+  /* v8.2.0: 기사의 사거리 — 전투 중에만 옅은 띠로 (어디까지 닿는지 눈에 보이게) */
+  .exp-lane .tok.knight .reach{position:absolute;left:50%;bottom:2px;height:3px;border-radius:2px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,212,0,.55),rgba(255,212,0,0));}
+  .exp-lane .tok.knight .reach[hidden]{display:none;}
+  /* v8.2.0: 지금 싸우는 상대는 발밑에 표시 */
+  .exp-lane .tok.enemy.now::after{content:'';position:absolute;left:50%;bottom:0;width:calc(var(--cw) * .22);height:3px;
+    transform:translateX(-50%);border-radius:2px;background:rgba(255,120,120,.75);}
   .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
   .exp-lane .tok.walk{animation:dunBob .5s ease-in-out infinite;}
   .exp-lane .tok.dig{animation:dunDig .4s ease-in-out infinite;}   /* v0.13.4: 쭈그려 뒤지는 몸짓 */
@@ -1348,7 +1355,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v8.1.0';
+const VERSION = 'v8.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4322,6 +4329,8 @@ function expTick(dt){
       if (ev.loot){                                               // v0.13.4: 채집 포인트에서 잠시 뒤짐
         exp.spot = exp.spots.findIndex(sp => !sp.done && sp.at === ev.at);
         if (exp.spot < 0) return;                                 // v8.1.1: 이미 뒤진 자리면 그냥 지나간다
+        exp.kx = ev.at * LANE_LEN;                                // v8.2.0: 채집 자리에 정확히 선다
+        exp.t = exp.kx / LANE_LEN;
         exp.phase = 'search'; exp.search = 0;
         exp.line = '채집 포인트를 뒤진다';
         expPaint();
@@ -4670,7 +4679,8 @@ function expBuild(){
     // v0.13.1: 고블린은 처음부터 제자리에 서 있음
     + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${laneX(f.at)}%">`
         + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
-    + '<div class="tok knight walk"><div class="hp"></div><img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
+    + '<div class="tok knight walk"><div class="hp"></div><i class="reach" hidden></i>'
+    + '<img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
     + '</div><div class="exp-line"></div>';
   expPaint();
 }
@@ -4727,8 +4737,15 @@ function expPaint(){
   if (mk && !mk.classList.contains('passed') && exp.t > (S.marks[exp.id] || 0)) mk.classList.add('passed');
   const kt = lane.querySelector('.tok.knight');
   // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
-  const stop = exp.phase === 'search' ? 5 : 2.5;                  // v8.1.0: 전투 중에도 제 칸에 선다
-  kt.style.left = Math.max(3, laneX((exp.kx || 0) / LANE_LEN) - stop) + '%';   // v0.18.1: 여백 안쪽에서만 움직임
+  // v8.2.0: 상황(걷기 · 채집 · 전투)마다 달랐던 치우침을 없앰 — 늘 **제 칸 그대로** 그린다.
+  //   사거리 · 이동속도가 생긴 뒤로는 '어디에 서 있나'가 규칙이라 눈에 보이는 자리가 곧 판정 자리여야 한다
+  kt.style.left = laneX((exp.kx || 0) / LANE_LEN) + '%';
+  const reach = kt.querySelector('.reach');                       // 닿는 거리 — 전투 중에만 옅게
+  if (reach){
+    const on = exp.foe >= 0 && exp.phase === 'fight';
+    reach.hidden = !on;
+    if (on) reach.style.width = (knightRange() * (100 - LANE_PAD * 2) / LANE_LEN) + '%';
+  }
   kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
   kt.classList.toggle('dig', exp.phase === 'search');              // v0.13.4: 뒤지는 중
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
