@@ -564,6 +564,10 @@
   /* v5.4.0: 인스펙터 안의 목표 차례 */
   .insp .insp-plan{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
   .insp .insp-plan .aim-step{font-size:12px;line-height:1.5;}
+  .insp .fit-ok{color:#8fe08f;}                                   /* v7.18.0 */
+  .insp .fit-no{color:#ffd166;}
+  .insp .armbtn{margin-left:6px;padding:2px 8px;border:0;border-radius:var(--r-pill);
+    background:var(--brand-yellow);color:var(--on-brand);font:inherit;font-size:11px;font-weight:800;cursor:pointer;}
   .insp .chip.trait{border-color:rgba(255,212,0,.6);color:var(--brand-yellow);background:rgba(255,212,0,.1);font-weight:800;}   /* v4.3.0 */
   .insp .chip.use{border-color:rgba(255,212,0,.45);color:#ffe08a;}   /* v0.19.0: 용도 태그 */
   .insp .chip .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}
@@ -937,7 +941,9 @@ const DEFS = {
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
   battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true },       // v4.0.0: 방어를 0으로 치는 무기
-  obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:2 },         // v6.0.0: 출혈 — 회복을 끊는다
+  // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
+  //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
+  obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3 },         // v6.0.0: 출혈 — 회복을 끊는다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
@@ -1342,7 +1348,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.17.0';
+const VERSION = 'v7.18.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1369,6 +1375,12 @@ const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
 inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
+  const arm = e.target.closest('[data-arm]');                     // v7.18.0: 이 땅에 맞는 무기로 한 번에
+  if (arm){
+    const t = arm.dataset.arm, sl = slotByKey('weapon');
+    if (have(t) > 0){ equipCard(sl, t); toast(`🗡 ${DEFS[t].name} 를 쥐었다`); renderScreen(); renderInsp(); }
+    return;
+  }
   if (goalJumpClick(e)) return;                                   // v5.4.0: 목표 차례의 장소 · 재료
   const j = e.target.closest('[data-jump]');
   if (j) return jumpTo(j.dataset.jump);
@@ -3886,6 +3898,20 @@ function renderGoalInsp(){
     + '</div>';
   linkTabs(inspEl); paintIcons(inspEl);                           // v7.8.0
 }
+// v7.18.0: 이 땅의 적들이 무엇으로 막는지 보고, 가진 무기 중 **맞는 것**을 짚어 준다
+//   (사람도 AI도 '무기를 바꾸러 정비까지 가기'에서 막혔다 — 여기서 한 번에 바꾼다)
+function fieldArmTip(id){
+  const foes = planOf(id).filter(e => e.fight).map(e => ENEMIES[e.fight]).filter(Boolean);
+  const needBleed = foes.some(e => e.regen), needPierce = foes.some(e => e.def >= 9);
+  if (!needBleed && !needPierce) return null;
+  const now = equipped('weapon');
+  const fits = t => (needBleed && DEFS[t].bleed) || (needPierce && DEFS[t].pierce);
+  if (now && fits(now)) return { ok: true, why: needBleed ? '출혈' : '방어 무시', type: now };
+  const mine = CRAFT_TYPES.filter(t => useOf(t).includes('근접무기') && have(t) > 0 && fits(t))
+    .sort((a, b) => (DEFS[b].atk || 0) - (DEFS[a].atk || 0))[0];
+  return { ok: false, why: needBleed ? '출혈' : '방어 무시', type: mine || null,
+    what: needBleed ? '살이 도로 차오른다' : '가죽이 돌처럼 단단하다' };
+}
 function renderFieldInsp(){
   if (foePick && renderFoeInsp()) return;                         // v4.3.0
   if (knightPick){                                                // v0.13.0: 기사를 탭했을 때
@@ -3911,6 +3937,7 @@ function renderFieldInsp(){
   }
   const ys = yieldsOf(f.id);
   const st = S.fields[f.id];
+  const tip = fieldArmTip(f.id);                                  // v7.18.0: 이 땅에 맞는 무기
   if (fieldLocked(f.id)){
     inspEl.innerHTML = `<div class="head"><div class="pic locked">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드 · 🔒 잠김</div></div></div>`
       + '<div class="desc">아직 들어갈 수 없는 필드.</div>';
@@ -3926,6 +3953,10 @@ function renderFieldInsp(){
     + `<div class="desc">${esc(f.desc)}</div>`
     + `<div class="chips"><span class="chip use">${fieldUse(f)}</span>`                 // v7.9.0: 필드 · 던전 갈래
     + (landCleared(f) ? '<span class="chip trait">깬 곳</span>' : '') + '</div>'
+    + (tip ? (tip.ok
+        ? `<div class="row fit-ok">✔ ${esc(tip.why)} 무기를 쥐고 있다 — ${esc(DEFS[tip.type].name)}</div>`
+        : `<div class="row fit-no">⚠ ${esc(tip.what)} — <b>${esc(tip.why)}</b>${hasJong(tip.why) ? '이' : '가'} 필요하다`
+          + (tip.type ? ` <button class="armbtn" data-arm="${tip.type}">${esc(DEFS[tip.type].name)} 쥐기</button>` : '') + '</div>') : '')
     + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
     + '<div class="sub">주워 오는 것</div><div class="rows">'          // v0.73.0: 카드 목록은 가로로 묶고 폭이 모자라면 줄내림
     + ys.map(t => rowOf(t, S.seen.includes(t))).join('') + '</div>'
@@ -4060,7 +4091,7 @@ const ENEMIES = {
     loot: [['bogmoss', 55, 1], ['toadhide', 45, 1]] },
   bogarm:    { name:'수렁 팔',    portrait:'portrait_bogarm',   atk:9, def:4, hp:20, regen:3,
     loot: [['toadhide', 50, 2], ['bogmoss', 50, 1]] },
-  tombkeeper:{ name:'무덤 주인',  portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,
+  tombkeeper:{ name:'무덤 주인',  portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,  // v7.18.0: 회복은 10 그대로 — 기믹은 세게, 대신 출혈을 올렸다
     loot: [['graveseal', 100, 1], ['toadhide', 50, 2]] },
   crayfish:  { name:'가재',     portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
     loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
