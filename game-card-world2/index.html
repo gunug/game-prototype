@@ -1275,7 +1275,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.10.0';
+const VERSION = 'v6.11.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2136,14 +2136,35 @@ function craft(drag, tgt, m){
 // ── 밀어내기 (v0.2.0) ────────────────────────────────
 // 겹친 카드끼리 덜 겹친 축으로 서로 밀어냄. 끄는 중인 카드는 밀지도 밀리지도 않음 (조합 대상에 올릴 수 있게)
 const PUSH_GAP = 4;                                              // 카드 사이 최소 틈 (px)
-const PUSH_RATE = 0.3;                                           // 한 프레임에 겹친 만큼의 몇 배를 풀지
+const PUSH_RATE = 0.38;                                          // v6.11.0: 조금 더 빨리 풀림
+const PUSH_MIN = 1.6;                                            // v6.11.0: 겹쳤으면 적어도 이만큼은 민다 (살짝 겹친 채 굳지 않게)                                           // 한 프레임에 겹친 만큼의 몇 배를 풀지
 let pushSaveTimer = 0;
 function pushStep(){
   if (paused || table.hidden){ requestAnimationFrame(pushStep); return; }   // v0.6.0: 크래프팅 탭이 숨으면 필드 크기가 0이라 멈춤        // v0.4.0: 콜렉터북에 끼우는 동안 멈춤
   const list = visibleCards().filter(c => !(drag && drag.moved && drag.c === c));
   const sx = CW + PUSH_GAP, sy = CH + PUSH_GAP;
-  const move = new Map();
-  const add = (c, x, y) => { const m = move.get(c) || { x: 0, y: 0 }; m.x += x; m.y += y; move.set(c, m); };
+  const { w: bw, h: bh } = bounds();
+  let moved = false;
+  // v6.11.0: 한 칸 밀 때마다 **바로 반영**한다 (한꺼번에 더해 주면 줄로 늘어선 카드들의 힘이 서로 지워져 굳는다)
+  //   벽에 막히면 빈 쪽으로 돌려서 밀고, 아주 작은 흔들림을 섞어 대칭으로 멈추는 자리를 깬다
+  const nudge = (c, dx, dy) => {
+    const nx = c.x + dx, ny = c.y + dy;
+    let p = clampPos(nx, ny);
+    if (Math.abs(p.x - nx) > 0.5 && Math.abs(dx) > 0.5){           // 옆으로 못 감 → 위아래 중 넓은 쪽
+      const way = (bh - CH - c.y) > c.y ? 1 : -1;
+      p = clampPos(p.x, p.y + way * Math.abs(dx));
+    }
+    if (Math.abs(p.y - ny) > 0.5 && Math.abs(dy) > 0.5){           // 위아래로 못 감 → 좌우 중 넓은 쪽
+      const way = (bw - CW - c.x) > c.x ? 1 : -1;
+      p = clampPos(p.x + way * Math.abs(dy), p.y);
+    }
+    if (Math.abs(p.x - c.x) + Math.abs(p.y - c.y) < 0.02) return;
+    c.x = p.x; c.y = p.y;
+    const el = els.get(c.id);
+    if (el) place(el, c);
+    moved = true;
+  };
+  const jit = () => (Math.random() - 0.5) * 0.7;
   for (let i = 0; i < list.length; i++){
     for (let j = i + 1; j < list.length; j++){
       const a = list[i], b = list[j];
@@ -2151,18 +2172,37 @@ function pushStep(){
       const px = sx - Math.abs(dx), py = sy - Math.abs(dy);
       if (px <= 0.5 || py <= 0.5) continue;
       const dir = v => v > 0 ? 1 : v < 0 ? -1 : (b.id > a.id ? 1 : -1);
-      if (px < py){ add(a, -dir(dx) * px / 2, 0); add(b, dir(dx) * px / 2, 0); }
-      else { add(a, 0, -dir(dy) * py / 2); add(b, 0, dir(dy) * py / 2); }
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1){                   // v6.11.0: 딱 같은 자리면 **사방으로** 흩어진다
+        const ang = b.id * 2.39996, st = PUSH_MIN * 2;             // 황금각 — id마다 다른 방향
+        nudge(a, -Math.cos(ang) * st, -Math.sin(ang) * st);
+        nudge(b, Math.cos(ang) * st, Math.sin(ang) * st);
+        continue;
+      }
+      if (px < py){
+        const st = Math.max(px / 2, PUSH_MIN) * PUSH_RATE;
+        nudge(a, -dir(dx) * st, jit()); nudge(b, dir(dx) * st, jit());
+      } else {
+        const st = Math.max(py / 2, PUSH_MIN) * PUSH_RATE;
+        nudge(a, jit(), -dir(dy) * st); nudge(b, jit(), dir(dy) * st);
+      }
     }
   }
-  let moved = false;
-  for (const [c, m] of move){
-    const p = clampPos(c.x + m.x * PUSH_RATE, c.y + m.y * PUSH_RATE);
-    if (Math.abs(p.x - c.x) + Math.abs(p.y - c.y) < 0.05) continue;
-    c.x = p.x; c.y = p.y;
-    const el = els.get(c.id);
-    if (el) place(el, c);
-    moved = true;
+  // v6.11.0: 그래도 세 장 넘게 포개진 카드가 있으면 **스스로 빈자리를 찾아 간다** (한 프레임에 한 장씩)
+  //   밀기만으로는 빽빽한 더미가 서로를 지우며 굳는다 — 가장 심한 한 장을 빼 주면 더미가 풀린다
+  let worst = null, worstN = 1;                                    // 두 장 넘게 포개졌으면
+  for (const c of list){
+    let n = 0;
+    for (const o of list) if (o !== c && Math.abs(o.x - c.x) < CW * 0.9 && Math.abs(o.y - c.y) < CH * 0.8) n++;
+    if (n > worstN){ worstN = n; worst = c; }
+  }
+  if (worst){
+    const p = findSpot(worst.x, worst.y, worst.id);
+    if (Math.abs(p.x - worst.x) + Math.abs(p.y - worst.y) > 1){
+      worst.x = p.x; worst.y = p.y;
+      const el = els.get(worst.id);
+      if (el) place(el, worst);
+      moved = true;
+    }
   }
   if (moved){ clearTimeout(pushSaveTimer); pushSaveTimer = setTimeout(save, 500); }
   requestAnimationFrame(pushStep);
