@@ -1391,7 +1391,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v8.6.0';
+const VERSION = 'v8.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4804,7 +4804,18 @@ function expPaint(){
   // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
   // v8.2.0: 상황(걷기 · 채집 · 전투)마다 달랐던 치우침을 없앰 — 늘 **제 칸 그대로** 그린다.
   //   사거리 · 이동속도가 생긴 뒤로는 '어디에 서 있나'가 규칙이라 눈에 보이는 자리가 곧 판정 자리여야 한다
-  kt.style.left = laneX((exp.kx || 0) / LANE_LEN) + '%';
+  // v8.7.0: **그림에서는 겹치지 않게.** 1칸(맞닿음)은 규칙상 가장 가까운 거리지만,
+  //   트랙 1칸은 화면에서 몇 픽셀뿐이라 그대로 그리면 두 토큰이 포개진다 —
+  //   싸우는 동안만 상대보다 **토큰 하나 폭만큼** 왼쪽에 세운다 (판정 거리는 그대로)
+  let kxPct = laneX((exp.kx || 0) / LANE_LEN);
+  if (exp.foe >= 0 && exp.phase === 'fight'){
+    const f = exp.foes[exp.foe];
+    const laneW = lane.clientWidth || 1, tokW = kt.offsetWidth || 24;
+    const sep = tokW * 1.05 / laneW * 100;                        // 토큰 한 폭만큼 띄움
+    const fxPct = laneX((f.x != null ? f.x : f.at * LANE_LEN) / LANE_LEN);
+    kxPct = Math.min(kxPct, fxPct - sep);
+  }
+  kt.style.left = Math.max(2, kxPct) + '%';
   const reach = kt.querySelector('.reach');                       // 닿는 거리 — 전투 중에만 옅게
   if (reach){
     const on = exp.foe >= 0 && exp.phase === 'fight';
