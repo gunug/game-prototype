@@ -1292,7 +1292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.9.2';
+const VERSION = 'v7.10.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3230,7 +3230,7 @@ function mergeSteps(list){                                        // 같은 줄�
   return out;
 }
 const planStepDone = st => st.kind === 'need' ? sideHave({ use: st.use }) : have(st.type) >= (st.n || 1);
-// v3.0.2: 목표에 필요한데 아직 없는 '주워 올 것' — 필드 카드에 ⭐로 표시
+// v3.0.2: 목표에 필요한데 아직 없는 '주워 올 것' — 필드 카드에 🎯 로 표시 (v7.10.0: 별 대신 목표 그림)
 function goalNeeds(){
   const g = S.goal;
   if (!g || !DEFS[g]) return [];
@@ -3361,7 +3361,7 @@ function screenRows(){
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
         + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>` : '')
-        + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">⭐ ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2
+        + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">🎯 ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2 · v7.10.0: 목표 그림으로
         + '</div>';
       // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
       const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k => {
@@ -3706,6 +3706,16 @@ function gameTick(){
   healTick(dt);                                                   // v0.13.0: 기사 회복
 }
 // v4.3.0: 크리처 정보 — 한 번 싸워 본 적만 수치가 보인다
+// v7.10.0: 크리처 갈래 칩 — 동 테두리 = 크리처, 은 테두리 = 그 땅의 보스. 사는 곳도 함께
+function foeChips(k){
+  const homes = FIELDS.filter(f => planOf(f.id).some(e => e.fight === k));
+  const mid = FIELDS.some(f => planOf(f.id).some(e => e.fight === k && e.mid));
+  const chips = ['<span class="chip use">크리처</span>'];
+  if (bossFoes().has(k)) chips.push('<span class="chip trait">👑 보스</span>');
+  else if (mid) chips.push('<span class="chip trait">⚔ 중간보스</span>');
+  for (const f of homes) chips.push(`<span class="chip use">${f.emoji} ${esc(f.name)}</span>`);
+  return `<div class="chips">${chips.join('')}</div>`;
+}
 function renderFoeInsp(){
   const k = foePick, e = ENEMIES[k];
   if (!e) return false;
@@ -3713,6 +3723,7 @@ function renderFoeInsp(){
   inspEl.innerHTML = `<div class="head"><div class="pic${known ? '' : ' locked'}">`
     + `<img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
     + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
+    + foeChips(k)                                                 // v7.10.0: 갈래 태그 (테두리와 같은 뜻을 글로도)
     + (known
       ? '<div class="rows">'
         + `<div class="row">${statImg('atk')} 공격 <b>${e.atk}</b></div>`
