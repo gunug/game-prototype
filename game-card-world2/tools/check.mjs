@@ -155,10 +155,13 @@ try {
 
 // 6.5) v7.3.0: 카드 이름 길이 — 다섯 글자 + 띄어쓰기 하나가 한계 (카드가 좁아 두 줄로 접힘)
 try {
-  const long = vm.runInContext(`JSON.stringify(CRAFT_TYPES.filter(t => {
-    const n = DEFS[t].name;
-    return n.replace(/ /g, '').length > 5 || (n.match(/ /g) || []).length > 1;
-  }).map(t => DEFS[t].name))`, ctx);
+  const long = vm.runInContext(`(function(){
+    const over = n => n.replace(/ /g, '').length > 5 || (n.match(/ /g) || []).length > 1;
+    const bad = CRAFT_TYPES.filter(t => over(DEFS[t].name)).map(t => DEFS[t].name);
+    for (const k in ENEMIES) if (over(ENEMIES[k].name)) bad.push(ENEMIES[k].name);   // v7.9.2: 크리처도 같은 규칙
+    for (const f of FIELDS) if (over(f.name)) bad.push(f.name);                      // 땅 이름도
+    return JSON.stringify(bad);
+  })()`, ctx);
   const list = JSON.parse(long);
   if (list.length) report('카드 이름 길이', new Error('너무 긴 이름: ' + list.join(', ')));
   else console.log('✓ 카드 이름 (다섯 글자 + 띄어쓰기 하나 안쪽)');

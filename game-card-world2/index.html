@@ -516,6 +516,8 @@
   .f-stone{--frame:url(images/frame/frame_stone.png);}
   .f-wood{--frame:url(images/frame/frame_wood.png);}
   .f-boss{--frame:url(images/frame/frame_crimson.png);}          /* v3.9.1: 보스 전용 전리품 — 진홍 테두리 */
+  .f-bronze{--frame:url(images/frame/frame_bronze.png);}         /* v7.9.2: 크리처 — 동 테두리 */
+  .f-silver{--frame:url(images/frame/frame_silver.png);}         /* v7.9.2: 그 땅의 보스 — 은 테두리 */
   .cw.sel{outline:2px solid rgba(255,255,255,.55);outline-offset:2px;}
   /* v0.8.0: 보유 수량 — 카드 오른쪽 위 알약 */
   .cw .cnt{position:absolute;right:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;min-width:calc(var(--cf) * .2);height:calc(var(--cf) * .2);padding:0 calc(var(--cf) * .05);box-sizing:border-box;
@@ -1290,7 +1292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.9.1';
+const VERSION = 'v7.9.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2492,11 +2494,15 @@ const landCleared = f => (S.cleared || []).includes(f.id);
 // v7.9.1: 그 땅에 나오는 크리처 (대본에서 뽑는다) · 마주쳤거나 잡았으면 발견
 const bookFoes = id => { const seen = []; for (const e of planOf(id)) if (e.fight && !seen.some(x => x.key === e.fight))
   seen.push({ key: e.fight, boss: !!e.boss, mid: !!e.mid }); return seen; };
+// v7.9.2: 그 땅의 **보스**인 크리처 (필드 보스 · 던전 보스 모두) — 테두리를 은으로 가른다
+let BOSS_FOES = null;                                             // 대본(planOf)은 아래에서 만들어지므로 처음 쓸 때 센다
+const bossFoes = () => BOSS_FOES || (BOSS_FOES = new Set(FIELDS.flatMap(f => planOf(f.id).filter(e => e.fight && e.boss).map(e => e.fight))));
+const foeFrame = k => bossFoes().has(k) ? 'silver' : 'bronze';
 const foeSeen = k => editMode || (S.metFoes || []).includes(k) || (S.killed || []).includes(k);
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
-    + `<div class="cw framed f-stone${on ? '' : ' locked'}">`
+    + `<div class="cw framed f-${foeFrame(o.key)}${on ? '' : ' locked'}">`   // v7.9.2
     + `<div class="emoji"><img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
     + `<div class="name">${on ? esc(e.name) : '???'}</div>`
     + (on && (S.killed || []).includes(o.key) ? '<div class="land-done">잡음</div>' : '')
@@ -3360,7 +3366,7 @@ function screenRows(){
       // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
       const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k => {
         const e = ENEMIES[k] || {}, known = (S.killed || []).includes(k) || editMode;
-        return `<div class="cw framed f-wood foe${known ? '' : ' unknown'}" data-foe-card="${k}" title="${esc(e.name || '')}">`
+        return `<div class="cw framed f-${foeFrame(k)} foe${known ? '' : ' unknown'}" data-foe-card="${k}" title="${esc(e.name || '')}">`   // v7.9.2
           + `<img class="pic" src="images/portrait/${e.portrait || 'portrait_animal'}.png" alt="${esc(e.name || '')}" draggable="false">`
           + `<div class="name">${known ? esc(e.name || '') : '???'}</div></div>`;
       }).join('')}</div>`;
