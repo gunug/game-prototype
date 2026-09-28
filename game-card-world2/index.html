@@ -1297,7 +1297,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.12.0';
+const VERSION = 'v7.13.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1664,7 +1664,7 @@ let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
-function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], hints: {}, tab: 'battle', intro: 'done',   // v0.18.2: 크리처별로 받아 본 전리품
+function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], newLands: [], seenLands: [], newFoes: [], seenFoes: [], hints: {}, tab: 'battle', intro: 'done',   // v7.13.0   // v0.18.2: 크리처별로 받아 본 전리품
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
@@ -1724,6 +1724,15 @@ function load(){
     s.marks = s.marks && typeof s.marks === 'object' ? s.marks : {};   // v0.61.0: 필드마다 가장 멀리 간 지점
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
     s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
+    // v7.13.0: 예전 저장에는 '책에 끼운 땅 · 크리처' 목록이 없다 — 이미 가 본 곳과 마주친 놈으로 채워 둔다
+    if (!Array.isArray(s.seenLands)){
+      const fs = s.fields && typeof s.fields === 'object' ? s.fields : {};
+      s.seenLands = Object.keys(fs).filter(id => !fs[id].locked).concat(Array.isArray(s.cleared) ? s.cleared : []);
+      s.seenLands = [...new Set(s.seenLands)];
+    }
+    if (!Array.isArray(s.seenFoes)) s.seenFoes = [...new Set((Array.isArray(s.metFoes) ? s.metFoes : []).concat(s.killed))];
+    if (!Array.isArray(s.newLands)) s.newLands = [];
+    if (!Array.isArray(s.newFoes)) s.newFoes = [];
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
     const freeTab = t => freeTabs.includes(t);                   // v0.91.0: 보드가 아닌 화면
     if (!BOARD_BY_ID[s.tab] && !freeTab(s.tab)) s.tab = 'battle';
@@ -1928,7 +1937,8 @@ function renderNew(){
     if (!on && b) b.remove();
   }
   const badge = document.getElementById('bookBadge');
-  const nNew = S.newCards.length + (S.newTraces || []).length;     // v2.2.0: 새 흔적도 셈
+  const nNew = S.newCards.length + (S.newTraces || []).length
+    + (S.newLands || []).length + (S.newFoes || []).length;         // v2.2.0: 새 흔적도 셈. v7.13.0: 땅 · 크리처도
   badge.hidden = !nNew;
   if (nNew) setNum(badge, nNew);
   else badge.textContent = '';
@@ -2503,7 +2513,24 @@ function bookCardsOf(id){
   return id === 'fin' ? CRAFT_TYPES.filter(isFinished) : CRAFT_TYPES.filter(t => !isFinished(t));
 }
 // v7.9.0: 그 땅을 알아보았나 — 한 번이라도 열렸으면(=가 볼 수 있었으면) 발견으로 친다
-const landSeen = f => editMode || !((S.fields[f.id] || {}).locked) || (S.cleared || []).includes(f.id);
+// v7.13.0: 처음 알게 된 땅 · 크리처도 콜렉터북에 **끼워 넣는 연출**을 거친다
+function landFound(id){
+  if (!FIELD_BY_ID[id]) return;
+  S.newLands = S.newLands || [];
+  S.seenLands = S.seenLands || [];
+  if (S.seenLands.includes(id) || S.newLands.includes(id)) return;
+  S.newLands.push(id);
+  renderNew(); save();
+}
+function foeFound(k){
+  if (!ENEMIES[k]) return;
+  S.newFoes = S.newFoes || [];
+  S.seenFoes = S.seenFoes || [];
+  if (S.seenFoes.includes(k) || S.newFoes.includes(k)) return;
+  S.newFoes.push(k);
+  renderNew(); save();
+}
+const landSeen = f => editMode || ((S.seenLands || []).includes(f.id) && !(S.newLands || []).includes(f.id));
 const landCleared = f => (S.cleared || []).includes(f.id);
 // v7.9.1: 그 땅에 나오는 크리처 (대본에서 뽑는다) · 마주쳤거나 잡았으면 발견
 const bookFoes = id => { const seen = []; for (const e of planOf(id)) if (e.fight && !seen.some(x => x.key === e.fight))
@@ -2512,7 +2539,7 @@ const bookFoes = id => { const seen = []; for (const e of planOf(id)) if (e.figh
 let BOSS_FOES = null;                                             // 대본(planOf)은 아래에서 만들어지므로 처음 쓸 때 센다
 const bossFoes = () => BOSS_FOES || (BOSS_FOES = new Set(FIELDS.flatMap(f => planOf(f.id).filter(e => e.fight && e.boss).map(e => e.fight))));
 const foeFrame = k => bossFoes().has(k) ? 'silver' : 'bronze';
-const foeSeen = k => editMode || (S.metFoes || []).includes(k) || (S.killed || []).includes(k);
+const foeSeen = k => editMode || ((S.seenFoes || []).includes(k) && !(S.newFoes || []).includes(k));
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
@@ -3051,29 +3078,57 @@ let inserting = false;
 function pendingInsertReset(){ inserting = false; setPaused(false); }   // v0.37.0: 끼우던 것 멈춤
 // v0.9.0: 콜렉터북을 열면 새 카드를 단계 순으로 한꺼번에 끼움. 끼울 때마다 NEW 뱃지·버튼 수가 하나씩 줄어듦
 async function runInserts(){
-  if (inserting || !S.newCards.length) return;
+  if (inserting || !(S.newCards.length || (S.newLands || []).length || (S.newFoes || []).length)) return;
   inserting = true;
   setPaused(true);
   if (drag) endDrag({ type: 'pointercancel' });                  // 끌던 카드는 그 자리에 놓음
   await wait(420);                                                // 올라오는 시간
-  const order = S.newCards.slice().sort((x, y) => DEFS[x].step - DEFS[y].step || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y));
-  for (const t of order){
-    if (bookTier !== bookTabOf(t)){ bookTier = bookTabOf(t); renderBook(); }   // 끼울 땐 그 카드가 나오는 탭으로 (v2.2.0)
-    const slot = bookEl.querySelector(`[data-book="${t}"]`);
+  // v7.13.0: 땅 · 크리처도 같은 줄에 선다 — 땅 → 크리처 → 카드 차례
+  const order = (S.newLands || []).map(id => ({ kind:'land', id }))
+    .concat((S.newFoes || []).map(id => ({ kind:'foe', id })))
+    .concat(S.newCards.slice().sort((x, y) => DEFS[x].step - DEFS[y].step || CRAFT_TYPES.indexOf(x) - CRAFT_TYPES.indexOf(y))
+      .map(id => ({ kind:'card', id })));
+  const TAB_OF = { land:'land', foe:'foe' };
+  const KEY_OF = { land: id => `land:${id}`, foe: id => `foe:${id}`, card: id => id };
+  for (const it of order){
+    const tab = it.kind === 'card' ? bookTabOf(it.id) : TAB_OF[it.kind];
+    if (bookTier !== tab){ bookTier = tab; renderBook(); }         // 끼울 땐 그것이 나오는 갈래로 (v2.2.0)
+    const slot = bookEl.querySelector(`[data-book="${KEY_OF[it.kind](it.id)}"]`);
+    const done = () => {                                          // 줄에서 빼고 '본 것' 으로 옮김
+      if (it.kind === 'card') S.newCards = S.newCards.filter(x => x !== it.id);
+      else if (it.kind === 'land'){
+        S.newLands = (S.newLands || []).filter(x => x !== it.id);
+        S.seenLands = S.seenLands || []; if (!S.seenLands.includes(it.id)) S.seenLands.push(it.id);
+      } else {
+        S.newFoes = (S.newFoes || []).filter(x => x !== it.id);
+        S.seenFoes = S.seenFoes || []; if (!S.seenFoes.includes(it.id)) S.seenFoes.push(it.id);
+      }
+      renderNew();
+    };
     if (slot){
       slot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       await wait(80);
-      S.newCards = S.newCards.filter(x => x !== t);
-      renderNew();
+      done();
       const ghost = slot.querySelector('.cw');
-      ghost.classList.add('ghost');                               // 실루엣은 흐려지며 빠지고
-      const card = document.createElement('div');                 // 진짜 카드가 위에서 끼워짐
-      card.className = `cw framed f-${frameOf(DEFS[t])} insert`;
-      card.innerHTML = `${statsHtml(t)}<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`;
+      if (ghost) ghost.classList.add('ghost');                     // 실루엣은 흐려지며 빠지고
+      const card = document.createElement('div');                  // 진짜 카드가 위에서 끼워짐
+      if (it.kind === 'card'){
+        card.className = `cw framed f-${frameOf(DEFS[it.id])} insert`;
+        card.innerHTML = `${statsHtml(it.id)}<div class="emoji">${iconHtml(it.id)}</div><div class="name">${esc(DEFS[it.id].name)}</div>`;
+      } else if (it.kind === 'land'){
+        const f = FIELD_BY_ID[it.id];
+        card.className = 'cw framed f-stone insert';
+        card.innerHTML = `<div class="emoji">${fieldIcon(f)}</div><div class="name">${esc(f.name)}</div>`;
+      } else {
+        const e = ENEMIES[it.id];
+        card.className = `cw framed f-${foeFrame(it.id)} insert`;
+        card.innerHTML = `<div class="emoji"><img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
+          + `<div class="name">${esc(e.name)}</div>`;
+      }
       slot.appendChild(card);
       slot.classList.add('glow');
       await wait(300);
-    } else { S.newCards = S.newCards.filter(x => x !== t); renderNew(); }
+    } else done();
     renderBook();
   }
   await wait(80);
@@ -4129,6 +4184,7 @@ function expStart(id, cardEl){
   const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
+  landFound(id);                                                  // v7.13.0: 가 본 땅은 책에 남는다
   exp = { id, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   logEv('expStart', { field: id, lv: S.knight.lv, atk: knightAtk(), def: knightDef(), hp: S.knight.hp,   // v7.6.0
     weapon: equipped('weapon') || null, dungeon: !!FIELD_BY_ID[id].dungeon });
@@ -4161,6 +4217,7 @@ function expTick(dt){
           : `${withP(ENEMIES[ev.fight].name)} 마주쳤다`;
         S.metFoes = S.metFoes || [];                              // v4.3.0: 마주친 적은 정보가 열린다
         if (!S.metFoes.includes(ev.fight)) S.metFoes.push(ev.fight);
+        foeFound(ev.fight);                                        // v7.13.0: 콜렉터북에 끼울 줄에 세움
         if (ev.boss){ toast(`👑 보스 — ${ENEMIES[ev.fight].name}`); S.metBoss = true; }   // v0.21.1: 보스를 만나 봤음
         else if (ev.mid) toast(`⚔ 중간보스 — ${ENEMIES[ev.fight].name}`);   // v0.58.0
       }
@@ -4813,13 +4870,14 @@ function syncUnlocks(newly){
   }
   save();
 }
-function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f){ logEv('unlock', { field: id }); toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); } }   // v7.6.0
+function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f){ logEv('unlock', { field: id }); landFound(id); toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); } }   // v7.6.0 · v7.13.0
 function unlockNextField(afterId){
   const i = OUT_FIELDS().findIndex(f => f.id === afterId);
   const next = OUT_FIELDS().slice(i + 1).find(f => fieldLocked(f.id)) || OUT_FIELDS().find(f => fieldLocked(f.id));   // v4.0.0: 던전은 따로 열림
   if (!next) return;
   S.fields[next.id].locked = false;
   logEv('unlock', { field: next.id });                             // v7.6.0
+  landFound(next.id);                                              // v7.13.0
   save();
   playUnlock(next);
 }
