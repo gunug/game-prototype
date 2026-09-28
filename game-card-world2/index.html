@@ -144,6 +144,9 @@
   .chars .cw.knight{position:relative;flex:none;cursor:grab;}
   /* v5.1.0: 원정 중인 캐릭터 — 끌 수 없고 '출전중' 딱지가 붙는다 */
   .cw.knight.out{cursor:default;filter:grayscale(.55) brightness(.72);}
+  .sleeve .cw .land-done{position:absolute;right:calc(var(--cw) * -.06);bottom:calc(var(--cw) * .04);z-index:3;   /* v7.9.0 */
+    padding:0 5px;border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);
+    font-size:calc(var(--cf) * .11);font-weight:900;}
   .cw.knight.out .out-lab{position:absolute;left:0;right:0;top:38%;z-index:3;display:flex;flex-direction:column;align-items:center;
     gap:1px;padding:2px 0;background:rgba(0,0,0,.62);color:var(--brand-yellow);font-weight:900;
     font-size:calc(var(--cf) * .13);letter-spacing:.04em;filter:none;}
@@ -801,6 +804,8 @@ const OUT_FIELDS = () => FIELDS.filter(f => !f.dungeon);
 const DUNGEONS = () => FIELDS.filter(f => f.dungeon);
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
 const FIELD_NO_ICON = [];                                         // v3.5.0: 필드 그림 다 있음 (들머리 포함)
+// v7.9.0: 땅 카드의 갈래 — 바깥은 '필드', 굴은 '던전'
+const fieldUse = f => (f.dungeon ? '던전' : '필드');
 const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
   : `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
 // v0.20.0: 필드에서 나오는 재료는 따로 적음 (카드의 소속 필드 = 콜렉터북 묶음과 별개).
@@ -942,7 +947,8 @@ const DEFS = {
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
 // v6.3.0: '음식' · '약품' — **만들어 놓은 것**(완성품). 그 재료는 그대로 '음식재료' · '약품재료'
-const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '음식', '약품', '건축', '음식재료', '약품재료', '건축재료', '도구재료', '도구', '생산재료'];   // v7.0.0: 음식재료 · 건축   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
+const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '음식', '약품', '건축', '음식재료', '약품재료', '건축재료', '도구재료', '도구', '생산재료',
+  '필드', '던전'];   // v7.0.0: 음식재료 · 건축. v7.9.0: 땅도 카드로 모은다   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
 const USE = {
   // 1단계
   stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '음식재료', '도구재료'], coal:['음식재료', '생산재료', '도구재료'],   // v0.46.1: 조합 화면에서 불씨를 만들 수 있게
@@ -1282,7 +1288,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.8.0';
+const VERSION = 'v7.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2405,6 +2411,7 @@ function select(id){
 }
 function renderInsp(){
   if (S.tab === 'battle' || S.tab === 'dungeon') return renderFieldInsp();   // v4.3.0: 던전도 같은 정보 칸
+  if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'aim' && slotPick === 'aim:goal' && S.goal && DEFS[S.goal]) return renderGoalInsp();   // v5.4.0
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
   if (S.tab === 'gearup' && knightPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
@@ -2454,6 +2461,7 @@ let bookTree = 'weapon';
 //   갈래(무기 · 갑옷 …)로 나누면 재료 태그를 둘 이상 가진 카드 40장이 여러 탭에 겹쳐 실린다.
 //   카드마다 **하나뿐인 축**만 쓴다 — 1단계는 나오는 곳, 가공은 만드는 곳, 완성품은 쓰는 칸
 const BOOK_TABS = [
+  { id:'land', name:'🗺 땅' },                                     // v7.9.0: 필드 · 던전도 모으는 것
   { id:'mat',  name:'📦 재료' },
   { id:'fin',  name:'🗡 완성품' },
 ];
@@ -2471,7 +2479,19 @@ const FIN_GROUPS = [
   { name:'🧴 소모품', uses:['소모품'] },
 ];
 function bookCardsOf(id){
+  if (id === 'land') return [];                                   // v7.9.0: 땅은 카드(DEFS)가 아니라 FIELDS — 따로 그린다
   return id === 'fin' ? CRAFT_TYPES.filter(isFinished) : CRAFT_TYPES.filter(t => !isFinished(t));
+}
+// v7.9.0: 그 땅을 알아보았나 — 한 번이라도 열렸으면(=가 볼 수 있었으면) 발견으로 친다
+const landSeen = f => editMode || !((S.fields[f.id] || {}).locked) || (S.cleared || []).includes(f.id);
+const landCleared = f => (S.cleared || []).includes(f.id);
+function landSlotHtml(f){
+  const on = landSeen(f);
+  return `<div class="sleeve${bookPick === 'land:' + f.id ? ' sel' : ''}" data-book="land:${f.id}">`
+    + `<div class="cw framed f-${landCleared(f) ? 'gold' : 'stone'}${on ? '' : ' locked'}">`
+    + `<div class="emoji">${on ? fieldIcon(f) : `<img class="icon" src="images/icon/card_${f.id}.png" alt="" draggable="false">`}</div>`
+    + `<div class="name">${on ? esc(f.name) : '???'}</div>`
+    + (on && landCleared(f) ? '<div class="land-done">깸</div>' : '') + '</div></div>';
 }
 // v3.10.0: 이 가공품은 어느 땅 재료로 만드나 — DEFS.made 가 있으면 그것, 없으면 재료가 나오는 곳
 function madeAt(t){
@@ -2877,7 +2897,13 @@ function renderBook(){
       return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
         + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
     };
-    if (bookTier === 'fin'){
+    if (bookTier === 'land'){                                     // v7.9.0
+      const row = (title, list) => list.length
+        ? `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${list.filter(landSeen).length}/${list.length}</span></div>`
+          + `<div class="book-row">${list.map(landSlotHtml).join('')}</div></div>` : '';
+      h += row('🗡️ 필드', OUT_FIELDS());
+      h += row('🏚 던전', DUNGEONS());
+    } else if (bookTier === 'fin'){
       for (const g of FIN_GROUPS) h += sect(g.name, inTab.filter(t => useOf(t).some(u => g.uses.includes(u))));
       h += sect('그 밖', inTab);
     } else {
@@ -3011,7 +3037,12 @@ bookEl.addEventListener('click', e => {
   const slot = e.target.closest('[data-book]');
   if (slot){                                                      // v3.3.2: 인스펙터로
     bookPick = slot.dataset.book;
-    inspType = bookPick; selected = null; knightPick = false; slotPick = null;
+    if (bookPick.startsWith('land:')){                            // v7.9.0: 땅 카드
+      fieldPick = bookPick.slice(5); inspType = null; foePick = null;
+    } else {
+      inspType = bookPick; fieldPick = null;
+    }
+    selected = null; knightPick = false; slotPick = null;
     renderBook(); renderInsp();
   }
 });
@@ -3717,6 +3748,8 @@ function renderFieldInsp(){
     : `<div class="row"><span class="locked">${iconHtml(t, true)}</span> <span class="i-muted">???</span> ${haveText(t, false)}</div>`;
   inspEl.innerHTML = `<div class="head"><div class="pic">${fieldIcon(f)}</div><div><div class="nm">${esc(f.name)}</div><div class="kd">필드</div></div></div>`
     + `<div class="desc">${esc(f.desc)}</div>`
+    + `<div class="chips"><span class="chip use">${fieldUse(f)}</span>`                 // v7.9.0: 필드 · 던전 갈래
+    + (landCleared(f) ? '<span class="chip trait">깬 곳</span>' : '') + '</div>'
     + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
     + '<div class="sub">주워 오는 것</div><div class="rows">'          // v0.73.0: 카드 목록은 가로로 묶고 폭이 모자라면 줄내림
     + ys.map(t => rowOf(t, S.seen.includes(t))).join('') + '</div>'
