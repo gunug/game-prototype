@@ -1297,7 +1297,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.13.0';
+const VERSION = 'v7.13.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1489,8 +1489,10 @@ const TRACE_WHO = { knight: '🛡 기사' };
 const TRACES = [
   { id:'wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
-  { id:'kneel',    who:'knight', key:'lose-boss:mountain', name:'무릎',
-    text:'곰 앞에서 무릎을 꿇었다. 이상하다. 처음 겪는 일이 아닌 것 같다.' },
+  // v7.13.1: 열쇠를 '어느 보스에게든 처음 진 순간'으로 바꿈 — 튜토리얼(v3.1.0)이 생기며 첫 패배가 들머리로 옮겨가
+  //   `lose-boss:mountain`(곰) 은 사실상 열리지 않는 흔적이 되어 있었다. 글에서도 곰을 빼 어느 보스에게든 맞게
+  { id:'kneel',    who:'knight', key:'lose-boss',          name:'무릎',
+    text:'그 앞에서 무릎을 꿇었다. 이상하다. 처음 겪는 일이 아닌 것 같다.' },
   { id:'shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
     text:'곰의 등에 박혀 있던 쇳조각. 손잡이 쪽의 문양을 나는 안다. 이건 우리 것이다.' },
   { id:'beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
@@ -4328,7 +4330,7 @@ function expEnd(kind){
   expPaint();
   const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   const lossId = exp.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
-  if (bearLoss) traceHit(`lose-boss:${exp.id}`);                   // v2.2.0: 흔적 '무릎'
+  if (bearLoss){ traceHit(`lose-boss:${exp.id}`); traceHit('lose-boss'); }   // v2.2.0: 흔적 '무릎'. v7.13.1: 어느 보스든
   // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
   if (bearLoss && lossId === 'stonehide' && !(S.questDone || []).includes('pierce'))
     setTimeout(() => giveQuest('pierce'), 1800);                  // v4.3.0: 막혀 본 뒤에 길을 준다
