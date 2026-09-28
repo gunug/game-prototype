@@ -1282,7 +1282,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.6.0';
+const VERSION = 'v7.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3205,7 +3205,7 @@ function checkGoalDone(){
   const g = S.goal;
   if (!g || !DEFS[g] || have(g) <= 0) return false;
   S.goal = null;
-  logEv('goalDone', { type: g, ms: logSince('goalSet', e => e.type === g) });   // v7.6.0: 목표 하나에 걸린 시간
+  logEv('goalDone', Object.assign({ type: g }, logSpan('goalSet', e => e.type === g) || {}));   // v7.6.0 · v7.7.0: 목표 하나에 걸린 시간
   toast(`🎯 목표 달성 — ${DEFS[g].name}`);
   save();
   if (isRowScreen(S.tab)) renderScreen();
@@ -3607,6 +3607,7 @@ function renderGearInsp(){
 // 100ms마다: 원정 진행 · 기사 회복 (v0.17.0: 필드 회복은 없앰)
 let tickLast = performance.now();
 function gameTick(){
+  logClockTick();                                                 // v7.7.0: 세 시계
   const now = performance.now(), dt = Math.min(1000, now - tickLast);
   tickLast = now;
   if (paused) return;
@@ -3961,13 +3962,15 @@ let healProg = 0;
 
 function expStart(id, cardEl){
   const st = S.fields[id];
-  if (exp){ toast('🏃 기사가 이미 원정 중'); return; }
+  if (exp){ logEv('blocked', { why: 'busy', field: id }); toast('🏃 기사가 이미 원정 중'); return; }   // v7.7.0
   if (fieldLocked(id)){
+    logEv('blocked', { why: 'locked', field: id });                // v7.7.0
     flash(cardEl, 'fail', 600);
     toast(`🔒 ${FIELD_BY_ID[id].emoji} ${FIELD_BY_ID[id].name} — 아직 잠겨 있음`);
     return;
   }
   if (S.knight.hp <= 0){
+    logEv('blocked', { why: 'hp', field: id, hp: S.knight.hp });   // v7.7.0: 회복을 기다리는 시간은 헤맨 게 아니다
     flash(cardEl, 'fail', 600);
     toast('🩸 기사가 빈사 — 회복될 때까지 기다려야 함');
     return;
@@ -4099,8 +4102,8 @@ const BOSS_LOSS_SAY = {
   river:    '물살까지 상대할 줄은 몰랐군',
 };
 function expEnd(kind){
-  logEv('expEnd', { field: exp && exp.id, how: kind, ms: logSince('expStart', e => e.field === (exp && exp.id)),   // v7.6.0
-    hp: S.knight.hp, lv: S.knight.lv, far: exp ? Math.round(exp.t * 100) / 100 : null });
+  logEv('expEnd', Object.assign({ field: exp && exp.id, how: kind }, logSpan('expStart', e => e.field === (exp && exp.id)) || {}, {   // v7.6.0 · v7.7.0
+    hp: S.knight.hp, lv: S.knight.lv, far: exp ? Math.round(exp.t * 100) / 100 : null }));
   const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : '원정을 마쳤다';
@@ -4615,7 +4618,7 @@ function questStep(id){
   q.n++;
   if (q.n >= questGoal(def)){
     q.done = true;
-    logEv('questDone', { id: q.id, ms: logSince('questGet', e => e.id === q.id) });   // v7.6.0
+    logEv('questDone', Object.assign({ id: q.id }, logSpan('questGet', e => e.id === q.id) || {}));   // v7.6.0 · v7.7.0
     toast(`📜 퀘스트 완료: ${def.name}`);
     renderQuest();
     questFade(q);                                                  // v0.38.0: 반짝 뒤 줄에서 사라짐
@@ -4705,7 +4708,7 @@ function questCheckBlocks(){
     const st = questGroupState(def);
     if (!st.all) continue;
     q.done = true;
-    logEv('questDone', { id: q.id, ms: logSince('questGet', e => e.id === q.id) });   // v7.6.0
+    logEv('questDone', Object.assign({ id: q.id }, logSpan('questGet', e => e.id === q.id) || {}));   // v7.6.0 · v7.7.0
     toast(`📜 퀘스트 완료: ${def.name}`);
     renderQuest();
     questFade(q);
@@ -4806,6 +4809,38 @@ try {
     if (o && Array.isArray(o.ev)) LOG = Object.assign(LOG, o);
   }
 } catch (e){ console.warn('로그 읽기 실패', e); }
+// v7.7.0: **벽시계만 보면 오해한다.** 자리를 비운 한 시간이 '한 시간 동안 헤맴'으로 읽히면 안 된다.
+//   그래서 시계를 셋 둔다 —
+//     t  벽시계 (처음부터 흐른 ms)
+//     a  **논 시간** — 화면이 보이고, 방금 손을 댔거나 원정이 돌아가는 동안만 흐른다 (자리 비움 · 방치는 안 셈)
+//     x  그중 **원정이 먹은 시간** — 기사가 걷는 동안은 사람이 헤맨 게 아니다
+//   헤맨 시간 ≈ a 차이 − x 차이. 떠나 있던 자리는 away · idle 줄로 따로 남는다
+const IDLE_MS = 60000;                                            // 이만큼 손을 안 대면 '방치'로 보고 논 시간을 세지 않음
+const AWAY_MS = 30000;                                            // 이만큼 화면을 떠나 있었으면 away 줄을 남김
+LOG.active = LOG.active || 0;                                     // 논 시간 합계 (새로 고쳐도 이어짐)
+LOG.expTime = LOG.expTime || 0;                                   // 그중 원정이 먹은 시간
+let lastInput = Date.now(), lastTickAt = Date.now(), hiddenAt = 0, idleFrom = 0;
+const logSid = () => (LOG.sessions || []).length;                 // 몇 번째로 연 판인지 (여러 창을 동시에 켜면 섞이므로)
+function logClockTick(){                                          // gameTick 이 부른다 (100ms 마다)
+  const now = Date.now(), dt = Math.min(500, now - lastTickAt);   // 멈춰 있던 사이는 한 번에 몰아 세지 않는다
+  lastTickAt = now;
+  const awake = !document.hidden && (now - lastInput < IDLE_MS || !!exp);
+  if (awake){
+    if (idleFrom){ logEv('idle', { ms: now - idleFrom }); idleFrom = 0; }   // 방치했다 돌아옴
+    LOG.active += dt;
+    if (exp) LOG.expTime += dt;
+  } else if (!idleFrom && !document.hidden){
+    idleFrom = lastInput + IDLE_MS;                               // 방치 시작 지점
+  }
+}
+addEventListener('pointerdown', () => { lastInput = Date.now(); }, true);
+addEventListener('keydown', () => { lastInput = Date.now(); }, true);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ hiddenAt = Date.now(); return; }
+  lastInput = Date.now();
+  if (hiddenAt && Date.now() - hiddenAt > AWAY_MS) logEv('away', { ms: Date.now() - hiddenAt });   // 자리를 비웠다 돌아옴
+  hiddenAt = 0;
+});
 let logSaveT = 0;
 function logSave(){
   clearTimeout(logSaveT);
@@ -4814,22 +4849,25 @@ function logSave(){
   }, 800);
 }
 function logEv(k, data){
-  const e = Object.assign({ t: Date.now() - LOG.start, k }, data || {});
+  const e = Object.assign({ t: Date.now() - LOG.start, a: Math.round(LOG.active), x: Math.round(LOG.expTime),
+    s: logSid(), k }, editMode ? { edit: 1 } : {}, data || {});   // v7.7.0: 에디터 모드에서 한 일은 진짜 플레이가 아니다
   LOG.ev.push(e);
   if (LOG.ev.length > LOG_MAX){ LOG.ev.splice(0, LOG.ev.length - LOG_MAX); LOG.dropped = (LOG.dropped || 0) + 1; }
   logSave();
   return e;
 }
-// 마지막으로 그 일이 일어난 때 — 걸린 시간을 재는 데 쓴다 (목표 · 퀘스트 · 원정)
-const logSince = (k, match) => {
+// v7.7.0: 마지막으로 그 일이 일어난 때부터 지금까지 — **세 시계 모두** 돌려준다
+//   ms(벽시계) · aMs(논 시간) · xMs(그중 원정) · 헤맴 ≈ aMs − xMs
+function logSpan(k, match){
   for (let i = LOG.ev.length - 1; i >= 0; i--){
     const e = LOG.ev[i];
-    if (e.k === k && (!match || match(e))) return Date.now() - LOG.start - e.t;
+    if (e.k === k && (!match || match(e)))
+      return { ms: Date.now() - LOG.start - e.t, aMs: Math.round(LOG.active - (e.a || 0)), xMs: Math.round(LOG.expTime - (e.x || 0)) };
   }
   return null;
-};
+}
 function logReset(){                                              // '처음부터' 를 누르면 그 사실만 남기고 새 장으로
-  LOG = { start: Date.now(), startISO: new Date().toISOString(), dropped: 0,
+  LOG = { start: Date.now(), startISO: new Date().toISOString(), dropped: 0, active: 0, expTime: 0,
     sessions: [{ at: new Date().toISOString(), ver: VERSION, note: '처음부터 다시' }], ev: [] };
   logSave();
 }
@@ -4855,7 +4893,13 @@ function progressSnapshot(){
       version: VERSION,
       at: new Date().toISOString(),
       // v7.6.0: 처음 켠 때부터의 기록 — 분석용
-      로그: { 시작: LOG.startISO, 흐른시간_분: Math.round((Date.now() - LOG.start) / 60000),
+      로그: {
+        읽는법: 't=벽시계ms(자리 비움 포함) · a=논 시간ms(화면을 보고 손을 댔거나 원정이 도는 동안만) · x=그중 원정이 먹은 시간ms · s=몇 번째 판 · edit=에디터 모드. ' +
+          '헤맨 시간 ≈ aMs − xMs 로 보고, t 만으로 판단하지 말 것. away=자리 비움, idle=방치, blocked=막힌 순간(진짜 헤맴 신호)',
+        시작: LOG.startISO,
+        흐른시간_분: Math.round((Date.now() - LOG.start) / 60000),
+        논시간_분: Math.round(LOG.active / 60000),
+        원정시간_분: Math.round(LOG.expTime / 60000),
         버린것: LOG.dropped || 0, 세션: LOG.sessions, 개수: LOG.ev.length, 이벤트: LOG.ev },
       에디터모드: editMode,                                        // true 면 에디터 모드를 켜 둔 채로 뜬 것 (내용은 진짜 저장본)
       기사: { lv: src.knight.lv, xp: src.knight.xp, 다음레벨xp: xpNeed(src.knight.lv),
