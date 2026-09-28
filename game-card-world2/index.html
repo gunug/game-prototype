@@ -928,6 +928,7 @@ const DEFS = {
   stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
   toadhide:  { name:'두꺼비 가죽', kind:'material', step:1, group:'loot' },   // v6.0.0: 🍄 늪지 무덤
   graveseal: { name:'무덤 인장',   kind:'material', step:1, group:'loot' },   // v6.0.0: 무덤 주인만 떨굼
+  // v7.0.0: 보스 전리품에도 갈래를 준다 — 태그가 없으면 어느 탭에도 못 실린다
   bearclaw:  { name:'곰의 발톱',   kind:'material', step:1, group:'loot' },   // v3.8.0: 보스 전용 전리품도 1단계
   bisonhorn: { name:'들소 뿔',     kind:'material', step:1, group:'loot' },
   mosspelt:  { name:'이끼 낀 곰가죽', kind:'material', step:1, group:'loot' },
@@ -936,38 +937,40 @@ const DEFS = {
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
-// v6.3.0: '음식' · '약품' — **만들어 놓은 것**(완성품). 그 재료는 그대로 '요리재료' · '약품재료'
-const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '음식', '약품', '약품재료', '요리재료', '건축재료', '도구재료', '도구', '생산재료'];   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
+// v6.3.0: '음식' · '약품' — **만들어 놓은 것**(완성품). 그 재료는 그대로 '음식재료' · '약품재료'
+const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '거점', '음식', '약품', '건축', '음식재료', '약품재료', '건축재료', '도구재료', '도구', '생산재료'];   // v7.0.0: 음식재료 · 건축   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
 const USE = {
   // 1단계
-  stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '요리재료', '도구재료'], coal:['요리재료', '생산재료', '도구재료'],   // v0.46.1: 조합 화면에서 불씨를 만들 수 있게
+  stone:['무기재료', '건축재료', '도구재료'], flint:['무기재료', '음식재료', '도구재료'], coal:['음식재료', '생산재료', '도구재료'],   // v0.46.1: 조합 화면에서 불씨를 만들 수 있게
   tree:['무기재료', '건축재료', '생산재료', '도구재료'],   // v0.20.0: 산에서도 나옴
-  berry:['요리재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],   // v0.49.0: 줄 끝 주석에 묻혀 태그가 없던 것 되살림
-  water:['요리재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['요리재료'],
-  grass:['건축재료', '도구재료'], seed:['요리재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['요리재료', '약품재료', '생산재료'],
+  berry:['음식재료'], sap:['약품재료', '건축재료'], herb:['약품재료'],   // v0.49.0: 줄 끝 주석에 묻혀 태그가 없던 것 되살림
+  water:['음식재료', '건축재료', '생산재료'], soil:['건축재료', '생산재료'], sand:['건축재료', '도구재료'], fish:['음식재료'],
+  grass:['건축재료', '도구재료'], seed:['음식재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['음식재료', '약품재료', '생산재료'],
   // 2단계
   blade:['무기재료', '도구재료'], whetstone:['도구재료'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장. v3.6.1: '손질lv1' 태그 폐기 — 조합식에 뗀석기를 그대로 적는다
   stoneknife:['무기', '근접무기'],   // v1.9.0: 기사가 드는 건 근접무기뿐
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
-  ember:['도구재료', '요리재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
+  ember:['도구재료', '음식재료', '생산재료'],                       // v0.34.1: 모닥불 재료 — 도구 화면 아래에 있어야 조합됨
   firewood:['무기재료'],   // v1.2.0: 무기 부품(자루). 연료·건축 등은 나무 · 나무판자가 맡음
   shieldboard:['갑옷재료'], curedleather:['갑옷재료'],
   longhandle:['무기재료'], handaxe:['무기', '근접무기'],   // v2.0.0   // v1.2.0: 갑옷 부품
   clay:['건축재료', '생산재료'], plank:['도구재료', '건축재료'], cord:['건축재료', '도구재료'], wax:['건축재료', '약품재료'], copperore:['무기재료', '건축재료', '생산재료'],
-  meat:['요리재료'], fatmeat:['요리재료'], toughmeat:['요리재료'], fillet:['요리재료'], honey:['음식', '약품재료'], flour:['요리재료'],   // v6.3.0: 꿀은 그대로 먹는 것
+  meat:['음식재료'], fatmeat:['음식재료'], toughmeat:['음식재료'], fillet:['음식재료'], honey:['음식', '약품재료'], flour:['음식재료'],   // v6.3.0: 꿀은 그대로 먹는 것
   hide:['갑옷재료', '도구재료'], toughhide:['갑옷재료'], smalltooth:['무기재료', '도구재료'], fang:['무기재료'],
-  bone:['무기재료', '도구재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료'],   // v5.3.0: 비늘은 재료 — '장신구' 태그를 뗌
-  drymeat:['음식'], jerky:['음식'], renderfat:['요리재료', '약품재료'],   // v6.3.0
+  bone:['무기재료', '도구재료', '음식재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료'],   // v5.3.0 · v7.0.0: 뼈는 고아 먹기도 한다: 비늘은 재료 — '장신구' 태그를 뗌
+  drymeat:['음식'], jerky:['음식'], renderfat:['음식재료', '약품재료'],   // v6.3.0
   fletching:['무기재료'], tannedfur:['갑옷재료'], fishoil:['약품', '생산재료'],   // v6.3.0: 상처에 바르는 기름
   rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], barbtip:['무기재료'],
   nacre:['갑옷재료', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],   // v5.3.0
   smokedfish:['음식'], leatherstrap:['갑옷재료', '도구재료'],   // v6.3.0
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
   obsidianknife:['무기', '근접무기'],                              // v6.0.0
-  bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료'], graveseal:['건축재료'],
-  stonepelt:['갑옷재료'],
-  vine:['건축재료', '도구재료'], pincer:['도구재료', '갑옷재료'], tallow:['요리재료', '약품재료', '생산재료'],   // v5.3.0
+  bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
+  // v7.0.0: 갈래가 없던 보스 전리품 넷
+  bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
+  stonepelt:['갑옷재료', '건축재료'],   // v7.0.0
+  vine:['건축재료', '도구재료'], pincer:['도구재료', '갑옷재료'], tallow:['음식재료', '약품재료', '생산재료'],   // v5.3.0
   furpelt:['갑옷재료', '건축재료'], shellpiece:['갑옷재료', '도구재료'], juice:['음식', '약품재료'], salve:['약품'],   // v5.3.0 · v6.3.0
   // 3단계
   toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
@@ -1275,7 +1278,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v6.11.0';
+const VERSION = 'v7.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1548,15 +1551,15 @@ const BOARDS = [
     top:'장신구', tops:['장신구'], dyn:['장신구'] },
   // v6.3.0: 🍖 음식 · 🧪 약품 — 먹고 바르는 것은 조합 판에서 빼내 제 탭으로
   //   위 격자엔 만들어 둔 음식 · 약품, 아래엔 그 재료(고기 · 약초 …)만
-  { id:'food',   name:'음식', icon:'card_jerky', tags:['요리재료', '음식'],
-    top:'음식', tops:['음식'], dyn:['음식'], mats:['요리재료'] },
-  { id:'potion', name:'약품', icon:'card_salve', tags:['약품재료', '약품'],
-    top:'약품', tops:['약품'], dyn:['약품'], mats:['약품재료'] },
   // v6.4.0: 🧰 도구 — 만들어 둔 도구는 재료가 아니다. 조합 판에서 빼내 제 탭으로
   { id:'toolbox', name:'도구', icon:'card_workbench', tags:['도구재료', '도구'],
     top:'도구', tops:['도구'], dyn:['도구'], mats:['도구재료'] },
   // v6.4.0: 🏠 건축 — 아직 만드는 것이 없다. 건축재료를 모아 두는 자리 (조합식이 생기면 위 격자를 연다)
   { id:'build',  name:'건축', icon:'card_plank', tags:['건축재료'], mats:['건축재료'] },
+  { id:'food',   name:'음식', icon:'card_jerky', tags:['음식재료', '음식'],
+    top:'음식', tops:['음식'], dyn:['음식'], mats:['음식재료'] },
+  { id:'potion', name:'약품', icon:'card_salve', tags:['약품재료', '약품'],
+    top:'약품', tops:['약품'], dyn:['약품'], mats:['약품재료'] },
   // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '장신구', '거점'] },
 ];
@@ -1594,15 +1597,21 @@ const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
 const SPECIFIC_OUT = ['무기', '방어구', '방패', '장신구', '음식', '약품', '도구'];   // v2.3.0 · v6.3.0 · v6.4.0: 도구
 const recipeKind = r => {                                          // 이 조합식은 어느 탭 것인가
   const outs = r.cook ? [] : (r.out || []);
+  // ① 완성품(무기 · 방어구 · 음식 …)을 내는 조합은 그 탭 것
   for (const b of BOARDS) if (Array.isArray(b.dyn) && outs.some(o => useOf(o).some(u => b.dyn.includes(u)))) return b.id;
+  // ② v7.0.0: **그 탭의 재료**를 내는 조합도 그 탭 것 — 갑옷재료는 갑옷 탭에서, 음식재료는 음식 탭에서 만든다
+  //   (조합 탭에는 어느 갈래에도 안 속한 것만 남는다)
+  for (const b of BOARDS) if (b.mats && outs.some(o => useOf(o).some(u => b.mats.includes(u)))) return b.id;
   return 'tool';
 };
 const recipeInputs = r => [r.a, r.b].flatMap(sd => sd.card ? [sd.card] : CRAFT_TYPES.filter(t => useOf(t).includes(sd.use || sd.tag)));
 const BOARD_IN = {};                                               // 탭 id → 아래에 놓일 카드 모음
-for (const b of BOARDS) if (b.dyn) BOARD_IN[b.id] = new Set();
+for (const b of BOARDS) if (b.dyn || b.mats) BOARD_IN[b.id] = new Set();   // v7.0.0: 재료 탭도 제 조합식의 재료를 받는다
 for (const r of CRAFT_RECIPES) for (const t of recipeInputs(r)) BOARD_IN[recipeKind(r)]?.add(t);
 // v6.4.0: 조합식에 한 번이라도 쓰이는 카드 (조합 판에 남길지 가르는 표)
 const USED_AS_INPUT = new Set(CRAFT_RECIPES.flatMap(recipeInputs));
+// v7.0.0: 조합 탭이 맡은 조합식의 결과 (중간 가공품) — 만든 자리에서 보여야 한다
+const TOOL_OUT = new Set(CRAFT_RECIPES.filter(r => !r.cook && recipeKind(r) === 'tool').flatMap(r => r.out || []));
 const onBoardStatic = (type, id) => { const b = boardOf(id); return useOf(type).some(u => b.tags.includes(u)); };
 // v6.4.0: 재료는 **여러 탭에 같이 떠도 된다** (무기재료는 무기 탭에도, 조합 판에도)
 //   · 완성품(무기 · 방어구 · 방패 · 장신구 · 음식 · 약품 · 도구)은 제 탭의 위 격자에만
@@ -1613,9 +1622,11 @@ const onBoard = (type, id) => {
   if (!b.dyn && !b.mats) return onBoardStatic(type, id);
   if (onTopGrid(type, b.id)) return false;                         // 위 격자에 있는 것은 아래로 안 내려옴
   if (b.dyn === 'rest'){
+    // v7.0.0: 조합 판 = **조합 탭이 맡은 조합식의 재료와 그 결과**뿐.
+    //   갈래 탭(무기 · 갑옷 · 음식 · 약품 · 도구 · 건축)에서 만들거나 볼 수 있는 것은 여기 두지 않는다
     if (useOf(type).some(u => SPECIFIC_OUT.includes(u))) return false;
-    if (USED_AS_INPUT.has(type)) return true;
-    return (DEFS[type] || {}).group !== 'loot';
+    if (BOARD_IN[b.id].has(type) || TOOL_OUT.has(type)) return true;
+    return !BOARDS.some(o => o.id !== b.id && (o.dyn || o.mats) && (onTopGrid(type, o.id) || onBoard(type, o.id)));
   }
   if (BOARD_IN[b.id] && BOARD_IN[b.id].has(type)) return true;     // 그 탭 조합식에 바로 들어가는 것
   return (b.mats || []).some(u => useOf(type).includes(u));        // 그 탭의 재료 태그
@@ -3014,6 +3025,8 @@ function renderTabs(){                                            // v0.21.0: �
   for (const g of document.querySelectorAll('#tabs .tabgroup, #navmenu .tabgroup')) if (!g.firstElementChild) g.remove();   // v4.5.0: 빈 묶음은 치운다
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
+  // v7.0.0: 아무 카드도 없는 탭(지금은 🔨 조합)은 단추를 숨긴다 — 갈래 없는 카드가 생기면 저절로 돌아온다
+  const boardEmpty = b => !CRAFT_TYPES.some(t => onBoard(t, b.id) || onTopGrid(t, b.id));
   const boardBtn = b => boardOpen(b)
     ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
     : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
@@ -3025,7 +3038,7 @@ function renderTabs(){                                            // v0.21.0: �
     { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전')] },
     { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표')] },
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
-    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup').map(boardBtn) },
+    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b)).map(boardBtn) },
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
   host.insertAdjacentHTML('afterbegin', html);
@@ -3684,6 +3697,8 @@ function renderFieldInsp(){
       }).join('');
 }
 function setTab(tab){
+  const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
+  if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
   if (paused) return;
   if (drag) endDrag({ type: 'pointercancel' });
   if (!freeTabs.includes(tab) && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0

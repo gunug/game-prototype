@@ -131,10 +131,18 @@ try {
     // v4.7.0: 좁은 화면 ☰ 메뉴 — 접고 펴고 다시 넓혀도 단추가 살아 있는지
     for (const nw of [true, false, true, false]){ narrowUI = nw; setNavOpen(nw); renderTabs(); tabName(S.tab); }
     narrowUI = false; setNavOpen(false);   // 가짜 DOM이라 개수는 못 셈 — 접고 펴며 터지는지만 본다
+    // v7.0.0: 모든 조합식은 **어딘가에서 만들 수 있어야** 한다 (재료 둘이 한 탭에 같이 있고 그 탭이 그 조합을 맡음)
+    const noHome = CRAFT_RECIPES.filter(r => !BOARDS.some(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)))
+      .map(r => r.id);
+    if (noHome.length) throw new Error('만들 탭이 없는 조합식: ' + noHome.join(', '));
+    // 모든 카드는 어느 탭엔가 실려야 한다 (갈래 태그가 없으면 어디에도 안 보인다)
+    const lost = CRAFT_TYPES.filter(t => !BOARDS.some(b => onBoard(t, b.id) || onTopGrid(t, b.id))).map(t => DEFS[t].name);
+    if (lost.length) throw new Error('어느 탭에도 없는 카드: ' + lost.join(', '));
     // v4.6.0: 조합 탭마다 위 격자 · 아래 재료가 비지 않는지
     const empty = [];
     for (const b of BOARDS){
       if (!b.tops) continue;                                       // v4.8.0: 조합 탭은 한 판 — 위 격자가 없다
+      if (!CRAFT_TYPES.some(t => onBoard(t, b.id) || onTopGrid(t, b.id))) continue;   // v7.0.0: 통째로 빈 탭은 단추가 숨는다
       S.tab = b.id; renderTopGrid(); renderTabs();
       const top = CRAFT_TYPES.filter(t => onTopGrid(t, b.id)), bot = CRAFT_TYPES.filter(t => onBoard(t, b.id));
       if (!top.length || !bot.length) empty.push(b.name + '(위 ' + top.length + ' · 아래 ' + bot.length + ')');
