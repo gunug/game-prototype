@@ -925,7 +925,7 @@ const DEFS = {
   salve: { name:'약초 연고',  kind:'material', step:2, made:'forest', group:'body' },
   // ── 3단계 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
   toothdagger: { name:'이빨 단검',  kind:'material', step:3, group:'gear', atk:2 },
-  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4 },
+  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4, range:3 },
   leatherarmor: { name:'가죽 갑옷', kind:'material', step:3, group:'gear', def:1 },
   pouch: { name:'가죽 주머니', kind:'material', step:3, group:'gear' },
   fishhook: { name:'낚싯바늘',    kind:'material', step:3, group:'gear' },
@@ -935,17 +935,17 @@ const DEFS = {
   // v7.11.0: 거점은 `heal`(초당 회복)로 값이 매겨진다. 다음 거점(화덕 · 가마 …)은 이 수를 올려 간다
   campfire:  { name:'모닥불',      kind:'material', step:3, group:'gear', heal:1.2 },
   // v2.1.0: 🌲 숲 — 긴 창(근접무기 +5) · 방패테 · 테 방패(방패 +2)
-  longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5 },
+  longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5, range:4 },
   shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
   rimshield: { name:'테 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
-  battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true },       // v4.0.0: 방어를 0으로 치는 무기
+  battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true, spd:-1 },   // v8.0.0: 묵직해서 느리다       // v4.0.0: 방어를 0으로 치는 무기
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
   obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3 },         // v6.0.0: 출혈 — 회복을 끊는다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
-  harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9 },
+  harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:4 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
@@ -1348,7 +1348,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.18.0';
+const VERSION = 'v8.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1582,7 +1582,13 @@ function questGroupState(def){
   return { filled, done, now: now < 0 ? def.groups.length : now, all: done.every(Boolean) };
 }
 // v0.13.0: 기사 — 공 1 · 방 0 · 체 10 (원정 규칙은 아래 '기사 · 원정')
-const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18 };   // v0.78.0: 적이 늘 되치게 되어 총 피해가 늘어난 만큼 체력을 올림
+// v8.0.0: **이동속도 · 사거리** 신설
+//   · 한 박자에 서로 `spd` 만큼 다가선다. 그 뒤 **사거리가 닿는 쪽만** 때린다
+//   · 그래서 사거리가 긴 쪽은 상대가 붙기 전까지 공짜로 때리고, 느린 쪽은 맞으며 다가가야 한다
+//   · 거리는 '칸'으로 센다. 마주치는 거리 ENGAGE_GAP, 붙으면 0
+const ENGAGE_GAP = 12;                                            // 마주친 순간의 거리 (칸)
+const BASE_SPD = 3, BASE_RANGE = 1;                               // 맨몸 이동속도 · 맨손 사거리
+const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };   // v0.78.0: 적이 늘 되치게 되어 총 피해가 늘어난 만큼 체력을 올림
 // v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
 //   보상은 대부분 **최대 체력 +2**, 공격 +1은 6·9레벨처럼 드물게, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
 //   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
@@ -2524,6 +2530,8 @@ function renderInsp(){
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
+  if (d.range) chips.push(`<span class="chip">사거리 ${d.range}</span>`);        // v8.0.0
+  if (d.spd) chips.push(`<span class="chip">${d.spd > 0 ? '이동 +' : '이동 '}${d.spd}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // v6.7.0: '쓰이는 조합' · '만드는 법' 칸은 뺌 — 조합법은 콜렉터북(조합법 · 길)이 맡고,
@@ -3872,7 +3880,9 @@ function renderFoeInsp(){
       ? '<div class="rows">'
         + `<div class="row">${statImg('atk')} 공격 <b>${e.atk}</b></div>`
         + `<div class="row">${statImg('def')} 방어 <b>${e.def}</b></div>`
-        + `<div class="row">${statImg('hp')} 체력 <b>${e.hp}</b></div></div>`
+        + `<div class="row">${statImg('hp')} 체력 <b>${e.hp}</b></div>`
+        + `<div class="row">🏃 이동 <b>${foeSpd(e)}</b></div>`                    // v8.0.0
+        + `<div class="row">🎯 사거리 <b>${foeRange(e)}</b></div></div>`
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
         + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. <b>출혈</b>이 걸린 동안에는 차오르지 않는다.</div>` : '')   // v6.0.0
         + '<div class="sub">떨구는 것</div><div class="rows">'
@@ -3922,6 +3932,8 @@ function renderFieldInsp(){
       + '<div class="sub">상태</div><div class="rows">'                // v0.73.0: 능력치는 한 묶음으로 가로 배치
       + `<div class="row">${statImg('atk')} 공격 <b class="v-atk">${knightAtk()}</b></div>`
       + `<div class="row">${statImg('def')} 방어 <b class="v-def">${knightDef()}</b></div>`
+      + `<div class="row">🏃 이동 <b>${knightSpd()}</b></div>`                    // v8.0.0
+      + `<div class="row">🎯 사거리 <b>${knightRange()}</b></div>`
       + `<div class="row">${statImg('hp')} 체력 <b class="v-hp">${k.hp}/${knightMaxHp()}</b>${k.hp <= 0 ? ' <span class="i-muted">빈사</span>' : ''}</div></div>`
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
@@ -4110,6 +4122,15 @@ const gearStat = key => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => 
 const bestOf = key => gearStat(key);                              // 옛 이름 (인스펙터에서 씀)
 const knightPierce = () => { const w = equipped('weapon'); return !!(w && DEFS[w] && DEFS[w].pierce); };   // v4.0.0
 const knightBleed = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].bleed) || 0; };   // v6.0.0: 출혈
+// v8.0.0: 사거리는 **쥔 무기**가, 이동속도는 **몸과 장비**가 정한다 (무거운 것을 들면 느려진다)
+const knightRange = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].range) || BASE_RANGE; };
+const knightSpd = () => {
+  let v = KNIGHT.spd;
+  for (const sl of SLOTS){ const t = equipped(sl.key); if (t && DEFS[t] && DEFS[t].spd) v += DEFS[t].spd; }
+  return Math.max(1, v);
+};
+const foeSpd = e => e.spd || BASE_SPD;
+const foeRange = e => e.range || BASE_RANGE;
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -4295,6 +4316,7 @@ function expTick(dt){
       else if (ev.fight){
         exp.foe = exp.foes.findIndex(f => !f.dead && f.at === ev.at);
         exp.phase = 'fight'; exp.beat = 0;
+        exp.gap = ENGAGE_GAP;                                      // v8.0.0: 아직 멀리 있다 — 서로 다가선다
         exp.line = ev.boss ? `👑 ${subP2(ENEMIES[ev.fight].name)} 길을 막았다`   // v3.5.1: 조사 맞춤
           : ev.mid ? `⚔ ${subP2(ENEMIES[ev.fight].name)} 앞을 가로막았다`          // v0.58.0: 중간보스
           : `${withP(ENEMIES[ev.fight].name)} 마주쳤다`;
@@ -4329,13 +4351,23 @@ function expTick(dt){
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
 function expBeat(){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
+  // v8.0.0: 먼저 서로 다가선 뒤, **사거리가 닿는 쪽만** 때린다
+  if (exp.gap == null) exp.gap = ENGAGE_GAP;
+  exp.gap = Math.max(0, exp.gap - (knightSpd() + foeSpd(def)));
+  const kHit = knightRange() >= exp.gap, eHit = foeRange(def) >= exp.gap;
+  if (!kHit && !eHit){ exp.line = '거리를 좁힌다'; return; }        // 둘 다 닿지 않으면 걷기만
+  if (!kHit) exp.line = '사거리 밖 — 맞으며 다가간다';
+  else if (!eHit) exp.line = '사거리 밖에서 먼저 때린다';
+  else if (/사거리|거리를/.test(exp.line || '')) exp.line = '맞붙었다';   // 붙은 순간 한 번
   const pierce = knightPierce();                                  // v4.0.0: 방어 무시
   const raw = knightAtk() - (pierce ? 0 : def.def);
   const kd = Math.max(1, raw);
-  e.hp -= kd;
-  expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());   // v4.3.0: 피해가 1/3 이하로 깎이면 '막힘'
+  if (kHit){                                                      // v8.0.0: 사거리가 닿을 때만
+    e.hp -= kd;
+    expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());   // v4.3.0: 피해가 1/3 이하로 깎이면 '막힘'
+  }
   // v6.0.0: 출혈이 걸리면 살이 차오르지 않고 덧피해까지 — 없으면 박자마다 regen 만큼 도로 찬다
-  const bleed = knightBleed();
+  const bleed = kHit ? knightBleed() : 0;
   if (bleed && e.hp > 0){
     e.hp -= bleed;
     expSwing('knight', exp.foe, bleed, false, 'bleed');
@@ -4344,8 +4376,10 @@ function expBeat(){
     if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
   }
   const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
-  k.hp = Math.max(0, k.hp - ed);
-  expSwing(exp.foe, 'knight', ed);
+  if (eHit){                                                      // v8.0.0: 적도 사거리가 닿아야 때린다
+    k.hp = Math.max(0, k.hp - ed);
+    expSwing(exp.foe, 'knight', ed);
+  }
   renderKnight();
   if (e.hp <= 0){
     e.dead = true;
