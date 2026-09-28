@@ -1297,7 +1297,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.14.0';
+const VERSION = 'v7.15.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2591,7 +2591,7 @@ function slotHtml(t){
     + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
 }
 // v3.3.2: 카드를 고르면 **인스펙터**가 바뀐다 — 책 위 한 줄에 정보를 겹쳐 쓰지 않음
-const detailHtml = () => '<span class="i-muted">슬리브를 탭하면 오른쪽 정보 칸에 나와요.</span>';
+// v7.15.0: '슬리브를 탭하면 …' 안내는 없앰 (한 번 보면 그만인 말 — 자리만 먹었다)
 // ── 무기 트리 · 도구 트리 (v0.80.0, 전부 가상 계획) ─────────────────
 // 규칙 ① 조합식은 늘 `이전 것 + 새 재료 = 다음 것` — 쓰던 걸 버리지 않고 덧댄다
 //      ② 큰 갈래가 그 물건의 **성격**을 정하고, 그 성격은 가지 끝까지 간다
@@ -2946,9 +2946,12 @@ function renderBook(){
     + `<button class="tabbtn${isTrace ? ' on' : ''}" data-btab="${TRACE_TAB}">📜 흔적</button>`
     + `<button class="tabbtn${isTree ? ' on' : ''}" data-btab="${TREE_TAB}">🌳 길</button></div>`
     + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span></div>`
-    + `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
-      : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
-      : isTree ? `<span class="i-muted">${esc(tre.note)}</span>` : detailHtml()}</div>`
+    // v7.15.0: 설명 줄은 카드 갈래에선 없앰 — '슬리브를 탭하면…' 은 한 번 보면 그만인 말이었다.
+    //   조합법 · 흔적 · 길 갈래만 그 갈래가 무엇인지 한 줄로 남긴다
+    + (isCombo || isTrace || isTree
+      ? `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
+        : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
+        : `<span class="i-muted">${esc(tre.note)}</span>`}</div>` : '')
     + '<div class="book-body"><div class="book-inner">';
   if (isCombo) h += combos.html;
   else if (isTree) h += treeBookHtml(tre);                        // v2.9.4

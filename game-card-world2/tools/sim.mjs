@@ -25,6 +25,13 @@ const RUNS = +arg('--runs', 1);
 const SEED0 = arg('--seed', null);
 const VERBOSE = has('--log');
 const MAX_MIN = +arg('--max-min', 240);              // 게임 속 시간 한계 (분)
+// v7.15.0: --blind = **아는 것만 쓴다**.
+//   · 해 본 적 없고 두 재료를 다 본 적도 없는 조합은 모른다 (게임의 cardKnown 규칙 그대로)
+//   · 떨구는 것은 **한 번 받아 봐야** 어디서 나오는지 안다 (게임의 lootKnown 규칙 그대로)
+//   · 손질 시간을 매긴다 — 탭 옮기기 1.2초 · 조합 2.5초 · 목표 고르기 9초(첫 번째 25초)
+//     이 시간은 원정이 아닌 시간이라 로그에서 곧바로 '헤맴(aMs − xMs)' 으로 잡힌다
+const BLIND = has('--blind');
+const COST = { tab: 1200, craft: 2500, equip: 2000, goal: 9000, goalFirst: 25000, sortie: 1500, think: 2500 };
 
 // ── 가짜 DOM — check.mjs 와 같은 얼개 (무엇을 읽든 또 가짜를 돌려줌)
 function fake(){
@@ -110,6 +117,33 @@ function makeAI({ ctx, clock }){
     get S(){ return ctx.S; },
     advance: ms => clock.advance(ms),
     touch(){ vm.runInContext('lastInput = Date.now()', ctx); },    // 방치로 치지 않게 (사람이 조작한 셈)
+    firstGoal: false,
+    spend(ms){ if (BLIND){ this.touch(); clock.advance(ms); } },   // 눈으로 찾고 끌어다 놓는 시간
+    knowsRecipe(a, b){                                             // 그 조합을 아는가
+      if (!BLIND) return true;
+      return g(`(function(){
+        const A = ${JSON.stringify(a)}, B = ${JSON.stringify(b)};
+        const r0 = CRAFT_RECIPES.find(r => !r.cook
+          && ((sideMatch(r.a, A) && sideMatch(r.b, B)) || (sideMatch(r.a, B) && sideMatch(r.b, A))));
+        if (!r0) return false;
+        if ((S.madeRecipes || []).includes(r0.id)) return true;    // 해 본 조합
+        return S.seen.includes(A) && S.seen.includes(B);           // 두 재료를 다 봤으면 해 볼 수 있다
+      })()`);
+    },
+    knownSource(type){                                             // 그 재료를 어디서 얻는지 아는가
+      const blind = BLIND ? 'true' : 'false';
+      this.srcAsk = (this.srcAsk || 0) + 1;
+      return g(`(function(){
+        const t = ${JSON.stringify(type)}, blind = ${blind}, out = [];
+        for (const f of FIELDS){
+          if (fieldLocked(f.id)) continue;
+          if (f.id === 'prelude' && (S.cleared || []).includes('prelude')) continue;
+          if (yieldsOf(f.id).includes(t)){ out.push(f.id); continue; }   // 줍는 것은 목표 차례가 알려 준다
+          if (lootTypes(f.id).includes(t) && (!blind || lootKnown(f.id, t))) out.push(f.id);   // 떨구는 것은 받아 봐야 안다
+        }
+        return JSON.parse(JSON.stringify(out));
+      })()`);
+    },
     state(){
       return g(`(function(){
         const cards = {}; for (const c of S.cards) if (c.n > 0) cards[c.type] = (cards[c.type] || 0) + c.n;
@@ -125,6 +159,8 @@ function makeAI({ ctx, clock }){
     // 재료 둘을 합친다 — 손으로 끌어다 놓는 것과 같은 길
     craft(a, b){
       // 사람이 하듯 **그 조합을 할 수 있는 탭으로 먼저 옮긴 뒤** 합친다
+      if (!this.knowsRecipe(a, b)){ this.unknownCraft = (this.unknownCraft || 0) + 1; return false; }   // v7.15.0: 모르는 조합
+      this.spend(COST.craft);
       return g(`(function(){
         const A = ${JSON.stringify(a)}, B = ${JSON.stringify(b)};
         const ca = S.cards.find(c => c.type === A && c.n > 0);
@@ -142,17 +178,18 @@ function makeAI({ ctx, clock }){
       })()`);
     },
     canCraft(a, b){ return g(`!!craftMatch(${JSON.stringify(a)}, ${JSON.stringify(b)})`); },
-    goal(t){ return call('setGoal', t); },
+    goal(t){ this.spend(this.firstGoal ? COST.goal : COST.goalFirst); this.firstGoal = true; return call('setGoal', t); },
     plan(t){ return g(`JSON.parse(JSON.stringify(goalSteps(${JSON.stringify(t)})))`); },
     // 아직 안 끝난 걸음들 (게임의 판정을 그대로 쓴다)
     todo(t){ return g(`JSON.parse(JSON.stringify(goalSteps(${JSON.stringify(t)}).filter(st => !planStepDone(st))))`); },
     candidates(){ return g(`JSON.parse(JSON.stringify(aimCandidates()))`); },
-    equip(slot, type){ return g(`(function(){ const sl = slotByKey(${JSON.stringify(slot)}); if (!sl || !slotOpen(sl.key)) return false;
+    equip(slot, type){ this.spend(COST.equip); return g(`(function(){ const sl = slotByKey(${JSON.stringify(slot)}); if (!sl || !slotOpen(sl.key)) return false;
       if (!(have(${JSON.stringify(type)}) > 0)) return false; equipCard(sl, ${JSON.stringify(type)}); return true; })()`); },
-    tab(id){ return call('setTab', id); },
+    tab(id){ this.spend(COST.tab); return call('setTab', id); },
     sortie(field){
       const before = g('!!exp');
       if (before) return 'busy';
+      this.spend(COST.sortie);
       call('expStart', field, ctx.document.createElement('div'));   // flash() 가 만질 가짜 카드
       return g('!!exp') ? 'go' : 'blocked';
     },
@@ -248,12 +285,10 @@ function play(ai, note){
       if (t && g(`equipped(${JSON.stringify(slot)})`) !== t) ai.equip(slot, t);
     }
   };
-  const fieldFor = type => {                                      // 그 재료가 나오는, 지금 갈 수 있는 땅
-    for (const f of ai.fields()){
-      if (f.locked) continue;
-      if (ai.yieldsOf(f.id).includes(type) || ai.lootOf(f.id).includes(type)) return f.id;
-    }
-    return null;
+  const fieldFor = type => {
+    const f = (ai.knownSource(type) || [])[0] || null;
+    if (!f) ai.unknownSource = (ai.unknownSource || 0) + 1;         // 어디서 나는지 모르는 재료
+    return f;
   };
   let stuck = 0, lastSig = '';
   const downs = {}, raids = {};                                   // 땅마다 진 횟수 · 정찰 횟수
@@ -265,6 +300,7 @@ function play(ai, note){
       if (x.kind !== 'make' || !x.r || !x.r.a || !x.r.b) continue;
       if (ai.craft(x.r.a.card, x.r.b.card)){ ai.touch(); note(`  (원정 중) 조합 ${x.type}`); return true; }
     }
+    return false;
     return false;
   };
   for (let step = 0; step < 4000; step++){
@@ -363,6 +399,9 @@ function runOnce(seed){
     깬땅: (ai.state().cleared || []),
     레벨: ai.state().lv,
     발견카드: ai.state().seen,
+    헤맴_분: +((log.active - log.expTime) / 60000).toFixed(1),      // 논 시간에서 원정을 뺀 것 = 화면 앞에서 손질한 시간
+    모르는조합: ai.unknownCraft || 0,
+    모르는출처: ai.unknownSource || 0,
     원정: ev.filter(e => e.k === 'expStart').length,
     쓰러짐: ev.filter(e => e.k === 'expEnd' && e.how === 'down').length,
     막힘: ev.filter(e => e.k === 'blocked').length,
