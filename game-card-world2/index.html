@@ -1280,7 +1280,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.3.0';
+const VERSION = 'v7.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2411,7 +2411,7 @@ function renderInsp(){
 // 아래에서 올라오는 모달. 단계 탭 → 필드별 슬리브 4칸. 미발견은 검은 실루엣 + ???
 // 새 카드를 발견하면 콜렉터북이 열리고 그 슬리브에 카드가 위에서 아래로 끼워짐. 끼우는 동안 게임 일시정지
 const bookEl = document.getElementById('book');
-let bookTier = 'field';                                           // v4.1.0                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
+let bookTier = 'mat';                                             // v4.1.0 · v7.4.0                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
 const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
 const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
@@ -2419,37 +2419,28 @@ let bookTree = 'weapon';
 // v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 단계로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
 //   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 단계별로 본다
 // v4.1.0: 콜렉터북 큰 갈래 다섯 — 필드 · 던전 · 조합 · 무기 · 갑옷
+// v7.4.0: 콜렉터북은 **재료와 완성품** 둘로만 나눈다.
+//   갈래(무기 · 갑옷 …)로 나누면 재료 태그를 둘 이상 가진 카드 40장이 여러 탭에 겹쳐 실린다.
+//   카드마다 **하나뿐인 축**만 쓴다 — 1단계는 나오는 곳, 가공은 만드는 곳, 완성품은 쓰는 칸
 const BOOK_TABS = [
-  { id:'field',  name:'🗡️ 필드' },
-  { id:'dungeon',name:'🏚 던전' },
-  { id:'craft',  name:'🔨 조합' },
-  { id:'weapon', name:'무기', icon:'card_workbench' },
-  { id:'armor',  name:'갑옷', icon:'card_leatherarmor' },
+  { id:'mat',  name:'📦 재료' },
+  { id:'fin',  name:'🗡 완성품' },
 ];
 const BOOK_BOARDS = () => BOOK_TABS;
-const BOOK_USES = { weapon:['무기', '근접무기', '원거리무기'], armor:['방어구', '방패', '장신구'] };
-// 던전에서만 나오거나 던전 재료로 만드는 것
-const dungeonCards = () => {
-  const src = new Set();
-  for (const f of DUNGEONS()){ for (const t of yieldsOf(f.id)) src.add(t); for (const t of lootTypes(f.id)) src.add(t); }
-  let grew = true;
-  while (grew){
-    grew = false;
-    for (const x of CRAFT_RECIPES){
-      if (x.cook || !x.a.card || !x.b.card) continue;
-      if (!src.has(x.a.card) && !src.has(x.b.card)) continue;
-      for (const o of (x.out || [])) if (!src.has(o)){ src.add(o); grew = true; }
-    }
-  }
-  return CRAFT_TYPES.filter(t => src.has(t));
-};
+const FINISHED_USES = ['무기', '근접무기', '원거리무기', '방어구', '방패', '장신구', '도구', '거점', '음식', '약품', '건축', '소모품'];
+const isFinished = t => useOf(t).some(u => FINISHED_USES.includes(u));
+// 완성품이 들어가는 칸 (카드마다 하나)
+const FIN_GROUPS = [
+  { name:'⚔️ 무기',   uses:['무기', '근접무기', '원거리무기'] },
+  { name:'🛡 방어구', uses:['방어구', '방패', '장신구'] },
+  { name:'🧰 도구',   uses:['도구', '거점'] },
+  { name:'🍖 음식',   uses:['음식'] },
+  { name:'🧪 약품',   uses:['약품'] },
+  { name:'🏠 건축',   uses:['건축'] },
+  { name:'🧴 소모품', uses:['소모품'] },
+];
 function bookCardsOf(id){
-  if (id === 'weapon' || id === 'armor') return CRAFT_TYPES.filter(t => useOf(t).some(u => (BOOK_USES[id] || []).includes(u)));
-  if (id === 'dungeon') return dungeonCards();
-  const dun = new Set(dungeonCards());
-  const gear = new Set(CRAFT_TYPES.filter(t => useOf(t).some(u => BOOK_USES.weapon.includes(u) || BOOK_USES.armor.includes(u))));
-  if (id === 'field') return CRAFT_TYPES.filter(t => (DEFS[t].step || 0) === 1 && !dun.has(t));
-  return CRAFT_TYPES.filter(t => (DEFS[t].step || 0) >= 2 && !dun.has(t) && !gear.has(t));   // 조합 = 가공 · 도구 · 음식
+  return id === 'fin' ? CRAFT_TYPES.filter(isFinished) : CRAFT_TYPES.filter(t => !isFinished(t));
 }
 // v3.10.0: 이 가공품은 어느 땅 재료로 만드나 — DEFS.made 가 있으면 그것, 없으면 재료가 나오는 곳
 function madeAt(t){
@@ -2463,6 +2454,11 @@ function madeAt(t){
     if (fs.length) return fs[0].id;
   }
   return null;
+}
+// v7.4.0: 그 카드를 만드는 탭 — 조합식이 속한 탭 하나 (없으면 null)
+function recipeTabOf(t){
+  const r = CRAFT_RECIPES.find(x => !x.cook && (x.out || []).includes(t));
+  return r ? recipeKind(r) : null;
 }
 const bookTabOf = t => (BOOK_TABS.find(b => bookCardsOf(b.id).includes(t)) || BOOK_TABS[0]).id;
 const bookBoardLabel = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;
@@ -2841,41 +2837,30 @@ function renderBook(){
   else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
-    // v4.1.0: 탭마다 배치가 다르다 — 필드는 땅별, 조합은 단계별, 무기 · 갑옷은 **트리 갈래대로**
-    const sect = (title, list, seen) => {
+    // v7.4.0: 재료는 **나오는 곳 → 만드는 곳**, 완성품은 **쓰는 칸**. 카드는 한 자리에만 실린다
+    const seen = new Set();
+    const sect = (title, list) => {
       const only = list.filter(t => inTab.includes(t) && !seen.has(t));
       if (!only.length) return '';
       for (const t of only) seen.add(t);
       return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
         + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
     };
-    if (bookTier === 'field' || bookTier === 'dungeon'){
-      const seen = new Set();
-      for (const f of (bookTier === 'dungeon' ? DUNGEONS() : OUT_FIELDS())){
-        if (f.id === 'prelude') continue;                         // 들머리는 튜토리얼 전용 — 산이 같은 재료를 갖는다
-        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 줍는 것</span>`, yieldsOf(f.id), seen);
-        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 떨구는 것</span>`, lootTypes(f.id), seen);
-      }
-      for (let st = 2; st <= 9; st++)                              // 던전 탭: 그 재료로 만드는 것들
-        h += sect(esc(stepName(st)), inTab.filter(t => (DEFS[t].step || 0) === st), seen);
-      h += sect('그 밖', inTab, seen);
-    } else if (bookTier === 'craft'){
-      const seen = new Set();
-      for (const f of OUT_FIELDS()){
-        if (f.id === 'prelude') continue;
-        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 가공</span>`,
-          inTab.filter(t => (DEFS[t].step || 0) === 2 && madeAt(t) === f.id), seen);
-      }
-      h += sect('⚒ 그 밖의 가공', inTab.filter(t => (DEFS[t].step || 0) === 2), seen);
-      for (let st = 3; st <= 9; st++)
-        h += sect(esc(stepName(st)), inTab.filter(t => (DEFS[t].step || 0) === st), seen);
-      h += sect('그 밖', inTab, seen);
+    if (bookTier === 'fin'){
+      for (const g of FIN_GROUPS) h += sect(g.name, inTab.filter(t => useOf(t).some(u => g.uses.includes(u))));
+      h += sect('그 밖', inTab);
     } else {
-      // 무기 · 갑옷 — 🌳 트리의 갈래 그대로 (부품 · 날붙이 · 자루 …)
-      const tree = TREES[bookTier], seen = new Set();
-      if (tree) for (const b of tree.branches)
-        h += sect(esc(b.name), b.nodes.map(n => n.id).filter(Boolean), seen);
-      h += sect('그 밖', inTab, seen);
+      for (const f of FIELDS){                                    // ① 1단계 — 나오는 곳
+        if (f.id === 'prelude') continue;                         // 들머리는 튜토리얼 전용 (산이 같은 재료를 갖는다)
+        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 줍는 것</span>`, yieldsOf(f.id));
+        h += sect(`${f.emoji} ${esc(f.name)} <span class="i-muted">· 떨구는 것</span>`, lootTypes(f.id));
+      }
+      for (const b of BOARDS){                                    // ② 가공 — 만드는 곳
+        if (b.id === 'gearup') continue;
+        h += sect(`⚒ ${esc(boardLabel(b.id))} <span class="i-muted">· 가공</span>`,
+          inTab.filter(t => (DEFS[t].step || 0) >= 2 && recipeTabOf(t) === b.id));
+      }
+      h += sect('그 밖', inTab);
     }
   }
   const body = bookEl.querySelector('.book-body');
@@ -4862,7 +4847,7 @@ document.getElementById('reset').addEventListener('click', () => {
   clearTimeout(knightSayT); knightLine = null; knightSayDone = null;   // 기사 대사
   clearTimeout(lockPopT); document.querySelector('.lockpop')?.remove();
   clearTimeout(pushSaveTimer);
-  openBook(false); bookTier = 'field'; bookPick = null;            // 콜렉터북 (v5.1.0: 'tool' 갈래는 v4.1.0에서 없어졌음)
+  openBook(false); bookTier = 'mat'; bookPick = null;              // 콜렉터북 (v7.4.0: 갈래는 재료 · 완성품 둘)
   pendingInsertReset();
   // 고른 것 · 화면 상태
   selected = null; inspType = null; fieldPick = null; knightPick = false; slotPick = null;

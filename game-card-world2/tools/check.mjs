@@ -164,6 +164,17 @@ try {
   else console.log('✓ 카드 이름 (다섯 글자 + 띄어쓰기 하나 안쪽)');
 } catch (e){ report('카드 이름 길이', e); }
 
+// 6.6) v7.4.0: 콜렉터북 — 카드는 **정확히 한 자리**에 실려야 한다 (재료는 나오는 곳 또는 만드는 곳)
+try {
+  const stray = JSON.parse(vm.runInContext(`JSON.stringify(CRAFT_TYPES.filter(t => !isFinished(t))
+    .filter(t => !FIELDS.some(f => yieldsOf(f.id).includes(t) || lootTypes(f.id).includes(t)) && !recipeTabOf(t))
+    .map(t => DEFS[t].name))`, ctx));
+  const both = JSON.parse(vm.runInContext(`JSON.stringify(CRAFT_TYPES.filter(t => bookCardsOf('mat').includes(t) && bookCardsOf('fin').includes(t)).map(t => DEFS[t].name))`, ctx));
+  if (stray.length) report('콜렉터북 자리', new Error('묶일 곳이 없는 재료: ' + stray.join(', ')));
+  else if (both.length) report('콜렉터북 자리', new Error('재료와 완성품 양쪽에 실린 카드: ' + both.join(', ')));
+  else console.log('✓ 콜렉터북 자리 (카드마다 한 자리)');
+} catch (e){ report('콜렉터북 자리', e); }
+
 // 7) 같은 두 재료가 서로 다른 결과를 내는 조합식이 있는지 (v3.7.1) — 어느 쪽이 만들어질지 모르게 된다
 try {
   const dup = vm.runInContext(`(function(){
