@@ -1282,7 +1282,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v7.7.0';
+const VERSION = 'v7.8.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2030,6 +2030,31 @@ const EMOJI_ICON = {
   '⚔':'field',                                                   // 중간보스 표시도 같은 칼 그림
 };
 const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?', 'g');
+// v7.8.0: 글 속 **그림이 붙은 탭 이름**(🎯 목표 · ⚔️ 무기 · 📖 콜렉터북 …)은 눌러서 그 탭으로 간다.
+//   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
+const TAB_LINK = {
+  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🔧 정비':'gearup',
+  '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'weapon', '🔨 조합':'tool',
+  '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
+};
+const TAB_LINK_RE = new RegExp('(' + Object.keys(TAB_LINK).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g');
+function linkTabs(root){
+  if (!root || !root.querySelectorAll) return;
+  const SHOW_TEXT = 4;
+  const walk = document.createTreeWalker(root, SHOW_TEXT);
+  const hits = [];
+  for (let n = walk.nextNode(), i = 0; n && i < 4000; n = walk.nextNode(), i++){
+    if (typeof n.nodeValue !== 'string') break;
+    TAB_LINK_RE.lastIndex = 0;
+    if (TAB_LINK_RE.test(n.nodeValue) && !(n.parentElement && n.parentElement.closest('[data-gotab]'))) hits.push(n);
+  }
+  for (const n of hits){
+    const html = esc(n.nodeValue).replace(TAB_LINK_RE, (m) => `<span class="go-tab" data-gotab="${TAB_LINK[m]}">${m}</span>`);
+    const box = document.createElement('span');
+    box.innerHTML = html;
+    n.replaceWith(...box.childNodes);
+  }
+}
 function paintIcons(root){
   if (!root || !root.querySelectorAll) return;
   const SHOW_TEXT = 4;                                            // NodeFilter.SHOW_TEXT (검사용 가짜 DOM엔 NodeFilter가 없음)
@@ -2409,6 +2434,7 @@ function renderInsp(){
   // v6.7.0: '쓰이는 조합' · '만드는 법' 칸은 뺌 — 조합법은 콜렉터북(조합법 · 길)이 맡고,
   //   인스펙터는 **이 카드가 무엇인지**만 짧게 말한다
   inspEl.innerHTML = h;
+  linkTabs(inspEl);                                               // v7.8.0
   paintIcons(inspEl);                                             // v3.5.0
 }
 
@@ -3423,6 +3449,7 @@ function renderScreen(){
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+  linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
   syncTopH();
   expBuild();                                                     // v3.14.0: 원정 줄은 수첩 아래 고정 자리
@@ -3650,7 +3677,7 @@ function renderGoalInsp(){
           + `<span class="aim-box">${done ? '☑' : '☐'}</span>${goalStepBody(st)}</div>`;
       }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
     + '</div>';
-  paintIcons(inspEl);
+  linkTabs(inspEl); paintIcons(inspEl);                           // v7.8.0
 }
 function renderFieldInsp(){
   if (foePick && renderFoeInsp()) return;                         // v4.3.0
@@ -3857,7 +3884,11 @@ const healFullMs = () => equipped('camp') ? HEAL_FULL_CAMP_MS : HEAL_FULL_MS;
 // v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
 function goBoard(id){
   const b = BOARD_BY_ID[id];
-  if (!b){ setTab(id); return; }
+  if (!b){ setTab(id); return; }                                  // 자유 화면(필드 · 던전 · 목표 · 책 · 설정)
+  if (!CRAFT_TYPES.some(t => onBoard(t, b.id) || onTopGrid(t, b.id))){   // v7.8.0: 비어서 숨긴 탭
+    toast(`${boardLabel(b.id)} — 지금은 비어 있음`);
+    return;
+  }
   if (!boardOpen(b)){ toast(`🔒 ${boardLabel(id)} — 아직 잠겨 있음`); return; }
   setTab(id);
 }
@@ -3876,6 +3907,8 @@ function goCardTap(type){
   renderInsp();
 }
 function goalJumpClick(e){
+  const g = e.target.closest('[data-gotab]');                     // v7.8.0: 글 속 탭 이름
+  if (g){ goBoard(g.dataset.gotab); return true; }
   const b = e.target.closest('[data-goboard]');
   if (b){ goBoard(b.dataset.goboard); return true; }
   const c = e.target.closest('[data-gocard]');
@@ -4543,6 +4576,7 @@ function renderQuest(){
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
   }).join('') + goalRow
     + (note ? `<div class="q-op">👆 ${esc(note)}</div>` : '');
+  linkTabs(el);                                                   // v7.8.0: 수첩 글 속 탭 이름은 눌러서 간다
   paintIcons(el);                                                 // v3.5.0
   if (goalRow && goalStepKey() !== lastGoalStep){                 // 한 단계 끝나면 다음 단계가 새 퀘스트처럼 올라옴
     lastGoalStep = goalStepKey();
