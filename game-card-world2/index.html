@@ -383,20 +383,14 @@
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
-    display:flex;align-items:flex-end;justify-content:center;transition:left .1s linear;}   /* v8.2.0 걸음이 이어져 보이게 · v9.10.0 한 박자에 맞춤 */
+    display:flex;align-items:flex-end;justify-content:center;}   /* v9.13.0: 매 프레임 제자리를 찍으므로 CSS 미끄러짐 없음 */
   /* v9.8.0: 배경 층 — 원경 · 지면 띠 · 흩뿌린 오브제 · 앞 오브제. 다 어둡게 깔아 캐릭터가 묻히지 않게 */
   .exp-lane .lane-far{position:absolute;inset:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;opacity:.46;filter:brightness(.8) saturate(.7);}
   .exp-lane .lane-ground{position:absolute;left:0;right:0;bottom:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;opacity:.55;filter:brightness(.7) saturate(.85);}
   .exp-lane .lane-props,.exp-lane .lane-front{position:absolute;inset:0;pointer-events:none;will-change:transform;}
-  /* v9.9.0: 배경 층은 다음 자리까지 미끄러진다 — 한 칸씩 끊겨 보이지 않게 */
-  .exp-lane .lane-far,.exp-lane .lane-ground,.exp-lane .lane-grid{transition:background-position .1s linear;}
-  .exp-lane .lane-props,.exp-lane .lane-front{transition:transform .1s linear;}
-  .exp-lane .spot,.exp-lane .mark{transition:left .1s linear;}     /* v9.10.0: 채집 자리 · 깃발도 같이 흐른다 */
-  .exp-lane.jump .lane-far,.exp-lane.jump .lane-ground,.exp-lane.jump .lane-grid,
-  .exp-lane.jump .lane-props,.exp-lane.jump .lane-front,
-  .exp-lane.jump .tok,.exp-lane.jump .spot,.exp-lane.jump .mark{transition:none;}
+  /* v9.13.0: 배경 · 토큰 · 채집 자리 모두 **매 프레임** 제자리를 찍는다 (CSS 미끄러짐을 걷어냄) */
   .exp-lane .lane-props{z-index:0;}
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
   .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
@@ -1432,7 +1426,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.12.0';
+const VERSION = 'v9.13.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4357,6 +4351,19 @@ function expEase(dt){                                             // 매 박자 
   }
 }
 const clampBetween = (v, a, b) => Math.max(Math.min(a, b), Math.min(Math.max(a, b), v));
+// v9.13.0: **셈은 0.1초마다, 그림은 매 프레임(60fps).**
+//   0.1초마다 자리를 옮기고 CSS 로 미끄러뜨리면, 박자가 조금만 늦어도(브라우저 타이머는 들쭉날쭉)
+//   미끄러짐이 끝난 뒤 멈췄다가 다음 박자에 툭 튄다 — 그게 남아 있던 끊김이었다
+let rafAlive = false, frameLast = 0;
+function expFrame(ts){
+  requestAnimationFrame(expFrame);
+  rafAlive = true;
+  const dt = Math.min(200, frameLast ? ts - frameLast : 16);
+  frameLast = ts;
+  if (!exp || paused) return;
+  expEase(dt);
+  expPaint();
+}
 // 칸마다 같은 그림이 늘 같은 자리에 오도록 — 칸 번호로 만든 난수 (카메라가 움직여도 안 흔들린다)
 function cellRnd(cell, salt){
   let h = Math.imul(cell + 1, 374761393) ^ Math.imul(salt + 1, 668265263);
@@ -4631,7 +4638,7 @@ function expTick(dt){
   } else if (exp.phase === 'fight'){
     expFight(dt);                                                 // v9.0.0: 시간으로 도는 싸움
   }
-  if (exp) expEase(dt);                                           // v9.11.0: 그림 자리 따라가기
+  if (exp && !rafAlive) expEase(dt);                               // v9.13.0: 프레임 고리가 없을 때만 (검사 · AI)
   expPaint();
 }
 // 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
@@ -5748,6 +5755,7 @@ LOG.sessions.push({ at: new Date().toISOString(), ver: VERSION, t: Date.now() - 
 if (LOG.sessions.length > 200) LOG.sessions.splice(0, LOG.sessions.length - 200);
 logEv('open', { ver: VERSION, lv: S.knight.lv, seen: S.seen.length, cleared: (S.cleared || []).length });
 requestAnimationFrame(pushStep);
+requestAnimationFrame(expFrame);                                  // v9.13.0: 원정 그림은 매 프레임
 knightIntro();                                                    // v0.36.0: 첫 대사 → 첫 퀘스트
 setInterval(gameTick, 100);
 </script>
