@@ -29,7 +29,7 @@ LOG_HEAD = (
     "> 규칙·요령은 `아이콘_프롬프트.md`.\n"
 )
 # 파일명 = <분류>_<id>. card 의 id 는 index.html DEFS 키 그대로
-CATEGORIES = ("card", "tag", "status", "ui", "fx")
+CATEGORIES = ("card", "tag", "status", "ui", "fx", "prop")   # prop = 원정 배경에 흩뿌리는 낱개 오브제
 NAME_RE = re.compile(rf"(?:{'|'.join(CATEGORIES)})_[a-z0-9]+(?:-[a-z0-9]+)*")
 # 그림체 — 두 용도가 같은 붓 느낌을 쓰되, 인물 비율 문구는 캐릭터용에만 (2026-09-21 분리)
 #   예전엔 하나의 머리말에 'characters have an oversized head …'가 들어 있어 사물에도 사람이 끼었음
