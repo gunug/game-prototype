@@ -384,6 +384,10 @@
   .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
     display:flex;align-items:flex-end;justify-content:center;transition:left .2s linear;}   /* v8.2.0: 걸음이 이어져 보이게 */
+  /* v9.7.0: 땅 그림 — 세 칸 폭 타일을 가로로 되풀이. 말과 크리처가 묻히지 않게 어둡게 깐다 */
+  .exp-lane .lane-bg{position:absolute;inset:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
+    image-rendering:pixelated;opacity:.5;filter:brightness(.75) saturate(.8);}
+  .exp-lane .lane-bg[hidden]{display:none;}
   /* v9.1.0: 칸 눈금 — 배경으로 깔고 카메라만큼 밀어 흐름이 보이게 */
   .exp-lane .lane-grid{position:absolute;inset:0;pointer-events:none;z-index:0;
     background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.085) 0 1px,transparent 1px 100%);}
@@ -1412,7 +1416,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.6.0';
+const VERSION = 'v9.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4242,6 +4246,8 @@ const foeRange = e => e.range || BASE_RANGE;
 // v9.2.0: **칸 크기는 고정** (카드 폭의 1.1배 = 토큰 두 폭 남짓). 화면이 넓으면 칸이 커지는 게 아니라
 //   **보이는 칸 수가 늘어난다** — 모바일 5~6칸, PC 11칸쯤
 const KAN_PX = () => Math.max(44, CW * 1.1);
+// v9.7.0: 땅 배경 — **세 칸 폭 그림**을 가로로 이어 붙여 깔고 카메라만큼 흘린다 (images/bg/)
+const LANE_BG = { mountain: { file: 'bg_mountain', kan: 3 } };
 // v9.6.0: **칸 점유 표** — 살아 있는 몸은 한 칸에 하나. 앞이 차 있으면 그 뒤 칸에 선다 (줄)
 //   시체는 막지 않는다 — 막으면 뒷줄이 시체 뒤에서 영영 못 오게 된다 (밟고 지나간다)
 function cellFree(x, self){
@@ -4817,7 +4823,7 @@ function expBuild(){
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
-  el.innerHTML = '<div class="exp-lane"><i class="lane-grid"></i>'   // v9.1.0: 칸 눈금이 배경으로 흐른다
+  el.innerHTML = '<div class="exp-lane"><i class="lane-bg"></i><i class="lane-grid"></i>'   // v9.7.0 땅 그림 · v9.1.0 칸 눈금
     + (showMark ? '<div class="mark"></div>' : '')
     + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}">`
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
@@ -4889,6 +4895,18 @@ function expPaint(){
   const vis = laneW / KAN;
   const cam = Math.max(0, Math.min(exp.len - vis, (exp.kx || 0) - vis * 0.35));
   const px = x => Math.round((x - cam) * KAN);
+  const bg = lane.querySelector('.lane-bg');                      // v9.7.0: 땅 그림 — 타일을 카메라만큼 밀어 흐르게
+  if (bg){
+    const t = LANE_BG[exp.id];
+    if (!t) bg.hidden = true;
+    else {
+      bg.hidden = false;
+      const tileW = Math.round(KAN * t.kan);
+      if (bg._file !== t.file){ bg.style.backgroundImage = `url("images/bg/${t.file}.png")`; bg._file = t.file; }
+      bg.style.backgroundSize = `${tileW}px 100%`;
+      bg.style.backgroundPosition = `${-Math.round(cam * KAN) % tileW}px 0`;
+    }
+  }
   const grid = lane.querySelector('.lane-grid');                  // v9.1.0: 칸 눈금 — 카메라만큼 밀어 흐르게
   if (grid){
     grid.style.backgroundSize = `${KAN}px 100%`;
