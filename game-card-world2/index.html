@@ -398,16 +398,20 @@
   /* v9.15.0: 지면 경계 — 곧은 선을 풀 · 돌 · 뿌리로 가린다 */
   .exp-lane .lane-edge{position:absolute;left:0;right:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;filter:brightness(.48) saturate(.8);}    /* v9.16.1: 같은 어둡기 (.62 × .72) */
-  .exp-lane .lane-props,.exp-lane .lane-front{position:absolute;inset:0;pointer-events:none;will-change:transform;}
+  .exp-lane .lane-props,.exp-lane .lane-front,.exp-lane .lane-near{position:absolute;inset:0;pointer-events:none;will-change:transform;}
   /* v9.13.0: 배경 · 토큰 · 채집 자리 모두 **매 프레임** 제자리를 찍는다 (CSS 미끄러짐을 걷어냄) */
   .exp-lane .lane-props{z-index:0;}
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
+  .exp-lane .lane-near{z-index:4;}                                /* v9.18.0: 그보다 더 앞 (제일 가까운 겹) */
   .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
   .exp-lane .pr.flip{transform:translateX(-50%) scaleX(-1);}
   .exp-lane .lane-props .pr{filter:brightness(.38) saturate(.8);}  /* v9.17.0: 뒤에 있는 것은 반투명일 까닭이 없다 */
   /* 앞 오브제 — 평소엔 불투명. 기사 · 크리처와 겹칠 때만 비친다 */
   .exp-lane .lane-front .pr{filter:brightness(.3) saturate(.85);transition:opacity .15s linear;}
   .exp-lane .lane-front .pr.over{opacity:.45;}
+  /* v9.18.0: 맨 앞 겹 — 더 어둡고 살짝 흐리게 (가까울수록 초점이 나간다) */
+  .exp-lane .lane-near .pr{filter:brightness(.22) saturate(.8) blur(1px);transition:opacity .15s linear;}
+  .exp-lane .lane-near .pr.over{opacity:.4;}
   .exp-lane [hidden]{display:none;}
   /* v9.1.0: 칸 눈금 — 배경으로 깔고 카메라만큼 밀어 흐름이 보이게 */
   .exp-lane .lane-grid{position:absolute;inset:0;pointer-events:none;z-index:0;
@@ -1437,7 +1441,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.17.0';
+const VERSION = 'v9.18.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4280,6 +4284,8 @@ const LANE_BG = {
              { file: 'prop_bush', h: 0.3, odds: 0.14 }],
     front:  [{ file: 'prop_grass', h: 0.68, odds: 0.12 },
              { file: 'prop_rock', h: 0.4, odds: 0.06 }],
+    near:   [{ file: 'prop_log', h: 0.5, odds: 0.08 }, { file: 'prop_thistle', h: 0.95, odds: 0.06 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
   mountain: {
@@ -4291,6 +4297,8 @@ const LANE_BG = {
              { file: 'prop_bush', h: 0.32, odds: 0.16 }],
     front:  [{ file: 'prop_grass', h: 0.72, odds: 0.13 },          // 기사 앞 — 반투명으로 스쳐 지나간다
              { file: 'prop_rock',  h: 0.42, odds: 0.07 }],
+    near:   [{ file: 'prop_boulder', h: 0.8, odds: 0.08 }, { file: 'prop_grass', h: 1.0, odds: 0.07 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
   grassland: {                                                    // v9.9.0
@@ -4302,6 +4310,8 @@ const LANE_BG = {
              { file: 'prop_rock', h: 0.22, odds: 0.10 }],
     front:  [{ file: 'prop_grass', h: 0.72, odds: 0.16 },
              { file: 'prop_bush', h: 0.5, odds: 0.06 }],
+    near:   [{ file: 'prop_thistle', h: 1.1, odds: 0.1 }, { file: 'prop_grass', h: 0.95, odds: 0.07 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
   forest: {
@@ -4313,6 +4323,8 @@ const LANE_BG = {
              { file: 'prop_rock', h: 0.22, odds: 0.08 }],
     front:  [{ file: 'prop_bush', h: 0.6, odds: 0.1 },
              { file: 'prop_grass', h: 0.66, odds: 0.1 }],
+    near:   [{ file: 'prop_trunk', h: 1.5, odds: 0.07 }, { file: 'prop_fern', h: 0.95, odds: 0.1 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.35,
   },
   river: {
@@ -4324,6 +4336,8 @@ const LANE_BG = {
              { file: 'prop_bush', h: 0.3, odds: 0.08 }],
     front:  [{ file: 'prop_reed', h: 0.8, odds: 0.16 },
              { file: 'prop_grass', h: 0.66, odds: 0.08 }],
+    near:   [{ file: 'prop_reed', h: 1.05, odds: 0.09 }, { file: 'prop_log', h: 0.5, odds: 0.07 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
   stonehide: {
@@ -4334,6 +4348,8 @@ const LANE_BG = {
              { file: 'prop_rock', h: 0.26, odds: 0.22 }],
     front:  [{ file: 'prop_stalagmite', h: 0.8, odds: 0.1 },
              { file: 'prop_rock', h: 0.44, odds: 0.08 }],
+    near:   [{ file: 'prop_stalactite', h: 0.75, odds: 0.1, top: true }, { file: 'prop_boulder', h: 0.75, odds: 0.06 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
   swamptomb: {
@@ -4345,6 +4361,8 @@ const LANE_BG = {
              { file: 'prop_bush', h: 0.28, odds: 0.1 }],
     front:  [{ file: 'prop_grass', h: 0.7, odds: 0.1 },
              { file: 'prop_deadtree', h: 0.9, odds: 0.05 }],
+    near:   [{ file: 'prop_vine', h: 0.8, odds: 0.09, top: true }, { file: 'prop_deadtree', h: 1.2, odds: 0.05 }],
+    nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
     frontSpeed: 1.3,
   },
 };
@@ -4402,8 +4420,9 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct){
       const off = (cellRnd(c, salt + 7) - 0.5) * 0.7;              // 칸 안에서 좌우로 조금
       const sc = 0.85 + cellRnd(c, salt + 13) * 0.35;              // 크기도 조금씩
       const flip = cellRnd(c, salt + 19) < 0.5 ? ' flip' : '';
+      const anchor = pick.top ? 'top:0' : `bottom:${bottomPct}%`;  // v9.18.0: 천장에 매달리는 것(종유석 · 덩굴)
       html += `<img class="pr${flip}" src="images/icon/${pick.file}.png" alt="" draggable="false"`
-        + ` style="left:${Math.round((c + 0.5 + off) * KAN)}px;height:${(pick.h * sc * 100).toFixed(1)}%;bottom:${bottomPct}%">`;
+        + ` style="left:${Math.round((c + 0.5 + off) * KAN)}px;height:${(pick.h * sc * 100).toFixed(1)}%;${anchor}">`;
     }
     box.innerHTML = html;
     // v9.17.0: 겹침을 따지려면 너비가 있어야 한다 — 다시 지을 때 한 번만 재 둔다 (매 프레임 재면 느리다)
@@ -5025,7 +5044,8 @@ function expBuild(){
     + exp.foes.map((f, i) => `<b class="mp-foe${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}" data-mfoe="${i}"></b>`).join('')
     + '<b class="mp-dot"></b></div>'
     + '<div class="exp-line"></div>';
-  el.querySelector('.exp-lane').insertAdjacentHTML('beforeend', '<div class="lane-front"></div>');   // v9.8.0: 기사 **앞**을 스치는 오브제
+  el.querySelector('.exp-lane').insertAdjacentHTML('beforeend',                                     // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
+    '<div class="lane-front"></div><div class="lane-near"></div>');
   expPaint();
 }
 // v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
@@ -5089,7 +5109,7 @@ function expPaint(){
   const far = lane.querySelector('.lane-far'), gnd = lane.querySelector('.lane-ground');
   const props = lane.querySelector('.lane-props'), front = lane.querySelector('.lane-front');
   const edge = lane.querySelector('.lane-edge');                  // v9.15.0: 지면 경계선을 덮는 풀 · 돌 띠
-  for (const el2 of [far, gnd, edge, props, front]) if (el2) el2.hidden = !cfg;
+  for (const el2 of [far, gnd, edge, props, front, lane.querySelector('.lane-near')]) if (el2) el2.hidden = !cfg;
   if (cfg){
     if (far && cfg.far){
       const w = Math.round(KAN * cfg.far.kan);
@@ -5113,12 +5133,20 @@ function expPaint(){
       edge.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
     } else if (edge) edge.hidden = true;
     if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, Math.round(cfg.ground.h * 0.45));
-    if (front && cfg.front){
-      paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
+    const near = lane.querySelector('.lane-near');
+    if (near) near.hidden = !cfg.near;
+    if ((front && cfg.front) || (near && cfg.near)){
       const half = CW * 0.25;                                      // 토큰 반 폭 (.tok 은 cw 의 절반)
       const who = [[px(kxView), half]];
       for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
-      frontFade(front, KAN, who);
+      if (front && cfg.front){
+        paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
+        frontFade(front, KAN, who);
+      }
+      if (near && cfg.near){                                       // v9.18.0: 맨 앞 층 — 더 빨리 흐르고 더 크다
+        paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, 0);
+        frontFade(near, KAN, who);
+      }
     }
   }
   // v9.12.0: **카메라는 뒤로 가지 않는다** — 기사가 제 칸에 자리 잡느라 살짝 물러설 때
