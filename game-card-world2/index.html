@@ -388,7 +388,9 @@
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
-    display:flex;align-items:flex-end;justify-content:center;}   /* v9.13.0: 매 프레임 제자리를 찍으므로 CSS 미끄러짐 없음 */
+    display:flex;align-items:flex-end;justify-content:center;
+    transform:scale(var(--tokz,1));transform-origin:50% 100%;}   /* v9.13.0 · v9.27.0: 줌 배율 */
+  .exp-lane .spot{transform:scale(var(--tokz,1));transform-origin:50% 100%;}
   /* v9.8.0: 배경 층 — 원경 · 지면 띠 · 흩뿌린 오브제 · 앞 오브제. 다 어둡게 깔아 캐릭터가 묻히지 않게 */
   .exp-lane .lane-far{position:absolute;inset:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;filter:brightness(.38) saturate(.62);}   /* v9.17.0: 불투명 + 딤드 (.46 × .8 과 같은 어둡기) */
@@ -417,8 +419,10 @@
   .exp-lane .lane-dim{position:absolute;top:0;bottom:0;z-index:5;pointer-events:none;background:rgba(0,0,0,.5);}
   .exp-lane .lane-dim.l{left:0;border-right:1px solid rgba(255,255,255,.07);}
   .exp-lane .lane-dim.r{right:0;border-left:1px solid rgba(255,255,255,.07);}
-  .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
-  .exp-lane .pr.flip{transform:translateX(-50%) scaleX(-1);}
+  /* v9.27.0: 줌아웃하면 오브제도 같이 작아진다 (캐릭터만 작아지면 크기가 안 맞아 보인다) */
+  .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;
+    transform:translateX(-50%) scale(var(--tokz,1));transform-origin:50% 100%;}
+  .exp-lane .pr.flip{transform:translateX(-50%) scale(var(--tokz,1)) scaleX(-1);}
   .exp-lane .lane-props .pr{filter:brightness(.38) saturate(.8);}  /* v9.17.0: 뒤에 있는 것은 반투명일 까닭이 없다 */
   /* 앞 오브제 — 평소엔 불투명. 기사 · 크리처와 겹칠 때만 비친다 */
   .exp-lane .lane-front .pr{filter:brightness(.3) saturate(.85);transition:opacity .15s linear;}
@@ -444,10 +448,10 @@
   .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));}
   .exp-lane .tok.walk{animation:dunBob .5s ease-in-out infinite;}
   .exp-lane .tok.dig{animation:dunDig .4s ease-in-out infinite;}   /* v0.13.4: 쭈그려 뒤지는 몸짓 */
-  @keyframes dunDig{0%,100%{transform:translateY(0) rotate(0deg);}35%{transform:translateY(7%) rotate(-5deg);}70%{transform:translateY(1%) rotate(3deg);}}
+  @keyframes dunDig{0%,100%{transform:scale(var(--tokz,1)) translateY(0) rotate(0deg);}35%{transform:scale(var(--tokz,1)) translateY(7%) rotate(-5deg);}70%{transform:scale(var(--tokz,1)) translateY(1%) rotate(3deg);}}
   /* v0.13.3: 포트레이트는 원래 왼쪽을 봄 → 오른쪽으로 걷는 기사만 뒤집음. 고블린은 그대로(기사 쪽) */
   .exp-lane .tok.knight .pic{transform:scaleX(-1);}
-  @keyframes dunBob{0%,100%{transform:translateY(0);}50%{transform:translateY(-8%);}}
+  @keyframes dunBob{0%,100%{transform:scale(var(--tokz,1)) translateY(0);}50%{transform:scale(var(--tokz,1)) translateY(-8%);}}
   .exp-lane .tok.atk .pic{animation:dunAtk .3s ease-out;}          /* 왼쪽을 보는 쪽(고블린): 뒤로 뺐다 왼쪽으로 돌진 */
   .exp-lane .tok.knight.atk .pic{animation:dunAtkF .3s ease-out;}  /* 뒤집힌 쪽(기사): 오른쪽으로 돌진 */
   @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
@@ -1470,7 +1474,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.26.0';
+const VERSION = 'v9.27.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4388,6 +4392,10 @@ const KAN_PX = () => Math.max(44, CW * 1.1);
 // v9.19.0: **무대는 5.5칸.** 폰 세로가 딱 이만큼 보이므로, 어느 화면에서든 싸움과 카메라는 이 폭 안에서만 논다.
 //   화면이 더 넓으면 남는 좌우는 딤드로 덮어 '카메라 밖'임을 알린다 (그림은 이어지되 무대는 아니다)
 const STAGE_KAN = 5.5;
+// v9.27.0: **멀리서 싸우면 무대가 줌아웃한다** — 무대의 픽셀 폭은 그대로 두고 칸만 줄여 더 많은 칸을 담는다.
+//   칸이 이보다 작아지면 캐릭터가 뭉개지므로 여기서 멈춘다 (그 너머는 무대 밖 · 딤드)
+const MIN_KAN = 34;
+const ZOOM_MS = 320;                                              // 줌이 따라붙는 데 걸리는 시간
 const CAM_SPD = 4;                                                // v9.20.3: 카메라가 목표를 따라가는 빠르기 (칸/초) — 느긋하게
 // v9.8.0: 땅 배경은 **층**이다 — 원경(느리게) · 지면(같이) · 흩뿌린 오브제(같이) · 앞 오브제(빠르게).
 //   한 장으로 다 그리면 이음매에 나무가 걸리거나 빈 칸이 생긴다. 나무 · 바위는 타일이 아니라 **낱개 그림**을 칸마다 흩뿌린다.
@@ -4885,8 +4893,10 @@ function expTickOne(dt){
     // 앞쪽의 적을 알아차림. 단 **아직 뒤지지 않은 채집 자리가 그 앞에 있으면** 그걸 먼저 한다
     //   (v8.1.1: 안 그러면 멀리서 붙은 싸움이 채집 자리를 지나쳐 버린다)
     const nextSpot = exp.spots.find(sp => !sp.done && sp.x >= L.x);   // 아직 안 뒤진 앞쪽 자리
-    let near = exp.foes.findIndex(f => !f.dead && exp.party.some(k =>   // v9.21.1: 누구든 먼저 알아차린다
-      !exp.P[k].out && f.x - exp.P[k].x <= NOTICE_GAP && f.x >= exp.P[k].x - 2));
+    // v9.21.1: 누구든 먼저 알아차린다. v9.27.0: **사거리가 알아차림보다 길면 그만큼 멀리서 먼저 쏜다**
+    const notice = k => Math.max(NOTICE_GAP, hRange(k));
+    let near = exp.foes.findIndex(f => !f.dead && exp.party.some(k =>
+      !exp.P[k].out && f.x - exp.P[k].x <= notice(k) && f.x >= exp.P[k].x - 2));
     if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
@@ -4947,7 +4957,7 @@ function expFight(dt){
     Math.abs(exp.P[k].x - f.x) < Math.abs(exp.P[best].x - f.x) ? k : best, alive[0]);
   // ② v9.6.0: 알아차린 크리처는 모두 움직이고, 앞이 막히면 그 뒤에 줄을 선다
   const crowd = exp.foes.filter(f => !f.dead
-    && alive.some(k => f.x - exp.P[k].x <= NOTICE_GAP && f.x >= exp.P[k].x)).sort((a, b) => a.x - b.x);
+    && alive.some(k => f.x - exp.P[k].x <= Math.max(NOTICE_GAP, hRange(k)) && f.x >= exp.P[k].x)).sort((a, b) => a.x - b.x);
   for (const f of crowd){
     const d = ENEMIES[f.key], mv = foeMove(d), fr2 = foeRange(d);
     const tx = exp.P[aimOf(f)].x;
@@ -5379,9 +5389,8 @@ function expPaint(){
 function paintLane(el, lane){
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
   const laneW = lane.clientWidth || 1;
-  const KAN = KAN_PX();                                           // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
-  const vis = STAGE_KAN;                                          // v9.19.0: 카메라는 늘 5.5칸만 본다
-  const stageW = Math.min(laneW, Math.round(vis * KAN));          // 무대 (가운데 정렬)
+  const baseKAN = KAN_PX();                                       // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
+  const stageW = Math.min(laneW, Math.round(STAGE_KAN * baseKAN));   // 무대 픽셀 폭은 늘 같다 (가운데 정렬)
   const stageL = Math.round((laneW - stageW) / 2);
   // v9.9.0: 배경은 칸에 딱 맞출 까닭이 없다 — 걷는 도중의 **조각 걸음**까지 더해 부드럽게 흐른다
   const camK = exp.P[lane.dataset.hero] ? lane.dataset.hero : expLead();   // v9.20.0: 이 줄의 주인
@@ -5390,18 +5399,24 @@ function paintLane(el, lane){
   // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
   const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
-  // v9.20.5: 줄마다 **제 캐릭터가 주인공**이다 — 카메라는 이 줄의 주인과 적만 본다.
-  //   (v9.20.3 에서 일행을 다 담으려다 서로의 카메라가 같아졌다. 상대는 가장자리에 있거나 잘려도 된다)
-  const aim = foeView != null ? (kxView + foeView) / 2 - vis * 0.5 : kxView - vis * 0.35;
-  const camEdge = 0.7;                                            // 제 캐릭터는 늘 무대 안 (가장자리 여유 0.7칸)
-  const aim2 = Math.min(Math.max(aim, kxView - vis + camEdge), kxView - camEdge);
-  const want = Math.max(0, Math.min(exp.len - vis, aim2));
   // 카메라는 **시계**로 미끄러진다 — 한 프레임에 두 번 그려도 두 배로 움직이지 않게
   const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   exp.cam = exp.cam || {};                                        // v9.20.2: 줄을 다시 지어도 카메라는 이어진다
   const C = exp.cam[camK] = exp.cam[camK] || {};
   const camDt = C.t ? Math.min(200, nowMs - C.t) : 16;
   C.t = nowMs;
+  // v9.27.0: 담아야 할 칸 수 — 싸우는 동안엔 **둘 사이 거리 + 두 칸**
+  const needKan = foeView != null ? Math.max(STAGE_KAN, Math.abs(foeView - kxView) + 2) : STAGE_KAN;
+  const wantKAN = Math.max(MIN_KAN, Math.min(baseKAN, stageW / needKan));
+  C.kan = C.kan == null ? wantKAN : C.kan + (wantKAN - C.kan) * Math.min(1, camDt / ZOOM_MS);   // 부드럽게
+  const KAN = C.kan;
+  const vis = stageW / KAN;                                       // 무대가 담는 칸 수 (줌에 따라 늘어난다)
+  // v9.20.5: 줄마다 **제 캐릭터가 주인공**이다 — 카메라는 이 줄의 주인과 적만 본다.
+  //   (v9.20.3 에서 일행을 다 담으려다 서로의 카메라가 같아졌다. 상대는 가장자리에 있거나 잘려도 된다)
+  const aim = foeView != null ? (kxView + foeView) / 2 - vis * 0.5 : kxView - vis * 0.35;
+  const camEdge = 0.7;                                            // 제 캐릭터는 늘 무대 안 (가장자리 여유 0.7칸)
+  const aim2 = Math.min(Math.max(aim, kxView - vis + camEdge), kxView - camEdge);
+  const want = Math.max(0, Math.min(exp.len - vis, aim2));
   // v9.20.2: 카메라는 목표로 **미끄러진다**. 걷기(선두의 35% 자리) ↔ 싸움(둘의 가운데) 로 바뀌는 순간
   //   목표가 몇 칸씩 건너뛰는데, 그대로 옮기면 다른 줄의 상대가 툭 튀어 보였다
   const camStep = CAM_SPD * camDt / 1000, camD = C.v == null ? 0 : want - C.v;
@@ -5461,6 +5476,7 @@ function paintLane(el, lane){
   // v9.9.0: 배경은 한 박자(0.1초)마다 다음 자리로 **미끄러진다**. 단 크게 튈 땐 끄고 바로 옮긴다
   lane.classList.toggle('jump', C.v == null || Math.abs(cam - C.v) > 2);
   C.v = cam; lane._cam = cam;
+  lane.style.setProperty('--tokz', (KAN / baseKAN).toFixed(3));   // v9.27.0: 줌만큼 토큰도 작아진다
   const grid = lane.querySelector('.lane-grid');                  // v9.1.0: 칸 눈금 — 카메라만큼 밀어 흐르게
   if (grid){
     grid.style.backgroundSize = `${KAN}px 100%`;
