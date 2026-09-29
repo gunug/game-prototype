@@ -613,12 +613,15 @@
   /* v5.4.0: 인스펙터 안의 목표 차례 */
   .insp .insp-plan{margin-top:8px;display:flex;flex-direction:column;gap:4px;}
   .insp .insp-plan .aim-step{font-size:12px;line-height:1.5;}
-  /* v8.6.0: 상태 표 */
-  .insp .stat-t{width:100%;border-collapse:collapse;margin:4px 0 2px;}
-  .insp .stat-t td{padding:2px 0;font-size:12px;vertical-align:middle;}
-  .insp .stat-t .s-ic{width:1.4em;}
-  .insp .stat-t .s-nm{color:var(--muted);}
-  .insp .stat-t .s-v{text-align:right;font-weight:800;}
+  /* v9.4.0: 상태 — 항목마다 외곽선 상자, 자리가 넓으면 여러 단 */
+  .insp .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:4px;margin:5px 0 2px;}
+  .insp .stat-i{display:flex;align-items:center;gap:3px;padding:3px 5px;box-sizing:border-box;
+    border:1px solid var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.04);
+    font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;}
+  .insp .stat-i .s-ic{display:flex;flex:none;}
+  .insp .stat-i .s-nm{color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;}   /* 좁으면 이름이 줄어든다 */
+  .insp .stat-i .s-v{margin-left:auto;font-weight:800;}
+  .insp .stat-i .s-note{flex-basis:100%;font-size:10px;}
   .insp .fit-ok{color:#8fe08f;}                                   /* v7.18.0 */
   .insp .fit-no{color:#ffd166;}
   .insp .armbtn{margin-left:6px;padding:2px 8px;border:0;border-radius:var(--r-pill);
@@ -1409,7 +1412,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.3.0';
+const VERSION = 'v9.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3975,10 +3978,10 @@ function renderFoeInsp(){
     + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
     + foeChips(k)                                                 // v7.10.0: 갈래 태그 (테두리와 같은 뜻을 글로도)
     + (known
-      ? '<table class="stat-t"><tbody>'                            // v8.6.0: 기사와 같은 표
+      ? '<div class="stat-grid">'                                  // v8.6.0: 기사와 같은 표
         + statRow('atk', '공격', e.atk) + statRow('def', '방어', e.def) + statRow('hp', '체력', e.hp)
         + statRow('spd', '이동', foeSpd(e)) + statRow('range', '사거리', foeRange(e))
-        + '</tbody></table>'
+        + '</div>'
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
         + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. <b>출혈</b>이 걸린 동안에는 차오르지 않는다.</div>` : '')   // v6.0.0
         + '<div class="sub">떨구는 것</div><div class="rows">'
@@ -4018,9 +4021,11 @@ function fieldArmTip(id){
   return { ok: false, why: needBleed ? '출혈' : '방어 무시', type: mine || null,
     what: needBleed ? '살이 도로 차오른다' : '가죽이 돌처럼 단단하다' };
 }
-// v8.6.0: 상태 표 한 줄 — 그림 · 이름 · 값 (· 덧말)
-const statRow = (k, name, val, cls, note) => `<tr><td class="s-ic">${statImg(k)}</td><td class="s-nm">${name}</td>`
-  + `<td class="s-v"><b class="${cls || ''}">${val}</b>${note ? ` <span class="i-muted">${note}</span>` : ''}</td></tr>`;
+// v8.6.0 · v9.4.0: 상태 한 칸 — 그림 · 이름 · 값을 **외곽선으로 묶은 상자**.
+//   상자 최소 폭을 정해 두고 자리가 넓으면 여러 단으로 깔린다 (인스펙터 폭이 바뀌어도 알아서 맞음)
+const statRow = (k, name, val, cls, note) => `<div class="stat-i">`
+  + `<span class="s-ic">${statImg(k)}</span><span class="s-nm">${name}</span>`
+  + `<b class="s-v ${cls || ''}">${val}</b>${note ? `<span class="s-note i-muted">${note}</span>` : ''}</div>`;
 function renderFieldInsp(){
   if (foePick && renderFoeInsp()) return;                         // v4.3.0
   if (knightPick){                                                // v0.13.0: 기사를 탭했을 때
@@ -4029,13 +4034,13 @@ function renderFieldInsp(){
       + `<div><div class="nm">기사 <span class="i-muted" style="font-weight:700">Lv ${knightLv()}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
       + '<div class="desc">말이 없다. 대신 걷고, 맞고, 돌아온다.</div>'
       // v8.6.0: 상태는 **표**로 — 이름과 값이 세로로 맞아 눈이 한 줄씩 읽는다
-      + '<div class="sub">상태</div><table class="stat-t"><tbody>'
+      + '<div class="sub">상태</div><div class="stat-grid">'
       + statRow('atk', '공격', knightAtk(), 'v-atk')
       + statRow('def', '방어', knightDef(), 'v-def')
       + statRow('hp', '체력', `${k.hp}/${knightMaxHp()}`, 'v-hp', k.hp <= 0 ? '빈사' : '')
       + statRow('spd', '이동', knightSpd())
       + statRow('range', '사거리', knightRange())
-      + '</tbody></table>'
+      + '</div>'
       + (bestOf('atk') || bestOf('def')                                // 장비가 얼마나 보태는지는 그 아래 한 줄
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${KNIGHT.atk + lvSum('atk')} ${statImg('def')}${KNIGHT.def + lvSum('def')}`
           + ` · 장비 ${statImg('atk')}+${bestOf('atk')} ${statImg('def')}+${bestOf('def')}</div>` : '')
