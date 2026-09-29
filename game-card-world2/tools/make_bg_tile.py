@@ -28,7 +28,7 @@ SCENE_SUFFIX = (
 )
 
 
-def seamless(im, band=0.34):
+def seamless(im, band=0.16):
     """좌우가 이어지게 — 반 폭 굴린 그림을 양 끝에서 겹쳐 섞는다.
     끝(x=0)은 굴린 그림의 값(원본 W/2)이라 되풀이해도 끊기지 않는다. 가운데는 원본 그대로."""
     W, H = im.size
@@ -56,6 +56,7 @@ def main():
     ap.add_argument("--out-w", type=int, default=288, help="저장 폭 (기본 288 = 96px 칸 셋)")
     ap.add_argument("--out-h", type=int, default=126, help="저장 높이 (기본 126 = 트랙 높이)")
     ap.add_argument("--colors", type=int, default=32)
+    ap.add_argument("--band", type=float, default=0.16, help="이음매를 섞는 폭 (0~1, 기본 0.16). 넓으면 겹친 그림이 비쳐 보인다")
     ap.add_argument("--no-seam", action="store_true", help="이음매 섞기 생략")
     ap.add_argument("--no-style", action="store_true")
     ap.add_argument("--force", action="store_true")
@@ -88,12 +89,12 @@ def main():
 
     im = Image.open(raw).convert("RGB")
     if not a.no_seam:
-        im = seamless(im)
+        im = seamless(im, a.band)
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS).quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
     im.save(dest)
     raw.unlink()
 
-    opts = [f"--kan {a.kan}", f"--out-w {a.out_w}", f"--out-h {a.out_h}"]
+    opts = [f"--kan {a.kan}", f"--out-w {a.out_w}", f"--out-h {a.out_h}", f"--band {a.band}"]
     if a.no_seam:
         opts.append("--no-seam")
     record(a.name, a.label, a.prompt, seed, ["(bg-tile)"] + opts, file=f"images/bg/{a.name}.png")
