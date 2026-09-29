@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.20.4';
+const VERSION = 'v9.20.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5275,17 +5275,12 @@ function paintLane(el, lane){
   // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
   const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
-  // v9.20.3: 싸울 땐 **함께 싸우는 이들과 적을 한 그림에** 담는다 (전엔 이 줄의 주인과 적만 보아
-  //   궁수가 무대 밖으로 밀려났다). 다 담기지 않으면 **제 캐릭터가 먼저**다
-  let aim;
-  if (foeView != null){
-    const xs = exp.party.filter(k2 => !exp.P[k2].out)
-      .map(k2 => exp.P[k2].xd != null ? exp.P[k2].xd : exp.P[k2].x).concat([foeView]);
-    aim = (Math.min(...xs) + Math.max(...xs)) / 2 - vis * 0.5;
-  } else aim = kxView - vis * 0.35;
-  const camEdge = 0.7;                                            // 무대 가장자리 여유 (칸)
-  aim = Math.min(Math.max(aim, kxView - vis + camEdge), kxView - camEdge);
-  const want = Math.max(0, Math.min(exp.len - vis, aim));
+  // v9.20.5: 줄마다 **제 캐릭터가 주인공**이다 — 카메라는 이 줄의 주인과 적만 본다.
+  //   (v9.20.3 에서 일행을 다 담으려다 서로의 카메라가 같아졌다. 상대는 가장자리에 있거나 잘려도 된다)
+  const aim = foeView != null ? (kxView + foeView) / 2 - vis * 0.5 : kxView - vis * 0.35;
+  const camEdge = 0.7;                                            // 제 캐릭터는 늘 무대 안 (가장자리 여유 0.7칸)
+  const aim2 = Math.min(Math.max(aim, kxView - vis + camEdge), kxView - camEdge);
+  const want = Math.max(0, Math.min(exp.len - vis, aim2));
   // 카메라는 **시계**로 미끄러진다 — 한 프레임에 두 번 그려도 두 배로 움직이지 않게
   const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   exp.cam = exp.cam || {};                                        // v9.20.2: 줄을 다시 지어도 카메라는 이어진다
