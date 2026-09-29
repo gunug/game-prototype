@@ -1053,6 +1053,7 @@ const DEFS = {
   huntbow:  { name:'사냥 활',   kind:'material', step:4, group:'gear', atk:3, range:5, aps:1.1 },   // v9.26.0: 가볍고 빠르다
   longbow:  { name:'긴 활',     kind:'gear', step:5, atk:5, range:6, aps:0.7 },   // v9.26.0: 한 칸 더 멀리, 대신 느리다
   obsidianbow:{ name:'흑요 활', kind:'gear', step:5, atk:6, range:5, bleed:2, aps:0.9 },   // v9.26.0: 흑요석 화살촉 — 상처가 안 아문다
+  greatbow: { name:'큰 활',     kind:'gear', step:6, atk:4, range:10, aps:0.5 },   // v9.28.0: 열 칸 밖에서. 대신 두 박자에 한 번
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
@@ -1103,6 +1104,7 @@ const USE = {
   obsidianknife:['무기', '근접무기'],                              // v6.0.0
   woodbow:['무기', '원거리무기'],                                  // v9.20.0 · v9.26.0: 이제 만들 수 있다
   huntbow:['무기', '원거리무기'], longbow:['무기', '원거리무기'], obsidianbow:['무기', '원거리무기'],
+  greatbow:['무기', '원거리무기'],
   bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
   // v7.0.0: 갈래가 없던 보스 전리품 넷
   bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
@@ -1208,6 +1210,7 @@ const DESC = {
   huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
   longbow:'활대를 길게 이었다. 한 칸 더 멀리 닿지만 당기는 데 오래 걸린다.',
   obsidianbow:'화살촉을 흑요석으로 갈았다. 스친 자리가 좀처럼 아물지 않는다.',
+  greatbow:'두 활을 하나로 겹쳐 묶었다. 열 칸 밖까지 닿지만, 한 번 당기는 데 두 박자가 든다.',
   bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
   toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
   graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
@@ -1368,6 +1371,7 @@ const RECIPES = [
   { id:'huntbow',      a:{ card:'woodbow' },   b:{ card:'leatherstrap' }, out:['huntbow'] },     // 손잡이를 가죽으로 감음
   { id:'longbow',      a:{ card:'huntbow' },   b:{ card:'longhandle' }, out:['longbow'] },       // 활대를 길게
   { id:'obsidianbow',  a:{ card:'huntbow' },   b:{ card:'obsidianblade' }, out:['obsidianbow'] },// 흑요석 화살촉
+  { id:'greatbow',     a:{ card:'longbow' },   b:{ card:'obsidianbow' }, out:['greatbow'] },    // v9.28.0: 두 활을 겹쳐 묶음
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
@@ -1474,7 +1478,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.27.0';
+const VERSION = 'v9.28.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4897,7 +4901,11 @@ function expTickOne(dt){
     const notice = k => Math.max(NOTICE_GAP, hRange(k));
     let near = exp.foes.findIndex(f => !f.dead && exp.party.some(k =>
       !exp.P[k].out && f.x - exp.P[k].x <= notice(k) && f.x >= exp.P[k].x - 2));
-    if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
+    // 그 자리를 먼저 뒤진다 — 단 v9.28.0: **이미 사거리 안이면 선 자리에서 쏜다** (걸어갈 까닭이 없다).
+    //   사거리 10 짜리 활을 줘도 채집 자리 때문에 늘 5칸까지 붙어서야 싸움이 붙던 것
+    const inRange = near >= 0 && exp.party.some(k => !exp.P[k].out
+      && hRange(k) >= exp.foes[near].x - exp.P[k].x && exp.foes[near].x >= exp.P[k].x);
+    if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x && !inRange) near = -1;
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
       exp.foe = near; exp.phase = 'fight';
