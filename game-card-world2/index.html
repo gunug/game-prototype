@@ -1458,7 +1458,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.24.0';
+const VERSION = 'v9.24.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4796,8 +4796,21 @@ function alliesStep(dt){
     heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
   }
 }
+// v9.24.1: 끝난 원정 치우기 — 시간이 된 것만 걷어낸다 (타이머가 놓쳐도 박자마다 다시 본다)
+function expSweep(){
+  if (!EXPS.length) return;
+  const now = Date.now();
+  const left = EXPS.filter(E => !(E.endAt && now >= E.endAt));
+  if (left.length === EXPS.length) return;
+  EXPS = left;
+  exp = EXPS[0] || null;
+  const el = document.getElementById('exp');
+  if (el) el._key = null;
+  renderGather(); renderInsp(); save(); renderHint(); renderMiniExp();   // v2.4.5 · v3.13.0
+}
 function expTick(dt){                                             // v9.22.0: 원정마다 한 번씩
   if (paused) return;
+  expSweep();
   for (const E of EXPS.slice()){ exp = E; expTickOne(dt); }
   exp = EXPS[0] || null;
 }
@@ -5018,29 +5031,31 @@ const BOSS_LOSS_SAY = {
   river:    '물살까지 상대할 줄은 몰랐군',
 };
 function expEnd(kind){
+  const E = exp;                                                  // v9.24.1: 이 원정을 붙잡는다 (그리기가 `exp` 를 옮긴다)
   if (kind === 'retreat') toast('🏃 이길 수 없어 물러났다');       // v8.1.1
-  logEv('expEnd', Object.assign({ field: exp && exp.id, how: kind }, logSpan('expStart', e => e.field === (exp && exp.id)) || {}, {   // v7.6.0 · v7.7.0
-    hp: S.knight.hp, lv: S.knight.lv, far: exp ? Math.round(exp.t * 100) / 100 : null }));
-  const line = kind === 'down' ? '기사가 쓰러져 돌아왔다'
+  logEv('expEnd', Object.assign({ field: E && E.id, how: kind }, logSpan('expStart', e => e.field === (E && E.id)) || {}, {   // v7.6.0 · v7.7.0
+    hp: S.knight.hp, lv: S.knight.lv, far: E ? Math.round(E.t * 100) / 100 : null }));
+  const who = E.party.map(hName).join(' · ');                     // v9.24.1: 누가 다녀왔는지
+  const line = kind === 'down' ? `${who} 쓰러져 돌아왔다`
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : kind === 'retreat' ? '이길 수 없어 물러났다'                 // v8.1.1
     : '원정을 마쳤다';
-  if (kind === 'down') toast('🩸 기사 빈사 — 원정 중단');
-  exp.phase = 'end';
-  exp.foe = -1;
-  exp.spot = -1;
-  exp.line = line;
-  exp.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
+  if (kind === 'down') toast(`🩸 ${who} 빈사 — 원정 중단`);
+  E.phase = 'end';
+  E.foe = -1;
+  E.spot = -1;
+  E.line = line;
+  E.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   // v0.61.0: 여기까지 와 봤다 — 가장 멀리 간 자리를 필드마다 남긴다 (넘어서면 그 자리로 옮겨감)
   S.marks = S.marks || {};
-  const best = S.marks[exp.id] || 0;
-  exp.beatMark = exp.fail && exp.t > best + 0.02 && best > 0.02;
-  if (exp.t > best) S.marks[exp.id] = exp.t;
-  questHit(`exp-end:${exp.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
+  const best = S.marks[E.id] || 0;
+  E.beatMark = E.fail && E.t > best + 0.02 && best > 0.02;
+  if (E.t > best) S.marks[E.id] = E.t;
+  questHit(`exp-end:${E.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
   expPaint();
-  const bearLoss = exp.fail && exp.killer && exp.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
-  const lossId = exp.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
-  if (bearLoss){ traceHit(`lose-boss:${exp.id}`); traceHit('lose-boss'); }   // v2.2.0: 흔적 '무릎'. v7.13.1: 어느 보스든
+  const bearLoss = E.fail && E.killer && E.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
+  const lossId = E.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
+  if (bearLoss){ traceHit(`lose-boss:${E.id}`); traceHit('lose-boss'); }   // v2.2.0: 흔적 '무릎'. v7.13.1: 어느 보스든
   // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
   if (bearLoss && lossId === 'stonehide' && !(S.questDone || []).includes('pierce'))
     setTimeout(() => giveQuest('pierce'), 1800);                  // v4.3.0: 막혀 본 뒤에 길을 준다
@@ -5051,14 +5066,10 @@ function expEnd(kind){
     S.said.push(lossKey);
     setTimeout(() => { knightSay(BOSS_LOSS_SAY[lossId] || '맨손으론 어림도 없군'); save(); }, 700);
   }
-  const done = exp;                                               // v9.22.0: 이 원정만 걷어낸다
-  setTimeout(() => {
-    EXPS = EXPS.filter(E => E !== done);
-    exp = EXPS[0] || null;
-    const el = document.getElementById('exp');
-    if (el) el._key = null;
-    renderGather(); renderInsp(); save(); renderHint(); renderMiniExp();   // v2.4.5 · v3.13.0
-  }, done.fail ? 2600 : 1600);
+  // v9.24.1: 걷어내는 일은 **시간표**로 — 끝낸 원정에 '언제 치울지'를 적어 두고 박자마다 쓸어 담는다.
+  //   전엔 타이머가 제 원정을 손에 쥐고 있었는데, 원정이 둘이면 엉뚱한 쪽이 치워졌다
+  E.endAt = Date.now() + (E.fail ? 2600 : 1600);
+  setTimeout(expSweep, E.fail ? 2600 : 1600);
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
 function dropLoot(def, foeIdx){
@@ -5269,6 +5280,8 @@ function renderMiniExp(){
   const el = document.getElementById('miniexp');
   if (!el) return;
   const away = EXPS.filter(E => S.tab !== expHome(E));            // v9.22.0: 다른 탭에서 도는 원정들
+  const keepMini = exp;                                           // v9.24.1: 그리고 나면 되돌린다
+  setTimeout(() => { exp = keepMini || EXPS[0] || null; }, 0);
   exp = away[0] || exp;
   const on = away.length > 0;                                      // v4.1.1: 그 원정의 탭이 아니면 미니로
   el.hidden = false;
@@ -5304,11 +5317,14 @@ function renderMiniExp(){
   if (line.textContent !== (exp.line || '')) line.textContent = exp.line || '';
 }
 function expPaint(){
+  // v9.24.1: 그리는 동안 `exp` 를 옮겨 쓰므로 **끝나면 제자리로 돌려놓는다**.
+  //   안 그러면 그리기를 부른 쪽(expEnd 등)이 남의 원정을 제 것인 줄 알고 다룬다
+  const keep = exp;
   renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
-  if (!el || !EXPS.length) return;
+  if (!el || !EXPS.length){ exp = keep || null; return; }
   if (EXPS.some(E => S.tab === expHome(E)) && !el.firstChild) expBuild();   // v3.14.0: 돌아오면 다시 만듦
-  if (!el.firstChild || el.hidden) return;
+  if (!el.firstChild || el.hidden){ exp = keep || EXPS[0] || null; return; }
   for (const box of el.querySelectorAll('.exp-one')){             // v9.22.0: 원정마다
     const E = EXPS.find(X => String(X.uid) === box.dataset.exp);
     if (!E) continue;
@@ -5316,7 +5332,7 @@ function expPaint(){
     for (const lane of box.querySelectorAll('.exp-lane')) paintLane(box, lane);   // v9.20.0: 줄마다 제 카메라로
     paintTail(box);
   }
-  exp = EXPS[0] || null;
+  exp = keep || EXPS[0] || null;
 }
 function paintLane(el, lane){
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
