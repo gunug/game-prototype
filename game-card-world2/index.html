@@ -373,7 +373,12 @@
   /* v0.13.4: 채집 포인트 — 길 위에 미리 놓이고, 기사가 뒤지면 흔들리다 다 털리면 흐려짐 */
   .exp-lane .spot{position:absolute;bottom:6px;width:calc(var(--cw) * .46);margin-left:calc(var(--cw) * -.23);pointer-events:none;
     transition:opacity .3s,filter .3s;}
-  .exp-lane .spot img{width:100%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .spot img{width:100%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));}
+  /* v9.14.0: **발밑 그림자** — 배경이 생기고 나니 기사 · 크리처 · 채집 포인트가 떠 보였다 */
+  .exp-lane .tok::before,.exp-lane .spot::before{content:'';position:absolute;left:50%;bottom:-1px;
+    width:64%;height:9px;transform:translateX(-50%);border-radius:50%;pointer-events:none;
+    background:radial-gradient(ellipse at center,rgba(0,0,0,.6) 0 45%,rgba(0,0,0,0) 72%);}
+  .exp-lane .tok.dead::before,.exp-lane .spot.done::before{opacity:.3;}
   .exp-lane .spot.searching{animation:spotShake .22s ease-in-out infinite;}
   .exp-lane .spot.done{opacity:.35;filter:grayscale(.8);}
   @keyframes spotShake{0%,100%{transform:translateX(0) rotate(0);}30%{transform:translateX(-4%) rotate(-2deg);}70%{transform:translateX(4%) rotate(2deg);}}
@@ -412,7 +417,7 @@
   /* v8.2.0: 지금 싸우는 상대는 발밑에 표시 */
   .exp-lane .tok.enemy.now::after{content:'';position:absolute;left:50%;bottom:0;width:calc(var(--cw) * .22);height:3px;
     transform:translateX(-50%);border-radius:2px;background:rgba(255,120,120,.75);}
-  .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .exp-lane .tok .pic{height:100%;width:auto;image-rendering:pixelated;-webkit-user-drag:none;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));}
   .exp-lane .tok.walk{animation:dunBob .5s ease-in-out infinite;}
   .exp-lane .tok.dig{animation:dunDig .4s ease-in-out infinite;}   /* v0.13.4: 쭈그려 뒤지는 몸짓 */
   @keyframes dunDig{0%,100%{transform:translateY(0) rotate(0deg);}35%{transform:translateY(7%) rotate(-5deg);}70%{transform:translateY(1%) rotate(3deg);}}
@@ -1426,7 +1431,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.13.0';
+const VERSION = 'v9.14.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4532,7 +4537,10 @@ const planOf = id => id === 'prelude' ? PRELUDE_PLAN : (EXP_PLAN[id] || EXP_PLAN
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
 const LANE_PAD = 5;                                              // 트랙 좌우 여백 (%) — v0.58.0: 자리가 13개라 여백을 줄여 간격을 벌림
 const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
-const SPOT_ICON = { mountain: 'mountain' };                      // v0.13.4: 필드별 채집 포인트 그림 (없으면 산 것)
+// v0.13.4 · v9.14.0: 땅마다 채집 포인트 그림 (없으면 산 것)
+//   들머리 마른 가지 · 산 돌무더기 · 초원 약초 · 숲 통나무 · 강가 조개 · 굴 광석 · 늪지 썩은 뿌리
+const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassland', forest: 'forest',
+  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb' };
 let exp = null;                                                   // 진행 중 원정 (저장 안 함 — 새로 열면 없음)
 let healProg = 0;
 
