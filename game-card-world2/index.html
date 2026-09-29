@@ -469,6 +469,32 @@
     100%{opacity:0;transform:translateX(-50%) translateY(-26px) scale(1);}}
   .exp-lane .dmg.lvup{color:var(--brand-yellow);text-shadow:0 0 8px rgba(255,212,0,.7);font-weight:900;}   /* v9.29.0 */
   .exp-lane .dmg.pierce{color:#ffd0a0;text-shadow:0 0 6px rgba(255,170,90,.6);font-weight:900;}   /* v9.29.0: 방어 무시 */
+  /* v9.30.0: 근접 — 쥔 무기를 호를 그리며 휘두른다 */
+  .exp-lane .swing{position:absolute;bottom:calc(var(--ch) * .28);z-index:5;pointer-events:none;
+    height:calc(var(--ch) * .3 * var(--tokz,1));width:auto;image-rendering:pixelated;
+    transform-origin:20% 80%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));
+    animation:swingArc .3s ease-out forwards;}
+  @keyframes swingArc{
+    0%{opacity:0;transform:translateX(-10%) rotate(-75deg) scale(.9);}
+    25%{opacity:1;}
+    100%{opacity:0;transform:translateX(60%) rotate(45deg) scale(1.1);}}
+  .exp-lane .swing.left{animation-name:swingArcL;}
+  @keyframes swingArcL{
+    0%{opacity:0;transform:translateX(10%) scaleX(-1) rotate(-75deg) scale(.9);}
+    25%{opacity:1;}
+    100%{opacity:0;transform:translateX(-60%) scaleX(-1) rotate(45deg) scale(1.1);}}
+  /* v9.30.0: 원거리 — 화살이 포물선(가로는 고르게, 세로는 떴다 떨어진다) */
+  .exp-lane .shot{position:absolute;bottom:calc(var(--ch) * .34);z-index:5;pointer-events:none;
+    animation:shotX var(--t) linear forwards;}
+  .exp-lane .shot i{display:block;animation:shotY var(--t) ease-in-out forwards;}
+  .exp-lane .shot img{display:block;height:calc(var(--ch) * .14 * var(--tokz,1));width:auto;
+    image-rendering:pixelated;transform-origin:50% 50%;animation:shotR var(--t) linear forwards;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));}
+  .exp-lane .shot.left img{animation-name:shotRL;}
+  @keyframes shotX{from{transform:translateX(0);}to{transform:translateX(var(--dx));}}
+  @keyframes shotY{0%{transform:translateY(0);}50%{transform:translateY(calc(var(--h) * -1));}100%{transform:translateY(0);}}
+  @keyframes shotR{from{transform:rotate(-55deg);}to{transform:rotate(25deg);}}
+  @keyframes shotRL{from{transform:scaleX(-1) rotate(-55deg);}to{transform:scaleX(-1) rotate(25deg);}}
   /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
   .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:3px;transform:translateX(-50%);z-index:4;
     display:flex;flex-direction:column;align-items:center;gap:0;
@@ -1492,7 +1518,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.29.0';
+const VERSION = 'v9.30.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5617,14 +5643,58 @@ function expHeal(idx, n){
 function expLvUp(who, lv){
   for (const el of toksOf(who)) floatText(el, `Lv ${lv}`, 'lvup');
 }
+// v9.30.0: **때리는 그림** — 근접은 쥔 무기를 휘두르고, 원거리는 화살이 곡사로 날아간다
+//   화살이 날아가는 동안엔 피해 숫자도 기다렸다가 **맞는 순간** 뜬다
+const heroBow = who => { const w = equipped('weapon', who); return w && useOf(w).includes('원거리무기') ? w : null; };
+function swingFx(a, b, who){                                      // 근접 — 쥔 무기를 호를 그리며
+  const w = who ? equipped('weapon', who) : null;
+  const lane = a.parentElement;
+  if (!lane) return;
+  const ax = parseFloat(a.style.left) || 0, bx = parseFloat(b.style.left) || 0;
+  const el = document.createElement('img');
+  el.className = 'swing' + (bx < ax ? ' left' : '');
+  el.src = `images/icon/${w ? 'card_' + w : 'ui_paw'}.png`;
+  el.alt = '';
+  el.style.left = ax + 'px';
+  lane.appendChild(el);
+  setTimeout(() => el.remove(), 320);
+}
+function shotFx(a, b){                                            // 원거리 — 화살이 포물선을 그린다
+  const lane = a.parentElement;
+  if (!lane) return 0;
+  const ax = parseFloat(a.style.left) || 0, bx = parseFloat(b.style.left) || 0;
+  const dx = bx - ax, dist = Math.abs(dx);
+  const ms = Math.min(700, 180 + dist * 0.8);                     // 멀수록 오래 난다
+  const h = Math.max(14, Math.min(70, dist * 0.32));              // 멀수록 높이 뜬다
+  const el = document.createElement('div');
+  el.className = 'shot' + (dx < 0 ? ' left' : '');
+  el.style.left = ax + 'px';
+  el.style.setProperty('--dx', dx + 'px');
+  el.style.setProperty('--h', h + 'px');
+  el.style.setProperty('--t', ms + 'ms');
+  el.innerHTML = '<i><img src="images/icon/fx_arrow.png" alt="" draggable="false"></i>';
+  lane.appendChild(el);
+  setTimeout(() => el.remove(), ms + 40);
+  return ms;
+}
 function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
+  const who = typeof from === 'string' ? from : null;
+  const bow = who ? heroBow(who) : null;
   for (const a of toksOf(from)) flash(a, 'atk', 300);
   const text = kind === 'bleed' ? `-${dmg} 출혈` : kind === 'pierce' ? `-${dmg} 관통`
     : blocked ? `-${dmg} 막힘` : `-${dmg}`;
   const cls = blocked ? 'blocked' : kind === 'bleed' ? 'bleedhit' : kind === 'pierce' ? 'pierce' : '';
-  for (const b of toksOf(to)){
-    flash(b, 'hurt', 300);
-    floatText(b, text, cls);
+  const atks = toksOf(from), tgts = toksOf(to);
+  let wait = 0;
+  for (let i = 0; i < tgts.length; i++){
+    const b = tgts[i], a = atks[i] || atks[0];
+    // 캐릭터가 때릴 때만 그림을 낸다. 출혈은 이어지는 피해라 따로 안 그린다
+    if (who && kind !== 'bleed' && a && a.parentElement === b.parentElement){
+      if (bow) wait = shotFx(a, b) || wait;
+      else swingFx(a, b, who);
+    }
+    const hit = () => { flash(b, 'hurt', 300); floatText(b, text, cls); };
+    if (wait) setTimeout(hit, wait); else hit();
   }
 }
 // 기사의 수치를 **보이는 곳 전부** 다시 그림 (v0.78.1)
