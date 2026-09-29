@@ -1053,6 +1053,8 @@ const DEFS = {
   longbow:  { name:'긴 활',     kind:'gear', step:5, atk:5, range:6, aps:0.7 },   // v9.26.0: 한 칸 더 멀리, 대신 느리다
   obsidianbow:{ name:'흑요 활', kind:'gear', step:5, atk:6, range:5, bleed:2, aps:0.9 },   // v9.26.0: 흑요석 화살촉 — 상처가 안 아문다
   greatbow: { name:'큰 활',     kind:'gear', step:6, atk:4, range:10, aps:0.5 },   // v9.28.0: 열 칸 밖에서. 대신 두 박자에 한 번
+  horncore: { name:'뿔 심',     kind:'material', step:2, group:'gear' },   // v9.28.2: 뿔과 힘줄을 겹쳐 붙인 심
+  bowlimb:  { name:'겹 활대',   kind:'material', step:4, group:'gear' },   // v9.28.2: 큰 활의 활대
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
@@ -1209,7 +1211,9 @@ const DESC = {
   huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
   longbow:'활대를 길게 이었다. 한 칸 더 멀리 닿지만 당기는 데 오래 걸린다.',
   obsidianbow:'화살촉을 흑요석으로 갈았다. 스친 자리가 좀처럼 아물지 않는다.',
-  greatbow:'두 활을 하나로 겹쳐 묶었다. 열 칸 밖까지 닿지만, 한 번 당기는 데 두 박자가 든다.',
+  greatbow:'겹친 활대에 긴 활을 얹었다. 열 칸 밖까지 닿지만, 한 번 당기는 데 두 박자가 든다.',
+  horncore:'뿔을 저며 힘줄로 붙였다. 휘었다가 되돌아오는 힘이 세다.',
+  bowlimb:'뿔 심을 긴 자루에 덧대 겹친 활대. 혼자서는 아무것도 못 쏜다.',
   bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
   toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
   graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
@@ -1370,7 +1374,10 @@ const RECIPES = [
   { id:'huntbow',      a:{ card:'woodbow' },   b:{ card:'leatherstrap' }, out:['huntbow'] },     // 손잡이를 가죽으로 감음
   { id:'longbow',      a:{ card:'huntbow' },   b:{ card:'longhandle' }, out:['longbow'] },       // 활대를 길게
   { id:'obsidianbow',  a:{ card:'huntbow' },   b:{ card:'obsidianblade' }, out:['obsidianbow'] },// 흑요석 화살촉
-  { id:'greatbow',     a:{ card:'longbow' },   b:{ card:'obsidianbow' }, out:['greatbow'] },    // v9.28.0: 두 활을 겹쳐 묶음
+  // v9.28.2: 무기끼리는 못 합친다 (둘 다 상단 필드로 올라가 서로 만날 수 없다) → 활 + **활 부품**
+  { id:'horncore',     a:{ card:'bisonhorn' }, b:{ card:'sinew' },     out:['horncore'] },
+  { id:'bowlimb',      a:{ card:'horncore' },  b:{ card:'longhandle' }, out:['bowlimb'] },
+  { id:'greatbow',     a:{ card:'longbow' },   b:{ card:'bowlimb' },   out:['greatbow'] },
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
@@ -1477,7 +1484,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.28.1';
+const VERSION = 'v9.28.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;

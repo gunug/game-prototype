@@ -214,4 +214,21 @@ try {
   else console.log('✓ 단계 규칙 (N = 아래 단계 + 1, 두 재료의 단계 차는 1 이하)');
 } catch (e){ report('단계 규칙', e); }
 
+// 9) 무기끼리는 안 합친다 (v9.28.2) — 완성된 무기는 상단 필드로 올라가 서로 만날 수 없다.
+//    무기는 늘 **무기 + 무기재료** 꼴이어야 한다
+try {
+  const bad = vm.runInContext(`(function(){
+    const out = [], nm = t => (DEFS[t] ? DEFS[t].name : t);
+    const isW = t => useOf(t).includes('무기');
+    for (const r of CRAFT_RECIPES){
+      if (r.cook || !r.a.card || !r.b.card) continue;
+      if (isW(r.a.card) && isW(r.b.card))
+        out.push(nm(r.a.card) + ' + ' + nm(r.b.card) + ' -> ' + (r.out || []).map(nm).join(','));
+    }
+    return out;
+  })()`, ctx);
+  if (bad.length) report('무기끼리 합침', new Error(bad.join(' | ')));
+  else console.log('✓ 무기끼리 합치는 조합식 0 (무기 + 무기재료만)');
+} catch (e){ report('무기끼리 합침', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
