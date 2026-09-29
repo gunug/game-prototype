@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.20.5';
+const VERSION = 'v9.21.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4454,14 +4454,16 @@ function expEase(dt){                                             // 매 박자 
     const h = exp.P[k];
     // v9.20.1: **걸을 때 따라가는 이의 그림 자리는 선두의 그림 자리 한 칸 뒤**를 그대로 따른다.
     //   칸(점유)만 보고 따라가면 '한 칸 순간이동 → 멈춤'이 되풀이돼 뚝뚝 끊겨 보인다 (칸은 그대로 점유한다)
-    if (k !== lead && exp.phase !== 'fight' && !h.out){
+    // 바짝 붙어 따라갈 때만 **선두의 그림 자리 한 칸 뒤**를 그대로 따른다.
+    //   멀리 떨어져 걸어오는 중이면(늦은 합류) 아래의 제 걸음대로 (v9.21.0)
+    if (k !== lead && exp.phase !== 'fight' && !h.out && h.xd != null){
       const want = Math.max(0, (LD.xd != null ? LD.xd : LD.x) - 1);
-      const off = want - (h.xd != null ? h.xd : h.x);
-      // 뒤처졌으면 **뛰어서** 따라붙는다 (그냥 옮겨 놓으면 상대 줄에서 툭 튀어 보인다)
-      const sp = Math.abs(off) > 1.2 ? hSpd(k) * 2 : hSpd(k), st2 = sp * dt / 1000;
-      h.xd = h.xd == null || Math.abs(off) > 6 ? want
-        : (Math.abs(off) <= st2 ? want : h.xd + Math.sign(off) * st2);
-      continue;
+      const off = want - h.xd;
+      if (Math.abs(off) <= 1.2){
+        const st2 = hSpd(k) * dt / 1000;
+        h.xd = Math.abs(off) <= st2 ? want : h.xd + Math.sign(off) * st2;
+        continue;
+      }
     }
     // v9.20.2: 그림 자리를 칸(x)에 **묶지 않는다** — 묶으면 칸이 바뀌는 순간 한 칸을 순간이동한다
     //   (채집 자리로 되돌아설 때도 마찬가지). 늘 '들어가려는 칸' 쪽으로 제 빠르기로 미끄러질 뿐
@@ -4706,14 +4708,9 @@ function expStart(id, cardEl, who){
   const st = S.fields[id];
   if (exp){                                                       // v9.20.0: 같은 땅이면 **합류**한다
     if (exp.id === id && !exp.party.includes(who) && hAlive(who)){
-      const lead = exp.P[expLead()];
-      let x = lead.x - 1;
-      // v9.20.1: 뒤에 빈 칸이 없으면(출발선) 앞선 이를 한 칸 밀어 자리를 낸다 — 한 칸에 둘이 서면 서로 막힌다
-      if (x < 0){
-        if (cellFree(lead.x + 1, expLead())){ lead.x += 1; lead.xd = lead.x; lead.to = lead.x; x = lead.x - 1; }
-        else x = lead.x + 1;
-      }
-      while (x > 0 && !cellFree(x, who)) x--;
+      // v9.21.0: 늦게 온 이는 **땅 입구(0칸)에서 출발**한다 — 제 이동속도로 걸어 따라잡아야 한다
+      let x = 0;
+      while (x < exp.len && !cellFree(x, who)) x++;
       exp.party.push(who);
       exp.P[who] = mkHero(x);
       exp.line = `${hName(who)} 합류`;
