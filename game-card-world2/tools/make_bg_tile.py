@@ -12,6 +12,7 @@ import random
 import sys
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 from icon_common import PAINT, build_prompt, fetch_image, record, run_workflow
@@ -26,6 +27,35 @@ SCENE_SUFFIX = (
     ", empty landscape only, no person, no human, no creature, no animal, no text, no ui, "
     "no vignette, no border, no frame, even lighting across the whole width"
 )
+
+
+def quiet_roll(im, band):
+    """이음매를 **한산한 자리**로 옮긴다.
+    섞는 자리는 두 군데 — 끝(x≈0)과 반 폭 건너(x≈W/2) — 이 둘이 함께 한산한 곳을 고른다.
+    타일은 얼마를 굴려도 그대로 이어지므로, 굴려서 나무·바위를 이음매에서 비켜 놓는다."""
+    a = np.asarray(im.convert("L"), dtype=float)
+    H, W = a.shape
+    col = np.zeros(W)
+    col[: W - 1] = np.abs(np.diff(a, axis=1)).mean(0)               # 세로선마다 가로 변화량 = 북적임
+    col[W - 1] = col[W - 2]
+    w = max(4, int(W * band))
+    k = np.ones(w) / w
+    sm = np.convolve(np.tile(col, 3), k, "same")[W : 2 * W]         # 섞는 폭만큼 뭉갬 (둘레로 이어서)
+    q = int(np.argmin(sm + np.roll(sm, -(W // 2))))                 # 두 자리가 함께 한산한 곳
+    out = Image.new(im.mode, (W, H))
+    out.paste(im.crop((q, 0, W, H)), (0, 0))
+    out.paste(im.crop((0, 0, q, H)), (W - q, 0))
+    return out, q
+
+
+def tone_match(im, k=10):
+    """양 끝의 **밝기·색을 맞춘다** — 왼쪽 끝과 오른쪽 끝의 차이를 가로로 고르게 나눠 없앤다.
+    이걸 안 하면 이음매를 섞을 때 두 하늘의 톤이 달라 네모난 자국이 남는다."""
+    a = np.asarray(im, dtype=float)
+    H, W = a.shape[:2]
+    d = a[:, :k].mean(1) - a[:, W - k :].mean(1)                    # 줄마다 (왼끝 − 오른끝)
+    t = np.linspace(-0.5, 0.5, W)[None, :, None]
+    return Image.fromarray(np.clip(a + d[:, None, :] * t, 0, 255).astype("uint8"), im.mode)
 
 
 def seamless(im, band=0.16):
@@ -57,6 +87,8 @@ def main():
     ap.add_argument("--out-h", type=int, default=126, help="저장 높이 (기본 126 = 트랙 높이)")
     ap.add_argument("--colors", type=int, default=32)
     ap.add_argument("--band", type=float, default=0.16, help="이음매를 섞는 폭 (0~1, 기본 0.16). 넓으면 겹친 그림이 비쳐 보인다")
+    ap.add_argument("--no-tone", action="store_true", help="양 끝 톤 맞추기 생략")
+    ap.add_argument("--no-pick", action="store_true", help="이음매 자리 고르기 생략 (그림 그대로의 끝을 씀)")
     ap.add_argument("--no-seam", action="store_true", help="이음매 섞기 생략")
     ap.add_argument("--no-style", action="store_true")
     ap.add_argument("--force", action="store_true")
@@ -89,6 +121,11 @@ def main():
 
     im = Image.open(raw).convert("RGB")
     if not a.no_seam:
+        if not a.no_pick:
+            im, q = quiet_roll(im, a.band)
+            print(f"이음매 자리 {q}/{im.size[0]}")
+        if not a.no_tone:
+            im = tone_match(im)
         im = seamless(im, a.band)
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS).quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
     im.save(dest)
@@ -97,6 +134,10 @@ def main():
     opts = [f"--kan {a.kan}", f"--out-w {a.out_w}", f"--out-h {a.out_h}", f"--band {a.band}"]
     if a.no_seam:
         opts.append("--no-seam")
+    if a.no_pick:
+        opts.append("--no-pick")
+    if a.no_tone:
+        opts.append("--no-tone")
     record(a.name, a.label, a.prompt, seed, ["(bg-tile)"] + opts, file=f"images/bg/{a.name}.png")
     print(f"tile  {dest}  {a.out_w}x{a.out_h}  ({a.kan}칸)")
 
