@@ -383,7 +383,7 @@
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
-    display:flex;align-items:flex-end;justify-content:center;transition:left .2s linear;}   /* v8.2.0: 걸음이 이어져 보이게 */
+    display:flex;align-items:flex-end;justify-content:center;transition:left .1s linear;}   /* v8.2.0 걸음이 이어져 보이게 · v9.10.0 한 박자에 맞춤 */
   /* v9.8.0: 배경 층 — 원경 · 지면 띠 · 흩뿌린 오브제 · 앞 오브제. 다 어둡게 깔아 캐릭터가 묻히지 않게 */
   .exp-lane .lane-far{position:absolute;inset:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;opacity:.46;filter:brightness(.8) saturate(.7);}
@@ -393,8 +393,10 @@
   /* v9.9.0: 배경 층은 다음 자리까지 미끄러진다 — 한 칸씩 끊겨 보이지 않게 */
   .exp-lane .lane-far,.exp-lane .lane-ground,.exp-lane .lane-grid{transition:background-position .1s linear;}
   .exp-lane .lane-props,.exp-lane .lane-front{transition:transform .1s linear;}
+  .exp-lane .spot,.exp-lane .mark{transition:left .1s linear;}     /* v9.10.0: 채집 자리 · 깃발도 같이 흐른다 */
   .exp-lane.jump .lane-far,.exp-lane.jump .lane-ground,.exp-lane.jump .lane-grid,
-  .exp-lane.jump .lane-props,.exp-lane.jump .lane-front{transition:none;}
+  .exp-lane.jump .lane-props,.exp-lane.jump .lane-front,
+  .exp-lane.jump .tok,.exp-lane.jump .spot,.exp-lane.jump .mark{transition:none;}
   .exp-lane .lane-props{z-index:0;}
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
   .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
@@ -1430,7 +1432,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.9.0';
+const VERSION = 'v9.10.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4264,6 +4266,16 @@ const KAN_PX = () => Math.max(44, CW * 1.1);
 //   한 장으로 다 그리면 이음매에 나무가 걸리거나 빈 칸이 생긴다. 나무 · 바위는 타일이 아니라 **낱개 그림**을 칸마다 흩뿌린다.
 //   w = 칸 단위 너비 · h = 트랙 높이 비율 · odds = 그 칸에 나올 확률
 const LANE_BG = {
+  prelude: {                                                      // v9.10.0: 서두 — 마른 풀 · 돌 · 앙상한 나무
+    far:    { file: 'bg_prelude-far', kan: 6, speed: 0.3 },
+    ground: { file: 'bg_prelude-ground', kan: 4, h: 30 },
+    props:  [{ file: 'prop_deadtree', h: 0.5, odds: 0.12 },
+             { file: 'prop_rock', h: 0.24, odds: 0.18 },
+             { file: 'prop_bush', h: 0.3, odds: 0.14 }],
+    front:  [{ file: 'prop_grass', h: 0.68, odds: 0.12 },
+             { file: 'prop_rock', h: 0.4, odds: 0.06 }],
+    frontSpeed: 1.3,
+  },
   mountain: {
     far:    { file: 'bg_mountain-far', kan: 6, speed: 0.3 },      // 원경 — 카메라의 3할만 흐른다
     ground: { file: 'bg_mountain-ground', kan: 4, h: 30 },         // 지면 띠 (트랙 높이의 30%)
@@ -4545,6 +4557,8 @@ function expTick(dt){
     exp.step = (exp.step || 0) + knightSpd() * dt / 1000;
     while (exp.step >= 1 && exp.kx < exp.len && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
     if (exp.kx >= exp.len) exp.step = 0;
+    // v9.10.0: 칸과 칸 사이의 **걸친 만큼**을 그림 자리로 쓴다 (판정은 칸 그대로)
+    exp.vf = exp.kx < exp.len && cellFree(exp.kx + 1, 'knight') ? Math.min(1, exp.step) : 0;
     exp.t = Math.min(1, exp.kx / exp.len);
     let ev = plan[exp.idx];
     while (ev && ev.fight && exp.kx >= Math.round(ev.at * exp.len)){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
@@ -4554,7 +4568,7 @@ function expTick(dt){
         exp.spot = exp.spots.findIndex(sp => !sp.done && sp.at === ev.at);
         if (exp.spot < 0) return;                                 // v8.1.1: 이미 뒤진 자리면 그냥 지나간다
         exp.kx = exp.spots[exp.spot].x;                            // v9.5.0: 그 칸에 올라선다
-        exp.step = 0;
+        exp.step = 0; exp.vf = 0;
         exp.t = exp.kx / exp.len;
         exp.phase = 'search'; exp.search = 0;
         exp.line = '채집 포인트를 뒤진다';
@@ -4612,6 +4626,7 @@ function expFight(dt){
   exp.step = (exp.step || 0) + knightSpd() * sec;
   while (exp.step >= 1 && e.x - exp.kx > kr && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
   if (e.x - exp.kx <= kr) exp.step = Math.min(exp.step, 1);
+  exp.vf = e.x - exp.kx > kr && cellFree(exp.kx + 1, 'knight') ? Math.min(1, exp.step) : 0;   // v9.10.0
   // ② v9.6.0: 알아차린 크리처는 **모두** 움직인다 — 앞이 막히면 그 뒤에 **줄을 선다**.
   //   가까운 놈부터 옮겨야 앞줄이 먼저 자리를 비운다
   const crowd = exp.foes.filter(f => !f.dead && f.x - exp.kx <= NOTICE_GAP && f.x >= exp.kx)
@@ -4625,7 +4640,11 @@ function expFight(dt){
       else if (mv === 'kite' && g < fr2 && cellFree(f.x + 1, f)){ f.step -= 1; f.x += 1; }
       else { f.step = Math.min(f.step, 1); break; }
     }
+    const g2 = f.x - exp.kx;                                       // v9.10.0: 크리처도 칸 사이를 걸친다
+    f.vf = mv === 'chase' && g2 > fr2 && cellFree(f.x - 1, f) ? -Math.min(1, f.step)
+      : mv === 'kite' && g2 < fr2 && cellFree(f.x + 1, f) ? Math.min(1, f.step) : 0;
   }
+  for (const f of exp.foes) if (!f.dead && !crowd.includes(f)) f.vf = 0;
   const gap = Math.max(0, e.x - exp.kx);
   exp.gap = gap;
   const kHit = kr >= gap, eHit = fr >= gap;                        // v9.5.0: 칸이 정수라 어림셈이 필요 없다
@@ -4999,7 +5018,7 @@ function expPaint(){
   const KAN = KAN_PX();                                           // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
   const vis = laneW / KAN;
   // v9.9.0: 배경은 칸에 딱 맞출 까닭이 없다 — 걷는 도중의 **조각 걸음**까지 더해 부드럽게 흐른다
-  const kxView = (exp.kx || 0) + (exp.phase === 'run' ? Math.min(1, exp.step || 0) : 0);
+  const kxView = (exp.kx || 0) + (exp.vf || 0);
   const cam = Math.max(0, Math.min(exp.len - vis, kxView - vis * 0.35));
   const px = x => Math.round((x - cam) * KAN);
   // v9.8.0: 배경 층들 — 원경은 느리게, 지면과 뒤 오브제는 기사와 같이, 앞 오브제는 더 빠르게 (시차)
@@ -5041,7 +5060,7 @@ function expPaint(){
   // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
   // v8.2.0: 상황(걷기 · 채집 · 전투)마다 달랐던 치우침을 없앰 — 늘 **제 칸 그대로** 그린다.
   //   사거리 · 이동속도가 생긴 뒤로는 '어디에 서 있나'가 규칙이라 눈에 보이는 자리가 곧 판정 자리여야 한다
-  kt.style.left = px(exp.kx || 0) + 'px';                         // v9.0.0: 한 칸 = 한 자리라 그대로 그려도 겹치지 않는다
+  kt.style.left = px(kxView) + 'px';                              // v9.0.0 한 칸 = 한 자리 · v9.10.0 칸 사이도 그린다
   const reach = kt.querySelector('.reach');                       // 닿는 거리 — 전투 중에만 옅게
   if (reach){
     const on = exp.foe >= 0 && exp.phase === 'fight';
@@ -5064,7 +5083,7 @@ function expPaint(){
     et.classList.toggle('dead', f.dead);
     et.classList.toggle('now', exp.foe === +et.dataset.foe);
     const ed = ENEMIES[f.key];
-    et.style.left = px(f.x) + 'px';                                 // v8.1.0 · v9.0.0: 적도 움직인다
+    et.style.left = px(f.x + (f.vf || 0)) + 'px';                   // v8.1.0 · v9.0.0 적도 움직임 · v9.10.0 칸 사이도
     // v9.3.0: 크리처도 걸으면 들썩인다 — 기사와 같은 몸짓
     const isNow = exp.foe === +et.dataset.foe && exp.phase === 'fight';
     const mvKind = foeMove(ed), g = isNow ? (exp.gap != null ? exp.gap : 0) : 0;
