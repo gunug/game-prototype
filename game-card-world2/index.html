@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.20.3';
+const VERSION = 'v9.20.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3653,12 +3653,17 @@ function screenRows(){
       // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
       const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k =>   // v8.5.0: 기사 카드와 같은 틀 · 같은 크기
         foeCardHtml(k, { attrs: ` data-foe-card="${k}" title="${esc((ENEMIES[k] || {}).name || '')}"`, sel: foePick === k })).join('')}</div>`;
-      const slots = PARTY.map((open, i) => ({
-        id: `${f.id}:${i}`, open: open && !locked,                // v0.35.0: 잠긴 필드는 출전 칸도 잠김
-        card: open && exp && exp.id === f.id && i === 0,
-        icon: '<img class="icon" src="images/icon/card_knight.png" alt="기사" draggable="false">',
-        cardName: '기사', frame: 'gold', lab: '출전',
-      }));
+      // v9.20.4: 나간 **그 캐릭터**가 그 칸에 뜬다 (전엔 첫 칸에 늘 기사 그림이 박혀 있었다)
+      const here = exp && exp.id === f.id ? exp.party : [];
+      const slots = PARTY.map((open, i) => {
+        const who = here[i] || null;
+        return {
+          id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
+          card: !!(open && who),
+          icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
+          cardName: who ? hName(who) : '', frame: who === 'ally' ? 'bronze' : 'gold', lab: '출전',
+        };
+      });
       return { card: foeCards + card, slots };
     });
   }
