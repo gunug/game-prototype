@@ -154,18 +154,18 @@
   .aim-tab .chars::-webkit-scrollbar,.gear-tab .chars::-webkit-scrollbar{width:6px;}
   .aim-tab .chars::-webkit-scrollbar-thumb,.gear-tab .chars::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px;}
   .aim-tab .chars::-webkit-scrollbar-track,.gear-tab .chars::-webkit-scrollbar-track{background:transparent;}
-  .chars .cw.knight{position:relative;flex:none;cursor:grab;}
+  .chars .cw.hero{position:relative;flex:none;cursor:grab;}
   /* v5.1.0: 원정 중인 캐릭터 — 끌 수 없고 '출전중' 딱지가 붙는다 */
-  .cw.knight.out{cursor:default;filter:grayscale(.55) brightness(.72);}
+  .cw.hero.out{cursor:default;filter:grayscale(.55) brightness(.72);}
   .sleeve .cw .foe-mark{position:absolute;left:calc(var(--cw) * -.04);top:calc(var(--cw) * -.06);z-index:3;   /* v7.9.1 */
     font-size:calc(var(--cf) * .16);}
   .sleeve .cw .land-done{position:absolute;right:calc(var(--cw) * -.06);bottom:calc(var(--cw) * .04);z-index:3;   /* v7.9.0 */
     padding:0 5px;border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);
     font-size:calc(var(--cf) * .11);font-weight:900;}
-  .cw.knight.out .out-lab{position:absolute;left:0;right:0;top:38%;z-index:3;display:flex;flex-direction:column;align-items:center;
+  .cw.hero.out .out-lab{position:absolute;left:0;right:0;top:38%;z-index:3;display:flex;flex-direction:column;align-items:center;
     gap:1px;padding:2px 0;background:rgba(0,0,0,.62);color:var(--brand-yellow);font-weight:900;
     font-size:calc(var(--cf) * .13);letter-spacing:.04em;filter:none;}
-  .cw.knight.out .out-where{font-size:calc(var(--cf) * .1);font-weight:700;color:var(--ink);opacity:.85;}
+  .cw.hero.out .out-where{font-size:calc(var(--cf) * .1);font-weight:700;color:var(--ink);opacity:.85;}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
   .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
@@ -333,7 +333,7 @@
   .pslot.sel{border-color:rgba(255,255,255,.55);}
   .chars .cw{position:relative;flex:none;cursor:grab;}
   .knight-row{display:flex;align-items:center;gap:10px;width:100%;min-height:var(--ch);}
-  .knight-row .cw.knight{position:relative;flex:none;cursor:pointer;}
+  .knight-row .cw.hero{position:relative;flex:none;cursor:pointer;}
   .kstat{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:800;}
   .kstat .icon.inline{width:1.1em;height:1.1em;margin:0 2px 0 0;vertical-align:-.15em;}
   .kstat .hpbar{width:min(160px,28vw);height:8px;border-radius:4px;background:rgba(0,0,0,.5);overflow:hidden;}
@@ -718,7 +718,7 @@
   .lvr .lvq{margin-left:auto;flex:none;opacity:.7;font-variant-numeric:tabular-nums;}
   .lvr .icon.inline{width:1.05em;height:1.05em;}
   /* v0.71.0: 원정 중 레벨업 — 기사 카드가 금빛으로 번쩍 */
-  .cw.knight.lvup{animation:lvFlash .9s ease-out;}
+  .cw.hero.lvup{animation:lvFlash .9s ease-out;}
   @keyframes lvFlash{0%{box-shadow:0 0 0 0 rgba(255,212,0,0);}
     25%{box-shadow:0 0 14px 4px rgba(255,212,0,.85);filter:brightness(1.35);}
     100%{box-shadow:0 0 0 0 rgba(255,212,0,0);}}
@@ -1458,7 +1458,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.22.0';
+const VERSION = 'v9.23.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3759,31 +3759,25 @@ function beingCardHtml(o){
         `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>`)
     + '</div>';
 }
-function knightCardHtml(drag){
-  const k = S.knight;
-  const E = expOf('knight'), out = !!E;                           // v5.1.0: 원정 중
+// v9.23.0: 캐릭터 카드는 **하나의 틀**로 — 기사도 궁수도 같은 함수, 같은 꾸밈(`.cw.hero`)을 쓴다
+//   (전엔 '출전중' 딱지 꾸밈이 `.cw.knight` 에만 걸려 궁수 카드에서는 글씨가 그대로 겹쳐 보였다)
+const outLabHtml = E => `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[E.id].name)}</span></div>`;
+function heroCardHtml(key, drag){
+  const st = hSt(key), E = expOf(key), out = !!E;                 // v5.1.0: 원정 중
+  const sel = key === 'knight' && knightPick;
   return beingCardHtml({
-    cls: `f-gold knight${knightPick ? ' sel' : ''}${out ? ' out' : ''}`,
-    attrs: ` data-knight="1"${drag && !out ? ' data-token="knight"' : ''}`,
-    pic: 'images/icon/card_knight.png', name: '기사',
-    atk: knightAtk(), def: knightDef(), hp: k.hp, max: knightMaxHp(),
-    spd: knightSpd(), range: knightRange(),
-    lv: knightLv(), xp: k.xp || 0, xpNeed: xpNeed(knightLv()),
-    extra: out ? `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[E.id].name)}</span></div>` : '',
+    cls: `f-${key === 'ally' ? 'bronze' : 'gold'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}`,
+    attrs: ` data-hero-card="${key}" data-${key === 'ally' ? 'ally' : 'knight'}="1"`
+      + (drag && !out ? ` data-token="${key}"` : ''),
+    pic: `images/icon/${hCard(key)}.png`, name: hName(key),
+    atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key),
+    spd: hSpd(key), range: hRange(key),
+    lv: hLv(key), xp: st.xp || 0, xpNeed: xpNeed(hLv(key)),
+    extra: out ? outLabHtml(E) : '',
   });
 }
-// v9.20.0: 궁수 카드 — 기사와 같은 틀, 테두리는 동테
-function allyCardHtml(drag){
-  const a = allySt();
-  const E = expOf('ally'), out = !!E;
-  return beingCardHtml({
-    cls: `f-bronze ally${out ? ' out' : ''}`,
-    attrs: ` data-ally="1"${drag && !out ? ' data-token="ally"' : ''}`,
-    pic: `images/icon/${ARCHER.card}.png`, name: ARCHER.name,
-    lv: allyLv(), xp: a.xp || 0, xpNeed: xpNeed(allyLv()),
-    extra: out ? `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[E.id].name)}</span></div>` : '',
-  });
-}
+const knightCardHtml = drag => heroCardHtml('knight', drag);
+const allyCardHtml = drag => heroCardHtml('ally', drag);
 // 크리처 카드 — 레벨 · 경험치만 없고 나머지는 같다
 function foeCardHtml(key, opts){
   const e = ENEMIES[key] || {};
