@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.20.0';
+const VERSION = 'v9.20.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4443,9 +4443,18 @@ function easeTo(cur, target, spd, dt){
 // 그림은 **다음 칸을 미리 보고** 간다 — `to` 는 지금 들어가려는 칸(못 가면 제 칸).
 //   칸이 바뀌기를 기다렸다 따라가면 한 칸마다 (1/이동속도)초씩 멈칫거린다
 function expEase(dt){                                             // 매 박자 그림 자리를 목표 쪽으로
+  const lead = expLead(), LD = exp.P[lead];
   for (const k of exp.party){                                      // v9.20.0: 캐릭터마다
-    const h = exp.P[k], to = h.to != null ? h.to : h.x;
-    h.xd = clampBetween(easeTo(h.xd, to, hSpd(k), dt), h.x, to);
+    const h = exp.P[k];
+    // v9.20.1: **걸을 때 따라가는 이의 그림 자리는 선두의 그림 자리 한 칸 뒤**를 그대로 따른다.
+    //   칸(점유)만 보고 따라가면 '한 칸 순간이동 → 멈춤'이 되풀이돼 뚝뚝 끊겨 보인다 (칸은 그대로 점유한다)
+    if (k !== lead && exp.phase === 'run' && !h.out){
+      const want = Math.max(0, (LD.xd != null ? LD.xd : LD.x) - 1);
+      h.xd = h.xd == null || Math.abs(want - h.xd) > 2 ? want : easeTo(h.xd, want, hSpd(k), dt);
+      continue;
+    }
+    const to = h.to != null ? h.to : h.x;
+    h.xd = clampBetween(easeTo(h.xd, to, h.vspd || hSpd(k), dt), h.x, to);   // v9.20.1: 걷던 빠르기 그대로
   }
   for (const f of exp.foes){
     const to = f.dead || f.to == null ? f.x : f.to;
@@ -4523,9 +4532,11 @@ function cellFree(x, self){
 const mkHero = x => ({ x, xd: x, to: x, step: 0, cd: 0, out: false });
 const expLead = () => exp.party.find(k => !exp.P[k].out) || exp.party[0];   // 트랙 진행은 앞장선 캐릭터 기준
 // 한 칸씩 목표 칸 쪽으로 (판정은 칸, 그림은 xd 가 따라온다)
-function heroStep(k, dt, target){
+// spd 를 주면 그 빠르기로 걷는다 — 따라가는 동료는 **선두의 박자**에 맞춘다 (v9.20.1)
+function heroStep(k, dt, target, spd){
   const h = exp.P[k];
-  h.step += hSpd(k) * dt / 1000;
+  h.vspd = spd || hSpd(k);                                        // 그림도 같은 빠르기로 미끄러진다
+  h.step += h.vspd * dt / 1000;
   while (h.step >= 1 && h.x !== target){
     const nx = h.x + (target > h.x ? 1 : -1);
     if (!cellFree(nx, k)) break;
@@ -4681,7 +4692,12 @@ function expStart(id, cardEl, who){
   if (exp){                                                       // v9.20.0: 같은 땅이면 **합류**한다
     if (exp.id === id && !exp.party.includes(who) && hAlive(who)){
       const lead = exp.P[expLead()];
-      let x = Math.max(0, lead.x - 1);
+      let x = lead.x - 1;
+      // v9.20.1: 뒤에 빈 칸이 없으면(출발선) 앞선 이를 한 칸 밀어 자리를 낸다 — 한 칸에 둘이 서면 서로 막힌다
+      if (x < 0){
+        if (cellFree(lead.x + 1, expLead())){ lead.x += 1; lead.xd = lead.x; lead.to = lead.x; x = lead.x - 1; }
+        else x = lead.x + 1;
+      }
       while (x > 0 && !cellFree(x, who)) x--;
       exp.party.push(who);
       exp.P[who] = mkHero(x);
@@ -4741,7 +4757,11 @@ function expTick(dt){
     heroStep(lead, dt, exp.len);                                   // 앞장선 캐릭터는 트랙 끝을 보고 걷는다
     for (const k of exp.party){                                    // v9.20.0: 동료는 앞장선 이의 한 칸 뒤를 따른다
       if (k === lead || exp.P[k].out) continue;
-      heroStep(k, dt, Math.max(0, L.x - 1));
+      const tgt = Math.max(0, L.x - 1);
+      // v9.20.1: 바짝 붙어 있으면 **선두의 빠르기**로 걷는다.
+      //   제 빠르기(더 빠름)로 걸으면 한 칸 가고 멈춰 서기를 되풀이해 뚝뚝 끊겨 보였다
+      const far = Math.abs(tgt - exp.P[k].x) > 1;
+      heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
     }
     exp.t = Math.min(1, L.x / exp.len);
     let ev = plan[exp.idx];
@@ -4812,6 +4832,7 @@ function expFight(dt){
   // ① 저마다 **제 사거리까지** 다가선다 (한 칸씩, 찬 칸은 못 밟는다)
   for (const k of alive){
     const h = exp.P[k], kr = hRange(k);
+    h.vspd = hSpd(k);
     h.step += hSpd(k) * sec;
     while (h.step >= 1 && e.x - h.x > kr && cellFree(h.x + 1, k)){ h.step -= 1; h.x += 1; }
     if (e.x - h.x <= kr) h.step = Math.min(h.step, 1);
