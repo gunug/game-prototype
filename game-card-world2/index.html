@@ -403,6 +403,10 @@
   .exp-lane .lane-props{z-index:0;}
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
   .exp-lane .lane-near{z-index:4;}                                /* v9.18.0: 그보다 더 앞 (제일 가까운 겹) */
+  /* v9.19.0: 무대(5.5칸) 밖 — 그림은 이어지되 카메라 밖이라고 알려 준다 */
+  .exp-lane .lane-dim{position:absolute;top:0;bottom:0;z-index:5;pointer-events:none;background:rgba(0,0,0,.5);}
+  .exp-lane .lane-dim.l{left:0;border-right:1px solid rgba(255,255,255,.07);}
+  .exp-lane .lane-dim.r{right:0;border-left:1px solid rgba(255,255,255,.07);}
   .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
   .exp-lane .pr.flip{transform:translateX(-50%) scaleX(-1);}
   .exp-lane .lane-props .pr{filter:brightness(.38) saturate(.8);}  /* v9.17.0: 뒤에 있는 것은 반투명일 까닭이 없다 */
@@ -1441,7 +1445,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.18.0';
+const VERSION = 'v9.19.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4271,6 +4275,9 @@ const foeRange = e => e.range || BASE_RANGE;
 // v9.2.0: **칸 크기는 고정** (카드 폭의 1.1배 = 토큰 두 폭 남짓). 화면이 넓으면 칸이 커지는 게 아니라
 //   **보이는 칸 수가 늘어난다** — 모바일 5~6칸, PC 11칸쯤
 const KAN_PX = () => Math.max(44, CW * 1.1);
+// v9.19.0: **무대는 5.5칸.** 폰 세로가 딱 이만큼 보이므로, 어느 화면에서든 싸움과 카메라는 이 폭 안에서만 논다.
+//   화면이 더 넓으면 남는 좌우는 딤드로 덮어 '카메라 밖'임을 알린다 (그림은 이어지되 무대는 아니다)
+const STAGE_KAN = 5.5;
 // v9.8.0: 땅 배경은 **층**이다 — 원경(느리게) · 지면(같이) · 흩뿌린 오브제(같이) · 앞 오브제(빠르게).
 //   한 장으로 다 그리면 이음매에 나무가 걸리거나 빈 칸이 생긴다. 나무 · 바위는 타일이 아니라 **낱개 그림**을 칸마다 흩뿌린다.
 //   w = 칸 단위 너비 · h = 트랙 높이 비율 · odds = 그 칸에 나올 확률
@@ -4407,7 +4414,7 @@ function cellRnd(cell, salt){
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 // 한 층 흩뿌리기 — 보이는 칸이 달라질 때만 다시 짓고, 그 사이엔 통째로 밀기만 한다
-function paintScatter(box, list, base, vis, KAN, salt, bottomPct){
+function paintScatter(box, list, base, vis, KAN, salt, bottomPct, shift0){
   const c0 = Math.floor(base) - 2, c1 = Math.ceil(base + vis) + 2;
   const key = `${c0}:${c1}:${Math.round(KAN)}`;
   if (box._key !== key){
@@ -4428,13 +4435,13 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct){
     // v9.17.0: 겹침을 따지려면 너비가 있어야 한다 — 다시 지을 때 한 번만 재 둔다 (매 프레임 재면 느리다)
     box._items = [...box.children].map(el => ({ el, left: parseFloat(el.style.left), w: el.offsetWidth || 40 }));
   }
-  box.style.transform = `translate3d(${-Math.round(base * KAN)}px,0,0)`;
-  box._base = base;
+  box.style.transform = `translate3d(${(shift0 || 0) - Math.round(base * KAN)}px,0,0)`;
+  box._base = base; box._shift0 = shift0 || 0;
 }
 // v9.17.0: 앞 오브제는 **불투명**이 기본. 기사 · 크리처와 겹칠 때만 반투명해진다
 function frontFade(box, KAN, spots){
   if (!box || !box._items) return;
-  const shift = (box._base || 0) * KAN;
+  const shift = (box._base || 0) * KAN - (box._shift0 || 0);
   for (const it of box._items){
     const c = it.left - shift, half = it.w / 2;
     let hit = false;
@@ -5045,7 +5052,8 @@ function expBuild(){
     + '<b class="mp-dot"></b></div>'
     + '<div class="exp-line"></div>';
   el.querySelector('.exp-lane').insertAdjacentHTML('beforeend',                                     // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
-    '<div class="lane-front"></div><div class="lane-near"></div>');
+    '<div class="lane-front"></div><div class="lane-near"></div>'
+    + '<i class="lane-dim l"></i><i class="lane-dim r"></i>');    // v9.19.0: 무대 밖은 덮는다
   expPaint();
 }
 // v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
@@ -5099,11 +5107,17 @@ function expPaint(){
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
   const laneW = lane.clientWidth || 1;
   const KAN = KAN_PX();                                           // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
-  const vis = laneW / KAN;
+  const vis = STAGE_KAN;                                          // v9.19.0: 카메라는 늘 5.5칸만 본다
+  const stageW = Math.min(laneW, Math.round(vis * KAN));          // 무대 (가운데 정렬)
+  const stageL = Math.round((laneW - stageW) / 2);
   // v9.9.0: 배경은 칸에 딱 맞출 까닭이 없다 — 걷는 도중의 **조각 걸음**까지 더해 부드럽게 흐른다
   const kxView = exp.kxd != null ? exp.kxd : (exp.kx || 0);       // v9.11.0: 카메라도 그림 자리를 따른다
-  let cam = Math.max(0, Math.min(exp.len - vis, kxView - vis * 0.35));
-  const px = x => Math.round((x - cam) * KAN);
+  // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
+  const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
+  const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
+  const aim = foeView != null ? (kxView + foeView) / 2 - vis * 0.5 : kxView - vis * 0.35;
+  let cam = Math.max(0, Math.min(exp.len - vis, aim));
+  const px = x => stageL + Math.round((x - cam) * KAN);           // 무대 왼쪽 끝부터 재어 그린다
   // v9.8.0: 배경 층들 — 원경은 느리게, 지면과 뒤 오브제는 기사와 같이, 앞 오브제는 더 빠르게 (시차)
   const cfg = LANE_BG[exp.id];
   const far = lane.querySelector('.lane-far'), gnd = lane.querySelector('.lane-ground');
@@ -5115,14 +5129,14 @@ function expPaint(){
       const w = Math.round(KAN * cfg.far.kan);
       if (far._file !== cfg.far.file){ far.style.backgroundImage = `url("images/bg/${cfg.far.file}.png")`; far._file = cfg.far.file; }
       far.style.backgroundSize = `${w}px 100%`;
-      far.style.backgroundPosition = `${-Math.round(cam * KAN * cfg.far.speed)}px 0`;
+      far.style.backgroundPosition = `${stageL - Math.round(cam * KAN * cfg.far.speed)}px 0`;
     }
     if (gnd && cfg.ground){
       const w = Math.round(KAN * cfg.ground.kan);
       if (gnd._file !== cfg.ground.file){ gnd.style.backgroundImage = `url("images/bg/${cfg.ground.file}.png")`; gnd._file = cfg.ground.file; }
       gnd.style.height = cfg.ground.h + '%';
       gnd.style.backgroundSize = `${w}px 100%`;
-      gnd.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
+      gnd.style.backgroundPosition = `${stageL - Math.round(cam * KAN)}px 0`;
     }
     if (edge && cfg.edge){
       const w = Math.round(KAN * cfg.edge.kan), eh = Math.round(w * 48 / 576);
@@ -5130,9 +5144,9 @@ function expPaint(){
       edge.style.height = eh + 'px';
       edge.style.bottom = `calc(${cfg.ground.h}% - ${Math.round(eh * 0.34)}px)`;    // 아랫동은 흙에 묻는다
       edge.style.backgroundSize = `${w}px 100%`;
-      edge.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
+      edge.style.backgroundPosition = `${stageL - Math.round(cam * KAN)}px 0`;
     } else if (edge) edge.hidden = true;
-    if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, Math.round(cfg.ground.h * 0.45));
+    if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, Math.round(cfg.ground.h * 0.45), stageL);
     const near = lane.querySelector('.lane-near');
     if (near) near.hidden = !cfg.near;
     if ((front && cfg.front) || (near && cfg.near)){
@@ -5140,18 +5154,19 @@ function expPaint(){
       const who = [[px(kxView), half]];
       for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
       if (front && cfg.front){
-        paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
+        paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0, stageL);
         frontFade(front, KAN, who);
       }
       if (near && cfg.near){                                       // v9.18.0: 맨 앞 층 — 더 빨리 흐르고 더 크다
-        paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, 0);
+        paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, 0, stageL);
         frontFade(near, KAN, who);
       }
     }
   }
   // v9.12.0: **카메라는 뒤로 가지 않는다** — 기사가 제 칸에 자리 잡느라 살짝 물러설 때
   //   화면 전체가 오른쪽으로 밀려 보였다. 기사가 진짜로 뒤 칸으로 갈 때만 따라 물러난다
-  if (lane._cam != null && cam < lane._cam && exp.kx >= (lane._kx != null ? lane._kx : exp.kx)) cam = lane._cam;
+  if (exp.phase === 'run' && lane._cam != null && cam < lane._cam
+      && exp.kx >= (lane._kx != null ? lane._kx : exp.kx)) cam = lane._cam;
   lane._kx = exp.kx;
   // v9.9.0: 배경은 한 박자(0.1초)마다 다음 자리로 **미끄러진다**. 단 크게 튈 땐 끄고 바로 옮긴다
   lane.classList.toggle('jump', lane._cam == null || Math.abs(cam - lane._cam) > 2);
@@ -5159,7 +5174,7 @@ function expPaint(){
   const grid = lane.querySelector('.lane-grid');                  // v9.1.0: 칸 눈금 — 카메라만큼 밀어 흐르게
   if (grid){
     grid.style.backgroundSize = `${KAN}px 100%`;
-    grid.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
+    grid.style.backgroundPosition = `${stageL - Math.round(cam * KAN)}px 0`;
   }
   const mk = lane.querySelector('.mark');                         // v0.61.0: 지난 기록을 넘어서면 깃발이 흐려짐
   if (mk){
@@ -5223,6 +5238,12 @@ function expPaint(){
       b.style.left = pc(f.x);
       b.classList.toggle('dead', f.dead);
     }
+  }
+  const dimL = lane.querySelector('.lane-dim.l'), dimR = lane.querySelector('.lane-dim.r');
+  if (dimL && dimR){                                              // v9.19.0: 무대 밖 — 그림은 이어지되 카메라 밖
+    dimL.style.width = stageL + 'px';
+    dimR.style.width = Math.max(0, laneW - stageL - stageW) + 'px';
+    dimL.hidden = dimR.hidden = stageL <= 0;
   }
   el.querySelector('.exp-line').textContent = exp.line || '';
   if (exp.fail && !el.querySelector('.exp-fail')){                // v0.21.0: 실패
