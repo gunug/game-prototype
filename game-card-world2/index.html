@@ -391,7 +391,7 @@
     display:flex;align-items:flex-end;justify-content:center;}   /* v9.13.0: 매 프레임 제자리를 찍으므로 CSS 미끄러짐 없음 */
   /* v9.8.0: 배경 층 — 원경 · 지면 띠 · 흩뿌린 오브제 · 앞 오브제. 다 어둡게 깔아 캐릭터가 묻히지 않게 */
   .exp-lane .lane-far{position:absolute;inset:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
-    image-rendering:pixelated;opacity:.46;filter:brightness(.8) saturate(.7);}
+    image-rendering:pixelated;filter:brightness(.38) saturate(.62);}   /* v9.17.0: 불투명 + 딤드 (.46 × .8 과 같은 어둡기) */
   /* v9.16.0: 지면과 가장자리 띠는 **불투명** — 바닥은 뒤가 비치면 안 된다 (어둡기는 필터로만) */
   .exp-lane .lane-ground{position:absolute;left:0;right:0;bottom:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;filter:brightness(.44) saturate(.78);}   /* v9.16.1: 반투명 때와 같은 어둡기 (.55 × .7) */
@@ -404,8 +404,10 @@
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
   .exp-lane .pr{position:absolute;width:auto;margin-left:0;image-rendering:pixelated;transform:translateX(-50%);}
   .exp-lane .pr.flip{transform:translateX(-50%) scaleX(-1);}
-  .exp-lane .lane-props .pr{opacity:.6;filter:brightness(.62) saturate(.8);}
-  .exp-lane .lane-front .pr{opacity:.5;filter:brightness(.5) saturate(.85);}
+  .exp-lane .lane-props .pr{filter:brightness(.38) saturate(.8);}  /* v9.17.0: 뒤에 있는 것은 반투명일 까닭이 없다 */
+  /* 앞 오브제 — 평소엔 불투명. 기사 · 크리처와 겹칠 때만 비친다 */
+  .exp-lane .lane-front .pr{filter:brightness(.3) saturate(.85);transition:opacity .15s linear;}
+  .exp-lane .lane-front .pr.over{opacity:.45;}
   .exp-lane [hidden]{display:none;}
   /* v9.1.0: 칸 눈금 — 배경으로 깔고 카메라만큼 밀어 흐름이 보이게 */
   .exp-lane .lane-grid{position:absolute;inset:0;pointer-events:none;z-index:0;
@@ -1435,7 +1437,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.16.1';
+const VERSION = 'v9.17.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4404,8 +4406,22 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct){
         + ` style="left:${Math.round((c + 0.5 + off) * KAN)}px;height:${(pick.h * sc * 100).toFixed(1)}%;bottom:${bottomPct}%">`;
     }
     box.innerHTML = html;
+    // v9.17.0: 겹침을 따지려면 너비가 있어야 한다 — 다시 지을 때 한 번만 재 둔다 (매 프레임 재면 느리다)
+    box._items = [...box.children].map(el => ({ el, left: parseFloat(el.style.left), w: el.offsetWidth || 40 }));
   }
   box.style.transform = `translate3d(${-Math.round(base * KAN)}px,0,0)`;
+  box._base = base;
+}
+// v9.17.0: 앞 오브제는 **불투명**이 기본. 기사 · 크리처와 겹칠 때만 반투명해진다
+function frontFade(box, KAN, spots){
+  if (!box || !box._items) return;
+  const shift = (box._base || 0) * KAN;
+  for (const it of box._items){
+    const c = it.left - shift, half = it.w / 2;
+    let hit = false;
+    for (const s2 of spots) if (Math.abs(c - s2[0]) < half + s2[1]){ hit = true; break; }
+    it.el.classList.toggle('over', hit);
+  }
 }
 // v9.6.0: **칸 점유 표** — 살아 있는 몸은 한 칸에 하나. 앞이 차 있으면 그 뒤 칸에 선다 (줄)
 //   시체는 막지 않는다 — 막으면 뒷줄이 시체 뒤에서 영영 못 오게 된다 (밟고 지나간다)
@@ -5097,7 +5113,13 @@ function expPaint(){
       edge.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
     } else if (edge) edge.hidden = true;
     if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, Math.round(cfg.ground.h * 0.45));
-    if (front && cfg.front) paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
+    if (front && cfg.front){
+      paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
+      const half = CW * 0.25;                                      // 토큰 반 폭 (.tok 은 cw 의 절반)
+      const who = [[px(kxView), half]];
+      for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
+      frontFade(front, KAN, who);
+    }
   }
   // v9.12.0: **카메라는 뒤로 가지 않는다** — 기사가 제 칸에 자리 잡느라 살짝 물러설 때
   //   화면 전체가 오른쪽으로 밀려 보였다. 기사가 진짜로 뒤 칸으로 갈 때만 따라 물러난다
