@@ -1458,7 +1458,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.24.2';
+const VERSION = 'v9.25.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1784,7 +1784,9 @@ const BOARDS = [
 // v1.9.0: '무기' 칸 → **'근접무기'** 칸. 원거리무기는 쓸 수 있는 클래스가 따로 있음 — 기사는 끝까지 못 씀
 //   원거리든 근접이든 무기는 모두 ⚔️ 무기 탭에서 만든다 ('무기' 태그는 둘 다 가짐)
 const SLOTS = [
-  { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk' },           // v0.55.1: 실루엣 그림 없앰
+  // v9.25.0: 무기 칸의 갈래는 **누구의 칸인가**에 따라 다르다 (기사 근접 · 궁수 원거리)
+  { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk',
+    byHero: { knight: { name:'근접무기', tag:'근접무기' }, ally: { name:'원거리무기', tag:'원거리무기' } } },
   { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', lv:5 },
   { key:'shield', name:'방패',  tag:'방패',   stat:'def', lv:10 },
   { key:'trinket',name:'장신구', tag:'장신구', stat:'def', lv:15 },   // v0.69.0. v2.3.0: 첫 장신구(흙 목걸이) — 방어를 더함
@@ -1796,6 +1798,9 @@ const ALL_SLOTS = SLOTS.concat([CAMP]);
 const slotByKey = key => ALL_SLOTS.find(x => x.key === key) || null;
 // 그 카드가 어느 장비 칸에 들어가는지 (카드 왼쪽 위 실루엣)
 const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
+// v9.25.0: 그 줄(캐릭터)에서 이 칸이 받는 갈래 · 이름
+const slotTag = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).tag;
+const slotName = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).name;
 // v0.66.0: 레벨로 열림. v9.24.0: **캐릭터마다** 제 레벨로 (기사와 궁수가 따로 큰다)
 const slotOpen = (key, who) => { const sl = slotByKey(key); return !!sl && (!sl.lv || hLv(who || 'knight') >= sl.lv); };
 // v9.24.2: 칸 id 는 `<줄>:<칸>` — **줄이 곧 누구의 칸인가**. 여기저기서 따로 쪼개다 보니
@@ -2647,6 +2652,7 @@ function renderInsp(){
   if (S.tab === 'battle' || S.tab === 'dungeon') return renderFieldInsp();   // v4.3.0: 던전도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('foe:') && renderFoeInsp()) return;    // v7.9.1: 책에서 고른 크리처
+  if (S.tab === 'book' && heroPick) return renderFieldInsp();     // v9.25.0: 책에서 고른 캐릭터
   if (S.tab === 'aim' && slotPick === 'aim:goal' && S.goal && DEFS[S.goal]) return renderGoalInsp();   // v5.4.0
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
   if (S.tab === 'gearup' && heroPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
@@ -2698,6 +2704,7 @@ let bookTree = 'weapon';
 //   갈래(무기 · 갑옷 …)로 나누면 재료 태그를 둘 이상 가진 카드 40장이 여러 탭에 겹쳐 실린다.
 //   카드마다 **하나뿐인 축**만 쓴다 — 1단계는 나오는 곳, 가공은 만드는 곳, 완성품은 쓰는 칸
 const BOOK_TABS = [
+  { id:'hero', name:'🧍 캐릭터' },                                  // v9.25.0: 기사 · 궁수
   { id:'land', name:'🗺 땅' },                                     // v7.9.0: 필드 · 던전도 모으는 것
   { id:'foe',  name:'🐾 크리처' },                                  // v7.9.1
   { id:'mat',  name:'📦 재료' },
@@ -2717,7 +2724,7 @@ const FIN_GROUPS = [
   { name:'🧴 소모품', uses:['소모품'] },
 ];
 function bookCardsOf(id){
-  if (id === 'land' || id === 'foe') return [];                   // v7.9.0 · v7.9.1: 땅 · 크리처는 카드(DEFS)가 아니라 따로 그린다
+  if (id === 'land' || id === 'foe' || id === 'hero') return [];  // v7.9.0 · v7.9.1 · v9.25.0: 카드(DEFS)가 아니라 따로 그린다
   return id === 'fin' ? CRAFT_TYPES.filter(isFinished) : CRAFT_TYPES.filter(t => !isFinished(t));
 }
 // v7.9.0: 그 땅을 알아보았나 — 한 번이라도 열렸으면(=가 볼 수 있었으면) 발견으로 친다
@@ -2748,6 +2755,15 @@ let BOSS_FOES = null;                                             // 대본(plan
 const bossFoes = () => BOSS_FOES || (BOSS_FOES = new Set(FIELDS.flatMap(f => planOf(f.id).filter(e => e.fight && e.boss).map(e => e.fight))));
 const foeFrame = k => bossFoes().has(k) ? 'silver' : 'bronze';
 const foeSeen = k => editMode || ((S.seenFoes || []).includes(k) && !(S.newFoes || []).includes(k));
+// v9.25.0: 콜렉터북의 캐릭터 한 장 (늘 얻은 것 — 우리 편이니까)
+const HEROES_ALL = ['knight', 'ally'];
+function heroSlotHtml(k){
+  return `<div class="sleeve${bookPick === 'hero:' + k ? ' sel' : ''}" data-book="hero:${k}">`
+    + `<div class="cw framed f-${k === 'ally' ? 'bronze' : 'gold'}">`
+    + `<div class="emoji"><img class="icon" src="images/portrait/${hPic(k)}.png" alt="" draggable="false"></div>`
+    + `<div class="name">${esc(hName(k))}</div>`
+    + `<div class="land-done">Lv ${hLv(k)}</div></div></div>`;
+}
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
@@ -3142,8 +3158,9 @@ function renderBook(){
   const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB, isTree = bookTier === TREE_TAB;
   const inTab = isCombo || isTrace || isTree ? [] : bookCardsOf(bookTier);
   const combos = isCombo ? renderCombos() : null;
-  const found = isCombo ? combos.done : isTrace ? (S.traces || []).length : inTab.filter(shownSeen).length;
-  const total = isCombo ? combos.total : isTrace ? TRACES.length : inTab.length;
+  const isHero = bookTier === 'hero';                             // v9.25.0
+  const found = isCombo ? combos.done : isTrace ? (S.traces || []).length : isHero ? HEROES_ALL.length : inTab.filter(shownSeen).length;
+  const total = isCombo ? combos.total : isTrace ? TRACES.length : isHero ? HEROES_ALL.length : inTab.length;
   const tre = isTree ? (TREES[bookTree] || TREES.weapon) : null;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
@@ -3172,7 +3189,10 @@ function renderBook(){
       return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
         + `<div class="book-row">${only.map(slotHtml).join('')}</div></div>`;
     };
-    if (bookTier === 'land'){                                     // v7.9.0
+    if (bookTier === 'hero'){                                     // v9.25.0: 캐릭터 — 우리 편
+      h += `<div class="book-field"><div class="book-fname">🧍 캐릭터 <span class="i-muted">${HEROES_ALL.length}/${HEROES_ALL.length}</span></div>`
+        + `<div class="book-row">${HEROES_ALL.map(heroSlotHtml).join('')}</div></div>`;
+    } else if (bookTier === 'land'){                              // v7.9.0
       const row = (title, list) => list.length
         ? `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${list.filter(landSeen).length}/${list.length}</span></div>`
           + `<div class="book-row">${list.map(landSlotHtml).join('')}</div></div>` : '';
@@ -3358,14 +3378,17 @@ bookEl.addEventListener('click', e => {
   const slot = e.target.closest('[data-book]');
   if (slot){                                                      // v3.3.2: 인스펙터로
     bookPick = slot.dataset.book;
-    if (bookPick.startsWith('land:')){                            // v7.9.0: 땅 카드
+    let pickedHero = null;
+    if (bookPick.startsWith('hero:')){                            // v9.25.0: 캐릭터 카드
+      pickedHero = bookPick.slice(5); inspType = null; fieldPick = null; foePick = null;
+    } else if (bookPick.startsWith('land:')){                     // v7.9.0: 땅 카드
       fieldPick = bookPick.slice(5); inspType = null; foePick = null;
     } else if (bookPick.startsWith('foe:')){                       // v7.9.1: 크리처 카드
       foePick = bookPick.slice(4); inspType = null; fieldPick = null;
     } else {
       inspType = bookPick; fieldPick = null;
     }
-    selected = null; heroPick = null; slotPick = null;
+    selected = null; heroPick = pickedHero; slotPick = null;
     renderBook(); renderInsp();
   }
 });
@@ -3676,7 +3699,7 @@ function screenRows(){
     const t = open ? equipped(sl.key, row) : null;
     return { id: `${row}:${sl.key}`, open, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
-      lab: sl.name, need: open || !sl.lv ? '' : `${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에. v0.98.1: '필요' 뺌
+      lab: slotName(sl, row), need: open || !sl.lv ? '' : `${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에. v0.98.1: '필요' 뺌
   };
   const campCard = '<div class="cw framed f-stone camp-lab"><div class="emoji">🔥</div>'
     + '<div class="name">거점</div><div class="sub-lab">모두 공통</div></div>';
@@ -3859,8 +3882,8 @@ function dropOnSlot(id, token){
     return;
   }
   const sl = slotByKey(slotKey);
-  if (sl && !slotOpen(sl.key, rowKey)){ toast(`${sl.name} 칸은 ${sl.lv}레벨에 열림`); return; }   // v0.56.0 · v0.66.0
-  if (!sl || !useOf(token).includes(sl.tag)){ toast(`${sl ? sl.name : '이 칸'} 칸에 넣을 수 없음`); return; }
+  if (sl && !slotOpen(sl.key, rowKey)){ toast(`${slotName(sl, rowKey)} 칸은 ${sl.lv}레벨에 열림`); return; }   // v0.56.0 · v0.66.0
+  if (!sl || !useOf(token).includes(slotTag(sl, rowKey))){ toast(`${sl ? slotName(sl, rowKey) : '이 칸'} 칸에 넣을 수 없음`); return; }
   equipCard(sl, token, rowKey);
 }
 // 그 칸에 이 카드를 넣을 수 있나
@@ -3869,7 +3892,7 @@ function slotTakes(id, token){
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (S.tab === 'battle' || S.tab === 'dungeon') return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
   const sl = slotByKey(slotKey);
-  return !!sl && slotOpen(sl.key, who) && useOf(token).includes(sl.tag);   // v0.56.0: 잠긴 칸은 안 받음
+  return !!sl && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));   // v0.56.0: 잠긴 칸은 안 받음
 }
 // 장착 — 칸에 있던 장비는 아래로 돌아옴 (v0.26.0: 한 장만)
 function equipCard(sl, type, who){
@@ -3998,8 +4021,8 @@ function renderGearInsp(){
   const { sl, who } = slotId(slotPick);                            // v9.24.2: 어느 줄의 칸인지
   if (!sl) return null;
   if (!slotOpen(sl.key, who)){                                     // v0.56.0: 잠긴 칸. v0.66.0: 여는 조건을 적음
-    inspEl.innerHTML = `<div class="head"><div class="pic locked">🔒</div><div><div class="nm">${esc(sl.name)} 칸</div><div class="kd">${sl.lv}레벨에 열림</div></div></div>`
-      + `<div class="desc">${esc(hName(who))}가 ${sl.lv}레벨이 되면 ${esc(sl.name)}을 갖출 수 있다. 지금은 ${hLv(who)}레벨.</div>`;
+    inspEl.innerHTML = `<div class="head"><div class="pic locked">🔒</div><div><div class="nm">${esc(slotName(sl, who))} 칸</div><div class="kd">${sl.lv}레벨에 열림</div></div></div>`
+      + `<div class="desc">${esc(hName(who))}가 ${sl.lv}레벨이 되면 ${esc(slotName(sl, who))}을 갖출 수 있다. 지금은 ${hLv(who)}레벨.</div>`;
     return true;
   }
   if (sl.key === 'camp'){                                          // v0.66.0: 거점은 모든 캐릭터에게 같이 적용
@@ -4018,7 +4041,7 @@ function renderGearInsp(){
   }
   const now = equipped(sl.key, who);                               // v9.24.2: 그 줄의 장비
   let h = `<div class="head"><div class="pic">${now ? iconHtml(now) : '⬚'}</div>`
-    + `<div><div class="nm">${sl.name} 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
+    + `<div><div class="nm">${esc(slotName(sl, who))} 칸</div><div class="kd">${now ? esc(DEFS[now].name) : '비어 있음'}</div></div></div>`;
   h += `<div class="desc">${now ? esc(DESC[now] || '') : '카드를 끌어다 놓으면 장착된다.'}</div>`;
   if (now) h += '<div class="rows">'                                // v0.73.0
     + (sl.stat ? `<div class="row">${statImg(sl.stat)} <b>${DEFS[now][sl.stat] || 0}</b></div>` : '')
