@@ -403,6 +403,15 @@
   .exp-lane .lane-props{z-index:0;}
   .exp-lane .lane-front{z-index:3;}                               /* 기사 · 크리처보다 앞 */
   .exp-lane .lane-near{z-index:4;}                                /* v9.18.0: 그보다 더 앞 (제일 가까운 겹) */
+  /* v9.20.0: 둘이 나가면 줄이 둘 — 줄마다 제 캐릭터를 따라가는 카메라 */
+  .exp-lane.two{height:calc(var(--ch) * .86);margin-bottom:3px;}
+  .exp-lane.two .tok{height:calc(var(--ch) * .46);}               /* 줄이 둘이면 토큰과 수치 상자를 줄여 안 잘리게 */
+  .exp-lane.two .tok .hp{padding:1px 5px;font-size:calc(var(--cf) * .08);line-height:1.25;}
+  .exp-lane .lane-who{position:absolute;left:5px;top:3px;z-index:6;font-size:calc(var(--cf) * .1);font-weight:800;
+    color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000;font-style:normal;pointer-events:none;}
+  .exp-lane .tok.hero{animation:none;}
+  .exp-lane .tok.hero.down{filter:grayscale(1) brightness(.55);opacity:.65;}
+  .exp-lane .tok.hero.me .pic{filter:drop-shadow(0 3px 4px rgba(0,0,0,.6)) drop-shadow(0 0 3px rgba(255,212,0,.5));}
   /* v9.19.0: 무대(5.5칸) 밖 — 그림은 이어지되 카메라 밖이라고 알려 준다 */
   .exp-lane .lane-dim{position:absolute;top:0;bottom:0;z-index:5;pointer-events:none;background:rgba(0,0,0,.5);}
   .exp-lane .lane-dim.l{left:0;border-right:1px solid rgba(255,255,255,.07);}
@@ -1035,6 +1044,7 @@ const DEFS = {
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
   obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3, aps:1.3 },   // v9.0.0: 가볍고 빠르다         // v6.0.0: 출혈 — 회복을 끊는다
+  woodbow:  { name:'나무 활',   kind:'gear', step:3, atk:1, range:5, aps:0.8 },   // v9.20.0: 궁수의 무기 — 다섯 칸 밖에서 쏜다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
@@ -1083,6 +1093,7 @@ const USE = {
   smokedfish:['음식'], leatherstrap:['갑옷재료', '방패재료', '도구재료'],   // v6.3.0 · v7.16.0: 가죽끈은 갑옷에도 방패에도
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
   obsidianknife:['무기', '근접무기'],                              // v6.0.0
+  woodbow:['무기', '원거리무기'],                                  // v9.20.0: 궁수 전용 — 조합으로 만들지 않는다
   bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
   // v7.0.0: 갈래가 없던 보스 전리품 넷
   bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
@@ -1184,6 +1195,7 @@ const DESC = {
   scale:     '겹쳐 대면 물도 칼도 미끄러진다.',
   obsidian:  '검은 유리 돌. 깨진 자리가 칼보다 날카롭다.',
   obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
+  woodbow:'궁수가 늘 쥐고 있는 활. 힘은 약해도 다섯 칸 밖에서 먼저 쏜다.',
   bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
   toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
   graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
@@ -1445,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.19.0';
+const VERSION = 'v9.20.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1696,7 +1708,10 @@ const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷�
 //   v8.1.2: 기본을 chase 로. 가만히 서 있으면 사거리 긴 쪽이 영원히 때리기만 하는 판이 된다
 //   (수렁 팔: 기사 피해 3 = 회복 3 이라 순 피해 0 인데 적은 사거리 1 이라 못 때려 승부가 안 났다)
 const foeMove = e => e.move || 'chase';
-const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };   // v0.78.0: 적이 늘 되치게 되어 총 피해가 늘어난 만큼 체력을 올림
+const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };
+// v9.20.0: **둘째 캐릭터 — 궁수.** 몸은 약하고 빠르며, 늘 나무 활을 쥔다 (장비 칸은 아직 기사만)
+const ARCHER = { name: '궁수', atk: 1, def: 0, hp: 14, spd: 4, weapon: 'woodbow',
+  card: 'card_archer', portrait: 'portrait_archer' };   // v0.78.0: 적이 늘 되치게 되어 총 피해가 늘어난 만큼 체력을 올림
 // v0.66.0: 레벨 — 캐릭터마다 따로 (지금은 기사 하나). 적을 쓰러뜨려야 경험치가 오른다
 //   보상은 대부분 **최대 체력 +2**, 공격 +1은 6·9레벨처럼 드물게, 5·10 레벨은 **방어 +1 + 장비 칸 해금**
 //   방어는 피해가 `공격 − 방어`라 공격보다 훨씬 세서 5·10에만 준다
@@ -1719,9 +1734,19 @@ const enemyXp = d => d.hp + d.atk * 2 + d.def * 2;                // 토끼 4 ·
 const knightLv = () => (S.knight && S.knight.lv) || 1;
 const lvSum = key => { let v = 0; for (let i = 2; i <= knightLv(); i++) v += lvReward(i)[key] || 0; return v; };
 const knightMaxHp = () => KNIGHT.hp + lvSum('hp');
+// v9.20.0: 궁수 — 제 레벨 · 제 경험치. 레벨 보상 표는 기사와 같다
+const allySt = () => (S.ally = S.ally || { hp: ARCHER.hp, lv: 1, xp: 0 });
+const allyLv = () => allySt().lv || 1;
+const lvSumAt = (lv, key) => { let v = 0; for (let i = 2; i <= lv; i++) v += lvReward(i)[key] || 0; return v; };
+const allyMaxHp = () => ARCHER.hp + lvSumAt(allyLv(), 'hp');
+const allyAtk = () => ARCHER.atk + (DEFS[ARCHER.weapon].atk || 0) + lvSumAt(allyLv(), 'atk');
+const allyDef = () => ARCHER.def + lvSumAt(allyLv(), 'def');
+const allySpd = () => ARCHER.spd;
+const allyRange = () => DEFS[ARCHER.weapon].range || 1;
+const allyAps = () => DEFS[ARCHER.weapon].aps || 1;
 const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
   .filter(Boolean).join(' · ');
-const PARTY = [true, false, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 첫 칸만 열림
+const PARTY = [true, true, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 첫 칸만 열림
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
@@ -1838,7 +1863,8 @@ const els = new Map();
 let selected = null;
 
 function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], newLands: [], seenLands: [], newFoes: [], seenFoes: [], hints: {}, tab: 'battle', intro: 'done',   // v7.13.0   // v0.18.2: 크리처별로 받아 본 전리품
-  knight: { hp: KNIGHT.hp, lv: 1, xp: 0 } }; }                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
+  knight: { hp: KNIGHT.hp, lv: 1, xp: 0 },
+  ally: { hp: ARCHER.hp, lv: 1, xp: 0 } }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -3654,7 +3680,11 @@ function screenRows(){
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
-  if (S.tab === 'battle' || S.tab === 'dungeon') return [{ token: exp ? null : 'knight', html: knightCardHtml(!exp) }];   // v4.0.0
+  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0 · v9.20.0: 캐릭터 둘
+    const outK = !!(exp && exp.party.includes('knight')), outA = !!(exp && exp.party.includes('ally'));
+    return [{ token: outK ? null : 'knight', html: knightCardHtml(!outK) },
+            { token: outA ? null : 'ally', html: allyCardHtml(!outA) }];
+  }
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
     // v3.0.7: 카드 위엔 할 일을 적지 않는다 — 상태는 테두리 빛으로만, 자세한 건 탭했을 때 인스펙터에서
@@ -3736,6 +3766,18 @@ function knightCardHtml(drag){
     extra: out ? `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[exp.id].name)}</span></div>` : '',
   });
 }
+// v9.20.0: 궁수 카드 — 기사와 같은 틀, 테두리는 동테
+function allyCardHtml(drag){
+  const a = allySt();
+  const out = !!(exp && exp.party.includes('ally'));
+  return beingCardHtml({
+    cls: `f-bronze ally${out ? ' out' : ''}`,
+    attrs: ` data-ally="1"${drag && !out ? ' data-token="ally"' : ''}`,
+    pic: `images/icon/${ARCHER.card}.png`, name: ARCHER.name,
+    lv: allyLv(), xp: a.xp || 0, xpNeed: xpNeed(allyLv()),
+    extra: out ? `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[exp.id].name)}</span></div>` : '',
+  });
+}
 // 크리처 카드 — 레벨 · 경험치만 없고 나머지는 같다
 function foeCardHtml(key, opts){
   const e = ENEMIES[key] || {};
@@ -3808,9 +3850,9 @@ function dropOnSlot(id, token){
   const [rowKey, slotKey] = id.split(':');
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
   if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0
-    if (token !== 'knight') return;
+    if (token !== 'knight' && token !== 'ally') return;           // v9.20.0
     const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
-    expStart(rowKey, fel);
+    expStart(rowKey, fel, token);
     return;
   }
   const sl = slotByKey(slotKey);
@@ -3822,7 +3864,7 @@ function dropOnSlot(id, token){
 function slotTakes(id, token){
   const [, slotKey] = id.split(':');
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
-  if (S.tab === 'battle' || S.tab === 'dungeon') return token === 'knight';   // v4.0.0
+  if (S.tab === 'battle' || S.tab === 'dungeon') return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key) && useOf(token).includes(sl.tag);   // v0.56.0: 잠긴 칸은 안 받음
 }
@@ -4272,6 +4314,21 @@ const knightSpd = () => {
 };
 const foeSpd = e => e.spd || BASE_SPD;
 const foeRange = e => e.range || BASE_RANGE;
+// v9.20.0: **캐릭터는 둘.** 'knight' 기사 · 'ally' 궁수. 아래 h… 는 누구든 같은 물음에 답한다
+const hName = k => k === 'ally' ? ARCHER.name : KNIGHT.name;
+const hPic = k => k === 'ally' ? ARCHER.portrait : 'portrait_knight';
+const hCard = k => k === 'ally' ? ARCHER.card : 'card_knight';
+const hSt = k => k === 'ally' ? allySt() : S.knight;               // { hp, lv, xp }
+const hLv = k => k === 'ally' ? allyLv() : knightLv();
+const hMax = k => k === 'ally' ? allyMaxHp() : knightMaxHp();
+const hAtk = k => k === 'ally' ? allyAtk() : knightAtk();
+const hDef = k => k === 'ally' ? allyDef() : knightDef();
+const hSpd = k => k === 'ally' ? allySpd() : knightSpd();
+const hRange = k => k === 'ally' ? allyRange() : knightRange();
+const hAps = k => k === 'ally' ? allyAps() : knightAps();
+const hBleed = k => k === 'ally' ? 0 : knightBleed();
+const hPierce = k => k === 'ally' ? false : knightPierce();
+const hAlive = k => hSt(k).hp > 0;
 // v9.2.0: **칸 크기는 고정** (카드 폭의 1.1배 = 토큰 두 폭 남짓). 화면이 넓으면 칸이 커지는 게 아니라
 //   **보이는 칸 수가 늘어난다** — 모바일 5~6칸, PC 11칸쯤
 const KAN_PX = () => Math.max(44, CW * 1.1);
@@ -4386,8 +4443,10 @@ function easeTo(cur, target, spd, dt){
 // 그림은 **다음 칸을 미리 보고** 간다 — `to` 는 지금 들어가려는 칸(못 가면 제 칸).
 //   칸이 바뀌기를 기다렸다 따라가면 한 칸마다 (1/이동속도)초씩 멈칫거린다
 function expEase(dt){                                             // 매 박자 그림 자리를 목표 쪽으로
-  const kTo = exp.kTo != null ? exp.kTo : exp.kx;
-  exp.kxd = clampBetween(easeTo(exp.kxd, kTo, knightSpd(), dt), exp.kx, kTo);
+  for (const k of exp.party){                                      // v9.20.0: 캐릭터마다
+    const h = exp.P[k], to = h.to != null ? h.to : h.x;
+    h.xd = clampBetween(easeTo(h.xd, to, hSpd(k), dt), h.x, to);
+  }
   for (const f of exp.foes){
     const to = f.dead || f.to == null ? f.x : f.to;
     f.xd = clampBetween(easeTo(f.xd, to, foeSpd(ENEMIES[f.key]), dt), f.x, to);
@@ -4453,9 +4512,28 @@ function frontFade(box, KAN, spots){
 //   시체는 막지 않는다 — 막으면 뒷줄이 시체 뒤에서 영영 못 오게 된다 (밟고 지나간다)
 function cellFree(x, self){
   if (!exp || x < 0 || x > exp.len) return false;
-  if (self !== 'knight' && x === exp.kx) return false;             // 기사도 한 칸을 차지한다
+  for (const k of exp.party){                                      // v9.20.0: 캐릭터도 저마다 한 칸
+    const h = exp.P[k];
+    if (k !== self && h && !h.out && h.x === x) return false;
+  }
   for (const f of exp.foes) if (f !== self && !f.dead && f.x === x) return false;
   return true;
+}
+// 캐릭터 하나의 원정 상태 (칸 · 그림 자리 · 걸음 · 공격 타이머)
+const mkHero = x => ({ x, xd: x, to: x, step: 0, cd: 0, out: false });
+const expLead = () => exp.party.find(k => !exp.P[k].out) || exp.party[0];   // 트랙 진행은 앞장선 캐릭터 기준
+// 한 칸씩 목표 칸 쪽으로 (판정은 칸, 그림은 xd 가 따라온다)
+function heroStep(k, dt, target){
+  const h = exp.P[k];
+  h.step += hSpd(k) * dt / 1000;
+  while (h.step >= 1 && h.x !== target){
+    const nx = h.x + (target > h.x ? 1 : -1);
+    if (!cellFree(nx, k)) break;
+    h.step -= 1; h.x = nx;
+  }
+  if (h.x === target) h.step = Math.min(h.step, 1);
+  h.to = h.x !== target && cellFree(h.x + (target > h.x ? 1 : -1), k)
+    ? h.x + (target > h.x ? 1 : -1) : h.x;
 }
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
@@ -4597,19 +4675,34 @@ const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassl
 let exp = null;                                                   // 진행 중 원정 (저장 안 함 — 새로 열면 없음)
 let healProg = 0;
 
-function expStart(id, cardEl){
+function expStart(id, cardEl, who){
+  who = who || 'knight';
   const st = S.fields[id];
-  if (exp){ logEv('blocked', { why: 'busy', field: id }); toast('🏃 기사가 이미 원정 중'); return; }   // v7.7.0
+  if (exp){                                                       // v9.20.0: 같은 땅이면 **합류**한다
+    if (exp.id === id && !exp.party.includes(who) && hAlive(who)){
+      const lead = exp.P[expLead()];
+      let x = Math.max(0, lead.x - 1);
+      while (x > 0 && !cellFree(x, who)) x--;
+      exp.party.push(who);
+      exp.P[who] = mkHero(x);
+      exp.line = `${hName(who)} 합류`;
+      const el0 = document.getElementById('exp');
+      if (el0) el0._key = null;                                    // 줄을 다시 짓는다 (한 줄 더 생김)
+      renderGather(); renderInsp(); expBuild(); save();
+      return;
+    }
+    logEv('blocked', { why: 'busy', field: id }); toast('🏃 이미 원정 중'); return;   // v7.7.0
+  }
   if (fieldLocked(id)){
     logEv('blocked', { why: 'locked', field: id });                // v7.7.0
     flash(cardEl, 'fail', 600);
     toast(`🔒 ${FIELD_BY_ID[id].emoji} ${FIELD_BY_ID[id].name} — 아직 잠겨 있음`);
     return;
   }
-  if (S.knight.hp <= 0){
-    logEv('blocked', { why: 'hp', field: id, hp: S.knight.hp });   // v7.7.0: 회복을 기다리는 시간은 헤맨 게 아니다
+  if (hSt(who).hp <= 0){
+    logEv('blocked', { why: 'hp', field: id, hp: hSt(who).hp });   // v7.7.0: 회복을 기다리는 시간은 헤맨 게 아니다
     flash(cardEl, 'fail', 600);
-    toast('🩸 기사가 빈사 — 회복될 때까지 기다려야 함');
+    toast(`🩸 ${hName(who)} 빈사 — 회복될 때까지 기다려야 함`);
     return;
   }
   flash(cardEl, 'tap', 300);
@@ -4626,8 +4719,9 @@ function expStart(id, cardEl){
     return { at: e.at, x, done: false };
   });
   landFound(id);                                                  // v7.13.0: 가 본 땅은 책에 남는다
-  exp = { id, len: LEN, t: 0, kx: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots,
-    search: 0, kcd: 0, fcd: 0, rcd: 0, stallMs: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  exp = { id, len: LEN, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots,
+    party: [who], P: { [who]: mkHero(0) },                        // v9.20.0: 함께 나간 캐릭터들
+    search: 0, rcd: 0, stallMs: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   logEv('expStart', { field: id, lv: S.knight.lv, atk: knightAtk(), def: knightDef(), hp: S.knight.hp,   // v7.6.0
     weapon: equipped('weapon') || null, dungeon: !!FIELD_BY_ID[id].dungeon });
   setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
@@ -4643,21 +4737,23 @@ function expTick(dt){
   const plan = planOf(exp.id);
   if (exp.phase === 'run'){
     // v9.5.0: **한 칸씩 점유하며** 걷는다 — 이동속도 3이면 1초에 세 칸, 1/3초마다 한 칸
-    exp.step = (exp.step || 0) + knightSpd() * dt / 1000;
-    while (exp.step >= 1 && exp.kx < exp.len && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
-    if (exp.kx >= exp.len) exp.step = 0;
-    exp.kTo = exp.kx < exp.len && cellFree(exp.kx + 1, 'knight') ? exp.kx + 1 : exp.kx;   // v9.12.0
-    exp.t = Math.min(1, exp.kx / exp.len);
+    const lead = expLead(), L = exp.P[lead];
+    heroStep(lead, dt, exp.len);                                   // 앞장선 캐릭터는 트랙 끝을 보고 걷는다
+    for (const k of exp.party){                                    // v9.20.0: 동료는 앞장선 이의 한 칸 뒤를 따른다
+      if (k === lead || exp.P[k].out) continue;
+      heroStep(k, dt, Math.max(0, L.x - 1));
+    }
+    exp.t = Math.min(1, L.x / exp.len);
     let ev = plan[exp.idx];
-    while (ev && ev.fight && exp.kx >= Math.round(ev.at * exp.len)){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
-    if (ev && exp.kx >= Math.round(ev.at * exp.len)){
+    while (ev && ev.fight && L.x >= Math.round(ev.at * exp.len)){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
+    if (ev && L.x >= Math.round(ev.at * exp.len)){
       exp.idx++;
       if (ev.loot){                                               // v0.13.4: 채집 포인트에서 잠시 뒤짐
         exp.spot = exp.spots.findIndex(sp => !sp.done && sp.at === ev.at);
         if (exp.spot < 0) return;                                 // v8.1.1: 이미 뒤진 자리면 그냥 지나간다
-        exp.kx = exp.spots[exp.spot].x;                            // v9.5.0: 그 칸에 올라선다
-        exp.step = 0; exp.kTo = exp.kx;
-        exp.t = exp.kx / exp.len;
+        L.x = exp.spots[exp.spot].x;                               // v9.5.0: 그 칸에 올라선다
+        L.step = 0; L.to = L.x;
+        exp.t = L.x / exp.len;
         exp.phase = 'search'; exp.search = 0;
         exp.line = '채집 포인트를 뒤진다';
         expPaint();
@@ -4666,14 +4762,15 @@ function expTick(dt){
     }
     // 앞쪽의 적을 알아차림. 단 **아직 뒤지지 않은 채집 자리가 그 앞에 있으면** 그걸 먼저 한다
     //   (v8.1.1: 안 그러면 멀리서 붙은 싸움이 채집 자리를 지나쳐 버린다)
-    const nextSpot = exp.spots.find(sp => !sp.done && sp.x >= exp.kx);   // 아직 안 뒤진 앞쪽 자리
-    let near = exp.foes.findIndex(f => !f.dead && f.x - exp.kx <= NOTICE_GAP && f.x >= exp.kx - 2);
+    const nextSpot = exp.spots.find(sp => !sp.done && sp.x >= L.x);   // 아직 안 뒤진 앞쪽 자리
+    let near = exp.foes.findIndex(f => !f.dead && f.x - L.x <= NOTICE_GAP && f.x >= L.x - 2);
     if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
       exp.foe = near; exp.phase = 'fight';
-      exp.kcd = 0; exp.fcd = 0; exp.rcd = 0; exp.stallMs = 0;      // v9.0.0: 공격 · 회복 타이머
-      exp.gap = ef.x - exp.kx; ef.step = 0;                        // v9.5.0: 첫 그림부터 칸 거리를 안다
+      for (const k of exp.party) exp.P[k].cd = 0;
+      exp.rcd = 0; exp.stallMs = 0;                                // v9.0.0: 공격 · 회복 타이머
+      exp.gap = ef.x - exp.P[expLead()].x; ef.step = 0;            // v9.5.0: 첫 그림부터 칸 거리를 안다
       const d = ENEMIES[ef.key];
       exp.line = ef.boss ? `👑 ${subP2(d.name)} 길을 막았다` : ef.mid ? `⚔ ${subP2(d.name)} 앞을 가로막았다` : `${withP(d.name)} 마주쳤다`;
       S.metFoes = S.metFoes || [];
@@ -4707,80 +4804,99 @@ function expTick(dt){
 // v9.0.0: 싸움은 **시간으로** 돈다 — 서로 제 이동속도로 다가서고, 제 공격속도로 때린다.
 //   사거리가 닿지 않으면 때리지 못한다. 그래서 사거리가 긴 쪽은 상대가 붙을 때까지 공짜로 때린다
 function expFight(dt){
-  const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
+  const e = exp.foes[exp.foe], def = ENEMIES[e.key];
   if (!e || !def || e.dead){ exp.foe = -1; exp.phase = 'run'; return; }
-  const kr = knightRange(), fr = foeRange(def);
   const sec = dt / 1000;
-  // ① 기사 다가서기 — **한 칸씩**, 찬 칸은 못 밟는다
-  exp.step = (exp.step || 0) + knightSpd() * sec;
-  while (exp.step >= 1 && e.x - exp.kx > kr && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
-  if (e.x - exp.kx <= kr) exp.step = Math.min(exp.step, 1);
-  exp.kTo = e.x - exp.kx > kr && cellFree(exp.kx + 1, 'knight') ? exp.kx + 1 : exp.kx;   // v9.12.0
-  // ② v9.6.0: 알아차린 크리처는 **모두** 움직인다 — 앞이 막히면 그 뒤에 **줄을 선다**.
-  //   가까운 놈부터 옮겨야 앞줄이 먼저 자리를 비운다
-  const crowd = exp.foes.filter(f => !f.dead && f.x - exp.kx <= NOTICE_GAP && f.x >= exp.kx)
-    .sort((a, b) => a.x - b.x);
+  const alive = exp.party.filter(k => !exp.P[k].out && hAlive(k));   // v9.20.0: 함께 싸우는 이들
+  if (!alive.length){ expEnd('down'); return; }
+  // ① 저마다 **제 사거리까지** 다가선다 (한 칸씩, 찬 칸은 못 밟는다)
+  for (const k of alive){
+    const h = exp.P[k], kr = hRange(k);
+    h.step += hSpd(k) * sec;
+    while (h.step >= 1 && e.x - h.x > kr && cellFree(h.x + 1, k)){ h.step -= 1; h.x += 1; }
+    if (e.x - h.x <= kr) h.step = Math.min(h.step, 1);
+    h.to = e.x - h.x > kr && cellFree(h.x + 1, k) ? h.x + 1 : h.x;
+  }
+  // 크리처는 **가장 가까운 캐릭터**를 노린다 (궁수가 뒤에 서면 기사가 먼저 맞는다)
+  const aimOf = f => alive.reduce((best, k) =>
+    Math.abs(exp.P[k].x - f.x) < Math.abs(exp.P[best].x - f.x) ? k : best, alive[0]);
+  // ② v9.6.0: 알아차린 크리처는 모두 움직이고, 앞이 막히면 그 뒤에 줄을 선다
+  const crowd = exp.foes.filter(f => !f.dead
+    && alive.some(k => f.x - exp.P[k].x <= NOTICE_GAP && f.x >= exp.P[k].x)).sort((a, b) => a.x - b.x);
   for (const f of crowd){
     const d = ENEMIES[f.key], mv = foeMove(d), fr2 = foeRange(d);
+    const tx = exp.P[aimOf(f)].x;
     f.step = (f.step || 0) + foeSpd(d) * sec;
     while (f.step >= 1){
-      const g = f.x - exp.kx;
+      const g = f.x - tx;
       if (mv === 'chase' && g > fr2 && cellFree(f.x - 1, f)){ f.step -= 1; f.x -= 1; }
       else if (mv === 'kite' && g < fr2 && cellFree(f.x + 1, f)){ f.step -= 1; f.x += 1; }
       else { f.step = Math.min(f.step, 1); break; }
     }
-    const g2 = f.x - exp.kx;                                       // v9.12.0: 지금 들어가려는 칸
+    const g2 = f.x - exp.P[aimOf(f)].x;
     f.to = mv === 'chase' && g2 > fr2 && cellFree(f.x - 1, f) ? f.x - 1
       : mv === 'kite' && g2 < fr2 && cellFree(f.x + 1, f) ? f.x + 1 : f.x;
   }
   for (const f of exp.foes) if (!crowd.includes(f)) f.to = f.x;    // 싸움에 낀 놈 말고는 제자리
-  const gap = Math.max(0, e.x - exp.kx);
+  const lead = alive[0];
+  const gap = Math.max(0, e.x - exp.P[lead].x);
   exp.gap = gap;
-  const kHit = kr >= gap, eHit = fr >= gap;                        // v9.5.0: 칸이 정수라 어림셈이 필요 없다
-  exp.line = !kHit && !eHit ? '거리를 좁힌다'
-    : !kHit ? '사거리 밖 — 맞으며 다가간다'
-    : !eHit ? '사거리 밖에서 먼저 때린다'
-    : (/사거리|거리를/.test(exp.line || '') ? '맞붙었다' : exp.line);
-  // ② 기사의 공격 — 공속만큼 자주
-  exp.kcd = (exp.kcd || 0) + dt;
-  const kEvery = 1000 / knightAps();
-  while (kHit && exp.kcd >= kEvery && e.hp > 0){
-    exp.kcd -= kEvery;
-    const pierce = knightPierce();
-    const kd = Math.max(1, knightAtk() - (pierce ? 0 : def.def));
-    e.hp -= kd;
-    expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());
-    const bleed = knightBleed();                                  // 출혈은 때릴 때마다
-    if (bleed && e.hp > 0){ e.hp -= bleed; expSwing('knight', exp.foe, bleed, false, 'bleed'); }
+  // ③ 캐릭터들의 공격 — 저마다 제 공격속도로
+  let anyHit = false;
+  for (const k of alive){
+    const h = exp.P[k], g = Math.max(0, e.x - h.x), hit = hRange(k) >= g;
+    const every = 1000 / hAps(k);
+    h.cd += dt;
+    while (hit && h.cd >= every && e.hp > 0){
+      h.cd -= every;
+      const pierce = hPierce(k);
+      const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
+      e.hp -= dmg;
+      expSwing(k, exp.foe, dmg, !pierce && dmg * 3 <= hAtk(k));
+      const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
+      if (bleed && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed'); }
+    }
+    if (!hit) h.cd = Math.min(h.cd, every);
+    if (hit) anyHit = true;
   }
-  if (!kHit) exp.kcd = Math.min(exp.kcd, kEvery);                 // 닿지 않는 동안 쌓아 두지 않음
-  // ③ 적의 회복 — 1초마다 (출혈 중이면 멈춘다)
+  const foeHit = crowd.some(f => foeRange(ENEMIES[f.key]) >= Math.abs(f.x - exp.P[aimOf(f)].x));
+  exp.line = !anyHit && !foeHit ? '거리를 좁힌다'
+    : !anyHit ? '사거리 밖 — 맞으며 다가간다'
+    : !foeHit ? '사거리 밖에서 먼저 때린다'
+    : (/사거리|거리를/.test(exp.line || '') ? '맞붙었다' : exp.line);
+  // ④ 적의 회복 — 1초마다. **출혈 무기가 닿고 있으면** 멈춘다 (한 대 때린 박자에만 보지 않는다)
+  const bleeding = alive.some(k => hBleed(k) > 0 && hRange(k) >= Math.max(0, e.x - exp.P[k].x));
   if (def.regen && e.hp > 0){
     exp.rcd = (exp.rcd || 0) + dt;
     while (exp.rcd >= 1000){
       exp.rcd -= 1000;
-      if (!(kHit && knightBleed())){
+      if (!bleeding){
         const heal = Math.min(def.regen, def.hp - e.hp);
         if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
       }
     }
   }
-  // ④ v9.6.0: 크리처의 공격 — 줄 안에서 **사거리가 닿는 놈은 다 때린다**.
-  //   사거리 1 뒷줄은 못 때리고(앞놈만), 사거리 2 는 앞줄 넘어 때린다
+  // ⑤ 크리처의 공격 — 저마다 **노린 캐릭터**를, 사거리가 닿으면
   for (const f of crowd){
-    const d = ENEMIES[f.key], g = f.x - exp.kx, hit = foeRange(d) >= g;
+    const d = ENEMIES[f.key], k = aimOf(f), st = hSt(k);
+    const g = Math.abs(f.x - exp.P[k].x), hit = foeRange(d) >= g;
     const every = 1000 / foeAps(d);
     f.fcd = (f.fcd || 0) + dt;
-    while (hit && f.fcd >= every && k.hp > 0 && f.hp > 0){
+    while (hit && f.fcd >= every && st.hp > 0 && f.hp > 0){
       f.fcd -= every;
-      const ed = Math.max(1, d.atk - knightDef());
-      k.hp = Math.max(0, k.hp - ed);
-      expSwing(exp.foes.indexOf(f), 'knight', ed);
+      const ed = Math.max(1, d.atk - hDef(k));
+      st.hp = Math.max(0, st.hp - ed);
+      expSwing(exp.foes.indexOf(f), k, ed);
+      if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
+        exp.P[k].out = true;
+        exp.line = `${hName(k)} 쓰러졌다`;
+        exp.killer = { name: def.name, boss: !!f.boss, mid: !!f.mid };
+      }
     }
     if (!hit) f.fcd = Math.min(f.fcd, every);
   }
   renderKnight();
-  // ⑤ 판가름이 안 나면 물러난다 (사거리는 닿는데 회복이 더 커서 영영 안 죽는 판)
+  // ⑥ 판가름이 안 나면 물러난다 (사거리는 닿는데 회복이 더 커서 영영 안 죽는 판)
   e.lowSeen = Math.min(e.lowSeen == null ? def.hp : e.lowSeen, e.hp);
   exp.stallMs = e.hp <= e.lowSeen ? 0 : (exp.stallMs || 0) + dt;
   if (exp.stallMs >= 20000){
@@ -4798,7 +4914,7 @@ function expFight(dt){
     S.killed = S.killed || [];                                    // v0.66.0: 잡아 본 적 (퀘스트를 늦게 받아도 막히지 않게)
     if (!S.killed.includes(e.key)) S.killed.push(e.key);
     questHit(`kill:${e.key}`);                                    // v0.60.0
-    logEv('kill', { foe: e.key, boss: !!e.boss, mid: !!e.mid, field: exp.id, hp: k.hp });   // v7.6.0
+    logEv('kill', { foe: e.key, boss: !!e.boss, mid: !!e.mid, field: exp.id, hp: S.knight.hp });   // v7.6.0
     if (e.boss){                                                  // v0.14.0: 그 필드의 마지막 보스를 잡으면 원정 끝
       // v0.51.1: 그 필드를 **처음** 정복했을 때만 다음 필드가 열림
       //   (보스를 다시 잡을 때마다 열려 산 하나로 초원·숲·강가가 다 열리던 것)
@@ -4809,14 +4925,14 @@ function expFight(dt){
       expEnd('boss');
       return;
     }
-    if (k.hp <= 0){                                               // v0.78.0: 마지막 일격에 함께 쓰러짐 — 처치는 인정하고 빈사 귀환
-      exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };
+    if (exp.party.every(k2 => exp.P[k2].out)){                    // v0.78.0 · v9.20.0: 모두 쓰러지면 귀환
+      exp.killer = exp.killer || { name: def.name, boss: !!e.boss, mid: !!e.mid };
       expEnd('down');
     }
     return;
   }
-  if (k.hp <= 0){
-    exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };   // v0.61.0: 무엇에게 쓰러졌나
+  if (exp.party.every(k2 => exp.P[k2].out)){
+    exp.killer = exp.killer || { name: def.name, boss: !!e.boss, mid: !!e.mid };   // v0.61.0: 무엇에게 쓰러졌나
     expEnd('down');                                               // v0.38.1: 빈사 판정을 그리기보다 먼저
   }
   save();
@@ -5028,13 +5144,15 @@ function expBuild(){
   if (!exp){ setTimeout(() => { if (!exp){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
   if (!on){ syncHeadH(); return; }
   // v3.14.3: 이미 지은 트랙이면 다시 짓지 않는다 — 다시 지으면 쓰러진 적까지 등장 연출이 되풀이돼 번쩍인다
-  const key = `${exp.id}|${exp.spots.map(sp => sp.at).join(',')}|${exp.foes.map(f => f.key + f.at).join(',')}`;
+  const key = `${exp.id}|${exp.party.join(',')}|${exp.spots.map(sp => sp.at).join(',')}|${exp.foes.map(f => f.key + f.at).join(',')}`;
   if (el._key === key && el.firstChild){ expPaint(); return; }
   el._key = key;
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
-  el.innerHTML = '<div class="exp-lane"><i class="lane-far"></i><i class="lane-ground"></i><i class="lane-edge"></i>'   // v9.8.0 원경 · 지면 · v9.15.0 경계
+  // v9.20.0: 나간 캐릭터마다 **한 줄**. 줄마다 같은 싸움을 보여 주되 카메라만 제 캐릭터를 따라간다
+  const laneHtml = who => `<div class="exp-lane${exp.party.length > 1 ? ' two' : ''}" data-hero="${who}">`
+    + '<i class="lane-far"></i><i class="lane-ground"></i><i class="lane-edge"></i>'   // v9.8.0 원경 · 지면 · v9.15.0 경계
     + '<div class="lane-props"></div><i class="lane-grid"></i>'   // v9.8.0 흩뿌린 오브제 · v9.1.0 칸 눈금
     + (showMark ? '<div class="mark"></div>' : '')
     + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}">`
@@ -5042,18 +5160,19 @@ function expBuild(){
     + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}">`
         + '<div class="hp"></div><i class="reach" hidden></i>'      // v9.1.0: 적의 사거리도 보인다
         + `<img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
-    + '<div class="tok knight walk"><div class="hp"></div><i class="reach" hidden></i>'
-    + '<img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
-    + '</div>'
+    + exp.party.map(k => `<div class="tok hero ${k === 'knight' ? 'knight' : 'ally'}${k === who ? ' me' : ''}" data-hero="${k}">`
+        + '<div class="hp"></div><i class="reach" hidden></i>'
+        + `<img class="pic" src="images/portrait/${hPic(k)}.png" alt="${hName(k)}" draggable="false"></div>`).join('')
+    + '<div class="lane-front"></div><div class="lane-near"></div>'   // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
+    + '<i class="lane-dim l"></i><i class="lane-dim r"></i>'          // v9.19.0: 무대 밖은 덮는다
+    + `<i class="lane-who">${esc(hName(who))}</i></div>`;
+  el.innerHTML = exp.party.map(laneHtml).join('')
     // 전체 트랙은 아래 **미니맵**으로 (지금 어디쯤인지 · 앞에 무엇이 남았는지)
     + '<div class="exp-map"><i class="mp-bar"></i>'
     + exp.spots.map((sp, i) => `<b class="mp-spot" data-mspot="${i}"></b>`).join('')
     + exp.foes.map((f, i) => `<b class="mp-foe${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}" data-mfoe="${i}"></b>`).join('')
     + '<b class="mp-dot"></b></div>'
     + '<div class="exp-line"></div>';
-  el.querySelector('.exp-lane').insertAdjacentHTML('beforeend',                                     // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
-    '<div class="lane-front"></div><div class="lane-near"></div>'
-    + '<i class="lane-dim l"></i><i class="lane-dim r"></i>');    // v9.19.0: 무대 밖은 덮는다
   expPaint();
 }
 // v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
@@ -5103,7 +5222,10 @@ function expPaint(){
   if (!el || !exp) return;
   if (S.tab === expHomeTab() && !el.firstChild) expBuild();       // v3.14.0: 돌아오면 다시 만듦
   if (!el.firstChild || el.hidden) return;
-  const lane = el.querySelector('.exp-lane');
+  for (const lane of el.querySelectorAll('.exp-lane')) paintLane(el, lane);   // v9.20.0: 줄마다 제 카메라로
+  paintTail(el);
+}
+function paintLane(el, lane){
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
   const laneW = lane.clientWidth || 1;
   const KAN = KAN_PX();                                           // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
@@ -5111,7 +5233,9 @@ function expPaint(){
   const stageW = Math.min(laneW, Math.round(vis * KAN));          // 무대 (가운데 정렬)
   const stageL = Math.round((laneW - stageW) / 2);
   // v9.9.0: 배경은 칸에 딱 맞출 까닭이 없다 — 걷는 도중의 **조각 걸음**까지 더해 부드럽게 흐른다
-  const kxView = exp.kxd != null ? exp.kxd : (exp.kx || 0);       // v9.11.0: 카메라도 그림 자리를 따른다
+  const camK = exp.P[lane.dataset.hero] ? lane.dataset.hero : expLead();   // v9.20.0: 이 줄의 주인
+  const CAM = exp.P[camK];
+  const kxView = CAM.xd != null ? CAM.xd : CAM.x;                 // v9.11.0: 카메라도 그림 자리를 따른다
   // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
   const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
@@ -5151,7 +5275,7 @@ function expPaint(){
     if (near) near.hidden = !cfg.near;
     if ((front && cfg.front) || (near && cfg.near)){
       const half = CW * 0.25;                                      // 토큰 반 폭 (.tok 은 cw 의 절반)
-      const who = [[px(kxView), half]];
+      const who = exp.party.filter(k2 => !exp.P[k2].out).map(k2 => [px(exp.P[k2].xd != null ? exp.P[k2].xd : exp.P[k2].x), half]);
       for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
       if (front && cfg.front){
         paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0, stageL);
@@ -5166,8 +5290,8 @@ function expPaint(){
   // v9.12.0: **카메라는 뒤로 가지 않는다** — 기사가 제 칸에 자리 잡느라 살짝 물러설 때
   //   화면 전체가 오른쪽으로 밀려 보였다. 기사가 진짜로 뒤 칸으로 갈 때만 따라 물러난다
   if (exp.phase === 'run' && lane._cam != null && cam < lane._cam
-      && exp.kx >= (lane._kx != null ? lane._kx : exp.kx)) cam = lane._cam;
-  lane._kx = exp.kx;
+      && CAM.x >= (lane._kx != null ? lane._kx : CAM.x)) cam = lane._cam;
+  lane._kx = CAM.x;
   // v9.9.0: 배경은 한 박자(0.1초)마다 다음 자리로 **미끄러진다**. 단 크게 튈 땐 끄고 바로 옮긴다
   lane.classList.toggle('jump', lane._cam == null || Math.abs(cam - lane._cam) > 2);
   lane._cam = cam;
@@ -5181,19 +5305,22 @@ function expPaint(){
     mk.style.left = px((S.marks[exp.id] || 0) * exp.len) + 'px';
     if (!mk.classList.contains('passed') && exp.t > (S.marks[exp.id] || 0)) mk.classList.add('passed');
   }
-  const kt = lane.querySelector('.tok.knight');
-  // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
-  // v8.2.0: 상황(걷기 · 채집 · 전투)마다 달랐던 치우침을 없앰 — 늘 **제 칸 그대로** 그린다.
-  //   사거리 · 이동속도가 생긴 뒤로는 '어디에 서 있나'가 규칙이라 눈에 보이는 자리가 곧 판정 자리여야 한다
-  kt.style.left = px(kxView) + 'px';                              // v9.0.0 한 칸 = 한 자리 · v9.10.0 칸 사이도 그린다
-  const reach = kt.querySelector('.reach');                       // 닿는 거리 — 전투 중에만 옅게
-  if (reach){
-    const on = exp.foe >= 0 && exp.phase === 'fight';
-    reach.hidden = !on;
-    if (on) reach.style.width = Math.round(knightRange() * KAN) + 'px';
+  // v9.20.0: 캐릭터 토큰들 — 줄마다 **모두** 그린다 (카메라만 제 주인을 따른다)
+  for (const ht of lane.querySelectorAll('.tok.hero')){
+    const k2 = ht.dataset.hero, h2 = exp.P[k2];
+    if (!h2) continue;
+    ht.style.left = px(h2.xd != null ? h2.xd : h2.x) + 'px';       // v9.0.0 한 칸 = 한 자리 · v9.10.0 칸 사이도
+    ht.classList.toggle('down', h2.out);
+    const reach = ht.querySelector('.reach');                      // 닿는 거리 — 전투 중에만 옅게
+    if (reach){
+      const on = exp.foe >= 0 && exp.phase === 'fight' && !h2.out;
+      reach.hidden = !on;
+      if (on) reach.style.width = Math.round(hRange(k2) * KAN) + 'px';
+    }
+    ht.classList.toggle('walk', exp.phase === 'run' && !h2.out);   // v0.13.2: 걸을 때만 들썩
+    ht.classList.toggle('dig', exp.phase === 'search' && k2 === expLead());   // v0.13.4: 뒤지는 중
+    ht.querySelector('.hp').innerHTML = statBox(hAtk(k2), hDef(k2), Math.max(0, hSt(k2).hp), hMax(k2));
   }
-  kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
-  kt.classList.toggle('dig', exp.phase === 'search');              // v0.13.4: 뒤지는 중
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
     const s2 = exp.spots[+sp.dataset.spot];
     if (!s2) continue;                                             // v9.9.0: 땅이 막 바뀌어 트랙이 아직 옛것이면 건너뛴다
@@ -5201,7 +5328,6 @@ function expPaint(){
     sp.classList.toggle('done', s2.done);
     sp.classList.toggle('searching', exp.spot === +sp.dataset.spot);
   }
-  kt.querySelector('.hp').innerHTML = statBox(knightAtk(), knightDef(), S.knight.hp, knightMaxHp());   // v0.17.3: 공·방·체력. v0.78.1: 최대 체력은 레벨 반영
   for (const et of lane.querySelectorAll('.tok.enemy')){          // v0.13.1: 미리 서 있는 고블린들
     const f = exp.foes[+et.dataset.foe];
     if (!f) continue;                                              // v9.9.0: 옛 트랙이 남아 있으면 건너뛴다
@@ -5222,12 +5348,21 @@ function expPaint(){
     }
     et.querySelector('.hp').innerHTML = f.dead ? '' : statBox(ed.atk, ed.def, Math.max(0, f.hp), ed.hp);
   }
+  const dimL = lane.querySelector('.lane-dim.l'), dimR = lane.querySelector('.lane-dim.r');
+  if (dimL && dimR){                                              // v9.19.0: 무대 밖 — 그림은 이어지되 카메라 밖
+    dimL.style.width = stageL + 'px';
+    dimR.style.width = Math.max(0, laneW - stageL - stageW) + 'px';
+    dimL.hidden = dimR.hidden = stageL <= 0;
+  }
+}
+function paintTail(el){
   // v9.0.0: 미니맵 — 전체 트랙에서 지금 어디인지
+  const lead = exp.P[expLead()];
   const map = el.querySelector('.exp-map');
   if (map){
     const pc = x => (x / exp.len * 100).toFixed(1) + '%';
-    map.querySelector('.mp-bar').style.width = pc(exp.kx || 0);
-    map.querySelector('.mp-dot').style.left = pc(exp.kx || 0);
+    map.querySelector('.mp-bar').style.width = pc(lead.x || 0);
+    map.querySelector('.mp-dot').style.left = pc(lead.x || 0);
     for (const b of map.querySelectorAll('[data-mspot]')){
       const sp = exp.spots[+b.dataset.mspot];
       b.style.left = pc(sp.x);
@@ -5239,12 +5374,6 @@ function expPaint(){
       b.classList.toggle('dead', f.dead);
     }
   }
-  const dimL = lane.querySelector('.lane-dim.l'), dimR = lane.querySelector('.lane-dim.r');
-  if (dimL && dimR){                                              // v9.19.0: 무대 밖 — 그림은 이어지되 카메라 밖
-    dimL.style.width = stageL + 'px';
-    dimR.style.width = Math.max(0, laneW - stageL - stageW) + 'px';
-    dimL.hidden = dimR.hidden = stageL <= 0;
-  }
   el.querySelector('.exp-line').textContent = exp.line || '';
   if (exp.fail && !el.querySelector('.exp-fail')){                // v0.21.0: 실패
     // v0.61.0: 결론도 숫자도 쓰지 않는다 — 무엇에게 쓰러졌는지 사실만
@@ -5255,21 +5384,23 @@ function expPaint(){
   }
 }
 // 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
-const tokOf = who => document.querySelector(who === 'knight' ? '#exp .tok.knight' : `#exp .tok.enemy[data-foe="${who}"]`);
+// v9.20.0: 줄이 여럿이면 같은 토큰도 여럿 — 다 찾아서 같이 움직인다
+const toksOf = who => [...document.querySelectorAll(typeof who === 'string'
+  ? `#exp .tok.hero[data-hero="${who}"]` : `#exp .tok.enemy[data-foe="${who}"]`)];
+const tokOf = who => toksOf(who)[0] || null;
 // v6.0.0: 회복 숫자 (초록 +N)
 function expHeal(idx, n){
-  const el = tokOf(idx);
-  if (!el) return;
-  const f = document.createElement('b');
-  f.className = 'dmg heal';
-  f.textContent = `+${n}`;
-  el.appendChild(f);
-  setTimeout(() => f.remove(), 700);
+  for (const el of toksOf(idx)){
+    const f = document.createElement('b');
+    f.className = 'dmg heal';
+    f.textContent = `+${n}`;
+    el.appendChild(f);
+    setTimeout(() => f.remove(), 700);
+  }
 }
 function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
-  const a = tokOf(from), b = tokOf(to);
-  if (a) flash(a, 'atk', 300);
-  if (b){
+  for (const a of toksOf(from)) flash(a, 'atk', 300);
+  for (const b of toksOf(to)){
     flash(b, 'hurt', 300);
     const f = document.createElement('div');
     f.className = 'dmg' + (blocked ? ' blocked' : '') + (kind === 'bleed' ? ' bleedhit' : '');
@@ -5286,6 +5417,12 @@ function expSwing(from, to, dmg, blocked, kind){                        // v4.3.
 // v0.38.1: 능력치가 카드 안으로 들어간 뒤(v0.29.0) 체력 막대를 못 찾아 여기서 오류가 났음 → 카드 기준으로 찾음
 function renderKnight(){
   setTimeout(renderHint, 0);                                      // v2.4.0: 쓰러짐 · 체력 팁
+  for (const card of gatherEl.querySelectorAll('.cw.ally')){      // v9.20.0: 궁수 카드
+    const lv = card.querySelector('.lv-b');
+    if (lv) lv.textContent = `Lv ${allyLv()}`;
+    const xb = card.querySelector('.xpbar i');
+    if (xb) xb.style.width = Math.min(100, (allySt().xp || 0) / xpNeed(allyLv()) * 100) + '%';
+  }
   const k = S.knight, max = knightMaxHp(), need = xpNeed(knightLv());
   for (const card of gatherEl.querySelectorAll('.cw.knight')){    // 줄·아래·정비 — 있는 것 모두
     const st = card.querySelector('.bstat');                      // v8.5.0: 공 · 방 · 이동 · 사거리
@@ -5311,6 +5448,13 @@ function renderKnight(){
 //   원정 중이면 모달은 띄우지 않고 카드가 번쩍인다. 모아 뒀다가 돌아온 뒤 한 번에 보여 줌
 function gainXp(n){
   const k = S.knight;
+  for (const who of (exp ? exp.party : [])){                       // v9.20.0: 함께 싸운 동료도 오른다
+    if (who === 'knight') continue;
+    const a = hSt(who);
+    a.xp = (a.xp || 0) + n;
+    while (a.xp >= xpNeed(a.lv)){ a.xp -= xpNeed(a.lv); a.lv++; logEv('levelUp', { who, lv: a.lv }); }
+  }
+  if (exp && !exp.party.includes('knight')) return;                // 기사가 안 나갔으면 기사 몫은 없다
   k.xp = (k.xp || 0) + n;
   const ups = [];
   while (k.xp >= xpNeed(k.lv)){
@@ -5337,12 +5481,15 @@ function gainXp(n){
 }
 // 쉬는 동안 회복 (원정 중엔 안 됨)
 function healTick(dt){
-  if (exp || paused || S.knight.hp >= knightMaxHp()){ healProg = 0; return; }
+  // v9.20.0: 거점에서는 **둘 다** 같은 속도로 회복한다 (궁수도 빈사면 못 나간다)
+  const full = S.knight.hp >= knightMaxHp() && allySt().hp >= allyMaxHp();
+  if (exp || paused || full){ healProg = 0; return; }
   healProg += dt;
   const ms = healMs();
-  while (healProg >= ms && S.knight.hp < knightMaxHp()){
+  while (healProg >= ms && (S.knight.hp < knightMaxHp() || allySt().hp < allyMaxHp())){
     healProg -= ms;
-    S.knight.hp++;
+    if (S.knight.hp < knightMaxHp()) S.knight.hp++;
+    if (allySt().hp < allyMaxHp()) allySt().hp++;
     renderKnight();
     save();
   }
