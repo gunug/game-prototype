@@ -505,10 +505,14 @@
   .exp-lane.shake{animation:laneShake .15s ease-in-out;}
   @keyframes laneShake{0%,100%{transform:translateX(0);}25%{transform:translateX(-2px);}75%{transform:translateX(2px);}}
   /* v9.31.0: 화살 궤적 — 날아간 포물선 그대로 */
+  /* v9.31.1: 궤적은 **두 겹** — 넓은 후광 위에 밝은 심. 빨리 그려지고 천천히 사라진다 */
   .exp-lane svg.trail{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:visible;}
-  .exp-lane svg.trail path{fill:none;stroke:rgba(235,245,255,.9);stroke-width:2.5;stroke-linecap:round;
-    filter:drop-shadow(0 0 5px rgba(170,215,255,.9));
-    animation:drawTrail var(--t) linear forwards, fadeTrail .3s ease-out var(--t) forwards;}
+  .exp-lane svg.trail path{fill:none;stroke-linecap:round;
+    animation:drawTrail var(--t) ease-out forwards, fadeTrail .45s ease-out var(--fade) forwards;}
+  .exp-lane svg.trail path.halo{stroke:rgba(255,225,150,.35);stroke-width:11;
+    filter:blur(3px) drop-shadow(0 0 8px rgba(255,200,110,.9));}
+  .exp-lane svg.trail path.core{stroke:rgba(255,250,235,.95);stroke-width:4.5;
+    filter:drop-shadow(0 0 6px rgba(255,215,130,1));}
   @keyframes drawTrail{from{stroke-dashoffset:var(--L);}to{stroke-dashoffset:0;}}
   @keyframes fadeTrail{to{opacity:0;}}
   /* v9.30.0: 원거리 — 화살이 포물선(가로는 고르게, 세로는 떴다 떨어진다) */
@@ -1546,7 +1550,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.31.0';
+const VERSION = 'v9.31.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5744,17 +5748,27 @@ function trailFx(a, b, h, ms){
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'trail');
   svg.setAttribute('viewBox', `0 0 ${Math.round(lr.width)} ${Math.round(lr.height)}`);
-  const p = document.createElementNS(NS, 'path');
   // 화살이 뜨는 높이(h)와 같은 꼭대기를 그리되, 줄 위로 잘리지 않게 눌러 준다
   const hh = Math.max(8, Math.min(h, ((y0 + y1) / 2 - 5) / 0.85));
-  p.setAttribute('d', `M${x0.toFixed(1)},${y0.toFixed(1)} Q${((x0 + x1) / 2).toFixed(1)},${(Math.min(y0, y1) - hh * 1.7).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`);
-  svg.appendChild(p);
+  const d = `M${x0.toFixed(1)},${y0.toFixed(1)} Q${((x0 + x1) / 2).toFixed(1)},${(Math.min(y0, y1) - hh * 1.7).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
+  // v9.31.1: **두 겹** — 넓은 후광 + 밝은 심. 한 겹 2.5px 은 어두운 배경에서 거의 안 보였다
+  const halo = document.createElementNS(NS, 'path');
+  halo.setAttribute('class', 'halo');
+  halo.setAttribute('d', d);
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('class', 'core');
+  p.setAttribute('d', d);
+  svg.appendChild(halo); svg.appendChild(p);
   lane.appendChild(svg);
   const L = p.getTotalLength ? p.getTotalLength() : 0;
-  p.style.strokeDasharray = L;
-  p.style.setProperty('--L', L);
-  p.style.setProperty('--t', ms + 'ms');
-  setTimeout(() => svg.remove(), ms + 320);
+  const draw = Math.max(120, Math.round(ms * 0.65));               // 나는 시간보다 **빨리** 그려 오래 보이게
+  for (const el of [halo, p]){
+    el.style.strokeDasharray = L;
+    el.style.setProperty('--L', L);
+    el.style.setProperty('--t', draw + 'ms');
+    el.style.setProperty('--fade', ms + 120 + 'ms');
+  }
+  setTimeout(() => svg.remove(), ms + 600);
 }
 function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
   const who = typeof from === 'string' ? from : null;
