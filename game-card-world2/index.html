@@ -1045,7 +1045,10 @@ const DEFS = {
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
   obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3, aps:1.3 },   // v9.0.0: 가볍고 빠르다         // v6.0.0: 출혈 — 회복을 끊는다
-  woodbow:  { name:'나무 활',   kind:'gear', step:3, atk:1, range:5, aps:0.8 },   // v9.20.0: 궁수의 무기 — 다섯 칸 밖에서 쏜다
+  woodbow:  { name:'나무 활',   kind:'material', step:3, group:'gear', atk:1, range:5, aps:0.8 },   // v9.20.0: 궁수의 첫 활 — 다섯 칸 밖에서 쏜다
+  huntbow:  { name:'사냥 활',   kind:'material', step:4, group:'gear', atk:3, range:5, aps:1.1 },   // v9.26.0: 가볍고 빠르다
+  longbow:  { name:'긴 활',     kind:'gear', step:5, atk:5, range:6, aps:0.7 },   // v9.26.0: 한 칸 더 멀리, 대신 느리다
+  obsidianbow:{ name:'흑요 활', kind:'gear', step:5, atk:6, range:5, bleed:2, aps:0.9 },   // v9.26.0: 흑요석 화살촉 — 상처가 안 아문다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
   harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
@@ -1094,7 +1097,8 @@ const USE = {
   smokedfish:['음식'], leatherstrap:['갑옷재료', '방패재료', '도구재료'],   // v6.3.0 · v7.16.0: 가죽끈은 갑옷에도 방패에도
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
   obsidianknife:['무기', '근접무기'],                              // v6.0.0
-  woodbow:['무기', '원거리무기'],                                  // v9.20.0: 궁수 전용 — 조합으로 만들지 않는다
+  woodbow:['무기', '원거리무기'],                                  // v9.20.0 · v9.26.0: 이제 만들 수 있다
+  huntbow:['무기', '원거리무기'], longbow:['무기', '원거리무기'], obsidianbow:['무기', '원거리무기'],
   bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
   // v7.0.0: 갈래가 없던 보스 전리품 넷
   bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
@@ -1197,6 +1201,9 @@ const DESC = {
   obsidian:  '검은 유리 돌. 깨진 자리가 칼보다 날카롭다.',
   obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
   woodbow:'궁수가 늘 쥐고 있는 활. 힘은 약해도 다섯 칸 밖에서 먼저 쏜다.',
+  huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
+  longbow:'활대를 길게 이었다. 한 칸 더 멀리 닿지만 당기는 데 오래 걸린다.',
+  obsidianbow:'화살촉을 흑요석으로 갈았다. 스친 자리가 좀처럼 아물지 않는다.',
   bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
   toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
   graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
@@ -1352,6 +1359,11 @@ const RECIPES = [
   { id:'battleaxe',     a:{ card:'handaxe' },   b:{ card:'obsidianblade' }, out:['battleaxe'] },
   // v6.0.0: 🍄 늪지 무덤 열쇠 — 이빨 단검(3) + 흑요석 날(3) = 흑요석 칼(4), 출혈
   { id:'obsidianknife', a:{ card:'toothdagger' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
+  // v9.26.0: 활 — 나무 활에서 갈라진다 (궁수의 무기)
+  { id:'woodbow',      a:{ card:'firewood' },  b:{ card:'sinew' },     out:['woodbow'] },        // 손잡이에 힘줄을 걸어 시위로
+  { id:'huntbow',      a:{ card:'woodbow' },   b:{ card:'leatherstrap' }, out:['huntbow'] },     // 손잡이를 가죽으로 감음
+  { id:'longbow',      a:{ card:'huntbow' },   b:{ card:'longhandle' }, out:['longbow'] },       // 활대를 길게
+  { id:'obsidianbow',  a:{ card:'huntbow' },   b:{ card:'obsidianblade' }, out:['obsidianbow'] },// 흑요석 화살촉
   { id:'campfire',     a:{ card:'ember' },      b:{ card:'tree' },     out:['campfire'] },   // v0.23.0: 모닥불. v3.6.3: 🏷️ 연료 태그 폐기 — 나무로 못 박음 (석탄은 이미 불씨가 먹는다)
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
 ];
@@ -1458,7 +1470,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.25.0';
+const VERSION = 'v9.26.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
