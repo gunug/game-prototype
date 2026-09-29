@@ -352,7 +352,17 @@
   .exp-lane{position:relative;height:calc(var(--ch) * 1.05);margin:calc(var(--cf) * .34) 0 4px;border-radius:var(--r-md);overflow:visible;
     background:linear-gradient(180deg,#2a2a1f,#16160f);border:1px solid var(--hairline);
     background-clip:padding-box;}
-  .exp-lane .bar{position:absolute;left:0;bottom:0;height:5px;background:var(--brand-yellow);opacity:.5;width:0;border-bottom-left-radius:var(--r-md);}
+  /* v9.0.0: 미니맵 — 전체 트랙 한 줄 (다른 탭에서 보는 미니 원정과 같은 구실) */
+  .exp-map{position:relative;height:10px;margin:4px 2px 0;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .exp-map .mp-bar{position:absolute;left:0;top:0;bottom:0;background:rgba(255,212,0,.35);}
+  .exp-map b{position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;}
+  .exp-map .mp-spot{background:#9adf7a;}
+  .exp-map .mp-spot.done{background:rgba(255,255,255,.25);}
+  .exp-map .mp-foe{background:#ff8a8a;}
+  .exp-map .mp-foe.mid{width:6px;height:6px;margin:-3px 0 0 -3px;}
+  .exp-map .mp-foe.boss{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;background:#ffce40;}
+  .exp-map .mp-foe.dead{background:rgba(255,255,255,.2);}
+  .exp-map .mp-dot{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;background:#fff;box-shadow:0 0 4px rgba(255,255,255,.8);}
   /* v0.61.0: 여기까지 와 봤다 — 지난번에 가장 멀리 간 자리. 숫자는 쓰지 않는다 */
   .exp-lane .mark{position:absolute;bottom:5px;width:2px;height:calc(var(--ch) * .34);background:rgba(255,212,0,.5);
     margin-left:-1px;pointer-events:none;z-index:1;}
@@ -371,6 +381,7 @@
   .exp-lane .tok.mid::before{content:'⚔';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .24);}   /* v0.58.0: 중간보스 */
   .exp-lane .tok.boss::before{content:'👑';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .26);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
+  .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
   .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
     display:flex;align-items:flex-end;justify-content:center;transition:left .2s linear;}   /* v8.2.0: 걸음이 이어져 보이게 */
   /* v8.2.0: 기사의 사거리 — 전투 중에만 옅은 띠로 (어디까지 닿는지 눈에 보이게) */
@@ -910,7 +921,7 @@ const DEFS = {
   // ── 2단계 (v0.5.0, 추천안 그대로 — 미확정). 그림 없음: emoji 로 대신 ──
   // 🛠️ 도구 · 불
   blade: { name:'뗀석기',     kind:'material', step:2, made:'mountain', group:'tool' },   // v1.0.0: 더는 무기가 아니라 무기재료 (날)
-  stoneknife: { name:'뗀석기 칼', kind:'material', step:3, group:'gear', atk:1 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
+  stoneknife: { name:'뗀석기 칼', kind:'material', step:3, group:'gear', atk:1, aps:1.2 },   // v1.0.0: 첫 무기 — 뗀석기에 나무 자루
   drymeat: { name:'말린 고기', kind:'material', step:2, made:'mountain', group:'food' },   // v3.10.1
   fletching: { name:'화살깃',  kind:'material', step:2, made:'grassland', group:'gear' },
   jerky: { name:'육포',       kind:'material', step:2, made:'grassland', group:'food' },
@@ -934,7 +945,7 @@ const DEFS = {
   plank: { name:'나무판자',   kind:'material', step:2, made:'mountain', group:'tool' },   // v0.20.0: 도구재료
   shieldboard: { name:'방패판', kind:'material', step:2, made:'mountain', group:'gear' },
   longhandle: { name:'나무 자루', kind:'material', step:3, group:'gear' },   // v2.0.0: 긴 자루 — 나무 손잡이 + 섬유끈
-  handaxe: { name:'손도끼', kind:'material', step:4, group:'gear', atk:3 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
+  handaxe: { name:'손도끼', kind:'material', step:4, group:'gear', atk:3, aps:0.9 },   // v2.0.0: 초원의 근접무기   // v1.2.0: 갑옷 부품 — 나무판자를 손질
   curedleather: { name:'손질된 가죽', kind:'material', step:2, made:'mountain', group:'gear' },   // v1.2.0: 갑옷 부품 — 억센 가죽을 손질
   wax: { name:'밀랍',       kind:'material', step:3, group:'build' },   // v0.12.0: 부순 광석 → 구리. v0.12.1: 구리 원석 (나중에 구리 주괴의 재료)
   // 🍖 음식
@@ -961,8 +972,8 @@ const DEFS = {
   juice: { name:'열매즙',     kind:'material', step:2, made:'forest', group:'body' },
   salve: { name:'약초 연고',  kind:'material', step:2, made:'forest', group:'body' },
   // ── 3단계 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
-  toothdagger: { name:'이빨 단검',  kind:'material', step:3, group:'gear', atk:2 },
-  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4, range:3 },
+  toothdagger: { name:'이빨 단검',  kind:'material', step:3, group:'gear', atk:2, aps:1.4 },
+  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4, range:2, aps:1.0 },
   leatherarmor: { name:'가죽 갑옷', kind:'material', step:3, group:'gear', def:1 },
   pouch: { name:'가죽 주머니', kind:'material', step:3, group:'gear' },
   fishhook: { name:'낚싯바늘',    kind:'material', step:3, group:'gear' },
@@ -972,17 +983,17 @@ const DEFS = {
   // v7.11.0: 거점은 `heal`(초당 회복)로 값이 매겨진다. 다음 거점(화덕 · 가마 …)은 이 수를 올려 간다
   campfire:  { name:'모닥불',      kind:'material', step:3, group:'gear', heal:1.2 },
   // v2.1.0: 🌲 숲 — 긴 창(근접무기 +5) · 방패테 · 테 방패(방패 +2)
-  longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5, range:4 },
+  longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5, range:3, aps:0.8 },
   shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
   rimshield: { name:'테 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
-  battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true, spd:-1 },   // v8.0.0: 묵직해서 느리다       // v4.0.0: 방어를 0으로 치는 무기
+  battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true, spd:-1, aps:0.7 },   // v8.0.0: 묵직해서 느리다 · 느리게 때린다       // v4.0.0: 방어를 0으로 치는 무기
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
-  obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3 },         // v6.0.0: 출혈 — 회복을 끊는다
+  obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3, aps:1.3 },   // v9.0.0: 가볍고 빠르다         // v6.0.0: 출혈 — 회복을 끊는다
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
-  harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:4 },
+  harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
@@ -1391,7 +1402,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v8.7.0';
+const VERSION = 'v9.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1629,11 +1640,15 @@ function questGroupState(def){
 //   · 한 박자에 서로 `spd` 만큼 다가선다. 그 뒤 **사거리가 닿는 쪽만** 때린다
 //   · 그래서 사거리가 긴 쪽은 상대가 붙기 전까지 공짜로 때리고, 느린 쪽은 맞으며 다가가야 한다
 //   · 거리는 '칸'으로 센다. 마주치는 거리 ENGAGE_GAP, 붙으면 0
-// v8.1.0: 트랙은 **0~100칸의 한 공간**. 기사도 적도 이 자 위에 서고, 거리는 늘 |내 칸 − 네 칸| 하나뿐이다.
-//   그래서 화면에 보이는 자리와 싸움의 거리가 어긋나지 않는다 (v8.0.0의 '전투 속 gap' 은 없앴다)
-const LANE_LEN = 100;                                             // 트랙 길이 (칸)
-const NOTICE_GAP = 14;                                            // 이만큼 가까워지면 서로 알아차리고 싸움이 붙는다
-const BASE_SPD = 3, BASE_RANGE = 1;                               // 한 박자에 걷는 칸 · 맨손 사거리
+// v9.0.0: **한 칸 = 한 자리(캐릭터 하나)**. 트랙 길이는 땅마다 다르고, 화면은 그중 열 칸 남짓만 보여 준다.
+//   · 사거리 N = N칸 떨어진 상대를 때릴 수 있다 (1 = 맞닿음)
+//   · 이동속도 N = **1초에 N칸** 전진
+//   · 공격속도 N = **1초에 N번** 때린다
+//   그래서 사거리 10 · 공속 1 인 상대에게 이속 3 으로 다가가면 (10−1)/3 ≈ 3초, 세 대를 맞고 붙는다
+const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36 };     // 땅마다 트랙 길이 (칸). 없으면 60
+const laneLen = id => LANE_OF[id] || 60;
+const NOTICE_GAP = 8;                                             // 이만큼 가까워지면 알아차리고 싸움이 붙는다 (칸)
+const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷는 칸 · 맨손 사거리 · 초당 공격 횟수
 // 적의 움직임 — chase(다가옴, **기본**) · hold(자리 지킴) · kite(사거리를 지키며 물러남)
 //   v8.1.2: 기본을 chase 로. 가만히 서 있으면 사거리 긴 쪽이 영원히 때리기만 하는 판이 된다
 //   (수렁 팔: 기사 피해 3 = 회복 3 이라 순 피해 0 인데 적은 사거리 1 이라 못 때려 승부가 안 났다)
@@ -4137,14 +4152,14 @@ gatherEl.addEventListener('click', e => {
 //   송곳니 10% = 보스를 열 번쯤 잡으면 한 번 (보스를 반복해서 잡게 하는 목표)
 const ENEMIES = {
   // v3.8.0: 필드마다 전리품 종류를 고정. v3.8.3 — ⛰️ 산: 작은 이빨 · 무른 가죽 · 붉은 고기 · 짐승 기름 (+ 보스 곰의 발톱) / 뼈는 초원으로
-  animal: { name:'토끼', portrait:'portrait_animal', atk:1, def:0, hp:3,   // v0.78.0: 2 → 3 (뗀석기면 두 대)
+  animal: { name:'토끼', spd:4, aps:1.2, portrait:'portrait_animal', atk:1, def:0, hp:3,   // v0.78.0: 2 → 3 (뗀석기면 두 대)
     loot: [['meat', 40, 1], ['hide', 35, 1], ['smalltooth', 25, 1]] },
   // v0.58.0: 중간보스 — 잡몹과 필드보스 사이. 뗀석기(공 2)면 잡히고, 맨손(공 1)으론 여기서 막힘
-  wolf:   { name:'늑대', portrait:'portrait_wolf',   atk:2, def:0, hp:6,
+  wolf:   { name:'늑대', spd:4, portrait:'portrait_wolf',   atk:2, def:0, hp:6,
     loot: [['smalltooth', 45, 1], ['tallow', 30, 1], ['hide', 25, 1]] },
   // v0.58.0: 체력 10 → 9. 중간보스에게 깎인 체력으로도 이빨 단검(공 3)이면 이기도록
   // v2.1.0: 필드보스는 저만의 전리품을 10%로 떨굼 (곰의 발톱). 송곳니 10 → 5 — 송곳니는 숲(늑대 두목)이 주 출처
-  bear:   { name:'곰',   portrait:'portrait_bear',   atk:3, def:0, hp:9,
+  bear:   { name:'곰',   spd:3, aps:0.8, portrait:'portrait_bear',   atk:3, def:0, hp:9,
     loot: [['meat', 40, 2], ['tallow', 35, 1], ['hide', 15, 1], ['bearclaw', 10, 1]] },
   // v2.0.0: 🌾 초원 — 들개(잡몹) · 멧돼지(중간보스) · 들소(필드보스). 시뮬레이션으로 맞춘 세기 (확정 58)
   //   이빨 단검으로는 멧돼지에서 막히고, 손도끼면 멧돼지를 넘고 들소에서 막히고, 5레벨 갑옷이면 클리어 (약 7판, Lv5)
@@ -4152,43 +4167,43 @@ const ENEMIES = {
   strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:6,
     loot: [['smalltooth', 100, 1]] },
   // v3.8.4: 🌾 초원 전리품 넷 — 억센 가죽 · 힘줄 · 질긴 고기 · 뼈 (+ 보스 들소 뿔)
-  wilddog:{ name:'들개', portrait:'portrait_wilddog', atk:2, def:0, hp:6,
+  wilddog:{ name:'들개', spd:4, aps:1.2, portrait:'portrait_wilddog', atk:2, def:0, hp:6,
     loot: [['toughmeat', 40, 1], ['bone', 35, 1], ['sinew', 25, 1]] },
-  boar:   { name:'멧돼지', portrait:'portrait_boar', atk:3, def:0, hp:10,   // 초원의 핵심 부품: 억센 가죽
+  boar:   { name:'멧돼지', spd:5, aps:0.8, portrait:'portrait_boar', atk:3, def:0, hp:10,   // 초원의 핵심 부품: 억센 가죽
     loot: [['toughhide', 45, 1], ['sinew', 30, 1], ['toughmeat', 25, 1]] },
-  bison:  { name:'들소', portrait:'portrait_bison',  atk:4, def:1, hp:14,   // v2.1.0: 들소 뿔 10%
+  bison:  { name:'들소', spd:4, aps:0.8, portrait:'portrait_bison',  atk:4, def:1, hp:14,   // v2.1.0: 들소 뿔 10%
     loot: [['toughhide', 35, 1], ['toughmeat', 30, 2], ['bone', 25, 1], ['bisonhorn', 10, 1]] },
   // v2.1.0: 🌲 숲 — 여우(잡몹) · 늑대 두목(중간보스) · 숲곰(필드보스). 시뮬레이션으로 맞춤
   //   손도끼로는 늑대 두목에서 막히고, 긴 창이면 숲곰에서 막히고, 10레벨 방패면 클리어 (약 9판, Lv10)
   // v3.8.4: 🌲 숲 전리품 넷 — 송곳니 · 발톱 · 기름진 고기 · 털가죽 (+ 보스 이끼 가죽)
-  fox:        { name:'여우',     portrait:'portrait_fox',        atk:3, def:0, hp:16,
+  fox:        { name:'여우',     spd:5, aps:1.2, portrait:'portrait_fox',        atk:3, def:0, hp:16,
     loot: [['fatmeat', 40, 1], ['furpelt', 40, 1], ['claw', 20, 1]] },
-  wolfleader: { name:'늑대 두목', portrait:'portrait_wolfleader', atk:4, def:1, hp:22,   // 송곳니의 주 출처
+  wolfleader: { name:'늑대 두목', spd:4, aps:0.9, portrait:'portrait_wolfleader', atk:4, def:1, hp:22,   // 송곳니의 주 출처
     loot: [['fang', 40, 1], ['claw', 35, 1], ['furpelt', 25, 1]] },
-  forestbear: { name:'숲곰',     portrait:'portrait_forestbear', atk:6, def:2, hp:30,
+  forestbear: { name:'숲곰',     spd:3, aps:0.8, portrait:'portrait_forestbear', atk:6, def:2, hp:30,
     loot: [['fatmeat', 30, 2], ['claw', 30, 1], ['fang', 30, 1], ['mosspelt', 10, 1]] },
   // v2.1.0: 🏞️ 강가 — 가재(잡몹) · 악어(중간보스) · 큰 메기(필드보스)
   //   숲 장비로는 악어에서 막힘. 강가 무기(+9) · 15레벨 장신구(+2)를 가정해 맞춘 수치 (약 10판, Lv15) — 둘 다 아직 없음
   // v3.8.4: 🏞️ 강가 전리품 넷 — 생선살 · 비늘 · 집게발 · 조개껍데기 (+ 보스 메기 수염)
   // v4.0.0: 🪨 돌가죽 굴 — 방어가 높아 방어 무시가 없으면 한 대에 1
-  stonebug:  { name:'돌벌레',   portrait:'portrait_stonebug',  atk:4, def:4, hp:6,
+  stonebug:  { name:'돌벌레',   spd:2, portrait:'portrait_stonebug',  atk:4, def:4, hp:6,
     loot: [['obsidian', 60, 1], ['stonepelt', 40, 1]] },
-  shellback: { name:'바위 등껍질', portrait:'portrait_shellback', atk:8, def:9, hp:16,
+  shellback: { name:'바위 등껍질', spd:1, aps:0.8, portrait:'portrait_shellback', atk:8, def:9, hp:16,
     loot: [['obsidian', 50, 2], ['stonepelt', 50, 1]] },
-  stonelord: { name:'돌가죽 주인', portrait:'portrait_stonelord', atk:10, def:11, hp:30,
+  stonelord: { name:'돌가죽 주인', spd:2, aps:0.9, portrait:'portrait_stonelord', atk:10, def:11, hp:30,
     loot: [['stonepelt', 60, 2], ['obsidian', 40, 2]] },
   // v6.0.0: 🍄 늪지 무덤 — 박자마다 살이 차오른다(regen). 출혈이 걸리면 멈춘다
-  mosstoad:  { name:'이끼 두꺼비', portrait:'portrait_mosstoad', atk:6, def:2, hp:12, regen:1,
+  mosstoad:  { name:'이끼 두꺼비', spd:2, portrait:'portrait_mosstoad', atk:6, def:2, hp:12, regen:1,
     loot: [['bogmoss', 55, 1], ['toadhide', 45, 1]] },
-  bogarm:    { name:'수렁 팔',    portrait:'portrait_bogarm',   atk:9, def:4, hp:20, regen:3,
+  bogarm:    { name:'수렁 팔',    spd:1, aps:0.9, range:2, portrait:'portrait_bogarm',   atk:9, def:4, hp:20, regen:3,
     loot: [['toadhide', 50, 2], ['bogmoss', 50, 1]] },
-  tombkeeper:{ name:'무덤 주인',  portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,  // v7.18.0: 회복은 10 그대로 — 기믹은 세게, 대신 출혈을 올렸다
+  tombkeeper:{ name:'무덤 주인',  spd:2, aps:0.9, portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,  // v7.18.0: 회복은 10 그대로 — 기믹은 세게, 대신 출혈을 올렸다
     loot: [['graveseal', 100, 1], ['toadhide', 50, 2]] },
-  crayfish:  { name:'가재',     portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
+  crayfish:  { name:'가재',     spd:2, portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
     loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
-  crocodile: { name:'악어',     portrait:'portrait_crocodile', atk:7, def:3, hp:44,
+  crocodile: { name:'악어',     spd:3, aps:0.9, portrait:'portrait_crocodile', atk:7, def:3, hp:44,
     loot: [['scale', 45, 1], ['pincer', 30, 1], ['shellpiece', 25, 1]] },
-  catfish:   { name:'큰 메기',  portrait:'portrait_catfish',   atk:9, def:3, hp:60,
+  catfish:   { name:'큰 메기',  spd:3, aps:0.9, portrait:'portrait_catfish',   atk:9, def:3, hp:60,
     loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
@@ -4203,6 +4218,8 @@ const knightPierce = () => { const w = equipped('weapon'); return !!(w && DEFS[w
 const knightBleed = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].bleed) || 0; };   // v6.0.0: 출혈
 // v8.0.0: 사거리는 **쥔 무기**가, 이동속도는 **몸과 장비**가 정한다 (무거운 것을 들면 느려진다)
 const knightRange = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].range) || BASE_RANGE; };
+const knightAps = () => { const w = equipped('weapon'); return (w && DEFS[w] && DEFS[w].aps) || BASE_APS; };   // v9.0.0: 초당 공격 횟수
+const foeAps = e => e.aps || BASE_APS;
 const knightSpd = () => {
   let v = KNIGHT.spd;
   for (const sl of SLOTS){ const t = equipped(sl.key); if (t && DEFS[t] && DEFS[t].spd) v += DEFS[t].spd; }
@@ -4210,6 +4227,8 @@ const knightSpd = () => {
 };
 const foeSpd = e => e.spd || BASE_SPD;
 const foeRange = e => e.range || BASE_RANGE;
+// v9.0.0: 화면에 보이는 칸 — 칸 하나는 카드 그림 한 폭 남짓
+const KAN_PX = () => Math.max(28, CW * 0.55);
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -4364,12 +4383,14 @@ function expStart(id, cardEl){
   }
   flash(cardEl, 'tap', 300);
   // v0.13.1: 고블린은 길 위에 미리 서 있음 (도착할 때 생기는 것처럼 보이지 않게)
-  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, x: e.at * LANE_LEN,   // v8.1.0: 칸 위의 자리
+  const LEN = laneLen(id);                                        // v9.0.0: 땅마다 다른 칸 수
+  const foes = planOf(id).filter(e => e.fight).map(e => ({ key: e.fight, at: e.at, x: Math.round(e.at * LEN),   // v8.1.0: 칸 위의 자리
     hp: ENEMIES[e.fight].hp, dead: false, boss: !!e.boss, mid: !!e.mid }));   // v0.58.0: 중간보스
   // v0.13.4: 채집 포인트도 길 위에 미리 놓임 — 기사가 다다르면 잠시 뒤진다
   const spots = planOf(id).filter(e => e.loot).map(e => ({ at: e.at, done: false }));
   landFound(id);                                                  // v7.13.0: 가 본 땅은 책에 남는다
-  exp = { id, t: 0, kx: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots, search: 0, beat: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
+  exp = { id, len: LEN, t: 0, kx: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots,
+    search: 0, kcd: 0, fcd: 0, rcd: 0, stallMs: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   logEv('expStart', { field: id, lv: S.knight.lv, atk: knightAtk(), def: knightDef(), hp: S.knight.hp,   // v7.6.0
     weapon: equipped('weapon') || null, dungeon: !!FIELD_BY_ID[id].dungeon });
   setTimeout(renderHint, 0);                                      // v2.4.4: 원정 팁
@@ -4384,9 +4405,9 @@ function expTick(dt){
   if (exp.phase === 'end') return;
   const plan = planOf(exp.id);
   if (exp.phase === 'run'){
-    // v8.1.0: 한 박자(0.7초)에 `이동속도`만큼 걷는다 — 빠를수록 원정이 짧아진다
-    exp.kx = Math.min(LANE_LEN, (exp.kx || 0) + knightSpd() * dt / FIGHT_BEAT_MS);
-    exp.t = Math.min(1, exp.kx / LANE_LEN);
+    // v9.0.0: **1초에 이동속도만큼** 칸을 걷는다
+    exp.kx = Math.min(exp.len, (exp.kx || 0) + knightSpd() * dt / 1000);
+    exp.t = Math.min(1, exp.kx / exp.len);
     let ev = plan[exp.idx];
     while (ev && ev.fight && exp.t >= ev.at){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
     if (ev && exp.t >= ev.at){
@@ -4394,8 +4415,8 @@ function expTick(dt){
       if (ev.loot){                                               // v0.13.4: 채집 포인트에서 잠시 뒤짐
         exp.spot = exp.spots.findIndex(sp => !sp.done && sp.at === ev.at);
         if (exp.spot < 0) return;                                 // v8.1.1: 이미 뒤진 자리면 그냥 지나간다
-        exp.kx = ev.at * LANE_LEN;                                // v8.2.0: 채집 자리에 정확히 선다
-        exp.t = exp.kx / LANE_LEN;
+        exp.kx = ev.at * exp.len;                                 // v8.2.0: 채집 자리에 정확히 선다
+        exp.t = exp.kx / exp.len;
         exp.phase = 'search'; exp.search = 0;
         exp.line = '채집 포인트를 뒤진다';
         expPaint();
@@ -4404,12 +4425,13 @@ function expTick(dt){
     }
     // 앞쪽의 적을 알아차림. 단 **아직 뒤지지 않은 채집 자리가 그 앞에 있으면** 그걸 먼저 한다
     //   (v8.1.1: 안 그러면 멀리서 붙은 싸움이 채집 자리를 지나쳐 버린다)
-    const nextSpot = exp.spots.find(sp => !sp.done && sp.at * LANE_LEN > exp.kx);   // 아직 안 뒤진 앞쪽 자리
+    const nextSpot = exp.spots.find(sp => !sp.done && sp.at * exp.len > exp.kx);   // 아직 안 뒤진 앞쪽 자리
     let near = exp.foes.findIndex(f => !f.dead && f.x - exp.kx <= NOTICE_GAP && f.x >= exp.kx - 2);
-    if (near >= 0 && nextSpot && nextSpot.at * LANE_LEN <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
+    if (near >= 0 && nextSpot && nextSpot.at * exp.len <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
-      exp.foe = near; exp.phase = 'fight'; exp.beat = 0;
+      exp.foe = near; exp.phase = 'fight';
+      exp.kcd = 0; exp.fcd = 0; exp.rcd = 0; exp.stallMs = 0;      // v9.0.0: 공격 · 회복 타이머
       const d = ENEMIES[ef.key];
       exp.line = ef.boss ? `👑 ${subP2(d.name)} 길을 막았다` : ef.mid ? `⚔ ${subP2(d.name)} 앞을 가로막았다` : `${withP(d.name)} 마주쳤다`;
       S.metFoes = S.metFoes || [];
@@ -4433,64 +4455,75 @@ function expTick(dt){
       expLoot();
     }
   } else if (exp.phase === 'fight'){
-    exp.beat += dt;
-    while (exp.phase === 'fight' && exp.beat >= FIGHT_BEAT_MS){
-      exp.beat -= FIGHT_BEAT_MS;
-      expBeat();
-    }
+    expFight(dt);                                                 // v9.0.0: 시간으로 도는 싸움
   }
   expPaint();
 }
 // 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
-function expBeat(){
+// v9.0.0: 싸움은 **시간으로** 돈다 — 서로 제 이동속도로 다가서고, 제 공격속도로 때린다.
+//   사거리가 닿지 않으면 때리지 못한다. 그래서 사거리가 긴 쪽은 상대가 붙을 때까지 공짜로 때린다
+function expFight(dt){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
-  // v8.1.0: 거리는 **트랙 위 두 자리의 차이**. 각자 제 성질대로 움직인 뒤, 사거리가 닿는 쪽만 때린다
-  let gap = Math.max(0, e.x - exp.kx);
+  if (!e || !def || e.dead){ exp.foe = -1; exp.phase = 'run'; return; }
   const kr = knightRange(), fr = foeRange(def), mv = foeMove(def);
-  if (gap > kr) exp.kx = Math.min(e.x, exp.kx + knightSpd());     // 기사는 사거리에 들 때까지 다가선다
+  const sec = dt / 1000;
+  // ① 다가서기 — 사거리 밖이면 걷는다
+  let gap = Math.max(0, e.x - exp.kx);
+  if (gap > kr) exp.kx = Math.min(e.x - kr, exp.kx + knightSpd() * sec);
   gap = Math.max(0, e.x - exp.kx);
-  if (mv === 'chase' && gap > fr) e.x = Math.max(exp.kx, e.x - foeSpd(def));        // 다가오는 놈
-  else if (mv === 'kite' && gap < fr) e.x = Math.min(LANE_LEN, e.x + foeSpd(def));  // 사거리를 지키며 물러나는 놈
+  if (mv === 'chase' && gap > fr) e.x = Math.max(exp.kx + fr, e.x - foeSpd(def) * sec);
+  else if (mv === 'kite' && gap < fr) e.x = Math.min(exp.len, e.x + foeSpd(def) * sec);
   gap = Math.max(0, e.x - exp.kx);
-  exp.gap = gap;                                                  // 보여 주기용
-  const kHit = kr >= gap, eHit = fr >= gap;
-  if (!kHit && !eHit){ exp.line = '거리를 좁힌다'; return; }        // 둘 다 닿지 않으면 걷기만
-  if (!kHit) exp.line = '사거리 밖 — 맞으며 다가간다';
-  else if (!eHit) exp.line = '사거리 밖에서 먼저 때린다';
-  else if (/사거리|거리를/.test(exp.line || '')) exp.line = '맞붙었다';   // 붙은 순간 한 번
-  const pierce = knightPierce();                                  // v4.0.0: 방어 무시
-  const raw = knightAtk() - (pierce ? 0 : def.def);
-  const kd = Math.max(1, raw);
-  if (kHit){                                                      // v8.0.0: 사거리가 닿을 때만
+  exp.gap = gap;
+  const kHit = kr >= gap - 0.01, eHit = fr >= gap - 0.01;
+  exp.line = !kHit && !eHit ? '거리를 좁힌다'
+    : !kHit ? '사거리 밖 — 맞으며 다가간다'
+    : !eHit ? '사거리 밖에서 먼저 때린다'
+    : (/사거리|거리를/.test(exp.line || '') ? '맞붙었다' : exp.line);
+  // ② 기사의 공격 — 공속만큼 자주
+  exp.kcd = (exp.kcd || 0) + dt;
+  const kEvery = 1000 / knightAps();
+  while (kHit && exp.kcd >= kEvery && e.hp > 0){
+    exp.kcd -= kEvery;
+    const pierce = knightPierce();
+    const kd = Math.max(1, knightAtk() - (pierce ? 0 : def.def));
     e.hp -= kd;
-    expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());   // v4.3.0: 피해가 1/3 이하로 깎이면 '막힘'
+    expSwing('knight', exp.foe, kd, !pierce && kd * 3 <= knightAtk());
+    const bleed = knightBleed();                                  // 출혈은 때릴 때마다
+    if (bleed && e.hp > 0){ e.hp -= bleed; expSwing('knight', exp.foe, bleed, false, 'bleed'); }
   }
-  // v6.0.0: 출혈이 걸리면 살이 차오르지 않고 덧피해까지 — 없으면 박자마다 regen 만큼 도로 찬다
-  const bleed = kHit ? knightBleed() : 0;
-  if (bleed && e.hp > 0){
-    e.hp -= bleed;
-    expSwing('knight', exp.foe, bleed, false, 'bleed');
-  } else if (def.regen && e.hp > 0){
-    const heal = Math.min(def.regen, def.hp - e.hp);
-    if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
+  if (!kHit) exp.kcd = Math.min(exp.kcd, kEvery);                 // 닿지 않는 동안 쌓아 두지 않음
+  // ③ 적의 회복 — 1초마다 (출혈 중이면 멈춘다)
+  if (def.regen && e.hp > 0){
+    exp.rcd = (exp.rcd || 0) + dt;
+    while (exp.rcd >= 1000){
+      exp.rcd -= 1000;
+      if (!(kHit && knightBleed())){
+        const heal = Math.min(def.regen, def.hp - e.hp);
+        if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
+      }
+    }
   }
-  // v8.1.1: **판가름이 안 나면 물러난다.** 사거리가 길어 맞지 않는데 상대의 회복이 내 피해보다 크면
-  //   둘 다 죽지 않아 싸움이 끝나지 않는다 — 서른 박자 동안 상대 체력이 한 번도 새로 낮아지지 않으면 귀환
-  e.low = Math.min(e.low == null ? def.hp : e.low, e.hp);
-  exp.stall = e.hp < (e.lowSeen == null ? def.hp + 1 : e.lowSeen) ? 0 : (exp.stall || 0) + 1;
+  // ④ 적의 공격
+  exp.fcd = (exp.fcd || 0) + dt;
+  const fEvery = 1000 / foeAps(def);
+  while (eHit && exp.fcd >= fEvery && k.hp > 0 && e.hp > 0){
+    exp.fcd -= fEvery;
+    const ed = Math.max(1, def.atk - knightDef());
+    k.hp = Math.max(0, k.hp - ed);
+    expSwing(exp.foe, 'knight', ed);
+  }
+  if (!eHit) exp.fcd = Math.min(exp.fcd, fEvery);
+  renderKnight();
+  // ⑤ 판가름이 안 나면 물러난다 (사거리는 닿는데 회복이 더 커서 영영 안 죽는 판)
   e.lowSeen = Math.min(e.lowSeen == null ? def.hp : e.lowSeen, e.hp);
-  if (exp.stall >= 30){
+  exp.stallMs = e.hp <= e.lowSeen ? 0 : (exp.stallMs || 0) + dt;
+  if (exp.stallMs >= 20000){
     exp.line = `${objP(def.name)} 이길 수 없다 — 물러났다`;
     expEnd('retreat');
     return;
   }
-  const ed = Math.max(1, def.atk - knightDef());                  // v0.78.0: 마지막 일격
-  if (eHit){                                                      // v8.0.0: 적도 사거리가 닿아야 때린다
-    k.hp = Math.max(0, k.hp - ed);
-    expSwing(exp.foe, 'knight', ed);
-  }
-  renderKnight();
   if (e.hp <= 0){
     e.dead = true;
     exp.foe = -1;
@@ -4736,17 +4769,22 @@ function expBuild(){
   el._key = key;
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
+  // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
   el.innerHTML = '<div class="exp-lane">'
-    + (showMark ? `<div class="mark" style="left:${laneX(mark)}%"></div>` : '')
-    + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}" style="left:${laneX(sp.at)}%">`
+    + (showMark ? '<div class="mark"></div>' : '')
+    + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}">`
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
-    + '<div class="bar"></div>'
-    // v0.13.1: 고블린은 처음부터 제자리에 서 있음
-    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}" style="left:${laneX(f.at)}%">`
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}">`
         + `<div class="hp"></div><img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + '<div class="tok knight walk"><div class="hp"></div><i class="reach" hidden></i>'
     + '<img class="pic" src="images/portrait/portrait_knight.png" alt="기사" draggable="false"></div>'
-    + '</div><div class="exp-line"></div>';
+    + '</div>'
+    // 전체 트랙은 아래 **미니맵**으로 (지금 어디쯤인지 · 앞에 무엇이 남았는지)
+    + '<div class="exp-map"><i class="mp-bar"></i>'
+    + exp.spots.map((sp, i) => `<b class="mp-spot" data-mspot="${i}"></b>`).join('')
+    + exp.foes.map((f, i) => `<b class="mp-foe${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}" data-mfoe="${i}"></b>`).join('')
+    + '<b class="mp-dot"></b></div>'
+    + '<div class="exp-line"></div>';
   expPaint();
 }
 // v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
@@ -4797,35 +4835,34 @@ function expPaint(){
   if (S.tab === expHomeTab() && !el.firstChild) expBuild();       // v3.14.0: 돌아오면 다시 만듦
   if (!el.firstChild || el.hidden) return;
   const lane = el.querySelector('.exp-lane');
-  lane.querySelector('.bar').style.width = (exp.t * 100) + '%';
+  // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
+  //   칸 폭은 토큰 한 폭 이상, 그러면서 화면에 **열두 칸 안팎**이 보이도록 (넓은 화면에선 칸이 넓어진다)
+  const laneW = lane.clientWidth || 1;
+  const KAN = Math.max(KAN_PX(), laneW / 12);
+  const vis = laneW / KAN;
+  const cam = Math.max(0, Math.min(exp.len - vis, (exp.kx || 0) - vis * 0.35));
+  const px = x => Math.round((x - cam) * KAN);
   const mk = lane.querySelector('.mark');                         // v0.61.0: 지난 기록을 넘어서면 깃발이 흐려짐
-  if (mk && !mk.classList.contains('passed') && exp.t > (S.marks[exp.id] || 0)) mk.classList.add('passed');
+  if (mk){
+    mk.style.left = px((S.marks[exp.id] || 0) * exp.len) + 'px';
+    if (!mk.classList.contains('passed') && exp.t > (S.marks[exp.id] || 0)) mk.classList.add('passed');
+  }
   const kt = lane.querySelector('.tok.knight');
   // v0.13.5: 기사 위치를 고블린·채집 포인트와 같은 눈금(0~100%)으로 맞추고, 대상보다 조금 앞(왼쪽)에 서게
   // v8.2.0: 상황(걷기 · 채집 · 전투)마다 달랐던 치우침을 없앰 — 늘 **제 칸 그대로** 그린다.
   //   사거리 · 이동속도가 생긴 뒤로는 '어디에 서 있나'가 규칙이라 눈에 보이는 자리가 곧 판정 자리여야 한다
-  // v8.7.0: **그림에서는 겹치지 않게.** 1칸(맞닿음)은 규칙상 가장 가까운 거리지만,
-  //   트랙 1칸은 화면에서 몇 픽셀뿐이라 그대로 그리면 두 토큰이 포개진다 —
-  //   싸우는 동안만 상대보다 **토큰 하나 폭만큼** 왼쪽에 세운다 (판정 거리는 그대로)
-  let kxPct = laneX((exp.kx || 0) / LANE_LEN);
-  if (exp.foe >= 0 && exp.phase === 'fight'){
-    const f = exp.foes[exp.foe];
-    const laneW = lane.clientWidth || 1, tokW = kt.offsetWidth || 24;
-    const sep = tokW * 1.05 / laneW * 100;                        // 토큰 한 폭만큼 띄움
-    const fxPct = laneX((f.x != null ? f.x : f.at * LANE_LEN) / LANE_LEN);
-    kxPct = Math.min(kxPct, fxPct - sep);
-  }
-  kt.style.left = Math.max(2, kxPct) + '%';
+  kt.style.left = px(exp.kx || 0) + 'px';                         // v9.0.0: 한 칸 = 한 자리라 그대로 그려도 겹치지 않는다
   const reach = kt.querySelector('.reach');                       // 닿는 거리 — 전투 중에만 옅게
   if (reach){
     const on = exp.foe >= 0 && exp.phase === 'fight';
     reach.hidden = !on;
-    if (on) reach.style.width = (knightRange() * (100 - LANE_PAD * 2) / LANE_LEN) + '%';
+    if (on) reach.style.width = Math.round(knightRange() * KAN) + 'px';
   }
   kt.classList.toggle('walk', exp.phase === 'run');                // v0.13.2: 걸을 때만 들썩
   kt.classList.toggle('dig', exp.phase === 'search');              // v0.13.4: 뒤지는 중
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
     const i = +sp.dataset.spot;
+    sp.style.left = px(exp.spots[i].at * exp.len) + 'px';          // v9.0.0
     sp.classList.toggle('done', exp.spots[i].done);
     sp.classList.toggle('searching', exp.spot === i);
   }
@@ -4835,8 +4872,25 @@ function expPaint(){
     et.classList.toggle('dead', f.dead);
     et.classList.toggle('now', exp.foe === +et.dataset.foe);
     const ed = ENEMIES[f.key];
-    et.style.left = laneX((f.x != null ? f.x : f.at * LANE_LEN) / LANE_LEN) + '%';   // v8.1.0: 적도 움직인다
+    et.style.left = px(f.x != null ? f.x : f.at * exp.len) + 'px';  // v8.1.0 · v9.0.0: 적도 움직인다
     et.querySelector('.hp').innerHTML = f.dead ? '' : statBox(ed.atk, ed.def, Math.max(0, f.hp), ed.hp);
+  }
+  // v9.0.0: 미니맵 — 전체 트랙에서 지금 어디인지
+  const map = el.querySelector('.exp-map');
+  if (map){
+    const pc = x => (x / exp.len * 100).toFixed(1) + '%';
+    map.querySelector('.mp-bar').style.width = pc(exp.kx || 0);
+    map.querySelector('.mp-dot').style.left = pc(exp.kx || 0);
+    for (const b of map.querySelectorAll('[data-mspot]')){
+      const sp = exp.spots[+b.dataset.mspot];
+      b.style.left = pc(sp.at * exp.len);
+      b.classList.toggle('done', sp.done);
+    }
+    for (const b of map.querySelectorAll('[data-mfoe]')){
+      const f = exp.foes[+b.dataset.mfoe];
+      b.style.left = pc(f.x != null ? f.x : f.at * exp.len);
+      b.classList.toggle('dead', f.dead);
+    }
   }
   el.querySelector('.exp-line').textContent = exp.line || '';
   if (exp.fail && !el.querySelector('.exp-fail')){                // v0.21.0: 실패
