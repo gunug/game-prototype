@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.20.1';
+const VERSION = 'v9.20.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4335,6 +4335,7 @@ const KAN_PX = () => Math.max(44, CW * 1.1);
 // v9.19.0: **무대는 5.5칸.** 폰 세로가 딱 이만큼 보이므로, 어느 화면에서든 싸움과 카메라는 이 폭 안에서만 논다.
 //   화면이 더 넓으면 남는 좌우는 딤드로 덮어 '카메라 밖'임을 알린다 (그림은 이어지되 무대는 아니다)
 const STAGE_KAN = 5.5;
+const CAM_SPD = 9;                                                // v9.20.2: 카메라가 목표를 따라가는 빠르기 (칸/초)
 // v9.8.0: 땅 배경은 **층**이다 — 원경(느리게) · 지면(같이) · 흩뿌린 오브제(같이) · 앞 오브제(빠르게).
 //   한 장으로 다 그리면 이음매에 나무가 걸리거나 빈 칸이 생긴다. 나무 · 바위는 타일이 아니라 **낱개 그림**을 칸마다 흩뿌린다.
 //   w = 칸 단위 너비 · h = 트랙 높이 비율 · odds = 그 칸에 나올 확률
@@ -4448,13 +4449,21 @@ function expEase(dt){                                             // 매 박자 
     const h = exp.P[k];
     // v9.20.1: **걸을 때 따라가는 이의 그림 자리는 선두의 그림 자리 한 칸 뒤**를 그대로 따른다.
     //   칸(점유)만 보고 따라가면 '한 칸 순간이동 → 멈춤'이 되풀이돼 뚝뚝 끊겨 보인다 (칸은 그대로 점유한다)
-    if (k !== lead && exp.phase === 'run' && !h.out){
+    if (k !== lead && exp.phase !== 'fight' && !h.out){
       const want = Math.max(0, (LD.xd != null ? LD.xd : LD.x) - 1);
-      h.xd = h.xd == null || Math.abs(want - h.xd) > 2 ? want : easeTo(h.xd, want, hSpd(k), dt);
+      const off = want - (h.xd != null ? h.xd : h.x);
+      // 뒤처졌으면 **뛰어서** 따라붙는다 (그냥 옮겨 놓으면 상대 줄에서 툭 튀어 보인다)
+      const sp = Math.abs(off) > 1.2 ? hSpd(k) * 2 : hSpd(k), st2 = sp * dt / 1000;
+      h.xd = h.xd == null || Math.abs(off) > 6 ? want
+        : (Math.abs(off) <= st2 ? want : h.xd + Math.sign(off) * st2);
       continue;
     }
+    // v9.20.2: 그림 자리를 칸(x)에 **묶지 않는다** — 묶으면 칸이 바뀌는 순간 한 칸을 순간이동한다
+    //   (채집 자리로 되돌아설 때도 마찬가지). 늘 '들어가려는 칸' 쪽으로 제 빠르기로 미끄러질 뿐
     const to = h.to != null ? h.to : h.x;
-    h.xd = clampBetween(easeTo(h.xd, to, h.vspd || hSpd(k), dt), h.x, to);   // v9.20.1: 걷던 빠르기 그대로
+    const sp3 = h.vspd || hSpd(k), stp = sp3 * dt / 1000, dd = h.xd == null ? 0 : to - h.xd;
+    h.xd = h.xd == null || Math.abs(h.x - h.xd) > 3                // 저만치 어긋났을 때만 바로 (앞보기 한 칸은 늘 벌어져 있다)
+      ? to : (Math.abs(dd) <= stp ? to : h.xd + Math.sign(dd) * stp);
   }
   for (const f of exp.foes){
     const to = f.dead || f.to == null ? f.x : f.to;
@@ -4465,12 +4474,13 @@ const clampBetween = (v, a, b) => Math.max(Math.min(a, b), Math.min(Math.max(a, 
 // v9.13.0: **셈은 0.1초마다, 그림은 매 프레임(60fps).**
 //   0.1초마다 자리를 옮기고 CSS 로 미끄러뜨리면, 박자가 조금만 늦어도(브라우저 타이머는 들쭉날쭉)
 //   미끄러짐이 끝난 뒤 멈췄다가 다음 박자에 툭 튄다 — 그게 남아 있던 끊김이었다
-let rafAlive = false, frameLast = 0;
+let rafAlive = false, frameLast = 0, paintDt = 16;
 function expFrame(ts){
   requestAnimationFrame(expFrame);
   rafAlive = true;
   const dt = Math.min(200, frameLast ? ts - frameLast : 16);
   frameLast = ts;
+  paintDt = dt;                                                   // v9.20.2: 카메라도 시간으로 미끄러진다
   if (!exp || paused) return;
   expEase(dt);
   expPaint();
@@ -4542,7 +4552,7 @@ function heroStep(k, dt, target, spd){
     if (!cellFree(nx, k)) break;
     h.step -= 1; h.x = nx;
   }
-  if (h.x === target) h.step = Math.min(h.step, 1);
+  h.step = Math.min(h.step, 1);                                   // v9.20.2: 막혀 있는 동안 걸음이 쌓여 두 칸을 건너뛰지 않게
   h.to = h.x !== target && cellFree(h.x + (target > h.x ? 1 : -1), k)
     ? h.x + (target > h.x ? 1 : -1) : h.x;
 }
@@ -4817,7 +4827,7 @@ function expTick(dt){
     expFight(dt);                                                 // v9.0.0: 시간으로 도는 싸움
   }
   if (exp && !rafAlive) expEase(dt);                               // v9.13.0: 프레임 고리가 없을 때만 (검사 · AI)
-  expPaint();
+  if (!rafAlive) expPaint();                                      // v9.20.2: 그림은 프레임 고리가 맡는다 (두 번 그리면 카메라가 두 배로 움직였다)
 }
 // 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
@@ -4835,7 +4845,7 @@ function expFight(dt){
     h.vspd = hSpd(k);
     h.step += hSpd(k) * sec;
     while (h.step >= 1 && e.x - h.x > kr && cellFree(h.x + 1, k)){ h.step -= 1; h.x += 1; }
-    if (e.x - h.x <= kr) h.step = Math.min(h.step, 1);
+    h.step = Math.min(h.step, 1);                                 // v9.20.2: 쌓인 걸음으로 순간이동 금지
     h.to = e.x - h.x > kr && cellFree(h.x + 1, k) ? h.x + 1 : h.x;
   }
   // 크리처는 **가장 가까운 캐릭터**를 노린다 (궁수가 뒤에 서면 기사가 먼저 맞는다)
@@ -5261,7 +5271,18 @@ function paintLane(el, lane){
   const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
   const aim = foeView != null ? (kxView + foeView) / 2 - vis * 0.5 : kxView - vis * 0.35;
-  let cam = Math.max(0, Math.min(exp.len - vis, aim));
+  const want = Math.max(0, Math.min(exp.len - vis, aim));
+  // 카메라는 **시계**로 미끄러진다 — 한 프레임에 두 번 그려도 두 배로 움직이지 않게
+  const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  exp.cam = exp.cam || {};                                        // v9.20.2: 줄을 다시 지어도 카메라는 이어진다
+  const C = exp.cam[camK] = exp.cam[camK] || {};
+  const camDt = C.t ? Math.min(200, nowMs - C.t) : 16;
+  C.t = nowMs;
+  // v9.20.2: 카메라는 목표로 **미끄러진다**. 걷기(선두의 35% 자리) ↔ 싸움(둘의 가운데) 로 바뀌는 순간
+  //   목표가 몇 칸씩 건너뛰는데, 그대로 옮기면 다른 줄의 상대가 툭 튀어 보였다
+  const camStep = CAM_SPD * camDt / 1000, camD = C.v == null ? 0 : want - C.v;
+  let cam = C.v == null || Math.abs(camD) > 8                     // v9.20.2: 여덟 칸 넘게 벌어질 때만 바로 (원정 시작)
+    ? want : (Math.abs(camD) <= camStep ? want : C.v + Math.sign(camD) * camStep);
   const px = x => stageL + Math.round((x - cam) * KAN);           // 무대 왼쪽 끝부터 재어 그린다
   // v9.8.0: 배경 층들 — 원경은 느리게, 지면과 뒤 오브제는 기사와 같이, 앞 오브제는 더 빠르게 (시차)
   const cfg = LANE_BG[exp.id];
@@ -5310,12 +5331,12 @@ function paintLane(el, lane){
   }
   // v9.12.0: **카메라는 뒤로 가지 않는다** — 기사가 제 칸에 자리 잡느라 살짝 물러설 때
   //   화면 전체가 오른쪽으로 밀려 보였다. 기사가 진짜로 뒤 칸으로 갈 때만 따라 물러난다
-  if (exp.phase === 'run' && lane._cam != null && cam < lane._cam
-      && CAM.x >= (lane._kx != null ? lane._kx : CAM.x)) cam = lane._cam;
-  lane._kx = CAM.x;
+  if (exp.phase === 'run' && C.v != null && cam < C.v
+      && CAM.x >= (C.kx != null ? C.kx : CAM.x)) cam = C.v;
+  C.kx = CAM.x;
   // v9.9.0: 배경은 한 박자(0.1초)마다 다음 자리로 **미끄러진다**. 단 크게 튈 땐 끄고 바로 옮긴다
-  lane.classList.toggle('jump', lane._cam == null || Math.abs(cam - lane._cam) > 2);
-  lane._cam = cam;
+  lane.classList.toggle('jump', C.v == null || Math.abs(cam - C.v) > 2);
+  C.v = cam; lane._cam = cam;
   const grid = lane.querySelector('.lane-grid');                  // v9.1.0: 칸 눈금 — 카메라만큼 밀어 흐르게
   if (grid){
     grid.style.backgroundSize = `${KAN}px 100%`;
