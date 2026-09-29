@@ -1409,7 +1409,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.1.0';
+const VERSION = 'v9.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4234,8 +4234,9 @@ const knightSpd = () => {
 };
 const foeSpd = e => e.spd || BASE_SPD;
 const foeRange = e => e.range || BASE_RANGE;
-// v9.0.0: 화면에 보이는 칸 — 칸 하나는 카드 그림 한 폭 남짓
-const KAN_PX = () => Math.max(28, CW * 0.55);
+// v9.2.0: **칸 크기는 고정** (카드 폭의 1.1배 = 토큰 두 폭 남짓). 화면이 넓으면 칸이 커지는 게 아니라
+//   **보이는 칸 수가 늘어난다** — 모바일 5~6칸, PC 11칸쯤
+const KAN_PX = () => Math.max(44, CW * 1.1);
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -4844,9 +4845,8 @@ function expPaint(){
   if (!el.firstChild || el.hidden) return;
   const lane = el.querySelector('.exp-lane');
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
-  //   칸 폭은 토큰 한 폭 이상, 그러면서 화면에 **열두 칸 안팎**이 보이도록 (넓은 화면에선 칸이 넓어진다)
   const laneW = lane.clientWidth || 1;
-  const KAN = Math.max(KAN_PX(), laneW / 12);
+  const KAN = KAN_PX();                                           // v9.2.0: 고정 — 보이는 칸 수만 화면 따라 달라진다
   const vis = laneW / KAN;
   const cam = Math.max(0, Math.min(exp.len - vis, (exp.kx || 0) - vis * 0.35));
   const px = x => Math.round((x - cam) * KAN);
