@@ -1412,7 +1412,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.5.0';
+const VERSION = 'v9.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4242,6 +4242,14 @@ const foeRange = e => e.range || BASE_RANGE;
 // v9.2.0: **칸 크기는 고정** (카드 폭의 1.1배 = 토큰 두 폭 남짓). 화면이 넓으면 칸이 커지는 게 아니라
 //   **보이는 칸 수가 늘어난다** — 모바일 5~6칸, PC 11칸쯤
 const KAN_PX = () => Math.max(44, CW * 1.1);
+// v9.6.0: **칸 점유 표** — 살아 있는 몸은 한 칸에 하나. 앞이 차 있으면 그 뒤 칸에 선다 (줄)
+//   시체는 막지 않는다 — 막으면 뒷줄이 시체 뒤에서 영영 못 오게 된다 (밟고 지나간다)
+function cellFree(x, self){
+  if (!exp || x < 0 || x > exp.len) return false;
+  if (self !== 'knight' && x === exp.kx) return false;             // 기사도 한 칸을 차지한다
+  for (const f of exp.foes) if (f !== self && !f.dead && f.x === x) return false;
+  return true;
+}
 const knightAtk = () => KNIGHT.atk + lvSum('atk') + gearStat('atk');   // v0.66.0: 레벨 보상 포함
 const knightDef = () => KNIGHT.def + lvSum('def') + gearStat('def');
 const EXP_RUN_MS = 18000;                                        // 끝까지 걷는 시간 (전투 시간 제외)
@@ -4426,7 +4434,7 @@ function expTick(dt){
   if (exp.phase === 'run'){
     // v9.5.0: **한 칸씩 점유하며** 걷는다 — 이동속도 3이면 1초에 세 칸, 1/3초마다 한 칸
     exp.step = (exp.step || 0) + knightSpd() * dt / 1000;
-    while (exp.step >= 1 && exp.kx < exp.len){ exp.step -= 1; exp.kx += 1; }
+    while (exp.step >= 1 && exp.kx < exp.len && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
     if (exp.kx >= exp.len) exp.step = 0;
     exp.t = Math.min(1, exp.kx / exp.len);
     let ev = plan[exp.idx];
@@ -4489,21 +4497,27 @@ function expTick(dt){
 function expFight(dt){
   const k = S.knight, e = exp.foes[exp.foe], def = ENEMIES[e.key];
   if (!e || !def || e.dead){ exp.foe = -1; exp.phase = 'run'; return; }
-  const kr = knightRange(), fr = foeRange(def), mv = foeMove(def);
+  const kr = knightRange(), fr = foeRange(def);
   const sec = dt / 1000;
-  // ① 다가서기 — **한 칸씩**. 서로 다른 칸을 점유하므로 가장 가까워도 거리 1 (맞닿음)
-  let gap = e.x - exp.kx;
+  // ① 기사 다가서기 — **한 칸씩**, 찬 칸은 못 밟는다
   exp.step = (exp.step || 0) + knightSpd() * sec;
-  while (exp.step >= 1 && e.x - exp.kx > kr){ exp.step -= 1; exp.kx += 1; }
+  while (exp.step >= 1 && e.x - exp.kx > kr && cellFree(exp.kx + 1, 'knight')){ exp.step -= 1; exp.kx += 1; }
   if (e.x - exp.kx <= kr) exp.step = Math.min(exp.step, 1);
-  e.step = (e.step || 0) + foeSpd(def) * sec;
-  while (e.step >= 1){
-    const g = e.x - exp.kx;
-    if (mv === 'chase' && g > fr && g > 1){ e.step -= 1; e.x -= 1; }
-    else if (mv === 'kite' && g < fr && e.x < exp.len){ e.step -= 1; e.x += 1; }
-    else { e.step = Math.min(e.step, 1); break; }
+  // ② v9.6.0: 알아차린 크리처는 **모두** 움직인다 — 앞이 막히면 그 뒤에 **줄을 선다**.
+  //   가까운 놈부터 옮겨야 앞줄이 먼저 자리를 비운다
+  const crowd = exp.foes.filter(f => !f.dead && f.x - exp.kx <= NOTICE_GAP && f.x >= exp.kx)
+    .sort((a, b) => a.x - b.x);
+  for (const f of crowd){
+    const d = ENEMIES[f.key], mv = foeMove(d), fr2 = foeRange(d);
+    f.step = (f.step || 0) + foeSpd(d) * sec;
+    while (f.step >= 1){
+      const g = f.x - exp.kx;
+      if (mv === 'chase' && g > fr2 && cellFree(f.x - 1, f)){ f.step -= 1; f.x -= 1; }
+      else if (mv === 'kite' && g < fr2 && cellFree(f.x + 1, f)){ f.step -= 1; f.x += 1; }
+      else { f.step = Math.min(f.step, 1); break; }
+    }
   }
-  gap = Math.max(0, e.x - exp.kx);
+  const gap = Math.max(0, e.x - exp.kx);
   exp.gap = gap;
   const kHit = kr >= gap, eHit = fr >= gap;                        // v9.5.0: 칸이 정수라 어림셈이 필요 없다
   exp.line = !kHit && !eHit ? '거리를 좁힌다'
@@ -4534,16 +4548,20 @@ function expFight(dt){
       }
     }
   }
-  // ④ 적의 공격
-  exp.fcd = (exp.fcd || 0) + dt;
-  const fEvery = 1000 / foeAps(def);
-  while (eHit && exp.fcd >= fEvery && k.hp > 0 && e.hp > 0){
-    exp.fcd -= fEvery;
-    const ed = Math.max(1, def.atk - knightDef());
-    k.hp = Math.max(0, k.hp - ed);
-    expSwing(exp.foe, 'knight', ed);
+  // ④ v9.6.0: 크리처의 공격 — 줄 안에서 **사거리가 닿는 놈은 다 때린다**.
+  //   사거리 1 뒷줄은 못 때리고(앞놈만), 사거리 2 는 앞줄 넘어 때린다
+  for (const f of crowd){
+    const d = ENEMIES[f.key], g = f.x - exp.kx, hit = foeRange(d) >= g;
+    const every = 1000 / foeAps(d);
+    f.fcd = (f.fcd || 0) + dt;
+    while (hit && f.fcd >= every && k.hp > 0 && f.hp > 0){
+      f.fcd -= every;
+      const ed = Math.max(1, d.atk - knightDef());
+      k.hp = Math.max(0, k.hp - ed);
+      expSwing(exp.foes.indexOf(f), 'knight', ed);
+    }
+    if (!hit) f.fcd = Math.min(f.fcd, every);
   }
-  if (!eHit) exp.fcd = Math.min(exp.fcd, fEvery);
   renderKnight();
   // ⑤ 판가름이 안 나면 물러난다 (사거리는 닿는데 회복이 더 커서 영영 안 죽는 판)
   e.lowSeen = Math.min(e.lowSeen == null ? def.hp : e.lowSeen, e.hp);
