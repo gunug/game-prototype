@@ -1457,7 +1457,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.21.0';
+const VERSION = 'v9.21.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4710,7 +4710,11 @@ function expStart(id, cardEl, who){
     if (exp.id === id && !exp.party.includes(who) && hAlive(who)){
       // v9.21.0: 늦게 온 이는 **땅 입구(0칸)에서 출발**한다 — 제 이동속도로 걸어 따라잡아야 한다
       let x = 0;
-      while (x < exp.len && !cellFree(x, who)) x++;
+      if (!cellFree(0, who)){                                      // v9.21.1: 출발선이 막혔으면(둘이 같이 나갈 때) 앞선 이를 한 칸 민다
+        const L0 = exp.P[expLead()];
+        if (L0.x === 0 && cellFree(1, expLead())){ L0.x = 1; L0.xd = 1; L0.to = 1; }
+        else while (x < exp.len && !cellFree(x, who)) x++;
+      }
       exp.party.push(who);
       exp.P[who] = mkHero(x);
       exp.line = `${hName(who)} 합류`;
@@ -4759,22 +4763,30 @@ function expStart(id, cardEl, who){
   hintDone('sortie');                                             // v2.2.0
   renderGather(); renderInsp(); save();
 }
+// v9.21.1: 동료의 걸음은 **앞장선 이의 사정과 따로** 돈다 — 기사가 채집하거나 싸우는 동안에도 멈추지 않는다
+//   · 걸을 때는 앞장선 이의 한 칸 뒤
+//   · 앞장선 이가 채집 중이면 두 칸 앞까지 먼저 나가 살핀다 (거기서 기다린다)
+function alliesStep(dt){
+  const lead = expLead(), L = exp.P[lead];
+  for (const k of exp.party){
+    if (k === lead || exp.P[k].out) continue;
+    const h = exp.P[k];
+    // 앞서 있으면 한 칸 앞을 지킨다 — 뒤로 물리려 들면 서로 길을 막는다
+    const tgt = exp.phase === 'search' ? Math.min(exp.len, L.x + 2)
+      : h.x > L.x ? Math.min(exp.len, L.x + 1) : Math.max(0, L.x - 1);
+    const far = Math.abs(tgt - exp.P[k].x) > 1;
+    heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
+  }
+}
 function expTick(dt){
   if (!exp || paused) return;
   if (exp.phase === 'end') return;
   const plan = planOf(exp.id);
+  if (exp.phase !== 'fight') alliesStep(dt);                      // 싸울 땐 expFight 가 저마다 움직인다
   if (exp.phase === 'run'){
     // v9.5.0: **한 칸씩 점유하며** 걷는다 — 이동속도 3이면 1초에 세 칸, 1/3초마다 한 칸
     const lead = expLead(), L = exp.P[lead];
     heroStep(lead, dt, exp.len);                                   // 앞장선 캐릭터는 트랙 끝을 보고 걷는다
-    for (const k of exp.party){                                    // v9.20.0: 동료는 앞장선 이의 한 칸 뒤를 따른다
-      if (k === lead || exp.P[k].out) continue;
-      const tgt = Math.max(0, L.x - 1);
-      // v9.20.1: 바짝 붙어 있으면 **선두의 빠르기**로 걷는다.
-      //   제 빠르기(더 빠름)로 걸으면 한 칸 가고 멈춰 서기를 되풀이해 뚝뚝 끊겨 보였다
-      const far = Math.abs(tgt - exp.P[k].x) > 1;
-      heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
-    }
     exp.t = Math.min(1, L.x / exp.len);
     let ev = plan[exp.idx];
     while (ev && ev.fight && L.x >= Math.round(ev.at * exp.len)){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
@@ -4795,7 +4807,8 @@ function expTick(dt){
     // 앞쪽의 적을 알아차림. 단 **아직 뒤지지 않은 채집 자리가 그 앞에 있으면** 그걸 먼저 한다
     //   (v8.1.1: 안 그러면 멀리서 붙은 싸움이 채집 자리를 지나쳐 버린다)
     const nextSpot = exp.spots.find(sp => !sp.done && sp.x >= L.x);   // 아직 안 뒤진 앞쪽 자리
-    let near = exp.foes.findIndex(f => !f.dead && f.x - L.x <= NOTICE_GAP && f.x >= L.x - 2);
+    let near = exp.foes.findIndex(f => !f.dead && exp.party.some(k =>   // v9.21.1: 누구든 먼저 알아차린다
+      !exp.P[k].out && f.x - exp.P[k].x <= NOTICE_GAP && f.x >= exp.P[k].x - 2));
     if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x) near = -1;   // 그 자리를 먼저 뒤진다
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
