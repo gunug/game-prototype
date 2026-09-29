@@ -48,6 +48,17 @@ def quiet_roll(im, band):
     return out, q
 
 
+def key_alpha(im, key, tol=38, feather=46):
+    """바탕색(검정 · 흰색)을 지워 **투명**하게 — 지면 경계선에 심을 가장자리 그림용.
+    배경 제거 모델은 대상을 하나로 보고 잘라 내므로, 줄지어 선 풀·돌에는 색으로 빼는 게 낫다."""
+    a = np.asarray(im.convert("RGB"), dtype=float)
+    ref = np.array([0.0, 0.0, 0.0]) if key == "black" else np.array([255.0, 255.0, 255.0])
+    d = np.sqrt(((a - ref) ** 2).sum(2))
+    al = np.clip((d - tol) / max(1.0, feather - tol), 0, 1)
+    out = np.dstack([a, al * 255]).astype("uint8")
+    return Image.fromarray(out, "RGBA")
+
+
 def tone_match(im, k=10):
     """양 끝의 **밝기·색을 맞춘다** — 왼쪽 끝과 오른쪽 끝의 차이를 가로로 고르게 나눠 없앤다.
     이걸 안 하면 이음매를 섞을 때 두 하늘의 톤이 달라 네모난 자국이 남는다."""
@@ -87,6 +98,8 @@ def main():
     ap.add_argument("--out-h", type=int, default=126, help="저장 높이 (기본 126 = 트랙 높이)")
     ap.add_argument("--colors", type=int, default=32)
     ap.add_argument("--band", type=float, default=0.16, help="이음매를 섞는 폭 (0~1, 기본 0.16). 넓으면 겹친 그림이 비쳐 보인다")
+    ap.add_argument("--crop-bottom", type=float, default=0, help="그림의 아래 이만큼만 쓴다 (0~1). 가로로 긴 띠를 뽑을 때")
+    ap.add_argument("--alpha", choices=["black", "white"], help="이 바탕색을 지워 투명하게 (가장자리 그림용)")
     ap.add_argument("--no-tone", action="store_true", help="양 끝 톤 맞추기 생략")
     ap.add_argument("--no-pick", action="store_true", help="이음매 자리 고르기 생략 (그림 그대로의 끝을 씀)")
     ap.add_argument("--no-seam", action="store_true", help="이음매 섞기 생략")
@@ -120,6 +133,11 @@ def main():
     raw.write_bytes(fetch_image(a.url, full))
 
     im = Image.open(raw).convert("RGB")
+    if a.crop_bottom:                                               # 아래쪽 띠만 잘라 쓴다 (비율을 맞추려고)
+        w0, h0 = im.size
+        im = im.crop((0, int(h0 * (1 - a.crop_bottom)), w0, h0))
+    if a.alpha:
+        a.no_tone = True                                            # 투명 그림엔 톤 맞추기가 안 맞는다
     if not a.no_seam:
         if not a.no_pick:
             im, q = quiet_roll(im, a.band)
@@ -127,7 +145,12 @@ def main():
         if not a.no_tone:
             im = tone_match(im)
         im = seamless(im, a.band)
-    im = im.resize((a.out_w, a.out_h), Image.LANCZOS).quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
+    if a.alpha:
+        im = key_alpha(im, a.alpha).resize((a.out_w, a.out_h), Image.LANCZOS)
+        rgb = im.convert("RGB").quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
+        im = Image.merge("RGBA", (*rgb.split(), im.split()[3]))
+    else:
+        im = im.resize((a.out_w, a.out_h), Image.LANCZOS).quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
     im.save(dest)
     raw.unlink()
 
@@ -138,6 +161,10 @@ def main():
         opts.append("--no-pick")
     if a.no_tone:
         opts.append("--no-tone")
+    if a.alpha:
+        opts += ["--alpha", a.alpha]
+    if a.crop_bottom:
+        opts += ["--crop-bottom", str(a.crop_bottom)]
     record(a.name, a.label, a.prompt, seed, ["(bg-tile)"] + opts, file=f"images/bg/{a.name}.png")
     print(f"tile  {dest}  {a.out_w}x{a.out_h}  ({a.kan}칸)")
 

@@ -394,6 +394,9 @@
     image-rendering:pixelated;opacity:.46;filter:brightness(.8) saturate(.7);}
   .exp-lane .lane-ground{position:absolute;left:0;right:0;bottom:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
     image-rendering:pixelated;opacity:.55;filter:brightness(.7) saturate(.85);}
+  /* v9.15.0: 지면 경계 — 곧은 선을 풀 · 돌 · 뿌리로 가린다 */
+  .exp-lane .lane-edge{position:absolute;left:0;right:0;pointer-events:none;z-index:0;background-repeat:repeat-x;
+    image-rendering:pixelated;opacity:.62;filter:brightness(.72) saturate(.85);}
   .exp-lane .lane-props,.exp-lane .lane-front{position:absolute;inset:0;pointer-events:none;will-change:transform;}
   /* v9.13.0: 배경 · 토큰 · 채집 자리 모두 **매 프레임** 제자리를 찍는다 (CSS 미끄러짐을 걷어냄) */
   .exp-lane .lane-props{z-index:0;}
@@ -1431,7 +1434,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.14.0';
+const VERSION = 'v9.15.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4268,6 +4271,7 @@ const LANE_BG = {
   prelude: {                                                      // v9.10.0: 서두 — 마른 풀 · 돌 · 앙상한 나무
     far:    { file: 'bg_prelude-far', kan: 6, speed: 0.3 },
     ground: { file: 'bg_prelude-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_prelude-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_deadtree', h: 0.5, odds: 0.12 },
              { file: 'prop_rock', h: 0.24, odds: 0.18 },
              { file: 'prop_bush', h: 0.3, odds: 0.14 }],
@@ -4278,6 +4282,7 @@ const LANE_BG = {
   mountain: {
     far:    { file: 'bg_mountain-far', kan: 6, speed: 0.3 },      // 원경 — 카메라의 3할만 흐른다
     ground: { file: 'bg_mountain-ground', kan: 4, h: 30 },         // 지면 띠 (트랙 높이의 30%)
+    edge:   { file: 'bg_mountain-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_pine', h: 0.62, odds: 0.16 },           // 기사 뒤 — 소나무 · 바위 · 덤불
              { file: 'prop_rock', h: 0.26, odds: 0.20 },
              { file: 'prop_bush', h: 0.32, odds: 0.16 }],
@@ -4288,6 +4293,7 @@ const LANE_BG = {
   grassland: {                                                    // v9.9.0
     far:    { file: 'bg_grassland-far', kan: 6, speed: 0.3 },
     ground: { file: 'bg_grassland-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_grassland-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_bush', h: 0.34, odds: 0.18 },
              { file: 'prop_grass', h: 0.34, odds: 0.16 },
              { file: 'prop_rock', h: 0.22, odds: 0.10 }],
@@ -4298,6 +4304,7 @@ const LANE_BG = {
   forest: {
     far:    { file: 'bg_forest-far', kan: 6, speed: 0.3 },
     ground: { file: 'bg_forest-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_forest-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_pine', h: 0.68, odds: 0.22 },
              { file: 'prop_bush', h: 0.34, odds: 0.18 },
              { file: 'prop_rock', h: 0.22, odds: 0.08 }],
@@ -4308,6 +4315,7 @@ const LANE_BG = {
   river: {
     far:    { file: 'bg_river-far', kan: 6, speed: 0.25 },        // 물 건너편은 더 천천히
     ground: { file: 'bg_river-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_river-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_reed', h: 0.5, odds: 0.2 },
              { file: 'prop_rock', h: 0.24, odds: 0.16 },
              { file: 'prop_bush', h: 0.3, odds: 0.08 }],
@@ -4318,6 +4326,7 @@ const LANE_BG = {
   stonehide: {
     far:    { file: 'bg_stonehide-far', kan: 6, speed: 0.3 },
     ground: { file: 'bg_stonehide-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_stonehide-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_stalagmite', h: 0.5, odds: 0.2 },
              { file: 'prop_rock', h: 0.26, odds: 0.22 }],
     front:  [{ file: 'prop_stalagmite', h: 0.8, odds: 0.1 },
@@ -4327,6 +4336,7 @@ const LANE_BG = {
   swamptomb: {
     far:    { file: 'bg_swamptomb-far', kan: 6, speed: 0.3 },
     ground: { file: 'bg_swamptomb-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_swamptomb-edge', kan: 6 },                   // 지면 경계선을 가리는 풀 · 돌
     props:  [{ file: 'prop_deadtree', h: 0.66, odds: 0.18 },
              { file: 'prop_grave', h: 0.36, odds: 0.12 },
              { file: 'prop_bush', h: 0.28, odds: 0.1 }],
@@ -4981,7 +4991,7 @@ function expBuild(){
   const mark = (S.marks || {})[exp.id];                           // v0.61.0: 지난번에 가장 멀리 간 자리
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
-  el.innerHTML = '<div class="exp-lane"><i class="lane-far"></i><i class="lane-ground"></i>'   // v9.8.0: 원경 · 지면
+  el.innerHTML = '<div class="exp-lane"><i class="lane-far"></i><i class="lane-ground"></i><i class="lane-edge"></i>'   // v9.8.0 원경 · 지면 · v9.15.0 경계
     + '<div class="lane-props"></div><i class="lane-grid"></i>'   // v9.8.0 흩뿌린 오브제 · v9.1.0 칸 눈금
     + (showMark ? '<div class="mark"></div>' : '')
     + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}">`
@@ -5061,7 +5071,8 @@ function expPaint(){
   const cfg = LANE_BG[exp.id];
   const far = lane.querySelector('.lane-far'), gnd = lane.querySelector('.lane-ground');
   const props = lane.querySelector('.lane-props'), front = lane.querySelector('.lane-front');
-  for (const el2 of [far, gnd, props, front]) if (el2) el2.hidden = !cfg;
+  const edge = lane.querySelector('.lane-edge');                  // v9.15.0: 지면 경계선을 덮는 풀 · 돌 띠
+  for (const el2 of [far, gnd, edge, props, front]) if (el2) el2.hidden = !cfg;
   if (cfg){
     if (far && cfg.far){
       const w = Math.round(KAN * cfg.far.kan);
@@ -5076,6 +5087,14 @@ function expPaint(){
       gnd.style.backgroundSize = `${w}px 100%`;
       gnd.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
     }
+    if (edge && cfg.edge){
+      const w = Math.round(KAN * cfg.edge.kan), eh = Math.round(w * 48 / 576);
+      if (edge._file !== cfg.edge.file){ edge.style.backgroundImage = `url("images/bg/${cfg.edge.file}.png")`; edge._file = cfg.edge.file; }
+      edge.style.height = eh + 'px';
+      edge.style.bottom = `calc(${cfg.ground.h}% - ${Math.round(eh * 0.34)}px)`;    // 아랫동은 흙에 묻는다
+      edge.style.backgroundSize = `${w}px 100%`;
+      edge.style.backgroundPosition = `${-Math.round(cam * KAN)}px 0`;
+    } else if (edge) edge.hidden = true;
     if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, Math.round(cfg.ground.h * 0.45));
     if (front && cfg.front) paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0);
   }
