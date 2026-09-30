@@ -517,16 +517,11 @@
   @keyframes drawTrail{from{stroke-dashoffset:var(--L);}to{stroke-dashoffset:0;}}
   @keyframes fadeTrail{to{opacity:0;}}
   /* v9.30.0: 원거리 — 화살이 포물선(가로는 고르게, 세로는 떴다 떨어진다) */
-  .exp-lane .shot{position:absolute;bottom:calc(var(--ch) * .34);z-index:5;pointer-events:none;}
-  .exp-lane .shot i{display:block;}
-  .exp-lane .shot img{display:block;height:calc(var(--ch) * .2 * var(--tokz,1));width:auto;
+  .exp-lane .shot{position:absolute;left:0;top:0;z-index:6;pointer-events:none;}
+  .exp-lane .shot img{position:absolute;left:0;top:0;display:block;height:calc(var(--ch) * .2 * var(--tokz,1));width:auto;
     image-rendering:pixelated;transform-origin:50% 50%;
     filter:drop-shadow(0 0 4px rgba(255,240,200,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.6));}   /* v9.31.0: 키우고 테두리 */
-  .exp-lane .shot.left img{animation-name:shotRL;}
-  @keyframes shotX{from{transform:translateX(0);}to{transform:translateX(var(--dx));}}
-  @keyframes shotY{0%{transform:translateY(0);}50%{transform:translateY(calc(var(--h) * -1));}100%{transform:translateY(0);}}
-  @keyframes shotR{from{transform:rotate(-55deg);}to{transform:rotate(25deg);}}
-  @keyframes shotRL{from{transform:scaleX(-1) rotate(-55deg);}to{transform:scaleX(-1) rotate(25deg);}}
+  /* v9.34.1: 화살은 JS 가 자리를 잡으므로 옛 키프레임은 지웠다 */
   /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
   .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:3px;transform:translateX(-50%);z-index:4;
     display:flex;flex-direction:column;align-items:center;gap:0;
@@ -1550,7 +1545,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.34.0';
+const VERSION = 'v9.34.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5784,42 +5779,76 @@ function hitFx(b, mult, big){
     setTimeout(() => lane.classList.remove('shake'), 150);
   }
 }
-// v9.31.0: **화살 궤적** — 날아간 포물선을 그대로 그린다 (그림 없이 SVG 한 줄)
-function trailFx(a, b, h, ms){
+// v9.34.1: **화살과 궤적을 한 몸으로, 매 프레임 살아 있는 자리로 다시 그린다.**
+//   전엔 쏘는 순간의 좌표로 고정해 두어, 나는 동안 카메라가 움직이거나 줌이 바뀌면 적을 빗나가 보였다
+let fxUid = 1;
+function shotFx(a, b){
   const lane = a.parentElement;
-  if (!lane || !lane.getBoundingClientRect) return;
-  const lr = lane.getBoundingClientRect(), ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
-  if (!lr.width) return;
-  const x0 = ar.left - lr.left + ar.width / 2, y0 = ar.top - lr.top + ar.height * 0.45;
-  const x1 = br.left - lr.left + br.width / 2, y1 = br.top - lr.top + br.height * 0.45;
+  if (!lane || !lane.getBoundingClientRect) return 0;
+  const spot = el => {                                            // 줄 안에서의 자리 (매번 새로 잰다)
+    const lr = lane.getBoundingClientRect(), r = el.getBoundingClientRect();
+    return { x: r.left - lr.left + r.width / 2, y: r.top - lr.top + r.height * 0.45 };
+  };
+  const A0 = spot(a), B0 = spot(b);
+  const dist0 = Math.abs(B0.x - A0.x);
+  if (!dist0) return 0;
+  const ms = Math.min(700, 180 + dist0 * 0.8);                    // 멀수록 오래 난다
+  const tailMs = 220, life = ms + tailMs;
   const NS = 'http://www.w3.org/2000/svg';
+  const uid = 'tg' + (fxUid++);
+  // 궤적 — 세 겹을 한 덩이로 묶고, **머리는 또렷 꼬리는 투명**하게 가림천(mask)을 씌운다
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'trail');
-  svg.setAttribute('viewBox', `0 0 ${Math.round(lr.width)} ${Math.round(lr.height)}`);
-  // 화살이 뜨는 높이(h)와 같은 꼭대기를 그리되, 줄 위로 잘리지 않게 눌러 준다
-  const hh = Math.max(8, Math.min(h, ((y0 + y1) / 2 - 5) / 0.85));
-  const d = `M${x0.toFixed(1)},${y0.toFixed(1)} Q${((x0 + x1) / 2).toFixed(1)},${(Math.min(y0, y1) - hh * 1.7).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`;
-  // v9.31.1: **두 겹** — 넓은 후광 + 밝은 심. 한 겹 2.5px 은 어두운 배경에서 거의 안 보였다
-  // v9.31.2: 세 겹 — 넓은 후광 · 중간 띠 · 흰 심. 두 겹으로도 잘 안 보인다 해서 더 굵고 오래 남게
-  const paths = ['halo', 'mid', 'core'].map(cls => {
-    const el = document.createElementNS(NS, 'path');
-    el.setAttribute('class', cls);
-    el.setAttribute('d', d);
-    svg.appendChild(el);
-    return el;
-  });
+  svg.innerHTML = `<defs><linearGradient id="${uid}" gradientUnits="userSpaceOnUse">`
+    + '<stop offset="0" stop-color="#000"/><stop offset="0.45" stop-color="#777"/><stop offset="1" stop-color="#fff"/>'
+    + `</linearGradient><mask id="m${uid}" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="9000" height="9000">`
+    + `<rect x="-4000" y="-4000" width="9000" height="9000" fill="url(#${uid})"/></mask></defs>`
+    + `<g mask="url(#m${uid})"><path class="halo"/><path class="mid"/><path class="core"/></g>`;
   lane.appendChild(svg);
-  const L = paths[2].getTotalLength ? paths[2].getTotalLength() : 0;
-  // v9.34.0: **혜성 꼴** — 머리는 화살을 따라가고 꼬리는 뒤에서 지워진다 (다 그렸다 한꺼번에 사라지지 않게)
-  const seg = Math.max(30, Math.min(L * 0.45, 150));              // 남아 있는 꼬리 길이
-  const tailMs = 220, life = ms + tailMs;
-  for (const el of paths) el.style.strokeDasharray = `${seg.toFixed(1)} ${(L + seg).toFixed(1)}`;
+  const grad = svg.querySelector('linearGradient');
+  const paths = [...svg.querySelectorAll('path')];
+  // 화살
+  const el = document.createElement('div');
+  el.className = 'shot';
+  el.innerHTML = '<img src="images/icon/fx_arrow.png" alt="" draggable="false">';
+  lane.appendChild(el);
+  const img = el.firstChild;
   fxTween(life, p => {
+    const lr = lane.getBoundingClientRect();
+    if (!lr.width){ return; }
+    svg.setAttribute('viewBox', `0 0 ${Math.round(lr.width)} ${Math.round(lr.height)}`);
+    const A = spot(a), B = b.isConnected ? spot(b) : B0;
+    const h = Math.max(14, Math.min(70, Math.abs(B.x - A.x) * 0.32));
+    const cy = Math.min(A.y, B.y) - h * 1.7;
+    const d = `M${A.x.toFixed(1)},${A.y.toFixed(1)} Q${((A.x + B.x) / 2).toFixed(1)},${cy.toFixed(1)} ${B.x.toFixed(1)},${B.y.toFixed(1)}`;
+    for (const pa of paths) pa.setAttribute('d', d);
+    const core = paths[2];
+    const L = core.getTotalLength ? core.getTotalLength() : 0;
+    const seg = Math.max(30, Math.min(L * 0.45, 150));            // 남는 꼬리 길이
     const t = p * life;
-    const head = t <= ms ? L * (t / ms) : L + seg * ((t - ms) / tailMs);   // 착탄 뒤엔 꼬리만 빠져나간다
-    const off = (seg - head).toFixed(1);
-    for (const el of paths) el.style.strokeDashoffset = off;
-  }, () => svg.remove());
+    const head = t <= ms ? L * (t / ms) : L + seg * ((t - ms) / tailMs);
+    for (const pa of paths){
+      pa.style.strokeDasharray = `${seg.toFixed(1)} ${(L + seg).toFixed(1)}`;
+      pa.style.strokeDashoffset = (seg - head).toFixed(1);
+    }
+    // 가림천을 꼬리 → 머리 방향으로 (꼬리 투명 · 머리 또렷)
+    if (core.getPointAtLength && L){
+      const hp = core.getPointAtLength(Math.max(0, Math.min(L, head)));
+      const tp = core.getPointAtLength(Math.max(0, Math.min(L, head - seg)));
+      grad.setAttribute('x1', tp.x.toFixed(1)); grad.setAttribute('y1', tp.y.toFixed(1));
+      grad.setAttribute('x2', hp.x.toFixed(1)); grad.setAttribute('y2', hp.y.toFixed(1));
+    }
+    // 화살은 머리 자리에, 날아가는 쪽을 보고
+    const fp = Math.min(1, t / ms);
+    const x = A.x + (B.x - A.x) * fp;
+    const y = A.y + (B.y - A.y) * fp - h * Math.sin(Math.PI * fp);
+    const vx = (B.x - A.x), vy = (B.y - A.y) - h * Math.PI * Math.cos(Math.PI * fp);
+    const ang = Math.atan2(vy, vx) * 180 / Math.PI;
+    el.style.opacity = t <= ms ? 1 : 0;
+    el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`;
+    img.style.transform = `translate(-50%,-50%) rotate(${(ang + 30).toFixed(1)}deg)`;
+  }, () => { el.remove(); svg.remove(); });
+  return ms;
 }
 function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
   const who = typeof from === 'string' ? from : null;
@@ -5839,7 +5868,7 @@ function expSwing(from, to, dmg, blocked, kind){                        // v4.3.
     const b = tgts[i], a = atks[i] || atks[0];
     // 캐릭터가 때릴 때만 그림을 낸다. 출혈은 이어지는 피해라 따로 안 그린다
     if (who && kind !== 'bleed' && a && a.parentElement === b.parentElement){
-      if (bow){ const ms = shotFx(a, b); if (ms){ wait = ms; trailFx(a, b, Math.max(14, Math.min(70, Math.abs((parseFloat(b.style.left) || 0) - (parseFloat(a.style.left) || 0)) * 0.32)), ms); } }
+      if (bow){ const ms = shotFx(a, b); if (ms) wait = ms; }   // 궤적은 shotFx 가 함께 그린다
       else swingFx(a, b, who);
     }
     const hit = () => {
