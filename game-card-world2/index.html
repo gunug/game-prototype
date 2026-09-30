@@ -103,6 +103,7 @@
     display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;
     padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
   /* v8.6.0: 그림과 이름을 크게 — 카드에 담는 것은 그 둘과 레벨뿐 */
+  .cw.being.hero .pic{height:58%;}                                 /* v9.33.0: 캐릭터는 막대 둘 자리를 낸다 */
   .cw.being .pic{width:92%;height:72%;object-fit:contain;object-position:center center;margin-top:calc(var(--cw) * .02);
     image-rendering:pixelated;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55));}
   .cw.being .name{margin-top:auto;font-size:calc(var(--cw) * .17);font-weight:800;line-height:1.1;text-align:center;}
@@ -314,17 +315,21 @@
   .cw.being .bstat .icon.inline{width:1em;height:1em;margin:0 1px 0 0;vertical-align:-.1em;}   /* v8.5.0 */
   .cw.being .barlab .icon.inline{width:.95em;height:.95em;margin:0 1px 0 0;vertical-align:-.1em;}
   /* v0.70.0: 막대 위에 숫자를 겹쳐 올림 — 체력은 체력바에, 레벨·경험치는 경험치바에 */
-  .cw.being .hpbar{position:relative;width:82%;height:calc(var(--cf) * .14);margin-top:calc(var(--cw) * .03);
-    border-radius:calc(var(--cf) * .07);background:rgba(0,0,0,.55);overflow:hidden;}
+  /* v9.33.0: 높이를 `--cf` 로 잡았더니 이 카드엔 그 값이 없어 **0px** 이었다 (경험치 바도 여태 안 보였다) → `--cw` 기준 */
+  .cw.being .hpbar{position:relative;width:84%;height:calc(var(--cw) * .13);margin-top:calc(var(--cw) * .03);
+    border-radius:calc(var(--cw) * .065);background:rgba(0,0,0,.55);overflow:hidden;flex:none;}
   /* v8.5.0: 경험치 바는 **숫자 없이 얇게** (기사만) */
-  .cw.being .xpbar{position:relative;width:82%;height:calc(var(--cf) * .055);margin-top:calc(var(--cw) * .025);
-    border-radius:calc(var(--cf) * .03);background:rgba(0,0,0,.5);overflow:hidden;}
+  .cw.being .xpbar{position:relative;width:84%;height:calc(var(--cw) * .05);margin-top:calc(var(--cw) * .025);
+    border-radius:calc(var(--cw) * .025);background:rgba(0,0,0,.5);overflow:hidden;flex:none;}
   .cw.being .hpbar i,.cw.being .xpbar i{display:block;height:100%;transition:width .2s;}
   /* v0.89.0: 막대 색을 수치 색과 맞춤 — 체력 빨강 · 경험치 사이안. 막대 위 글씨는 겹치므로 흰색 그대로 */
-  .cw.being .hpbar i{background:#ff7a7a;}
+  .cw.being .hpbar i{background:#7fd77f;}                          /* v9.33.0: 넉넉하면 초록 */
+  .cw.being .hpbar.low i{background:#ffb14d;}                      /* 35% 아래면 주황 */
+  .cw.being .hpbar.down i{background:#ff6b6b;}
   .cw.being .xpbar i{background:#57d9e0;opacity:.85;}
-  .cw.being .barlab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--cf) * .03);
-    font-size:calc(var(--cf) * .09);font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85);}
+  .cw.being .barlab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--cw) * .02);
+    font-size:calc(var(--cw) * .1);font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85);}
+  .cw.being .barlab .icon.inline{width:.9em;height:.9em;margin:0 1px 0 0;vertical-align:-.1em;}
   .cw.being .hpbar.down .barlab{color:#ff8a8a;}
   .cw.lift{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;box-shadow:var(--sh-lg);cursor:grabbing;}
   .pslot.filled{border-style:solid;border-color:var(--hairline);padding:0;}
@@ -1547,7 +1552,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.32.0';
+const VERSION = 'v9.33.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3861,8 +3866,15 @@ function knightIntro(){
 }
 // v8.5.0: 캐릭터(기사)와 크리처는 **같은 틀**로 그린다 — 좌상단 레벨 · 그림 · 이름 · 공방체이속사거리 · 체력바
 //   다른 점은 둘뿐: 크리처는 **레벨이 없고 경험치 바도 없다**
+// v9.33.0: 체력 막대 — **캐릭터 카드만**. 크리처는 카드에 안 띄운다 (정보 칸에서 본다)
+const hpBarHtml = (hp, max) => {
+  const p = Math.max(0, Math.min(100, (hp / Math.max(1, max)) * 100));
+  const low = p <= 35;
+  return `<div class="hpbar${hp <= 0 ? ' down' : low ? ' low' : ''}">`
+    + `<i style="width:${p.toFixed(0)}%"></i><b class="barlab">${statImg('hp')}${Math.max(0, hp)}/${max}</b></div>`;
+};
 function beingCardHtml(o){
-  // o = { cls, pic, name, lv, xp, xpNeed, extra, attrs, known }
+  // o = { cls, pic, name, lv, xp, xpNeed, hp, max, bar, extra, attrs, known }
   return `<div class="cw framed being ${o.cls}"${o.attrs || ''}>`
     + (o.lv != null ? `<div class="lv-b">Lv ${o.lv}</div>` : '')   // 좌상단 레벨 (크리처는 없음)
     + (o.extra || '')
@@ -3870,6 +3882,7 @@ function beingCardHtml(o){
     // v8.6.0: 카드에는 **이름과 레벨만**. 수치(공 · 방 · 체 · 이동 · 사거리)는 정보 칸이 맡는다 —
     //   카드가 작아 다섯 값을 다 넣으면 그림도 이름도 읽히지 않았다
     + `<div class="name">${o.known === false ? '???' : esc(o.name)}</div>`
+    + (o.bar && o.max ? hpBarHtml(o.hp, o.max) : '')                // v9.33.0: 캐릭터만 체력 막대
     + (o.known === false || !o.xpNeed ? '' :                        // 경험치만 얇은 막대로 (기사)
         `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>`)
     + '</div>';
@@ -3885,7 +3898,7 @@ function heroCardHtml(key, drag){
     attrs: ` data-hero-card="${key}" data-${key === 'ally' ? 'ally' : 'knight'}="1"`
       + (drag && !out ? ` data-token="${key}"` : ''),
     pic: `images/icon/${hCard(key)}.png`, name: hName(key),
-    atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key),
+    atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key), bar: true,   // v9.33.0: 체력 막대
     spd: hSpd(key), range: hRange(key),
     lv: hLv(key), xp: st.xp || 0, xpNeed: xpNeed(hLv(key)),
     extra: out ? outLabHtml(E) : '',
@@ -5843,28 +5856,26 @@ function expSwing(from, to, dmg, blocked, kind){                        // v4.3.
 // v0.38.1: 능력치가 카드 안으로 들어간 뒤(v0.29.0) 체력 막대를 못 찾아 여기서 오류가 났음 → 카드 기준으로 찾음
 function renderKnight(){
   setTimeout(renderHint, 0);                                      // v2.4.0: 쓰러짐 · 체력 팁
-  for (const card of gatherEl.querySelectorAll('.cw.ally')){      // v9.20.0: 궁수 카드
-    const lv = card.querySelector('.lv-b');
-    if (lv) lv.textContent = `Lv ${allyLv()}`;
-    const xb = card.querySelector('.xpbar i');
-    if (xb) xb.style.width = Math.min(100, (allySt().xp || 0) / xpNeed(allyLv()) * 100) + '%';
-  }
-  const k = S.knight, max = knightMaxHp(), need = xpNeed(knightLv());
-  for (const card of gatherEl.querySelectorAll('.cw.knight')){    // 줄·아래·정비 — 있는 것 모두
-    const st = card.querySelector('.bstat');                      // v8.5.0: 공 · 방 · 이동 · 사거리
-    if (st) st.innerHTML = `<span>${statImg('atk')}${knightAtk()}</span><span>${statImg('def')}${knightDef()}</span>`
-      + `<span>${statImg('spd')}${knightSpd()}</span><span>${statImg('range')}${knightRange()}</span>`;
-    const lv = card.querySelector('.lv-b');
-    if (lv) lv.textContent = `Lv ${knightLv()}`;
-    const hb = card.querySelector('.hpbar');                      // v0.70.0: 숫자가 막대 위에 겹쳐 있음
-    if (hb){
-      hb.classList.toggle('down', k.hp <= 0);
-      hb.querySelector('i').style.width = (k.hp / max * 100) + '%';
-      hb.querySelector('.barlab').innerHTML = `${statImg('hp')}${k.hp}/${max}`;
+  // v9.33.0: 캐릭터 카드는 어디에 있든(줄 · 아래 · 정비) 같은 값으로 — 기사도 궁수도 한 틀
+  for (const who of ['knight', 'ally']){
+    const st0 = hSt(who), max0 = hMax(who), need0 = xpNeed(hLv(who));
+    for (const card of gatherEl.querySelectorAll(`.cw.hero.${who}`)){
+      const lv = card.querySelector('.lv-b');
+      if (lv) lv.textContent = `Lv ${hLv(who)}`;
+      const hb = card.querySelector('.hpbar');                    // v0.70.0: 숫자가 막대 위에 겹쳐 있음
+      if (hb){
+        hb.classList.toggle('down', st0.hp <= 0);
+        hb.classList.toggle('low', st0.hp > 0 && st0.hp / max0 <= 0.35);
+        hb.querySelector('i').style.width = Math.max(0, Math.min(100, st0.hp / max0 * 100)) + '%';
+        const lab = hb.querySelector('.barlab');
+        if (lab) lab.innerHTML = `${statImg('hp')}${Math.max(0, st0.hp)}/${max0}`;
+      }
+      const xb = card.querySelector('.xpbar i');                  // v8.5.0: 숫자 없이 얇게
+      if (xb) xb.style.width = Math.min(100, (st0.xp || 0) / need0 * 100) + '%';
+      paintIcons(card);                                           // 체력 그림 아이콘
     }
-    const xb = card.querySelector('.xpbar');                      // v8.5.0: 숫자 없이 얇게
-    if (xb) xb.querySelector('i').style.width = Math.min(100, (k.xp || 0) / need * 100) + '%';
   }
+  const k = S.knight, max = knightMaxHp();
   const kt = document.querySelector('#exp .tok.knight .hp');      // 원정 트랙의 기사 토큰
   if (kt && exp) kt.innerHTML = statBox(knightAtk(), knightDef(), k.hp, max);
   renderInsp();                                                   // 인스펙터도 같은 값이어야 함
