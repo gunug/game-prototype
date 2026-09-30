@@ -510,10 +510,10 @@
   /* v9.31.2: 궤적은 **세 겹** — 넓은 후광 · 중간 띠 · 흰 심. 굵고 밝게, 맞고도 잠깐 남는다 */
   .exp-lane svg.trail{position:absolute;inset:0;z-index:6;pointer-events:none;overflow:visible;}
   .exp-lane svg.trail path{fill:none;stroke-linecap:round;}
-  .exp-lane svg.trail path.halo{stroke:rgba(255,205,90,.5);stroke-width:22;filter:blur(6px);}
-  .exp-lane svg.trail path.mid{stroke:rgba(255,230,160,.85);stroke-width:10;filter:blur(1.5px);}
-  .exp-lane svg.trail path.core{stroke:#fffdf5;stroke-width:4;
-    filter:drop-shadow(0 0 7px rgba(255,220,140,1)) drop-shadow(0 0 14px rgba(255,180,70,.9));}
+  .exp-lane svg.trail path.halo{stroke:rgba(255,205,90,.4);stroke-width:12;filter:blur(4px);}   /* v9.34.0: 얇게 */
+  .exp-lane svg.trail path.mid{stroke:rgba(255,230,160,.75);stroke-width:5;filter:blur(1px);}
+  .exp-lane svg.trail path.core{stroke:#fffdf5;stroke-width:2.2;
+    filter:drop-shadow(0 0 5px rgba(255,220,140,1)) drop-shadow(0 0 10px rgba(255,180,70,.8));}
   @keyframes drawTrail{from{stroke-dashoffset:var(--L);}to{stroke-dashoffset:0;}}
   @keyframes fadeTrail{to{opacity:0;}}
   /* v9.30.0: 원거리 — 화살이 포물선(가로는 고르게, 세로는 떴다 떨어진다) */
@@ -1118,7 +1118,7 @@ const DEFS = {
   huntbow:  { name:'사냥 활',   kind:'material', step:4, group:'gear', atk:3, range:5, aps:1.1 },   // v9.26.0: 가볍고 빠르다
   longbow:  { name:'긴 활',     kind:'gear', step:5, atk:5, range:6, aps:0.7 },   // v9.26.0: 한 칸 더 멀리, 대신 느리다
   obsidianbow:{ name:'흑요 활', kind:'gear', step:5, atk:6, range:5, bleed:2, aps:0.9 },   // v9.26.0: 흑요석 화살촉 — 상처가 안 아문다
-  greatbow: { name:'큰 활',     kind:'gear', step:6, atk:4, range:10, aps:0.5 },   // v9.28.0: 열 칸 밖에서. 대신 두 박자에 한 번
+  greatbow: { name:'큰 활',     kind:'gear', step:6, atk:4, range:10, aps:0.75 },   // v9.28.0 열 칸 밖에서 · v9.34.0: 0.5 는 너무 느려 0.75 로
   horncore: { name:'뿔 심',     kind:'material', step:2, group:'gear' },   // v9.28.2: 뿔과 힘줄을 겹쳐 붙인 심
   bowlimb:  { name:'겹 활대',   kind:'material', step:4, group:'gear' },   // v9.28.2: 큰 활의 활대
   barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
@@ -1550,7 +1550,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.33.1';
+const VERSION = 'v9.34.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5810,14 +5810,15 @@ function trailFx(a, b, h, ms){
   });
   lane.appendChild(svg);
   const L = paths[2].getTotalLength ? paths[2].getTotalLength() : 0;
-  const draw = Math.max(110, Math.round(ms * 0.5));               // 나는 시간의 절반이면 다 그려진다
-  const hold = ms + 400, life = hold + 500;                       // 맞고도 0.4초 남았다가 0.5초에 걸쳐 사라짐
-  for (const el of paths){ el.style.strokeDasharray = L; el.style.strokeDashoffset = L; }
-  fxTween(life, p => {                                            // v9.32.0: 그리기 · 사라지기 모두 JS
+  // v9.34.0: **혜성 꼴** — 머리는 화살을 따라가고 꼬리는 뒤에서 지워진다 (다 그렸다 한꺼번에 사라지지 않게)
+  const seg = Math.max(30, Math.min(L * 0.45, 150));              // 남아 있는 꼬리 길이
+  const tailMs = 220, life = ms + tailMs;
+  for (const el of paths) el.style.strokeDasharray = `${seg.toFixed(1)} ${(L + seg).toFixed(1)}`;
+  fxTween(life, p => {
     const t = p * life;
-    const off = t < draw ? L * (1 - t / draw) : 0;
-    for (const el of paths) el.style.strokeDashoffset = off.toFixed(1);
-    svg.style.opacity = t < hold ? 1 : Math.max(0, 1 - (t - hold) / 500);
+    const head = t <= ms ? L * (t / ms) : L + seg * ((t - ms) / tailMs);   // 착탄 뒤엔 꼬리만 빠져나간다
+    const off = (seg - head).toFixed(1);
+    for (const el of paths) el.style.strokeDashoffset = off;
   }, () => svg.remove());
 }
 function expSwing(from, to, dmg, blocked, kind){                        // v4.3.0: blocked = 방어에 막혀 1만 들어감
