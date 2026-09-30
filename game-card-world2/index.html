@@ -323,9 +323,7 @@
     border-radius:calc(var(--cw) * .025);background:rgba(0,0,0,.5);overflow:hidden;flex:none;}
   .cw.being .hpbar i,.cw.being .xpbar i{display:block;height:100%;transition:width .2s;}
   /* v0.89.0: 막대 색을 수치 색과 맞춤 — 체력 빨강 · 경험치 사이안. 막대 위 글씨는 겹치므로 흰색 그대로 */
-  .cw.being .hpbar i{background:#7fd77f;}                          /* v9.33.0: 넉넉하면 초록 */
-  .cw.being .hpbar.low i{background:#ffb14d;}                      /* 35% 아래면 주황 */
-  .cw.being .hpbar.down i{background:#ff6b6b;}
+  .cw.being .hpbar i{background:#ff7a7a;}                          /* v9.33.1: 체력 하트(#ff7a7a)와 같은 색 */
   .cw.being .xpbar i{background:#57d9e0;opacity:.85;}
   .cw.being .barlab{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--cw) * .02);
     font-size:calc(var(--cw) * .1);font-weight:800;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85);}
@@ -1552,7 +1550,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.33.0';
+const VERSION = 'v9.33.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4995,7 +4993,9 @@ function expTickOne(dt){
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
       const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
       exp.foe = near; exp.phase = 'fight';
-      for (const k of exp.party) exp.P[k].cd = 0;
+      // v9.33.1: 공격 타이머는 **이어 간다**. 싸움마다 0 으로 되돌리면 느린 무기(공속 0.5 큰 활)는
+      //   기사가 먼저 적을 죽여 버려 영영 한 발도 못 쏜다 (다 찼으면 붙자마자 쏜다)
+      for (const k of exp.party) exp.P[k].cd = Math.min(exp.P[k].cd || 0, 1000 / hAps(k));
       exp.rcd = 0; exp.stallMs = 0;                                // v9.0.0: 공격 · 회복 타이머
       exp.gap = ef.x - exp.P[expLead()].x; ef.step = 0;            // v9.5.0: 첫 그림부터 칸 거리를 안다
       const d = ENEMIES[ef.key];
