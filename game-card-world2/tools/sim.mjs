@@ -328,7 +328,7 @@ function play(ai, note){
           let bT = null, bV = 0;
           for (const t of list){
             const k = slotOf(t);
-            if (!k || have(t) > 0) continue;
+            if (!k || have(t) > 0 || aimFogged(t)) continue;   // v9.37.0: ??? (안개) 후보는 고르지 않는다 — 값을 알 수 없다
             const now = k ? equipped(k) : null;
             const gain = val(t) - (now ? val(now) : 0);
             if (gain > bV){ bV = gain; bT = t; }
