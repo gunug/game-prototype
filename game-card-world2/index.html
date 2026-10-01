@@ -1552,7 +1552,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.38.0';
+const VERSION = 'v9.38.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2898,7 +2898,13 @@ let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
 let paused = false;
 const shownSeen = t => S.seen.includes(t) && !S.newCards.includes(t);   // v0.9.0: 새 카드는 끼우기 전까지 실루엣
-const shownOpen = t => editMode || shownSeen(t);                  // v0.24.0: 에디터 모드면 다 보임
+// v9.38.1: **이름 · 그림을 보여 줄까는 한 규칙으로** — 인스펙터 · 목표 · 콜렉터북이 같은 것을 본다.
+//   `cardKnown` = 얻어 봤거나, 재료를 다 본 조합 결과(v6.6.0). 전엔 책만 `S.seen` 을 봐서
+//   같은 카드가 책에선 ??? 인데 인스펙터에선 이름이 보였다.
+//   · 발견 **집계와 도장**은 그대로 `shownSeen`(S.seen) — 미리 보이는 것은 아직 '발견'이 아니다
+//   · 새로 얻어 아직 책에 안 끼운 카드만 책에서 실루엣으로 남는다 (끼우는 연출)
+const nameShown = t => editMode || (cardKnown(t) && !(S.newCards || []).includes(t));
+const shownOpen = t => nameShown(t);                              // v0.24.0: 에디터 모드면 다 보임
 function slotHtml(t){
   const on = shownOpen(t);
   return `<div class="sleeve${bookPick === t ? ' sel' : ''}" data-book="${t}">`
@@ -3610,7 +3616,7 @@ function sideReachFog(sd, d){
 const aimFogged = t => !aimReady(t) && aimRecipes(t).some(x => sideReachFog(x.a, 3) && sideReachFog(x.b, 3));
 // v9.38.0: 이름을 보여도 되나 — **인스펙터와 같은 기준**(`cardKnown`)을 쓴다.
 //   재료를 다 본 조합 결과는 아직 안 만들었어도 아는 것으로 친다 (v6.6.0 규칙)
-const aimSeen = t => editMode || cardKnown(t);
+const aimSeen = t => editMode || cardKnown(t);                    // v9.38.1: 책 · 인스펙터와 같은 규칙
 function aimCandidates(){                                         // 만들 줄 아는 것 — 지금 목표만 뺀다
   const list = CRAFT_TYPES.filter(t => t !== S.goal && aimGoalOk(t));
   const fog = new Map();                                          // 0 = 길이 보임 · 1 = 안개 · 2 = 아예 못 닿음
