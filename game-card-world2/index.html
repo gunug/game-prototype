@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.6';
+const VERSION = 'v9.43.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6489,7 +6489,16 @@ function syncUnlocks(newly){
   }
   save();
 }
-function addUnlockNote(id){ const f = FIELD_BY_ID[id]; if (f){ logEv('unlock', { field: id }); landFound(id); toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`); } }   // v7.6.0 · v7.13.0
+// v9.43.7: 열렸으면 **그 자리에서** 자물쇠를 지운다. 전엔 기사 대사(`knightSay` → `renderScreen`)가 있는 길만
+//   화면이 고쳐져, 대사 없는 해금(조용한 맞춤 · 레이드 사슬)은 자물쇠가 남아 있다가 탭을 옮겨야 풀렸다
+function addUnlockNote(id){
+  const f = FIELD_BY_ID[id];
+  if (!f) return;
+  logEv('unlock', { field: id });                                 // v7.6.0
+  landFound(id);                                                  // v7.13.0
+  toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`);
+  if (isRowScreen(S.tab)) renderScreen();
+}
 function unlockNextField(afterId){
   const i = OUT_FIELDS().findIndex(f => f.id === afterId);
   const next = OUT_FIELDS().slice(i + 1).find(f => fieldLocked(f.id)) || OUT_FIELDS().find(f => fieldLocked(f.id));   // v4.0.0: 던전은 따로 열림
