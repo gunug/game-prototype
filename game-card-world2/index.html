@@ -983,15 +983,25 @@ const FIELDS = [                                                  // v0.9.1: 순
     exp:'기사는 정강이까지 잠기는 물을 헤치며 걷는다. 발밑에서 포자가 피어오르고, 무덤 안쪽에서 축축한 것이 몸을 일으킨다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
+  // v9.42.0: 🗼 부서진 탑 — **첫 보스 레이드.** 길목도 잡졸도 없다. 탑 하나와 그 꼭대기의 눈뿐이다.
+  //   주인은 움직이지 않는다. 대신 **열다섯 칸 밖에서** 빛을 모아 **다섯 번 연달아** 꽂는다.
+  //   그래서 이곳은 '붙어서 버티는 싸움'이 아니라 '닿기까지 버티는 싸움'이다
+  { id:'towerruin', name:'부서진 탑', emoji:'🗼', raid:true,
+    desc:'벼락에 허리가 꺾인 옛 망루. 그을린 벌판 한가운데 서 있고, 꼭대기의 눈은 아직 감기지 않았다.',
+    exp:'기사는 재가 깔린 벌판을 가로질러 탑으로 걸어간다. 꼭대기에서 빛이 모이면, 다음 숨에 다섯 번 꽂힌다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v4.0.0: 필드 탭엔 바깥 땅, 던전 탭엔 굴 — 같은 원정 장치를 쓰되 화면만 가른다
-const OUT_FIELDS = () => FIELDS.filter(f => !f.dungeon);
-const DUNGEONS = () => FIELDS.filter(f => f.dungeon);
+// v9.42.0: 레이드는 셋째 갈래 — 필드 · 던전과 같은 원정 장치를 쓰되 화면만 또 하나 가른다
+const OUT_FIELDS = () => FIELDS.filter(f => !f.dungeon && !f.raid);
+const DUNGEONS = () => FIELDS.filter(f => f.dungeon && !f.raid);
+const RAIDS = () => FIELDS.filter(f => f.raid);
+const fieldTab = f => f.raid ? 'raid' : f.dungeon ? 'dungeon' : 'battle';   // 그 땅이 사는 화면
+const isFieldTab = t => t === 'battle' || t === 'dungeon' || t === 'raid';
 // v0.7.2: 필드 카드 그림 images/icon/card_<필드 id>.png
 const FIELD_NO_ICON = [];                                         // v3.5.0: 필드 그림 다 있음 (들머리 포함)
 // v7.9.0: 땅 카드의 갈래 — 바깥은 '필드', 굴은 '던전'
-const fieldUse = f => (f.dungeon ? '던전' : '필드');
+const fieldUse = f => (f.raid ? '레이드' : f.dungeon ? '던전' : '필드');
 const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
   : `<img class="icon" src="images/icon/card_${f.id}.png" alt="${f.name}" draggable="false">`;
 // v0.20.0: 필드에서 나오는 재료는 따로 적음 (카드의 소속 필드 = 콜렉터북 묶음과 별개).
@@ -1557,7 +1567,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.41.0';
+const VERSION = 'v9.42.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1800,13 +1810,14 @@ function questGroupState(def){
 //   · 이동속도 N = **1초에 N칸** 전진
 //   · 공격속도 N = **1초에 N번** 때린다
 //   그래서 사거리 10 · 공속 1 인 상대에게 이속 3 으로 다가가면 (10−1)/3 ≈ 3초, 세 대를 맞고 붙는다
-const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36 };     // 땅마다 트랙 길이 (칸). 없으면 60
+const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36, towerruin: 36 };   // 땅마다 트랙 길이 (칸). 없으면 60
 const laneLen = id => LANE_OF[id] || 60;
 const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷는 칸 · 맨손 사거리 · 초당 공격 횟수
 // 적의 움직임 — chase(다가옴, **기본**) · hold(자리 지킴) · kite(사거리를 지키며 물러남)
 //   v8.1.2: 기본을 chase 로. 가만히 서 있으면 사거리 긴 쪽이 영원히 때리기만 하는 판이 된다
 //   (수렁 팔: 기사 피해 3 = 회복 3 이라 순 피해 0 인데 적은 사거리 1 이라 못 때려 승부가 안 났다)
-const foeMove = e => e.move || 'chase';
+const foeMove = e => e.move || 'chase';                           // 'chase' 다가옴 · 'kite' 물러남 · 'hold' 제자리
+const foeHits = e => Math.max(1, e.hits || 1);                    // v9.42.0: 한 번 공격에 몇 번 꽂히나 (다단히트)
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };
 // v9.20.0: **둘째 캐릭터 — 궁수.** 몸은 약하고 빠르며, 늘 나무 활을 쥔다 (장비 칸은 아직 기사만)
 const ARCHER = { name: '궁수', atk: 1, def: 0, hp: 14, spd: 4, weapon: 'woodbow',
@@ -1909,7 +1920,7 @@ const slotId = id => {
 };
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const freeTabs = ['battle', 'dungeon', 'aim', 'book', 'settings'];   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
+const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'book', 'settings'];   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -2347,6 +2358,7 @@ const ICONS = {
   web:'ui_web', mushroom:'ui_mushroom', shell:'ui_shell', run:'ui_run', clip:'ui_clip',
   lock:'ui_lock', unlock:'ui_lock-open',
   dungeon:'card_dungeon', bone:'card_bone', cloth:'card_leatherarmor', trinket:'card_claynecklace',
+  raid:'ui_raid',                                                 // v9.42.0: 레이드 탭
   prelude:'card_prelude', mountain:'card_mountain', grassland:'card_grassland', forest:'card_forest', river:'card_river',
 };
 const uiIcon = (id, cls = 'inline') => ICONS[id]
@@ -2359,7 +2371,7 @@ const EMOJI_ICON = {
   '✨':'xp', '🩸':'down', '⚠':'warn', '🌿':'nature', '⚒':'forge', '🛠':'tools', '🧱':'build',
   '🍖':'food', '🔱':'trident', '🏹':'bow', '🪢':'rope', '🎒':'bag', '🪨':'rock', '🕸':'web',
   '🍄':'mushroom', '🐚':'shell', '🏃':'run', '📋':'clip', '🔒':'lock', '🔓':'unlock',
-  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket',
+  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket', '🗼':'raid',
   '🏕':'prelude', '⛰':'mountain', '🌾':'grassland', '🌲':'forest', '🏞':'river',
   '⚔':'field',                                                   // 중간보스 표시도 같은 칼 그림
 };
@@ -2367,7 +2379,7 @@ const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?'
 // v7.8.0: 글 속 **그림이 붙은 탭 이름**(🎯 목표 · ⚔️ 무기 · 📖 콜렉터북 …)은 눌러서 그 탭으로 간다.
 //   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
 const TAB_LINK = {
-  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🔧 정비':'gearup',
+  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'gearup',
   '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'weapon', '🔨 조합':'tool',
   '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
 };
@@ -2747,7 +2759,7 @@ function select(id){
   renderInsp();
 }
 function renderInsp(){
-  if (S.tab === 'battle' || S.tab === 'dungeon') return renderFieldInsp();   // v4.3.0: 던전도 같은 정보 칸
+  if (isFieldTab(S.tab)) return renderFieldInsp();                // v4.3.0 던전 · v9.42.0 레이드도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('foe:') && renderFoeInsp()) return;    // v7.9.1: 책에서 고른 크리처
   if (S.tab === 'book' && heroPick) return renderFieldInsp();     // v9.25.0: 책에서 고른 캐릭터
@@ -3302,6 +3314,7 @@ function renderBook(){
           + `<div class="book-row">${list.map(landSlotHtml).join('')}</div></div>` : '';
       h += row('🗡️ 필드', OUT_FIELDS());
       h += row('🏚 던전', DUNGEONS());
+      h += row('🗼 레이드', RAIDS());                              // v9.42.0
     } else if (bookTier === 'foe'){                               // v7.9.1: 크리처 — 사는 땅으로 묶음
       // v7.10.1: 🗺 땅과 같은 차례로 **대제목 필드 · 던전** 아래에 땅별로 나눈다
       const foeGroup = (title, fields) => {
@@ -3542,7 +3555,7 @@ function renderTabs(){                                            // v0.21.0: �
   //   단추 동작은 그대로. 묶음마다 살짝 다른 바탕과 구분선만 둔다
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
   const groups = [
-    { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전')] },
+    { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전'), btn('raid', '🗼 레이드')] },
     { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표')] },
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b)).map(boardBtn) },
@@ -3580,7 +3593,7 @@ function renderTabs(){                                            // v0.21.0: �
   for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
-const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', aim:'🎯 목표', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', raid:'🗼 레이드', aim:'🎯 목표', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -3589,7 +3602,7 @@ function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => tab === 'battle' || tab === 'gearup' || tab === 'aim' || tab === 'dungeon';   // v3.0.0 · v4.0.0: 던전도 줄 화면
+const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'aim';   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드도 줄 화면
 // ── 🎯 목표 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
@@ -3823,8 +3836,8 @@ function screenRows(){
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'',
       unseen: !!g && !aimSeen(g) }] }];                            // v9.40.1: 아래 카드와 같은 가림   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
-  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0: 던전도 같은 줄 화면
-    return (S.tab === 'dungeon' ? DUNGEONS() : OUT_FIELDS())
+  if (isFieldTab(S.tab)){                                         // v4.0.0 던전 · v9.42.0 레이드도 같은 줄 화면
+    return (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
       .filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
@@ -3871,7 +3884,7 @@ function screenRows(){
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
-  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0 · v9.20.0: 캐릭터 둘
+  if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0: 캐릭터 둘
     const outK = !!expOf('knight'), outA = !!expOf('ally');
     return [{ token: outK ? null : 'knight', html: knightCardHtml(!outK) },
             { token: outA ? null : 'ally', html: allyCardHtml(!outA) }];
@@ -4022,11 +4035,11 @@ function renderScreen(){
     + '</div>'
     + '<div class="botarea">'
     + '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('')
-    + (S.tab === 'battle' || S.tab === 'dungeon' ? knightSayHtml() : '') + '</div>'
+    + (isFieldTab(S.tab) ? knightSayHtml() : '') + '</div>'
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
-    + `<div class="gather-hint">${S.tab === 'battle' || S.tab === 'dungeon'
+    + `<div class="gather-hint">${isFieldTab(S.tab)
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
@@ -4042,7 +4055,7 @@ const renderSlots = () => {};                                     // v0.29.0: �
 function dropOnSlot(id, token){
   const { row: rowKey, key: slotKey } = slotId(id);               // v9.24.2
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
-  if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0
+  if (isFieldTab(S.tab)){                                         // v4.0.0
     if (token !== 'knight' && token !== 'ally') return;           // v9.20.0
     const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
     expStart(rowKey, fel, token);
@@ -4057,7 +4070,7 @@ function dropOnSlot(id, token){
 function slotTakes(id, token){
   const { key: slotKey, who } = slotId(id);                        // v9.24.2
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
-  if (S.tab === 'battle' || S.tab === 'dungeon') return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
+  if (isFieldTab(S.tab)) return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));   // v0.56.0: 잠긴 칸은 안 받음
 }
@@ -4512,6 +4525,11 @@ const ENEMIES = {
     loot: [['scale', 45, 1], ['pincer', 30, 1], ['shellpiece', 25, 1]] },
   catfish:   { name:'큰 메기',  spd:3, aps:0.9, portrait:'portrait_catfish',   atk:9, def:3, hp:60,
     loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
+  // v9.42.0: 👑 탑의 눈 — 첫 레이드 주인. **움직이지 않고**(move:'hold') 제자리를 지킨다.
+  //   사거리 15칸 · 한 번 쏘면 **다섯 번 연달아**(hits) 꽂힌다. 한 번에 3 × 5 = 15
+  towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5,
+    portrait:'portrait_towereye', atk:3, def:3, hp:90,
+    loot: [['graveseal', 100, 2], ['scale', 60, 2], ['bearclaw', 40, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
@@ -4647,6 +4665,19 @@ const LANE_BG = {
              { file: 'prop_rock', h: 0.44, odds: 0.08 }],
     near:   [{ file: 'prop_stalactite', h: 0.75, odds: 0.1, top: true }, { file: 'prop_boulder', h: 0.75, odds: 0.06 }],
     nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
+    frontSpeed: 1.3,
+  },
+  towerruin: {                                                    // v9.42.0: 그을린 벌판 · 부서진 탑
+    far:    { file: 'bg_towerruin-far', kan: 6, speed: 0.3 },
+    ground: { file: 'bg_towerruin-ground', kan: 4, h: 30 },
+    edge:   { file: 'bg_towerruin-edge', kan: 6 },
+    props:  [{ file: 'prop_rock', h: 0.3, odds: 0.16 },
+             { file: 'prop_deadtree', h: 0.6, odds: 0.1 },
+             { file: 'prop_boulder', h: 0.42, odds: 0.1 }],
+    front:  [{ file: 'prop_rock', h: 0.5, odds: 0.09 },
+             { file: 'prop_deadtree', h: 0.85, odds: 0.05 }],
+    near:   [{ file: 'prop_deadtree', h: 1.15, odds: 0.05 }, { file: 'prop_boulder', h: 0.8, odds: 0.06 }],
+    nearSpeed: 1.75,
     frontSpeed: 1.3,
   },
   swamptomb: {
@@ -4814,7 +4845,7 @@ function goLand(id){
   const f = FIELD_BY_ID[id];
   if (!f) return;
   if (fieldLocked(id)){ toast(`🔒 ${f.emoji} ${f.name} — 아직 잠겨 있음`); return; }
-  setTab(f.dungeon ? 'dungeon' : 'battle');
+  setTab(fieldTab(f));
   fieldPick = id; heroPick = null; foePick = null; inspType = null;
   renderScreen(); renderInsp();
 }
@@ -4914,9 +4945,16 @@ const SWAMP_PLAN = [
   { loot:1, at:0.82 },
   { fight:'tombkeeper', boss:true, at:0.93 },
 ];
+// v9.42.0: 레이드 대본 — 잡졸이 없다. 무너진 돌을 두 번 뒤지고 나면 탑뿐이다
+const RAID_PLAN = [
+  { loot:1, at:0.12 },
+  { loot:1, at:0.30 },
+  { fight:'towereye', boss:true, at:0.90 },
+];
 const EXP_PLAN = {
   stonehide: DUNGEON_PLAN,
   swamptomb: SWAMP_PLAN,
+  towerruin: RAID_PLAN,
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
@@ -4929,7 +4967,7 @@ const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 // v0.13.4 · v9.14.0: 땅마다 채집 포인트 그림 (없으면 산 것)
 //   들머리 마른 가지 · 산 돌무더기 · 초원 약초 · 숲 통나무 · 강가 조개 · 굴 광석 · 늪지 썩은 뿌리
 const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassland', forest: 'forest',
-  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb' };
+  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin' };
 // v9.22.0: **원정은 여럿** — 기사와 궁수가 서로 다른 땅에 나갈 수 있다.
 //   `EXPS` 가 진행 중인 원정들, `exp` 는 '지금 다루는 원정'(돌리거나 그리는 동안만 바뀐다)
 let EXPS = [];
@@ -4937,7 +4975,7 @@ let exp = null;                                                   // 진행 중 
 let expUid = 1;
 const expOf = who => EXPS.find(E => E.party.includes(who)) || null;
 const expAt = id => EXPS.find(E => E.id === id) || null;
-const expHome = E => (FIELD_BY_ID[E.id] || {}).dungeon ? 'dungeon' : 'battle';
+const expHome = E => fieldTab(FIELD_BY_ID[E.id] || {});
 let healProg = 0;
 
 function expStart(id, cardEl, who){
@@ -5204,9 +5242,12 @@ function expFoes(dt){
     f.fcd = (f.fcd || 0) + dt;
     while (hit && f.fcd >= every && st.hp > 0 && f.hp > 0){
       f.fcd -= every;
-      const ed = Math.max(1, d.atk - hDef(k));
-      st.hp = Math.max(0, st.hp - ed);
-      expSwing(exp.foes.indexOf(f), k, ed);
+      const hits = foeHits(d);                                    // v9.42.0: 다단히트 — 한 번 쏘면 연달아
+      for (let i = 0; i < hits && st.hp > 0; i++){
+        const ed = Math.max(1, d.atk - hDef(k));
+        st.hp = Math.max(0, st.hp - ed);
+        expSwing(exp.foes.indexOf(f), k, ed, false, '', i * 120);  // 한 대씩 조금 늦게 꽂힌다
+      }
       if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
         exp.P[k].out = true;
         exp.line = `${hName(k)} 쓰러졌다`;
@@ -5535,7 +5576,7 @@ function flyToCraft(t, r){
 }
 // 트랙 만들기 (원정이 시작·끝날 때) / 그리기 (매 틱)
 // v4.1.1: 지금 원정이 '어느 탭의 것'인가 — 굴이면 🏚 던전, 바깥 땅이면 🗡️ 필드
-const expHomeTab = () => (exp && (FIELD_BY_ID[exp.id] || {}).dungeon) ? 'dungeon' : 'battle';
+const expHomeTab = () => exp ? fieldTab(FIELD_BY_ID[exp.id] || {}) : 'battle';
 // v9.22.0: 원정 하나를 그릴 HTML (원정마다 한 덩이 — 줄들 + 미니맵 + 한 줄 글)
 function expBlockHtml(E){
   exp = E;
@@ -6074,7 +6115,7 @@ function expSwing(from, to, dmg, blocked, kind, flyMs){                 // v4.3.
   const ratio = Math.min(1, dmg / Math.max(1, maxHp));
   const mult = 1 + Math.min(0.45, ratio * 1.6), big = ratio >= 0.15;
   const atks = toksOf(from), tgts = toksOf(to);
-  let wait = 0;
+  let wait = flyMs || 0;                                          // v9.42.0: 다단히트는 한 대씩 늦게 보인다
   for (let i = 0; i < tgts.length; i++){
     const b = tgts[i], a = atks[i] || atks[0];
     // 캐릭터가 때릴 때만 그림을 낸다. 출혈은 이어지는 피해라 따로 안 그린다
@@ -6350,6 +6391,11 @@ function syncUnlocks(newly){
     S.fields.swamptomb.locked = false;                             // v6.0.0: 굴을 깨면 그 아래 물길이 보인다
     if (newly === 'stonehide') knightSay('굴 아래로 물 흐르는 소리가 난다');
     addUnlockNote('swamptomb');
+  }
+  if (cleared.includes('river') && S.fields.towerruin && S.fields.towerruin.locked){
+    S.fields.towerruin.locked = false;                            // v9.42.0: 강을 따라가면 그을린 벌판이 나온다
+    if (newly === 'river') knightSay('강 건너 벌판에 부러진 탑이 서 있다');
+    addUnlockNote('towerruin');
   }
   if (cleared.includes('mountain') && S.fields.stonehide && S.fields.stonehide.locked){
     S.fields.stonehide.locked = false;                             // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
