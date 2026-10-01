@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.5';
+const VERSION = 'v9.43.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5179,10 +5179,14 @@ function expEngage(near){
   const d = ENEMIES[ef.key];
   exp.line = ef.boss ? `👑 ${subP2(d.name)} 길을 막았다` : ef.mid ? `⚔ ${subP2(d.name)} 앞을 가로막았다` : `${withP(d.name)} 마주쳤다`;
   S.metFoes = S.metFoes || [];
-  if (!S.metFoes.includes(ef.key)) S.metFoes.push(ef.key);
+  const firstMeet = !S.metFoes.includes(ef.key);                  // v9.43.6: 처음 마주친 놈인가
+  if (firstMeet) S.metFoes.push(ef.key);
   foeFound(ef.key);
   if (ef.boss){ toast(`👑 보스 — ${d.name}`); S.metBoss = true; }
   else if (ef.mid) toast(`⚔ 중간보스 — ${d.name}`);
+  // v9.43.6: 처음 마주친 놈이면 **그 자리에서** 카드를 다시 그린다.
+  //   전엔 `S.metFoes` 에만 적고 화면을 안 고쳐, 카드를 눌렀다 놓아야(=renderScreen) ??? 가 풀렸다
+  if (firstMeet){ renderScreen(); renderInsp(); save(); }
   expPaint();
 }
 // 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
