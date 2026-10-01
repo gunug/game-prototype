@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.2';
+const VERSION = 'v9.43.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6461,6 +6461,12 @@ function syncUnlocks(newly){
     st.locked = false;
     if (newly === need && UNLOCK_SAY[id]) knightSay(UNLOCK_SAY[id]);
     addUnlockNote(id);
+  }
+  // v9.43.3: **열 조건이 아예 없는 땅은 늘 열려 있다.** 옛 저장(그땐 조건이 있었다)도 여기서 풀린다 —
+  //   '처음부터'를 누르지 않아도 다음 박자에 맞춰진다 (들머리는 제 규칙이 따로 있어 건드리지 않는다)
+  for (const f of FIELDS){
+    const st = S.fields[f.id];
+    if (st && st.locked && f.id !== 'prelude' && !unlockAfter(f.id)) st.locked = false;
   }
   for (const f of RAIDS()){                                       // v9.43.2: 레이드는 앞 레이드를 깨면 열린다
     const need = unlockAfter(f.id), st = S.fields[f.id];
