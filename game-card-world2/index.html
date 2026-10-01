@@ -1551,7 +1551,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.36.1';
+const VERSION = 'v9.36.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5302,7 +5302,7 @@ function expEnd(kind){
 }
 // 전리품 (v0.15.0): 쓰러뜨린 자리에서 확률대로 튀어나와 크래프팅 탭으로 날아감
 function dropLoot(def, foeIdx){
-  const from = tokOf(foeIdx) || document.querySelector('#exp .tok.knight');
+  const from = tokOf(foeIdx) || tokOf(expLead());                 // v9.36.2: 제 원정 안에서 (다른 땅 토큰을 집지 않게)
   const r = from ? from.getBoundingClientRect() : gatherEl.getBoundingClientRect();
   const table = def.loot || [];
   if (!table.length) return;
@@ -5323,7 +5323,7 @@ function dropLoot(def, foeIdx){
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
-  const tok = document.querySelector('#exp .tok.knight');
+  const tok = tokOf(expLead());                                   // v9.36.2: 뒤진 사람 자리에서 (궁수가 뒤졌으면 궁수)
   const box = tok ? tok.getBoundingClientRect() : gatherEl.getBoundingClientRect();
   if (exp.id === 'prelude'){                                      // v3.1.0: 대본대로 — 언제 다시 와도 같은 것
     const list = PRELUDE_LOOT[Math.max(0, exp.lootIdx || 0)] || [];
@@ -5751,8 +5751,17 @@ function paintTail(el){
 }
 // 한 대 — 때린 쪽은 앞으로 돌진(0.3초), 맞은 쪽은 빨갛게(0.3초) + 피해 숫자 (레거시 world 던전과 같음)
 // v9.20.0: 줄이 여럿이면 같은 토큰도 여럿 — 다 찾아서 같이 움직인다
-const toksOf = who => [...document.querySelectorAll(typeof who === 'string'
-  ? `#exp .tok.hero[data-hero="${who}"]` : `#exp .tok.enemy[data-foe="${who}"]`)];
+// v9.36.2: **원정마다 따로 찾는다.** 적 번호(`data-foe`)는 원정 안에서만 쓰는 번호라,
+//   온 화면에서 찾으면 다른 땅에 나간 원정의 같은 번호 적에게도 피해 글씨 · 타격 그림이 같이 떴다
+const expBox = E => E ? document.querySelector(`#exp .exp-one[data-exp="${E.uid}"]`) : null;
+const toksOf = who => {
+  if (typeof who === 'string'){                                   // 캐릭터는 제가 나간 원정에서
+    const box = expBox(expOf(who)) || document.getElementById('exp');
+    return box ? [...box.querySelectorAll(`.tok.hero[data-hero="${who}"]`)] : [];
+  }
+  const box = expBox(exp);                                        // 적은 **지금 셈하는 원정** 안에서만
+  return box ? [...box.querySelectorAll(`.tok.enemy[data-foe="${who}"]`)] : [];
+};
 const tokOf = who => toksOf(who)[0] || null;
 // v9.32.0: 전투 이펙트는 **JS 로 직접 움직인다**.
 //   CSS 키프레임에만 기대면 '동작 줄이기(prefers-reduced-motion)' 를 켠 브라우저나
@@ -6002,8 +6011,10 @@ function renderKnight(){
     }
   }
   const k = S.knight, max = knightMaxHp();
-  const kt = document.querySelector('#exp .tok.knight .hp');      // 원정 트랙의 기사 토큰
-  if (kt && exp) kt.innerHTML = statBox(knightAtk(), knightDef(), k.hp, max);
+  for (const kt of toksOf('knight')){                             // v9.36.2: 기사가 나간 원정의 토큰 모두
+    const hp = kt.querySelector('.hp');
+    if (hp) hp.innerHTML = statBox(knightAtk(), knightDef(), k.hp, max);
+  }
   renderInsp();                                                   // 인스펙터도 같은 값이어야 함
 }
 // v0.66.0: 경험치. v0.71.0: **적을 잡는 즉시** 오르고 **보상도 그 자리에서** 붙는다 (카드에 바로 보이게)
