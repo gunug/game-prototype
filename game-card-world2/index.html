@@ -486,7 +486,8 @@
   @keyframes dunAtk{0%{transform:translateX(0);}35%{transform:translateX(22%);}60%{transform:translateX(-32%);}100%{transform:translateX(0);}}
   @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
   .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  .exp-lane .dmg.heal{color:#8fe08f;text-shadow:0 0 6px rgba(80,220,80,.6);font-weight:900;}   /* v6.0.0 */
+  .exp-lane .dmg.heal{color:#9cf5a8;font-weight:900;font-size:calc(var(--cf) * .22);   /* v6.0.0 · v9.48.9: 더 크고 밝게 */
+    text-shadow:0 0 4px rgba(0,0,0,.95), 0 0 10px rgba(80,230,90,.9), 0 2px 6px rgba(0,0,0,.8);}
   .exp-lane .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
   .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   /* v9.29.0: 숫자는 **떠오르며 사라진다**. `floatUp` 키프레임이 없어서 그대로 겹쳐 쌓여 안 읽혔다 */
@@ -564,6 +565,9 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.35);transition:width .18s linear;}
   .exp-lane .tok.hero .hp i{background:#5fd673;}                   /* 우리 편은 풀색 · 크리처는 붉은색 */
   .exp-lane .tok .hp i.low{background:#ffcf3a;}                    /* 삼분의 일 아래면 노랗게 */
+  /* v9.48.9: 차오르는 순간 — 막대가 초록으로 번쩍인다 */
+  .exp-lane .tok .hp.heal{box-shadow:0 0 0 1.5px rgba(0,0,0,.92), 0 0 0 3px rgba(130,255,150,.95), 0 0 10px rgba(80,230,90,.85);}
+  .exp-lane .tok .hp.heal i{background:#9cf5a8;}
   /* v9.46.1: **줌에는 transition 을 걸지 않는다.** 토큰의 transform 에는 줌 배율(--tokz)이 들어 있어,
      여기에 0.3초 전환이 걸려 있으면 배경과 캐릭터는 바로 줄어드는데 **크리처만 늦게** 따라와 크기가 어긋났다
      (덩치 큰 레이드 주인에서 특히 눈에 띄었다). 사라지는 연출에만 전환을 둔다 */
@@ -1603,7 +1607,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.48.8';
+const VERSION = 'v9.48.9';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5712,6 +5716,7 @@ function hpBar(box, hp, max){
   const p = Math.max(0, Math.min(1, max > 0 ? hp / max : 0));
   let fill = box.firstElementChild;
   if (!fill || fill.tagName !== 'I'){ box.innerHTML = '<i></i>'; fill = box.firstElementChild; }
+  box._p = p;
   fill.style.width = (p * 100).toFixed(1) + '%';
   fill.classList.toggle('low', p <= 0.34);
   box.title = `${Math.max(0, Math.round(hp))}/${max}`;             // 손대면 숫자도 볼 수 있다
@@ -6053,7 +6058,7 @@ function fxTween(ms, step, done){
   setTimeout(end, ms + 500);                                      // 프레임이 멈춰도(숨은 탭 등) 찌꺼기를 남기지 않는다
 }
 // v9.29.0: 뜨는 글씨 한 군데서 — 같은 토큰에 여럿이면 **한 칸씩 위로 쌓는다** (겹쳐서 안 읽히던 것)
-function floatText(tok, text, cls){
+function floatText(tok, text, cls, ms){                            // v9.48.9: ms 를 주면 그만큼 머문다
   if (!tok || !tok.parentElement) return;
   tok._fl = (tok._fl || 0) + 1;
   const slot = (tok._fl - 1) % 5;                                 // 다섯 층까지 쌓고 되돌아온다
@@ -6063,14 +6068,25 @@ function floatText(tok, text, cls){
   f.style.left = tok.style.left || '5%';
   f.style.bottom = `calc(var(--ch) * .7 + ${slot * 17}px)`;
   tok.parentElement.appendChild(f);
-  fxTween(1000, p => {                                            // v9.32.0: 떠오르며 사라진다 (JS)
+  fxTween(ms || 1000, p => {                                      // v9.32.0: 떠오르며 사라진다 (JS)
     f.style.opacity = p < 0.18 ? (p / 0.18) : (1 - (p - 0.18) / 0.82);
     f.style.transform = `translateX(-50%) translateY(${(-26 * p).toFixed(1)}px)`;
   }, () => { f.remove(); tok._fl = Math.max(0, (tok._fl || 1) - 1); });
 }
 // v6.0.0: 회복 숫자 (초록 +N) — 크리처의 재생
 function expHeal(idx, n){
-  for (const el of toksOf(idx)) floatText(el, `+${n} 재생`, 'heal');
+  for (const el of toksOf(idx)){
+    floatText(el, `+${n} 재생`, 'heal', 1500);                     // v9.48.9: 피해 숫자에 묻히지 않게 오래 머문다
+    hpFlash(el);                                                  // 막대도 함께 번쩍 — 같은 박자에 맞아 막대가 안 오를 때도 보이게
+  }
+}
+// v9.48.9: 살이 차오른 순간 체력 막대를 초록으로 번쩍인다 (막대 값이 아니라 **사건**에 묶는다)
+function hpFlash(tok){
+  const box = tok && tok.querySelector('.hp');
+  if (!box) return;
+  box.classList.add('heal');
+  clearTimeout(box._ht);
+  box._ht = setTimeout(() => box.classList.remove('heal'), 480);
 }
 // v9.29.0: 레벨이 오르면 트랙에서도 알린다 (최대 체력이 갑자기 느는 까닭)
 function expLvUp(who, lv){
