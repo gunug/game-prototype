@@ -392,7 +392,9 @@
   .exp-lane .tok.boss::before{content:'👑';position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);z-index:4;font-size:calc(var(--cw) * .26);}
   /* v0.13.2: 포트레이트 — 레거시 world 던전과 같은 연출 (들썩임 · 공격 돌진 · 피격 빨강) */
   .exp-lane{overflow:hidden;}                                     /* v9.0.0: 카메라 밖은 잘라 낸다 */
-  .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66);width:calc(var(--cw) * .5);margin-left:calc(var(--cw) * -.25);
+  /* v9.44.0: `--tsz` = 그 놈의 덩치 (크리처 데이터의 `size`). 레이드 주인은 2배 */
+  .exp-lane .tok{position:absolute;bottom:7px;height:calc(var(--ch) * .66 * var(--tsz,1));
+    width:calc(var(--cw) * .5 * var(--tsz,1));margin-left:calc(var(--cw) * -.25 * var(--tsz,1));
     display:flex;align-items:flex-end;justify-content:center;
     transform:scale(var(--tokz,1));transform-origin:50% 100%;}   /* v9.13.0 · v9.27.0: 줌 배율 */
   .exp-lane .spot{transform:scale(var(--tokz,1));transform-origin:50% 100%;}
@@ -413,7 +415,10 @@
   /* v9.20.0: 둘이 나가면 줄이 둘 — 줄마다 제 캐릭터를 따라가는 카메라 */
   .exp-one + .exp-one{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.12);}   /* v9.22.0: 원정 덩이 사이 */
   .exp-lane.two{height:calc(var(--ch) * .86);margin-bottom:3px;}
-  .exp-lane.two .tok{height:calc(var(--ch) * .46);}               /* 줄이 둘이면 토큰과 수치 상자를 줄여 안 잘리게 */
+  .exp-lane.two .tok{height:calc(var(--ch) * .46 * var(--tsz,1));}   /* 줄이 둘이면 토큰과 수치 상자를 줄여 안 잘리게 */
+  /* v9.44.0: 레이드 줄은 **더 높다** — 두 배짜리 주인이 위로 잘리지 않게 */
+  .exp-lane.raid{height:calc(var(--ch) * 1.45);}
+  .exp-lane.raid.two{height:calc(var(--ch) * 1.19);}
   .exp-lane.two .tok .hp{padding:1px 5px;font-size:calc(var(--cf) * .08);line-height:1.25;}
   .exp-lane .lane-who{position:absolute;left:5px;top:3px;z-index:6;font-size:calc(var(--cf) * .1);font-weight:800;
     color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000;font-style:normal;pointer-events:none;}
@@ -1583,7 +1588,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.7';
+const VERSION = 'v9.44.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4547,7 +4552,7 @@ const ENEMIES = {
     loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
   // v9.42.0: 👑 탑의 눈 — 첫 레이드 주인. **움직이지 않고**(move:'hold') 제자리를 지킨다.
   //   사거리 15칸 · 한 번 쏘면 **다섯 번 연달아**(hits) 꽂힌다. 한 번에 3 × 5 = 15
-  towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, pierce:true,
+  towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, pierce:true, size:2,
     portrait:'portrait_towereye', atk:3, def:3, hp:90,
     loot: [['graveseal', 100, 2], ['scale', 60, 2], ['bearclaw', 40, 1]] },
 };
@@ -4689,7 +4694,7 @@ const LANE_BG = {
   },
   towerruin: {                                                    // v9.42.0: 그을린 벌판 · 부서진 탑
     far:    { file: 'bg_towerruin-far', kan: 6, speed: 0.3 },
-    ground: { file: 'bg_towerruin-ground', kan: 4, h: 30 },
+    ground: { file: 'bg_towerruin-ground', kan: 4, h: 22 },        // v9.44.0: 줄이 높아진 만큼 % 를 낮춰 지면 높이는 그대로
     edge:   { file: 'bg_towerruin-edge', kan: 6 },
     props:  [{ file: 'prop_rock', h: 0.3, odds: 0.16 },
              { file: 'prop_deadtree', h: 0.6, odds: 0.1 },
@@ -5620,13 +5625,15 @@ function expBlockHtml(E){
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
   // v9.20.0: 나간 캐릭터마다 **한 줄**. 줄마다 같은 싸움을 보여 주되 카메라만 제 캐릭터를 따라간다
-  const laneHtml = who => `<div class="exp-lane${exp.party.length > 1 ? ' two' : ''}" data-hero="${who}">`
+  const laneHtml = who => `<div class="exp-lane${exp.party.length > 1 ? ' two' : ''}`
+    + `${(FIELD_BY_ID[exp.id] || {}).raid ? ' raid' : ''}" data-hero="${who}">`   // v9.44.0: 레이드 줄은 더 높다
     + '<i class="lane-far"></i><i class="lane-ground"></i><i class="lane-edge"></i>'   // v9.8.0 원경 · 지면 · v9.15.0 경계
     + '<div class="lane-props"></div><i class="lane-grid"></i>'   // v9.8.0 흩뿌린 오브제 · v9.1.0 칸 눈금
     + (showMark ? '<div class="mark"></div>' : '')
     + exp.spots.map((sp, i) => `<div class="spot${sp.done ? ' done' : ''}" data-spot="${i}">`
         + `<img src="images/icon/fx_spot-${SPOT_ICON[exp.id] || 'mountain'}.png" alt="채집 포인트" draggable="false"></div>`).join('')
-    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}">`
+    + exp.foes.map((f, i) => `<div class="tok enemy${f.boss ? ' boss' : ''}${f.mid ? ' mid' : ''}${f.dead ? ' dead' : ''}" data-foe="${i}"`
+        + `${ENEMIES[f.key].size ? ` style="--tsz:${ENEMIES[f.key].size}"` : ''}>`   // v9.44.0: 덩치
         + '<div class="hp"></div><i class="reach" hidden></i><i class="cdpie foe" hidden></i>'   // v9.1.0 사거리 · v9.43.0 공격 대기
         + `<img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
     + exp.party.map(k => `<div class="tok hero ${k === 'knight' ? 'knight' : 'ally'}${k === who ? ' me' : ''}" data-hero="${k}">`
