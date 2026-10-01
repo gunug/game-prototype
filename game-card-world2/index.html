@@ -1557,7 +1557,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.40.0';
+const VERSION = 'v9.40.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3804,7 +3804,9 @@ function setGoal(t){
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
 function slotHtmlOf(sl){
   const inner = sl.card
-    ? `<div class="cw framed f-${sl.frame || 'wood'}">${statsHtml(sl.type)}<div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
+    // v9.40.1: 아직 안 밝혀진 것은 칸에 올려도 **아래 카드와 똑같이** — 검은 실루엣 · 수치 없음
+    ? `<div class="cw framed f-${sl.frame || 'wood'}${sl.unseen ? ' unseen' : ''}">${sl.unseen ? '' : statsHtml(sl.type)}`
+      + `<div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
     : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
     : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">`   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
       + (sl.need ? `<b class="lockneed">${esc(sl.need)}</b>` : '')                    // v0.98.0: 자물쇠 위에 조건
@@ -3818,7 +3820,8 @@ function screenRows(){
     const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
       + '<div class="name">목표</div><div class="sub-lab">하나만</div></div>';
     return [{ card, slots: [{ id:'aim:goal', open:true, card: !!g, type: g, icon: g ? iconHtml(g) : '',
-      cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'' }] }];   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
+      cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'',
+      unseen: !!g && !aimSeen(g) }] }];                            // v9.40.1: 아래 카드와 같은 가림   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
   if (S.tab === 'battle' || S.tab === 'dungeon'){                 // v4.0.0: 던전도 같은 줄 화면
     return (S.tab === 'dungeon' ? DUNGEONS() : OUT_FIELDS())
