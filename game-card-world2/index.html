@@ -1551,7 +1551,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.35.0';
+const VERSION = 'v9.36.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1796,7 +1796,6 @@ function questGroupState(def){
 //   그래서 사거리 10 · 공속 1 인 상대에게 이속 3 으로 다가가면 (10−1)/3 ≈ 3초, 세 대를 맞고 붙는다
 const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36 };     // 땅마다 트랙 길이 (칸). 없으면 60
 const laneLen = id => LANE_OF[id] || 60;
-const NOTICE_GAP = 8;                                             // 이만큼 가까워지면 알아차리고 싸움이 붙는다 (칸)
 const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷는 칸 · 맨손 사거리 · 초당 공격 횟수
 // 적의 움직임 — chase(다가옴, **기본**) · hold(자리 지킴) · kite(사거리를 지키며 물러남)
 //   v8.1.2: 기본을 chase 로. 가만히 서 있으면 사거리 긴 쪽이 영원히 때리기만 하는 판이 된다
@@ -4957,11 +4956,22 @@ function expTickOne(dt){
   if (!exp) return;
   if (exp.phase === 'end') return;
   const plan = planOf(exp.id);
-  if (exp.phase !== 'fight') alliesStep(dt);                      // 싸울 땐 expFight 가 저마다 움직인다
+  expShotsTick(dt);                                               // v9.36.0: 날아가던 화살부터 (어느 차례든)
+  if (exp.phase !== 'fight'){
+    alliesStep(dt);                                               // 싸울 땐 expFight 가 저마다 움직인다
+    expFoes(dt);                                                  // v9.36.0: 적은 걷는 중 · 채집 중에도 때린다
+    if (!exp || exp.phase === 'end') return;
+  }
   if (exp.phase === 'run'){
     // v9.5.0: **한 칸씩 점유하며** 걷는다 — 이동속도 3이면 1초에 세 칸, 1/3초마다 한 칸
     const lead = expLead(), L = exp.P[lead];
-    heroStep(lead, dt, exp.len);                                   // 앞장선 캐릭터는 트랙 끝을 보고 걷는다
+    // v9.36.0: 걸음 목표 — 앞에 뒤질 자리가 남았으면 트랙 끝(그 자리를 밟는다),
+    //   아니면 앞 적의 **제 사거리 앞**까지만 (사거리 10짜리 활은 10칸 앞에서 멈춰 쏜다)
+    let walkTo = exp.len;
+    const fi0 = foeAhead(L.x), sp0 = spotAhead(L.x);
+    if (fi0 >= 0 && !(sp0 && sp0.x <= exp.foes[fi0].x))
+      walkTo = Math.max(L.x, exp.foes[fi0].x - hRange(lead));
+    heroStep(lead, dt, walkTo);                                    // 앞장선 캐릭터의 걸음
     exp.t = Math.min(1, L.x / exp.len);
     let ev = plan[exp.idx];
     while (ev && ev.fight && L.x >= Math.round(ev.at * exp.len)){ exp.idx++; ev = plan[exp.idx]; }   // 전투는 거리로 다뤘으니 지나친다
@@ -4979,38 +4989,20 @@ function expTickOne(dt){
         return;                                                   // v8.1.1: 뒤지는 동안엔 적을 알아차리지 않는다
       }
     }
-    // 앞쪽의 적을 알아차림. 단 **아직 뒤지지 않은 채집 자리가 그 앞에 있으면** 그걸 먼저 한다
-    //   (v8.1.1: 안 그러면 멀리서 붙은 싸움이 채집 자리를 지나쳐 버린다)
-    const nextSpot = exp.spots.find(sp => !sp.done && sp.x >= L.x);   // 아직 안 뒤진 앞쪽 자리
-    // v9.21.1: 누구든 먼저 알아차린다. v9.27.0: **사거리가 알아차림보다 길면 그만큼 멀리서 먼저 쏜다**
-    const notice = k => Math.max(NOTICE_GAP, hRange(k));
-    let near = exp.foes.findIndex(f => !f.dead && exp.party.some(k =>
-      !exp.P[k].out && f.x - exp.P[k].x <= notice(k) && f.x >= exp.P[k].x - 2));
-    // 그 자리를 먼저 뒤진다 — 단 v9.28.0: **이미 사거리 안이면 선 자리에서 쏜다** (걸어갈 까닭이 없다).
-    //   사거리 10 짜리 활을 줘도 채집 자리 때문에 늘 5칸까지 붙어서야 싸움이 붙던 것
-    const inRange = near >= 0 && exp.party.some(k => !exp.P[k].out
-      && hRange(k) >= exp.foes[near].x - exp.P[k].x && exp.foes[near].x >= exp.P[k].x);
-    if (near >= 0 && nextSpot && nextSpot.x <= exp.foes[near].x && !inRange) near = -1;
+    // v9.36.0: 때려도 되는 적이 사거리에 들었나 — 자는 적 앞에 채집 자리가 남았으면 안 건드린다
+    let near = -1;
+    for (const k of exp.party){ const t = targetFor(k); if (t >= 0){ near = t; break; } }
     if (near >= 0 && exp.foe !== near){                            // 대본 차례와 상관없이 **거리로** 붙는다
-      const ef = exp.foes[near];                                   // v8.1.1: 대본 차례(idx)는 건드리지 않는다 — 채집이 건너뛰어졌다
-      exp.foe = near; exp.phase = 'fight';
-      // v9.35.0: 공격 타이머는 **싸움마다 처음부터** (느린 무기는 공속 수치로 맞춘다)
-      for (const k of exp.party) exp.P[k].cd = 0;
-      exp.shots = [];                                              // 날아가던 화살도 여기서 끊는다
-      exp.rcd = 0; exp.stallMs = 0;                                // v9.0.0: 공격 · 회복 타이머
-      exp.gap = ef.x - exp.P[expLead()].x; ef.step = 0;            // v9.5.0: 첫 그림부터 칸 거리를 안다
-      const d = ENEMIES[ef.key];
-      exp.line = ef.boss ? `👑 ${subP2(d.name)} 길을 막았다` : ef.mid ? `⚔ ${subP2(d.name)} 앞을 가로막았다` : `${withP(d.name)} 마주쳤다`;
-      S.metFoes = S.metFoes || [];
-      if (!S.metFoes.includes(ef.key)) S.metFoes.push(ef.key);
-      foeFound(ef.key);
-      if (ef.boss){ toast(`👑 보스 — ${d.name}`); S.metBoss = true; }
-      else if (ef.mid) toast(`⚔ 중간보스 — ${d.name}`);
-      expPaint();
+      expEngage(near);
       return;
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
   } else if (exp.phase === 'search'){
+    // v9.36.0: 채집 중엔 **아무도 때리지 않는다** (궁수도 안 쏜다). 깨어난 적이 채집 칸을 넘어오면 그때 싸운다
+    for (const k of exp.party) exp.P[k].cd = 0;
+    const spNow = exp.spots[exp.spot];
+    const over = exp.foes.findIndex(f => !f.dead && f.awake && spNow && f.x <= spNow.x);
+    if (over >= 0){ expEngage(over); return; }
     exp.search += dt;
     if (exp.search >= SEARCH_MS){
       const sp = exp.spots[exp.spot];
@@ -5028,10 +5020,50 @@ function expTickOne(dt){
   exp = EXPS[0] || null;
   if (!rafAlive) expPaint();                                      // v9.20.2: 그림은 프레임 고리가 맡는다 (두 번 그리면 카메라가 두 배로 움직였다)
 }
+// v9.36.0: 싸움 시작 — 한 군데서 (걷다가든, 채집 중 넘어왔든)
+function expEngage(near){
+  const ef = exp.foes[near];                                      // v8.1.1: 대본 차례(idx)는 건드리지 않는다
+  exp.foe = near; exp.phase = 'fight';
+  // v9.35.0: 공격 타이머는 **싸움마다 처음부터** (느린 무기는 공속 수치로 맞춘다)
+  for (const k of exp.party) exp.P[k].cd = 0;
+  exp.shots = [];                                                 // 날아가던 화살도 여기서 끊는다
+  exp.rcd = 0; exp.stallMs = 0;                                   // v9.0.0: 공격 · 회복 타이머
+  exp.gap = ef.x - exp.P[expLead()].x; ef.step = 0;               // v9.5.0: 첫 그림부터 칸 거리를 안다
+  const d = ENEMIES[ef.key];
+  exp.line = ef.boss ? `👑 ${subP2(d.name)} 길을 막았다` : ef.mid ? `⚔ ${subP2(d.name)} 앞을 가로막았다` : `${withP(d.name)} 마주쳤다`;
+  S.metFoes = S.metFoes || [];
+  if (!S.metFoes.includes(ef.key)) S.metFoes.push(ef.key);
+  foeFound(ef.key);
+  if (ef.boss){ toast(`👑 보스 — ${d.name}`); S.metBoss = true; }
+  else if (ef.mid) toast(`⚔ 중간보스 — ${d.name}`);
+  expPaint();
+}
 // 한 번 주고받기 — 기사가 먼저 치고, **적은 죽더라도 한 번은 되친다** (v0.78.0)
 //   그전엔 한 방에 죽는 적은 반격을 못 해 잡몹이 아무 위협이 없었음
 // v9.0.0: 싸움은 **시간으로** 돈다 — 서로 제 이동속도로 다가서고, 제 공격속도로 때린다.
 //   사거리가 닿지 않으면 때리지 못한다. 그래서 사거리가 긴 쪽은 상대가 붙을 때까지 공짜로 때린다
+// ── v9.36.0: 어그로 규칙 ──────────────────────────────
+//   · 적은 **맞아야 깨어난다**. 깨어난 적만 다가온다 (한 번 깨면 원정 끝까지, 도망 없음)
+//   · 자는 적도 **제 사거리 안에 캐릭터가 있으면 때린다** — 다가오지만 않는다
+//   · 앞에 안 뒤진 채집 자리가 있으면 자는 적은 건드리지 않는다 — **채집이 먼저**
+//   · 채집하는 동안 아무도 때리지 않는다 (궁수도 안 쏜다). 맞을 수는 있다
+//   · 깨어난 적이 채집 칸을 넘어오면 그때 싸운다
+const spotAhead = x => exp.spots.find(sp => !sp.done && sp.x >= x);
+const foeAhead = x => exp.foes.findIndex(f => !f.dead && f.x >= x);
+function targetFor(k){                                            // 이 캐릭터가 지금 때려도 되는 적
+  const h = exp.P[k];
+  if (!h || h.out || !hAlive(k)) return -1;
+  const sp = spotAhead(h.x), rng = hRange(k);
+  for (let i = 0; i < exp.foes.length; i++){
+    const f = exp.foes[i];
+    if (f.dead) continue;
+    const gap = f.x - h.x;
+    if (gap < 0 || gap > rng) continue;
+    if (!f.awake && sp && sp.x <= f.x) continue;                  // 채집 자리가 먼저면 자는 적은 그냥 둔다
+    return i;
+  }
+  return -1;
+}
 // v9.35.0: 날아가는 화살 — **도착할 때** 피해가 들어간다.
 //   전엔 쏘는 즉시 피해라, 궁수가 막타를 쳐도 화살이 닿기 전에 적이 사라졌다
 const flyMsOf = gap => 180 + Math.min(520, Math.max(0, gap) * 80);
@@ -5044,32 +5076,22 @@ function expShotsTick(dt){
     const f = exp.foes[sh.to];
     if (!f || f.dead || f.hp <= 0) continue;                       // 남이 먼저 잡았으면 허공으로 (그건 괜찮다)
     f.hp -= sh.dmg;
+    f.awake = true;                                                // v9.36.0: 맞으면 깨어난다
     if (sh.bleed && f.hp > 0) f.hp -= sh.bleed;
   }
 }
-function expFight(dt){
-  expShotsTick(dt);                                                // v9.35.0: 먼저 도착한 화살부터 셈한다
-  const e = exp.foes[exp.foe], def = ENEMIES[e.key];
-  if (!e || !def || e.dead){ exp.foe = -1; exp.phase = 'run'; return; }
+// v9.36.0: **적의 차례** — 걷는 중이든 채집 중이든 싸움 중이든 늘 돈다.
+//   움직이는 놈은 깨어난 놈뿐. 자는 놈도 제 사거리에 닿으면 때린다
+function expFoes(dt){
   const sec = dt / 1000;
-  const alive = exp.party.filter(k => !exp.P[k].out && hAlive(k));   // v9.20.0: 함께 싸우는 이들
-  if (!alive.length){ expEnd('down'); return; }
-  // ① 저마다 **제 사거리까지** 다가선다 (한 칸씩, 찬 칸은 못 밟는다)
-  for (const k of alive){
-    const h = exp.P[k], kr = hRange(k);
-    h.vspd = hSpd(k);
-    h.step += hSpd(k) * sec;
-    while (h.step >= 1 && e.x - h.x > kr && cellFree(h.x + 1, k)){ h.step -= 1; h.x += 1; }
-    h.step = Math.min(h.step, 1);                                 // v9.20.2: 쌓인 걸음으로 순간이동 금지
-    h.to = e.x - h.x > kr && cellFree(h.x + 1, k) ? h.x + 1 : h.x;
-  }
-  // 크리처는 **가장 가까운 캐릭터**를 노린다 (궁수가 뒤에 서면 기사가 먼저 맞는다)
-  const aimOf = f => alive.reduce((best, k) =>
+  const alive = exp.party.filter(k => !exp.P[k].out && hAlive(k));
+  if (!alive.length){ expEnd('down'); return null; }
+  const aimOf = f => alive.reduce((best, k) =>                    // 가장 가까운 캐릭터를 노린다
     Math.abs(exp.P[k].x - f.x) < Math.abs(exp.P[best].x - f.x) ? k : best, alive[0]);
-  // ② v9.6.0: 알아차린 크리처는 모두 움직이고, 앞이 막히면 그 뒤에 줄을 선다
-  const crowd = exp.foes.filter(f => !f.dead
-    && alive.some(k => f.x - exp.P[k].x <= Math.max(NOTICE_GAP, hRange(k)) && f.x >= exp.P[k].x)).sort((a, b) => a.x - b.x);
-  for (const f of crowd){
+  const reachOf = f => { const d = ENEMIES[f.key]; return foeRange(d) >= Math.abs(f.x - exp.P[aimOf(f)].x); };
+  const crowd = exp.foes.filter(f => !f.dead && (f.awake || reachOf(f))).sort((a, b) => a.x - b.x);
+  for (const f of crowd){                                         // ① 이동 — 깨어난 놈만
+    if (!f.awake){ f.to = f.x; f.step = 0; continue; }
     const d = ENEMIES[f.key], mv = foeMove(d), fr2 = foeRange(d);
     const tx = exp.P[aimOf(f)].x;
     f.step = (f.step || 0) + foeSpd(d) * sec;
@@ -5083,58 +5105,12 @@ function expFight(dt){
     f.to = mv === 'chase' && g2 > fr2 && cellFree(f.x - 1, f) ? f.x - 1
       : mv === 'kite' && g2 < fr2 && cellFree(f.x + 1, f) ? f.x + 1 : f.x;
   }
-  for (const f of exp.foes) if (!crowd.includes(f)) f.to = f.x;    // 싸움에 낀 놈 말고는 제자리
-  const lead = alive[0];
-  const gap = Math.max(0, e.x - exp.P[lead].x);
-  exp.gap = gap;
-  // ③ 캐릭터들의 공격 — 저마다 제 공격속도로
-  let anyHit = false;
-  for (const k of alive){
-    const h = exp.P[k], g = Math.max(0, e.x - h.x), hit = hRange(k) >= g;
-    const every = 1000 / hAps(k);
-    h.cd += dt;
-    while (hit && h.cd >= every && e.hp > 0){
-      h.cd -= every;
-      const pierce = hPierce(k);
-      const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
-      const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
-      const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
-      if (hRanged(k)){                                            // v9.35.0: 활은 **닿을 때** 들어간다
-        const fly = flyMsOf(g);
-        exp.shots = exp.shots || [];
-        exp.shots.push({ to: exp.foe, dmg, bleed, t: fly });
-        expSwing(k, exp.foe, dmg, blocked, kindTxt, fly);
-        if (bleed) expSwing(k, exp.foe, bleed, false, 'bleed', fly);
-      } else {
-        e.hp -= dmg;
-        expSwing(k, exp.foe, dmg, blocked, kindTxt);               // v9.29.0: 방어 무시도 표시
-        if (bleed && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed'); }
-      }
-    }
-    if (!hit) h.cd = Math.min(h.cd, every);
-    if (hit) anyHit = true;
-  }
-  const foeHit = crowd.some(f => foeRange(ENEMIES[f.key]) >= Math.abs(f.x - exp.P[aimOf(f)].x));
-  exp.line = !anyHit && !foeHit ? '거리를 좁힌다'
-    : !anyHit ? '사거리 밖 — 맞으며 다가간다'
-    : !foeHit ? '사거리 밖에서 먼저 때린다'
-    : (/사거리|거리를/.test(exp.line || '') ? '맞붙었다' : exp.line);
-  // ④ 적의 회복 — 1초마다. **출혈 무기가 닿고 있으면** 멈춘다 (한 대 때린 박자에만 보지 않는다)
-  const bleeding = alive.some(k => hBleed(k) > 0 && hRange(k) >= Math.max(0, e.x - exp.P[k].x));
-  if (def.regen && e.hp > 0){
-    exp.rcd = (exp.rcd || 0) + dt;
-    while (exp.rcd >= 1000){
-      exp.rcd -= 1000;
-      if (!bleeding){
-        const heal = Math.min(def.regen, def.hp - e.hp);
-        if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
-      }
-    }
-  }
-  // ⑤ 크리처의 공격 — 저마다 **노린 캐릭터**를, 사거리가 닿으면
-  for (const f of crowd){
+  for (const f of exp.foes) if (!crowd.includes(f)) f.to = f.x;   // 낀 놈 말고는 제자리
+  let foeHit = false;
+  for (const f of crowd){                                         // ② 공격 — 자든 깨든 사거리가 닿으면
     const d = ENEMIES[f.key], k = aimOf(f), st = hSt(k);
     const g = Math.abs(f.x - exp.P[k].x), hit = foeRange(d) >= g;
+    if (hit) foeHit = true;
     const every = 1000 / foeAps(d);
     f.fcd = (f.fcd || 0) + dt;
     while (hit && f.fcd >= every && st.hp > 0 && f.hp > 0){
@@ -5145,12 +5121,91 @@ function expFight(dt){
       if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
         exp.P[k].out = true;
         exp.line = `${hName(k)} 쓰러졌다`;
-        exp.killer = { name: def.name, boss: !!f.boss, mid: !!f.mid };
+        exp.killer = { name: d.name, boss: !!f.boss, mid: !!f.mid };
       }
     }
     if (!hit) f.fcd = Math.min(f.fcd, every);
   }
-  renderKnight();
+  if (foeHit) renderKnight();
+  if (exp.party.every(k => exp.P[k].out)){                        // 모두 쓰러지면 귀환
+    expEnd('down');
+    return null;
+  }
+  return { crowd, foeHit, alive, aimOf };
+}
+// v9.36.0: 싸움이 끝나면 — 뒤지던 자리가 남았으면 그 자리로 돌아간다 (채집은 없어지지 않는다)
+function expAfterFight(){
+  exp.foe = -1;
+  exp.phase = exp.spot >= 0 && exp.spots[exp.spot] && !exp.spots[exp.spot].done ? 'search' : 'run';
+}
+function expFight(dt){
+  const e = exp.foes[exp.foe], def = ENEMIES[e.key];
+  if (!e || !def || e.dead){ expAfterFight(); return; }
+  const sec = dt / 1000;
+  const alive = exp.party.filter(k => !exp.P[k].out && hAlive(k));   // v9.20.0: 함께 싸우는 이들
+  if (!alive.length){ expEnd('down'); return; }
+  // ① 저마다 **제 사거리까지** 다가선다 (한 칸씩, 찬 칸은 못 밟는다)
+  for (const k of alive){
+    const h = exp.P[k], kr = hRange(k);
+    h.vspd = hSpd(k);
+    h.step += hSpd(k) * sec;
+    while (h.step >= 1 && e.x - h.x > kr && cellFree(h.x + 1, k)){ h.step -= 1; h.x += 1; }
+    h.step = Math.min(h.step, 1);                                 // v9.20.2: 쌓인 걸음으로 순간이동 금지
+    h.to = e.x - h.x > kr && cellFree(h.x + 1, k) ? h.x + 1 : h.x;
+  }
+  // v9.36.0: 적의 이동 · 공격은 expFoes 한 군데서 (걷는 중 · 채집 중에도 같은 규칙)
+  const turn = expFoes(dt);
+  if (!turn || exp.phase === 'end') return;
+  const { foeHit } = turn;
+  const live = exp.party.filter(k => !exp.P[k].out && hAlive(k));   // v9.36.0: 적 차례에 쓰러진 이는 빼고 본다
+  if (!live.length) return;
+  const lead = live[0];
+  const gap = Math.max(0, e.x - exp.P[lead].x);
+  exp.gap = gap;
+  // ③ 캐릭터들의 공격 — 저마다 제 공격속도로
+  let anyHit = false;
+  for (const k of live){
+    const h = exp.P[k], g = Math.max(0, e.x - h.x), hit = hRange(k) >= g;
+    const every = 1000 / hAps(k);
+    h.cd += dt;
+    while (hit && h.cd >= every && e.hp > 0){
+      h.cd -= every;
+      const pierce = hPierce(k);
+      const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
+      const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
+      const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
+      if (hRanged(k)){                                            // v9.35.0: 활은 **닿을 때** 들어간다 (깨우는 것도 그때)
+        const fly = flyMsOf(g);
+        exp.shots = exp.shots || [];
+        exp.shots.push({ to: exp.foe, dmg, bleed, t: fly });
+        expSwing(k, exp.foe, dmg, blocked, kindTxt, fly);
+        if (bleed) expSwing(k, exp.foe, bleed, false, 'bleed', fly);
+      } else {
+        e.hp -= dmg;
+        e.awake = true;                                            // v9.36.0: 맞으면 깨어난다
+        expSwing(k, exp.foe, dmg, blocked, kindTxt);               // v9.29.0: 방어 무시도 표시
+        if (bleed && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed'); }
+      }
+    }
+    if (!hit) h.cd = Math.min(h.cd, every);
+    if (hit) anyHit = true;
+  }
+  exp.line = !anyHit && !foeHit ? '거리를 좁힌다'
+    : !anyHit ? '사거리 밖 — 맞으며 다가간다'
+    : !foeHit ? '사거리 밖에서 먼저 때린다'
+    : (/사거리|거리를/.test(exp.line || '') ? '맞붙었다' : exp.line);
+  // ④ 적의 회복 — 1초마다. **출혈 무기가 닿고 있으면** 멈춘다 (한 대 때린 박자에만 보지 않는다)
+  const bleeding = live.some(k => hBleed(k) > 0 && hRange(k) >= Math.max(0, e.x - exp.P[k].x));
+  if (def.regen && e.hp > 0){
+    exp.rcd = (exp.rcd || 0) + dt;
+    while (exp.rcd >= 1000){
+      exp.rcd -= 1000;
+      if (!bleeding){
+        const heal = Math.min(def.regen, def.hp - e.hp);
+        if (heal > 0){ e.hp += heal; expHeal(exp.foe, heal); }
+      }
+    }
+  }
   // ⑥ 판가름이 안 나면 물러난다 (사거리는 닿는데 회복이 더 커서 영영 안 죽는 판)
   e.lowSeen = Math.min(e.lowSeen == null ? def.hp : e.lowSeen, e.hp);
   exp.stallMs = e.hp <= e.lowSeen ? 0 : (exp.stallMs || 0) + dt;
@@ -5161,8 +5216,7 @@ function expFight(dt){
   }
   if (e.hp <= 0){
     e.dead = true;
-    exp.foe = -1;
-    exp.phase = 'run';
+    expAfterFight();                                              // v9.36.0: 뒤지던 자리가 남았으면 되돌아간다
     exp.line = `${objP(def.name)} 쓰러뜨렸다`;
     dropLoot(def, exp.foes.indexOf(e));                           // v0.15.0: 확률 전리품
     gainXp(enemyXp(def));                                         // v0.71.0: 잡는 즉시 오른다 (카드에 바로 보이게)
