@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.1';
+const VERSION = 'v9.43.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1627,7 +1627,7 @@ let CW = 70, CH = 95;
 // v0.24.0: 에디터 모드 — 설정(⚙)에서 켬. 저장하지 않음 (새로고침하면 꺼짐)
 //   켜면 모든 잠금이 풀린 것처럼 보임: 필드 · 화면(도구·무기·정비) · 콜렉터북
 let editMode = false;
-const START_FIELDS = ['prelude'];                                // v3.1.0: 튜토리얼 필드부터                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
+const START_FIELDS = ['prelude', 'towerruin'];                    // v9.43.2: 첫 레이드는 처음부터 열려 있다                                // v3.1.0: 튜토리얼 필드부터                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
 const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !START_FIELDS.includes(f.id) }]));
 const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24.0
 // v0.9.0: 퀘스트 (상단 줄). 아직은 하나 — 누가 주는지는 미정
@@ -6426,14 +6426,17 @@ function questStep(id){
 // v9.43.1: **열리는 조건은 표 하나로.** 자물쇠에 적는 글과 실제 해금이 같은 것을 본다.
 //   전엔 적는 쪽만 `FIELDS` 차례의 바로 앞 땅을 집어, 강가에 '늪지 무덤 클리어'라고 잘못 적혔다
 //   (해금은 바깥 땅끼리 이어지는 `OUT_FIELDS` 차례를 따르므로 실제로는 숲을 깨면 열렸다)
-const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', towerruin:'river' };
+const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide' };
 const UNLOCK_SAY = { stonehide:'산이 무너진 자리에 굴이 있다',
-  swamptomb:'굴 아래로 물 흐르는 소리가 난다',
-  towerruin:'강 건너 벌판에 부러진 탑이 서 있다' };
+  swamptomb:'굴 아래로 물 흐르는 소리가 난다' };
+// v9.43.2: **레이드는 레이드끼리 이어진다.** 첫 레이드는 아무것도 요구하지 않는다 —
+//   필드도 던전도 깰 것 없이 언제든 덤빌 수 있다 (이길 수 있는지는 별개)
 function unlockAfter(id){                                         // 이 땅을 열려면 어디를 깨야 하나
   if (UNLOCK_AFTER[id]) return UNLOCK_AFTER[id];
-  const outs = OUT_FIELDS(), i = outs.findIndex(f => f.id === id);   // 바깥 땅은 바깥 땅끼리 이어진다
-  return i > 0 ? outs[i - 1].id : null;
+  const f = FIELD_BY_ID[id];
+  const list = f && f.raid ? RAIDS() : OUT_FIELDS();              // 바깥 땅은 바깥 땅끼리
+  const i = list.findIndex(x => x.id === id);
+  return i > 0 ? list[i - 1].id : null;
 }
 function fieldNeed(id){
   const p = unlockAfter(id), f = p && FIELD_BY_ID[p];
@@ -6452,12 +6455,18 @@ function syncUnlocks(newly){
       else S.fields[next.id].locked = false;                       // 조용히 맞춤
     }
   }
-  for (const id in UNLOCK_AFTER){                                 // v9.43.1: 굴 · 늪 · 탑은 표가 정한다
+  for (const id in UNLOCK_AFTER){                                 // v9.43.1: 굴 · 늪은 표가 정한다
     const need = UNLOCK_AFTER[id], st = S.fields[id];
     if (!st || !st.locked || !cleared.includes(need)) continue;
     st.locked = false;
     if (newly === need && UNLOCK_SAY[id]) knightSay(UNLOCK_SAY[id]);
     addUnlockNote(id);
+  }
+  for (const f of RAIDS()){                                       // v9.43.2: 레이드는 앞 레이드를 깨면 열린다
+    const need = unlockAfter(f.id), st = S.fields[f.id];
+    if (!need || !st || !st.locked || !cleared.includes(need)) continue;
+    st.locked = false;
+    addUnlockNote(f.id);
   }
   save();
 }
