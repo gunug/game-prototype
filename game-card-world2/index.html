@@ -552,14 +552,18 @@
     filter:drop-shadow(0 0 4px rgba(255,240,200,.9)) drop-shadow(0 1px 2px rgba(0,0,0,.6));}   /* v9.31.0: 키우고 테두리 */
   /* v9.34.1: 화살은 JS 가 자리를 잡으므로 옛 키프레임은 지웠다 */
   /* v0.17.2: 체력 숫자가 포트레이트에 가려 안 보이던 것 — 그림 위쪽 바깥에 둥근 상자로 */
-  .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:3px;transform:translateX(-50%);z-index:4;
-    display:flex;flex-direction:column;align-items:center;gap:0;
-    padding:2px 7px;border-radius:calc(var(--cf) * .12);background:rgba(10,10,7,.85);border:1px solid rgba(255,255,255,.2);
-    font-size:calc(var(--cf) * .095);font-weight:800;line-height:1.35;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--ink);}
+  /* v9.47.0: 트랙 위에는 **체력 막대만**. 공 · 방 · 체력 숫자는 뺐다 (수치는 카드와 인스펙터에서 본다).
+     막대는 **줌과 무관하게 크기가 고정**된다 — 줌 배율의 역수(--invz)로 되돌려 늘 같은 크기로 읽힌다 */
+  .exp-lane .tok .hp{position:absolute;left:50%;bottom:100%;margin-bottom:5px;z-index:4;
+    width:42px;height:8px;padding:0;border-radius:5px;overflow:hidden;
+    background:rgba(6,6,5,.92);border:1px solid rgba(0,0,0,.9);
+    box-shadow:0 0 0 1.5px rgba(255,255,255,.3), 0 2px 4px rgba(0,0,0,.75);
+    transform:translateX(-50%) scale(var(--invz,1));transform-origin:50% 100%;}
   .exp-lane .tok .hp:empty{display:none;}
-  .exp-lane .tok .hp .icon.inline{width:1.05em;height:1.05em;margin:0 1px 0 0;vertical-align:0;}
-  .exp-lane .tok .hp .ln{display:flex;align-items:center;gap:calc(var(--cf) * .05);}
-  .exp-lane .tok .hp .hp-n{color:#ff7a7a;}                         /* v0.89.0: 체력 색 */
+  .exp-lane .tok .hp i{display:block;height:100%;width:100%;background:#ff5b5b;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35);transition:width .18s linear;}
+  .exp-lane .tok.hero .hp i{background:#5fd673;}                   /* 우리 편은 풀색 · 크리처는 붉은색 */
+  .exp-lane .tok .hp i.low{background:#ffcf3a;}                    /* 삼분의 일 아래면 노랗게 */
   /* v9.46.1: **줌에는 transition 을 걸지 않는다.** 토큰의 transform 에는 줌 배율(--tokz)이 들어 있어,
      여기에 0.3초 전환이 걸려 있으면 배경과 캐릭터는 바로 줄어드는데 **크리처만 늦게** 따라와 크기가 어긋났다
      (덩치 큰 레이드 주인에서 특히 눈에 띄었다). 사라지는 연출에만 전환을 둔다 */
@@ -1591,7 +1595,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.46.2';
+const VERSION = 'v9.47.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5690,11 +5694,16 @@ function expBuild(){
   exp = EXPS[0] || null;
   expPaint();
 }
-// v0.17.3: 트랙 위 둥근 상자 안에 공격 · 방어 · 체력
-// v0.17.4: 두 줄 — 윗줄 공격·방어, 아랫줄 체력
-const statBox = (atk, def, hp, max) =>
-  `<span class="ln"><span>${statImg('atk')}${atk}</span><span>${statImg('def')}${def}</span></span>`
-  + `<span class="ln hp-n">${statImg('hp')}${hp}/${max}</span>`;
+// v9.47.0: 트랙 위 체력 막대 — 숫자는 안 적는다 (`<i>` 하나를 두고 너비만 고친다)
+function hpBar(box, hp, max){
+  if (!box) return;
+  const p = Math.max(0, Math.min(1, max > 0 ? hp / max : 0));
+  let fill = box.firstElementChild;
+  if (!fill || fill.tagName !== 'I'){ box.innerHTML = '<i></i>'; fill = box.firstElementChild; }
+  fill.style.width = (p * 100).toFixed(1) + '%';
+  fill.classList.toggle('low', p <= 0.34);
+  box.title = `${Math.max(0, Math.round(hp))}/${max}`;             // 손대면 숫자도 볼 수 있다
+}
 // v3.13.0: 수첩 아래 한 줄 — 기사 얼굴 · 체력 · 길 위 위치 · 지금 하는 일
 function renderMiniExp(){
   const el = document.getElementById('miniexp');
@@ -5875,6 +5884,7 @@ function paintLane(el, lane){
   lane.classList.toggle('jump', C.v == null || Math.abs(cam - C.v) > 2);
   C.v = cam; lane._cam = cam;
   lane.style.setProperty('--tokz', (KAN / baseKAN).toFixed(3));   // v9.27.0: 줌만큼 토큰도 작아진다
+  lane.style.setProperty('--invz', (baseKAN / KAN).toFixed(3));   // v9.47.0: 체력 막대는 줌을 되돌려 크기 고정
   const grid = lane.querySelector('.lane-grid');                  // v9.1.0: 칸 눈금 — 카메라만큼 밀어 흐르게
   if (grid){
     grid.style.backgroundSize = `${KAN.toFixed(1)}px 100%`;
@@ -5906,7 +5916,7 @@ function paintLane(el, lane){
     }
     ht.classList.toggle('walk', exp.phase === 'run' && !h2.out);   // v0.13.2: 걸을 때만 들썩
     ht.classList.toggle('dig', exp.phase === 'search' && k2 === expLead());   // v0.13.4: 뒤지는 중
-    ht.querySelector('.hp').innerHTML = statBox(hAtk(k2), hDef(k2), Math.max(0, hSt(k2).hp), hMax(k2));
+    hpBar(ht.querySelector('.hp'), hSt(k2).hp, hMax(k2));         // v9.47.0: 막대만
   }
   for (const sp of lane.querySelectorAll('.spot')){                // v0.13.4: 채집 포인트
     const s2 = exp.spots[+sp.dataset.spot];
@@ -5942,7 +5952,8 @@ function paintLane(el, lane){
       if (on) fpie.style.setProperty('--p',
         (Math.max(0, Math.min(1, (f.fcd || 0) / (1000 / foeAps(ed)))) * 360).toFixed(0) + 'deg');
     }
-    et.querySelector('.hp').innerHTML = f.dead ? '' : statBox(ed.atk, ed.def, Math.max(0, f.hp), ed.hp);
+    const ehp = et.querySelector('.hp');                           // v9.47.0: 막대만 (죽으면 지운다)
+    if (f.dead) ehp.innerHTML = ''; else hpBar(ehp, f.hp, ed.hp);
   }
   const dimL = lane.querySelector('.lane-dim.l'), dimR = lane.querySelector('.lane-dim.r');
   if (dimL && dimR){                                              // v9.19.0: 무대 밖 — 그림은 이어지되 카메라 밖
@@ -6264,10 +6275,7 @@ function renderKnight(){
     }
   }
   const k = S.knight, max = knightMaxHp();
-  for (const kt of toksOf('knight')){                             // v9.36.2: 기사가 나간 원정의 토큰 모두
-    const hp = kt.querySelector('.hp');
-    if (hp) hp.innerHTML = statBox(knightAtk(), knightDef(), k.hp, max);
-  }
+  for (const kt of toksOf('knight')) hpBar(kt.querySelector('.hp'), k.hp, max);   // v9.47.0: 막대만
   renderInsp();                                                   // 인스펙터도 같은 값이어야 함
 }
 // v0.66.0: 경험치. v0.71.0: **적을 잡는 즉시** 오르고 **보상도 그 자리에서** 붙는다 (카드에 바로 보이게)
