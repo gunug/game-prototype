@@ -1592,7 +1592,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.48.4';
+const VERSION = 'v9.48.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5924,7 +5924,7 @@ function paintLane(el, lane){
       pie.hidden = !on;
       if (on) pie.style.setProperty('--p', (Math.max(0, Math.min(1, (h2.cd || 0) / every)) * 360).toFixed(0) + 'deg');
     }
-    ht.classList.toggle('walk', exp.phase === 'run' && !h2.out);   // v0.13.2: 걸을 때만 들썩
+    ht.classList.toggle('walk', !h2.out && h2.to != null && h2.to !== h2.x);   // v0.13.2 걸을 때만 · v9.48.6 제자리면 멈춘다
     ht.classList.toggle('dig', exp.phase === 'search' && k2 === expLead());   // v0.13.4: 뒤지는 중
     hpBar(ht.querySelector('.hp'), hSt(k2).hp, hMax(k2));         // v9.47.0: 막대만
   }
@@ -5943,10 +5943,9 @@ function paintLane(el, lane){
     const ed = ENEMIES[f.key];
     et.style.left = px(f.xd != null ? f.xd : f.x) + 'px';           // v8.1.0 · v9.0.0 적도 움직임 · v9.11.0 그림 자리
     // v9.3.0: 크리처도 걸으면 들썩인다 — 기사와 같은 몸짓
-    const isNow = exp.foe === +et.dataset.foe && exp.phase === 'fight';
-    const mvKind = foeMove(ed), g = isNow ? (exp.gap != null ? exp.gap : 0) : 0;
-    et.classList.toggle('walk', !f.dead && isNow
-      && ((mvKind === 'chase' && g > foeRange(ed)) || (mvKind === 'kite' && g < foeRange(ed))));
+    // v9.48.6: **진짜로 옮겨 가는 중일 때만.** 들어가려는 칸(`to`)이 선 칸과 다르면 걷는 것이다.
+    //   전엔 '지금 싸우는 적인가 + 거리가 사거리보다 먼가'로 따져, 제자리에 선 놈도 들썩였다
+    et.classList.toggle('walk', !f.dead && f.to != null && f.to !== f.x);
     const fr = et.querySelector('.reach');                          // v9.1.0: 이 놈이 어디까지 닿나
     if (fr){
       const on = !f.dead && exp.foe === +et.dataset.foe && exp.phase === 'fight';
