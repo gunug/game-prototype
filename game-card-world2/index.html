@@ -414,12 +414,9 @@
   .exp-lane .lane-near{z-index:4;}                                /* v9.18.0: 그보다 더 앞 (제일 가까운 겹) */
   /* v9.20.0: 둘이 나가면 줄이 둘 — 줄마다 제 캐릭터를 따라가는 카메라 */
   .exp-one + .exp-one{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.12);}   /* v9.22.0: 원정 덩이 사이 */
-  .exp-lane.two{height:calc(var(--ch) * .86);margin-bottom:3px;}
-  .exp-lane.two .tok{height:calc(var(--ch) * .46 * var(--tsz,1));}   /* 줄이 둘이면 토큰과 수치 상자를 줄여 안 잘리게 */
+  /* v9.48.0: 줄은 늘 하나라 '두 줄' 꼴은 없앴다 */
   /* v9.44.0: 레이드 줄은 **더 높다** — 두 배짜리 주인이 위로 잘리지 않게 */
   .exp-lane.raid{height:calc(var(--ch) * 1.45);}
-  .exp-lane.raid.two{height:calc(var(--ch) * 1.19);}
-  .exp-lane.two .tok .hp{padding:1px 5px;font-size:calc(var(--cf) * .08);line-height:1.25;}
   .exp-lane .lane-who{position:absolute;left:5px;top:3px;z-index:6;font-size:calc(var(--cf) * .1);font-weight:800;
     color:rgba(255,255,255,.55);text-shadow:0 1px 2px #000;font-style:normal;pointer-events:none;}
   .exp-lane .tok.hero{animation:none;}
@@ -1597,7 +1594,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.47.3';
+const VERSION = 'v9.48.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3876,13 +3873,11 @@ function screenRows(){
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
-      // v9.45.0: 다른 레이드가 도는 동안엔 들어갈 수 없다 — 어디가 도는지 적어 준다
-      const busyRaid = f.raid ? EXPS.find(E => E.id !== f.id && (FIELD_BY_ID[E.id] || {}).raid) : null;
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
         + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>`
-          : busyRaid ? `<div class="lockbox"><b class="lockneed">${esc(FIELD_BY_ID[busyRaid.id].name)} 레이드 진행 중</b></div>` : '')
+          : '')
         + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">🎯 ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2 · v7.10.0: 목표 그림으로
         + '</div>';
       // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
@@ -3893,7 +3888,7 @@ function screenRows(){
       const slots = PARTY.map((open, i) => {
         const who = here[i] || null;
         return {
-          id: `${f.id}:${i}`, open: open && !locked && !busyRaid,   // v0.35.0 잠긴 필드 · v9.45.0 다른 레이드 중
+          id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
           card: !!(open && who),
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
           cardName: who ? hName(who) : '', frame: who === 'ally' ? 'bronze' : 'gold', lab: '출전',
@@ -5042,16 +5037,6 @@ function expStart(id, cardEl, who){
     }
     logEv('blocked', { why: 'hp', field: id }); toast(`🩸 ${hName(who)} 빈사`); return;
   }
-  // v9.45.0: **레이드는 한 번에 한 곳만** — 다른 레이드가 돌고 있으면 못 들어간다
-  if ((FIELD_BY_ID[id] || {}).raid){
-    const busy = EXPS.find(E => E.id !== id && (FIELD_BY_ID[E.id] || {}).raid);
-    if (busy){
-      logEv('blocked', { why: 'raid', field: id, busy: busy.id });
-      flash(cardEl, 'fail', 600);
-      toast(`🗼 ${FIELD_BY_ID[busy.id].name} 레이드 진행 중`);
-      return;
-    }
-  }
   if (fieldLocked(id)){
     logEv('blocked', { why: 'locked', field: id });                // v7.7.0
     flash(cardEl, 'fail', 600);
@@ -5649,10 +5634,10 @@ function expBlockHtml(E){
   const showMark = mark > 0.02 && !(S.cleared || []).includes(exp.id);   // 이미 깬 필드엔 안 보임
   // v9.0.0: 자리는 **그릴 때** 정한다 — 화면은 트랙의 열 칸 남짓만 보여 주고 카메라가 기사를 따라간다
   // v9.20.0: 나간 캐릭터마다 **한 줄**. 줄마다 같은 싸움을 보여 주되 카메라만 제 캐릭터를 따라간다
-  // v9.45.0: **레이드는 줄이 하나다** — 모두가 같은 화면에 서서 같은 주인을 본다 (필드 · 던전은 캐릭터마다 한 줄)
+  // v9.48.0: **줄은 언제나 하나다** — 같은 땅에 나간 이들은 모두 같은 화면에 선다.
+  //   (v9.20.0 ~ v9.45.0: 캐릭터마다 한 줄이었다. 레이드만 한 줄로 바꿔 보니 그쪽이 읽기 쉬웠다)
   const isRaid = !!(FIELD_BY_ID[exp.id] || {}).raid;
-  const laneHtml = who => `<div class="exp-lane${!isRaid && exp.party.length > 1 ? ' two' : ''}`
-    + `${isRaid ? ' raid' : ''}" data-hero="${who}">`             // v9.44.0: 레이드 줄은 더 높다
+  const laneHtml = who => `<div class="exp-lane${isRaid ? ' raid' : ''}" data-hero="${who}">`   // v9.44.0: 레이드 줄은 더 높다
     + '<i class="lane-far"></i><i class="lane-ground"></i><i class="lane-edge"></i>'   // v9.8.0 원경 · 지면 · v9.15.0 경계
     + '<div class="lane-props"></div><i class="lane-grid"></i>'   // v9.8.0 흩뿌린 오브제 · v9.1.0 칸 눈금
     + (showMark ? '<div class="mark"></div>' : '')
@@ -5667,8 +5652,8 @@ function expBlockHtml(E){
         + `<img class="pic" src="images/portrait/${hPic(k)}.png" alt="${hName(k)}" draggable="false"></div>`).join('')
     + '<div class="lane-front"></div><div class="lane-near"></div>'   // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
     + '<i class="lane-dim l"></i><i class="lane-dim r"></i>'          // v9.19.0: 무대 밖은 덮는다
-    + `<i class="lane-who">${esc(isRaid ? exp.party.map(hName).join(' · ') : hName(who))}</i></div>`;
-  const inner = (isRaid ? [laneHtml(exp.party[0])] : exp.party.map(laneHtml)).join('')
+    + `<i class="lane-who">${esc(exp.party.map(hName).join(' · '))}</i></div>`;
+  const inner = laneHtml(exp.party[0])
     // 전체 트랙은 아래 **미니맵**으로 (지금 어디쯤인지 · 앞에 무엇이 남았는지)
     + '<div class="exp-map"><i class="mp-bar"></i>'
     + exp.spots.map((sp, i) => `<b class="mp-spot" data-mspot="${i}"></b>`).join('')
@@ -5795,10 +5780,9 @@ function paintLane(el, lane){
   // v9.41.0: **교전 중인 적 가운데 가장 먼 놈**까지 담는다 —
   //   ① 내가 때릴 수 있거나 ② 그놈이 나를 때릴 수 있거나. 아군은 안 담는다(가장자리에 걸려도 된다).
   //   ②가 없으면 사거리 긴 크리처가 생겼을 때 **때린 놈이 화면 밖**이라 맞는 까닭이 안 보인다
-  // v9.45.0: 레이드 한 줄은 **나간 이들 모두**와 그들이 교전 중인 적을 함께 담는다
-  const raidLane = lane.classList.contains('raid');
+  // v9.48.0: 줄이 하나이므로 카메라는 **나간 이들 모두**와 그들이 교전 중인 적을 함께 담는다
   const posOf = h2 => (h2 && h2.xd != null) ? h2.xd : (h2 ? h2.x : 0);
-  const crew = raidLane ? exp.party.filter(k2 => exp.P[k2] && !exp.P[k2].out) : [camK];
+  const crew = exp.party.filter(k2 => exp.P[k2] && !exp.P[k2].out);
   const xs = (crew.length ? crew : [camK]).map(k2 => posOf(exp.P[k2]));
   const fxs = (crew.length ? crew : [camK]).map(k2 => camFoe(k2)).filter(Boolean).map(posOf);
   const spanLo = Math.min(...xs, ...fxs), spanHi = Math.max(...xs, ...fxs);
@@ -5810,7 +5794,7 @@ function paintLane(el, lane){
   const camDt = C.t ? Math.min(200, nowMs - C.t) : 16;
   C.t = nowMs;
   // v9.27.0: 담아야 할 칸 수 — 싸우는 동안엔 **둘 사이 거리 + 두 칸**
-  const kxView = raidLane ? (Math.min(...xs) + Math.max(...xs)) / 2 : kxView0;   // 레이드는 무리의 가운데
+  const kxView = xs.length ? (Math.min(...xs) + Math.max(...xs)) / 2 : kxView0;   // 무리의 가운데
   const needKan = (hasFoe || xs.length > 1) ? Math.max(STAGE_KAN, spanHi - spanLo + 2) : STAGE_KAN;
   const wantKAN = Math.max(MIN_KAN, Math.min(baseKAN, stageW / needKan));
   C.kan = C.kan == null ? wantKAN : C.kan + (wantKAN - C.kan) * Math.min(1, camDt / ZOOM_MS);   // 부드럽게
