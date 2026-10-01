@@ -235,7 +235,7 @@ function makeAI({ ctx, clock }){
         if (foes.some(f => f.thorns))
           return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
         if (foes.some(f => f.shell))
-          return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) >= 1.1 && mine(t));
+          return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 1.4 && mine(t));
         return true;
       })()`);
     },
@@ -244,7 +244,7 @@ function makeAI({ ctx, clock }){
       return g(`(function(){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const want = foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
-          : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) >= 1.1
+          : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 1.4
           : null;
         if (!want) return null;
         const list = CRAFT_TYPES.filter(t => want(t) && have(t) <= 0 && aimReady(t))
@@ -269,7 +269,7 @@ function makeAI({ ctx, clock }){
           if (needBleed && d.bleed) v += 20;
           if (needPierce && d.pierce) v += 20;
           if (needRange && useOf(t).includes('원거리무기')) v += 30;   // 붙지 않는 것이 제일 크다
-          if (needFast) v += (d.aps || 1) * 12;                       // 껍질은 때린 횟수로 깎인다
+          if (needFast) v += (d.aps || 1) * (d.multi || 1) * 12;                       // 껍질은 때린 횟수로 깎인다
           if (v > bV){ bV = v; bT = t; }
         }
         if (bT && equipped('weapon') !== bT){ const sl = slotByKey('weapon'); if (have(bT) > 0) equipCard(sl, bT); }

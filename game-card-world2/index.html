@@ -1184,6 +1184,12 @@ const DEFS = {
   rimshield: { name:'테 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
+  // v9.52.0: **연타** — 한 번 휘두를 때 세 번 꽂힌다 (같은 공격 속도 안에서 ×3).
+  //   한 대의 세기는 낮지만 **때린 횟수**가 세 배라, 껍질처럼 '횟수'로 깎이는 것에 강하다
+  clawblade: { name:'집게 날', kind:'material', step:3, group:'gear' },   // v9.52.0: 집게발을 갈아 세운 날
+  forktip:   { name:'갈래 촉', kind:'material', step:3, group:'gear' },   // v9.52.0: 촉을 셋으로 벌린 것
+  multiknife:{ name:'연타 단검', kind:'material', step:5, group:'gear', atk:2, aps:1, multi:3 },
+  multibow:  { name:'연타 활',   kind:'material', step:5, group:'gear', atk:2, aps:0.9, range:5, multi:3 },
   battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true, spd:-1, aps:0.7 },   // v8.0.0: 묵직해서 느리다 · 느리게 때린다       // v4.0.0: 방어를 0으로 치는 무기
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
@@ -1225,6 +1231,9 @@ const USE = {
   grass:['건축재료', '도구재료'], seed:['음식재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['음식재료', '약품재료', '생산재료'],
   // 2단계
   blade:['무기재료', '도구재료'], whetstone:['도구재료'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장. v3.6.1: '손질lv1' 태그 폐기 — 조합식에 뗀석기를 그대로 적는다
+  multiknife:['무기', '근접무기'], multibow:['무기', '원거리무기'],   // v9.52.0: 연타
+  clawblade:['무기재료'], forktip:['무기재료'],                      // v9.52.0: 연타 부품
+  pincer:['무기재료'],                                              // v9.52.0: 집게발 — 집게 날의 몸
   stoneknife:['무기', '근접무기'],   // v1.9.0: 기사가 드는 건 근접무기뿐
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
   // v0.95.0: 다만 **연장으로 쓰이는 것**은 그 화면의 재료 태그를 갖는다 (뗀석기의 `갑옷재료`)                  // v0.22.1: 완성 도구. v0.34.0: 뗀석기는 재료로도 쓰여 위·아래 모두
@@ -1324,6 +1333,10 @@ const DESC = {
   fish:  '물 밖에선 할 말이 없어 보인다.',
   honeycomb: '달콤함의 대가는 벌 떼가 청구한다.',
   blade:     '돌이 부싯돌을 때렸다. 떨어져 나간 쪽이 날이 됐다. 쥘 데가 없어 아직 칼은 아니다.',
+  clawblade: '집게발을 숫돌에 갈아 세 갈래로 세웠다. 한 번에 세 줄이 그어진다.',
+  forktip:   '가시 촉 끝을 송곳니로 쪼개 셋으로 벌렸다.',
+  multiknife:'흑요석 칼에 집게 날을 덧댔다. 한 번 긋는데 세 번 긁힌다.',
+  multibow:  '시위에 갈래 촉을 물렸다. 한 번 쏘면 세 대가 흩어져 박힌다.',
   stoneknife:'뗀석기 날을 나무 손잡이에 끼워 묶었다. 내리치면 제법 쪼개진다.',
   whetstone: '모래에 문질러 매끈해진 돌. 이제 남을 매끈하게 만든다.',
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
@@ -1482,6 +1495,11 @@ const RECIPES = [
   // v2.0.0: 🌾 초원 — 섬유끈으로 자루를 길게, 뗀석기 도끼에 달면 손도끼
   { id:'longhandle',   a:{ card:'firewood' },   b:{ card:'cord' },     out:['longhandle'] },
   { id:'handaxe',      a:{ card:'stoneknife' }, b:{ card:'longhandle' }, out:['handaxe'] },
+  // v9.52.0: 연타 — 재료는 껍질 동굴 **앞에서** 다 모인다 (집게발은 🏞️ 강가 가재 · 악어, 가시 촉은 🔨 조합)
+  { id:'clawblade',    a:{ card:'pincer' },        b:{ card:'whetstone' }, out:['clawblade'] },
+  { id:'forktip',      a:{ card:'barbtip' },       b:{ card:'fang' },      out:['forktip'] },
+  { id:'multiknife',   a:{ card:'obsidianknife' }, b:{ card:'clawblade' }, out:['multiknife'] },
+  { id:'multibow',     a:{ card:'huntbow' },       b:{ card:'forktip' },   out:['multibow'] },
   { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
   { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
   // v2.1.0: 🌲 숲 — 송곳니 창에 긴 자루 (송곳니는 이제 늑대 두목이 주로 떨굼)
@@ -1627,7 +1645,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.51.0';
+const VERSION = 'v9.52.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2266,7 +2284,8 @@ function statsHtml(t){
   const showRange = d.range && d.range > BASE_RANGE;              // v8.3.0: 맨손보다 멀리 닿는 무기만
   if (!d.atk && !d.def && !camp && !showRange && !d.spd) return '';
   // v8.4.0: 성격(방어 무시 · 출혈)은 수치 줄이 아니라 **카드 위쪽 라운드 박스**로 — 한눈에 성격부터 읽히게
-  const trait = d.pierce ? '<div class="trait-b">방어 무시</div>'           // v4.3.0
+  const trait = d.multi > 1 ? `<div class="trait-b">연타 ×${d.multi}</div>`   // v9.52.0
+    : d.pierce ? '<div class="trait-b">방어 무시</div>'                       // v4.3.0
     : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>` : '';    // v6.0.0
   return trait + '<div class="stats">'                             // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
@@ -2845,6 +2864,7 @@ function renderInsp(){
   if (DESC[t]) h += `<div class="desc">${esc(DESC[t])}</div>`;
   const chips = shownUses(t).map(x => `<span class="chip use">${esc(x)}</span>`);   // v0.19.0: 용도 태그. v0.74.0: 쓸 화면이 있는 것만
   if (d.atk) chips.push(`<span class="chip">${statImg('atk')} ${d.atk}</span>`);
+  if (d.multi > 1) chips.push(`<span class="chip trait">연타 ×${d.multi}</span>`);   // v9.52.0
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
   if (d.range) chips.push(`<span class="chip">${statImg('range')} 사거리 ${d.range}</span>`);        // v8.0.0 · v8.3.0
@@ -4450,7 +4470,8 @@ function fieldArmTip(id){
   const what = needBleed ? '살이 도로 차오른다' : needPierce ? '가죽이 돌처럼 단단하다'
     : needRange ? '붙어서 치면 그만큼 되돌아온다' : '겉껍질을 먼저 깨야 한다';
   const fits = t => (needBleed && DEFS[t].bleed) || (needPierce && DEFS[t].pierce)
-    || (needRange && useOf(t).includes('원거리무기')) || (needFast && (DEFS[t].aps || 1) >= 1.1);
+    || (needRange && useOf(t).includes('원거리무기'))
+    || (needFast && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 1.4);   // v9.52.0: 연타는 때린 횟수로 친다
   if (now && fits(now)) return { ok: true, why, type: now };
   const mine = CRAFT_TYPES.filter(t => useOf(t).some(u => u.includes('무기')) && have(t) > 0 && fits(t))
     .sort((a, b) => (DEFS[b].atk || 0) - (DEFS[a].atk || 0))[0];
@@ -4712,6 +4733,7 @@ const hAps = k => hWeap(k, 'aps', BASE_APS);                      // v9.0.0: 초
 const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출혈
 // v4.0.0: **방어 무시** — 상대 방어를 0으로 친다 (코드 키 이름만 `pierce`).
 //   v9.46.2: 앞을 뚫고 뒤까지 때리는 기능은 **없다**. 그 말과 섞어 쓰지 않는다
+const hMulti = k => Math.max(1, hWeap(k, 'multi', 1));            // v9.52.0: 한 번 휘두를 때 몇 번 꽂히나
 const hPierce = k => !!hWeap(k, 'pierce', false);
 const hAlive = k => hSt(k).hp > 0;
 // 옛 이름들 (기사 전용으로 부르던 곳)
@@ -5535,26 +5557,29 @@ function expFight(dt){
       const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
       const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
       const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
-      // v9.50.0: **겉껍질** — 깨지기 전엔 피해가 안 들어간다. 한 대에 하나씩만 깎인다 (빠른 무기가 답)
+      const times = hMulti(k);                                    // v9.52.0: 연타 — 같은 박자 안에서 여러 번
+      for (let i = 0; i < times && e.hp > 0; i++){
+      const lateMs = i * 90;                                      // 한 대씩 조금 늦게 꽂힌다
+      // v9.50.0: **겉껍질** — 깨지기 전엔 피해가 안 들어간다. 한 대에 하나씩만 깎인다 (때린 횟수가 답)
       if ((e.sh == null ? (e.sh = def.shell || 0) : e.sh) > 0){
         e.sh -= 1;
         e.awake = true;
         exp.stallMs = 0;                                          // 껍질을 깎는 동안은 '진척 없음'이 아니다
-        expSwing(k, exp.foe, 0, false, 'shell');
+        expSwing(k, exp.foe, 0, false, 'shell', lateMs);
         if (e.sh <= 0) exp.line = `${def.name}의 껍질이 깨졌다`;
         continue;
       }
       if (hRanged(k)){                                            // v9.35.0: 활은 **닿을 때** 들어간다 (깨우는 것도 그때)
-        const fly = flyMsOf(g);
+        const fly = flyMsOf(g) + lateMs;
         exp.shots = exp.shots || [];
-        exp.shots.push({ to: exp.foe, dmg, bleed, t: fly });
+        exp.shots.push({ to: exp.foe, dmg, bleed: i === 0 ? bleed : 0, t: fly });
         expSwing(k, exp.foe, dmg, blocked, kindTxt, fly);
-        if (bleed) expSwing(k, exp.foe, bleed, false, 'bleed', fly);
+        if (bleed && i === 0) expSwing(k, exp.foe, bleed, false, 'bleed', fly);
       } else {
         e.hp -= dmg;
         e.awake = true;                                            // v9.36.0: 맞으면 깨어난다
-        expSwing(k, exp.foe, dmg, blocked, kindTxt);               // v9.29.0: 방어 무시도 표시
-        if (bleed && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed'); }
+        expSwing(k, exp.foe, dmg, blocked, kindTxt, lateMs);       // v9.29.0: 방어 무시도 표시
+        if (bleed && i === 0 && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed', lateMs); }
         // v9.50.0: **되돌려받기** — 붙어서 친 쪽이 그만큼 아프다 (활로 쏘면 안 돌아온다)
         const back = def.thorns || 0;
         if (back > 0){
@@ -5568,6 +5593,7 @@ function expFight(dt){
           }
         }
       }
+      }                                                           // v9.52.0: 연타 고리 끝
     }
     if (!hit) h.cd = Math.min(h.cd, every);
     if (hit) anyHit = true;
@@ -6459,6 +6485,7 @@ function expSwing(from, to, dmg, blocked, kind, flyMs){                 // v4.3.
     // 캐릭터가 때릴 때만 그림을 낸다. 출혈은 이어지는 피해라 따로 안 그린다
     if (who && kind !== 'bleed' && a && a.parentElement === b.parentElement){
       if (bow){ const ms = shotFx(a, b, flyMs); if (ms) wait = ms; }   // 궤적은 shotFx 가 함께 그린다
+      else if (flyMs) setTimeout(() => swingFx(a, b, who), flyMs);     // v9.52.0: 연타는 한 대씩 늦게
       else swingFx(a, b, who);
     }
     if (foeKind && a && a.parentElement === b.parentElement){      // v9.43.0: 크리처의 공격 그림
