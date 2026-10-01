@@ -1627,7 +1627,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.50.1';
+const VERSION = 'v9.50.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4940,7 +4940,9 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct, shift0, baseKA
       const off = (cellRnd(c, salt + 7) - 0.5) * 0.7;              // 칸 안에서 좌우로 조금
       const sc = 0.85 + cellRnd(c, salt + 13) * 0.35;              // 크기도 조금씩
       const flip = cellRnd(c, salt + 19) < 0.5 ? ' flip' : '';
-      const anchor = pick.top ? 'top:0' : `bottom:${bottomPct}%`;  // v9.18.0: 천장에 매달리는 것(종유석 · 덩굴)
+      // v9.18.0 천장에 매달리는 것(종유석 · 덩굴) · v9.50.2: 층은 **밑변 기준**으로 줌하므로,
+      //   천장에 붙은 것은 줌아웃하면 아래로 내려와 허공에 떴다. `--topfix` 로 그만큼 끌어올려 천장에 붙여 둔다
+      const anchor = pick.top ? 'top:var(--topfix,0px)' : `bottom:${bottomPct}%`;
       html += `<img class="pr${flip}" src="images/icon/${pick.file}.png" alt="" draggable="false" data-c="${c}"`
         + ` style="left:${((c + 0.5 + off) * baseKAN).toFixed(1)}px;height:${(pick.h * sc * 100).toFixed(1)}%;${anchor};opacity:0">`;
     }
@@ -4949,6 +4951,7 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct, shift0, baseKA
     box._items = [...box.children].map(el => ({ el, c: +el.dataset.c, left: parseFloat(el.style.left), w: el.offsetWidth || 40 }));
   }
   const z = KAN / baseKAN;                                        // v9.28.1: 줌은 층 통째로 (자리는 그대로)
+  box.style.setProperty('--topfix', ((1 - 1 / Math.max(0.05, z)) * 100).toFixed(2) + '%');   // v9.50.2: 천장 붙박이 보정
   box.style.transformOrigin = '0 100%';
   box.style.transform = `translate3d(${((shift0 || 0) - base * KAN).toFixed(1)}px,0,0) scale(${z.toFixed(4)})`;
   box._base = base; box._shift0 = shift0 || 0; box._z = z;
