@@ -489,6 +489,8 @@
   .exp-lane .dmg.heal{color:#9cf5a8;font-weight:900;font-size:calc(var(--cf) * .22);   /* v6.0.0 · v9.48.9: 더 크고 밝게 */
     text-shadow:0 0 4px rgba(0,0,0,.95), 0 0 10px rgba(80,230,90,.9), 0 2px 6px rgba(0,0,0,.8);}
   .exp-lane .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
+  .exp-lane .dmg.thornhit{color:#ffb0e0;text-shadow:0 0 6px rgba(255,120,200,.6);font-weight:900;}   /* v9.50.0: 되받음 */
+  .exp-lane .dmg.shellhit{color:#cfe3ff;text-shadow:0 0 6px rgba(150,190,255,.6);font-weight:900;}   /* v9.50.0: 껍질 */
   .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   /* v9.29.0: 숫자는 **떠오르며 사라진다**. `floatUp` 키프레임이 없어서 그대로 겹쳐 쌓여 안 읽혔다 */
   .exp-lane .dmg{position:absolute;z-index:6;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
@@ -1029,6 +1031,16 @@ const FIELDS = [                                                  // v0.9.1: 순
   { id:'swamptomb', name:'늪지 무덤', emoji:'🍄', dungeon:true,
     desc:'굴 아래로 물이 고인 자리. 무너진 돌무덤을 이끼가 덮었고, 그 속에서 무언가가 아직 숨을 쉰다.',
     exp:'기사는 정강이까지 잠기는 물을 헤치며 걷는다. 발밑에서 포자가 피어오르고, 무덤 안쪽에서 축축한 것이 몸을 일으킨다.' },
+  // v9.50.0: 🕸 거미 둥지 — 셋째 던전. **가까이 가면 되돌려받는다** (붙어서 치면 그만큼 아프다).
+  //   해법은 **원거리** — 활을 든 궁수를 함께 보내거나, 기사도 멀리서 때릴 수단이 있어야 한다
+  { id:'spidernest', name:'거미 둥지', emoji:'🕸', dungeon:true,
+    desc:'나무 사이가 온통 거미줄이다. 안쪽에서 무언가가 줄을 타고 내려다본다.',
+    exp:'기사는 끈적한 줄을 끊으며 안으로 들어간다. 붙어서 치면 그만큼 되돌아온다 — 멀리서 쏘는 편이 낫다.' },
+  // v9.50.0: 🐚 껍질 동굴 — 넷째 던전. **겉껍질을 먼저 깨야** 안쪽에 닿는다.
+  //   해법은 **빠른 무기** — 한 대의 세기가 아니라 **때린 횟수**로 껍질이 깨진다
+  { id:'shellcave',  name:'껍질 동굴', emoji:'🐚', dungeon:true,
+    desc:'바닷물이 드나드는 굴. 바닥이 깨진 껍데기로 덮여 바스락거린다.',
+    exp:'기사는 발밑에서 바스러지는 껍데기를 밟으며 걷는다. 안쪽 것들은 두꺼운 껍질을 쓰고 있다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
   // v9.42.0: 🗼 부서진 탑 — **첫 보스 레이드.** 길목도 잡졸도 없다. 탑 하나와 그 꼭대기의 눈뿐이다.
@@ -1615,7 +1627,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.49.1';
+const VERSION = 'v9.50.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1858,7 +1870,7 @@ function questGroupState(def){
 //   · 이동속도 N = **1초에 N칸** 전진
 //   · 공격속도 N = **1초에 N번** 때린다
 //   그래서 사거리 10 · 공속 1 인 상대에게 이속 3 으로 다가가면 (10−1)/3 ≈ 3초, 세 대를 맞고 붙는다
-const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36, towerruin: 36 };   // 땅마다 트랙 길이 (칸). 없으면 60
+const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36, spidernest: 36, shellcave: 36, towerruin: 36 };   // 땅마다 트랙 길이 (칸). 없으면 60
 const laneLen = id => LANE_OF[id] || 60;
 const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷는 칸 · 맨손 사거리 · 초당 공격 횟수
 // 적의 움직임 — chase(다가옴, **기본**) · hold(자리 지킴) · kite(사거리를 지키며 물러남)
@@ -3202,8 +3214,10 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:2, id:'obsidianblade', role:'🔑 열쇠' },
     { d:3, id:'obsidian',      role:'굴 안에서만' },
   ] },
-  { name:'🕸 거미 둥지', kind:'가까이 가면 반격', nodes: [
-    { d:0, name:'둥지 주인',   make:'붙어서 치면 그만큼 되돌려받음', tags:['해법: 원거리 · 던지기'] },
+  { field:'spidernest', name:'🕸 거미 둥지', kind:'셋째 던전 · 가까이 가면 반격', nodes: [
+    { d:0, name:'거미',        make:'체12 · 공5 · 방2 — 되받음 2', on:true },
+    { d:0, name:'⚔ 거미 어미',  make:'체20 · 공7 · 방3 — 되받음 4', on:true },
+    { d:0, name:'👑 둥지 주인',  make:'체34 · 공9 · 방4 — 되받음 8', on:true, tags:['해법: 원거리'] },
     { d:1, name:'사냥활',      make:'활대 + 시위',          tags:['원거리'] },
     { d:2, name:'🔑 활대 · 시위', make:'나무 자루 + 뗀석기 / 섬유끈 + 수액' },
     { d:1, name:'투창',        make:'송곳니 창 + 깃털',      tags:['던지기'] },
@@ -3217,8 +3231,10 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:2, id:'obsidianblade', role:'🔑 열쇠' },
     { d:3, id:'toothdagger',   role:'몸이 될 단검' },
   ] },
-  { name:'🐚 껍질 동굴', kind:'단단한 껍질', nodes: [
-    { d:0, name:'동굴 주인',   make:'겉껍질을 뚫지 못하면 안쪽에 닿지 않음', tags:['해법: 방어 무시'] },
+  { field:'shellcave', name:'🐚 껍질 동굴', kind:'넷째 던전 · 단단한 껍질', nodes: [
+    { d:0, name:'소라게',      make:'체14 · 공6 · 방3 — 껍질 3', on:true },
+    { d:0, name:'⚔ 큰 집게',    make:'체22 · 공8 · 방4 — 껍질 6', on:true },
+    { d:0, name:'👑 동굴 주인',  make:'체34 · 공10 · 방5 — 껍질 14 (한 대에 한 겹)', on:true, tags:['해법: 빠른 공속'] },
     { d:1, name:'삼지창',      make:'긴 창 + 송곳니', tags:['방어 무시','연타'] },
     { d:2, id:'fang' },
     { d:2, name:'🔑 나무 자루', make:'나무 손잡이 + 섬유끈 (긴 창을 만들 때)' },
@@ -4421,14 +4437,18 @@ function renderGoalInsp(){
 function fieldArmTip(id){
   const foes = planOf(id).filter(e => e.fight).map(e => ENEMIES[e.fight]).filter(Boolean);
   const needBleed = foes.some(e => e.regen), needPierce = foes.some(e => e.def >= 9);
-  if (!needBleed && !needPierce) return null;
+  const needRange = foes.some(e => e.thorns), needFast = foes.some(e => e.shell);   // v9.50.0: 되받음 · 껍질
+  if (!needBleed && !needPierce && !needRange && !needFast) return null;
   const now = equipped('weapon');
-  const fits = t => (needBleed && DEFS[t].bleed) || (needPierce && DEFS[t].pierce);
-  if (now && fits(now)) return { ok: true, why: needBleed ? '출혈' : '방어 무시', type: now };
-  const mine = CRAFT_TYPES.filter(t => useOf(t).includes('근접무기') && have(t) > 0 && fits(t))
+  const why = needBleed ? '출혈' : needPierce ? '방어 무시' : needRange ? '원거리' : '빠른 공속';
+  const what = needBleed ? '살이 도로 차오른다' : needPierce ? '가죽이 돌처럼 단단하다'
+    : needRange ? '붙어서 치면 그만큼 되돌아온다' : '겉껍질을 먼저 깨야 한다';
+  const fits = t => (needBleed && DEFS[t].bleed) || (needPierce && DEFS[t].pierce)
+    || (needRange && useOf(t).includes('원거리무기')) || (needFast && (DEFS[t].aps || 1) >= 1.1);
+  if (now && fits(now)) return { ok: true, why, type: now };
+  const mine = CRAFT_TYPES.filter(t => useOf(t).some(u => u.includes('무기')) && have(t) > 0 && fits(t))
     .sort((a, b) => (DEFS[b].atk || 0) - (DEFS[a].atk || 0))[0];
-  return { ok: false, why: needBleed ? '출혈' : '방어 무시', type: mine || null,
-    what: needBleed ? '살이 도로 차오른다' : '가죽이 돌처럼 단단하다' };
+  return { ok: false, why, type: mine || null, what };
 }
 // v8.6.0 · v9.4.0: 상태 한 칸 — 그림 · 이름 · 값을 **외곽선으로 묶은 상자**.
 //   상자 최소 폭을 정해 두고 자리가 넓으면 여러 단으로 깔린다 (인스펙터 폭이 바뀌어도 알아서 맞음)
@@ -4629,6 +4649,21 @@ const ENEMIES = {
     loot: [['scale', 45, 1], ['pincer', 30, 1], ['shellpiece', 25, 1]] },
   catfish:   { name:'큰 메기',  spd:3, aps:0.9, portrait:'portrait_catfish',   atk:9, def:3, hp:60,
     loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
+  // v9.50.0: 🕸 거미 둥지 — `thorns` = **붙어서 맞으면 때린 쪽이 그만큼 아프다** (근접만. 활은 안 돌려받는다)
+  spider:    { name:'거미',     spd:3, aps:1.1, portrait:'portrait_spider',    atk:5, def:2, hp:12, thorns:2,
+    loot: [['sinew', 45, 1], ['fang', 30, 1], ['feather', 20, 1]] },
+  webmother: { name:'거미 어미', spd:2, aps:1,   portrait:'portrait_webmother', atk:7, def:3, hp:20, thorns:4,
+    loot: [['sinew', 60, 2], ['fang', 40, 1]] },
+  nestkeeper:{ name:'둥지 주인', spd:2, aps:0.9, portrait:'portrait_nestkeeper', atk:9, def:4, hp:34, thorns:8,
+    loot: [['sinew', 100, 2], ['feather', 60, 2], ['fang', 40, 1]] },
+  // v9.50.0: 🐚 껍질 동굴 — `shell` = **겉껍질**. 깨지기 전에는 피해가 안 들어가고, 한 대에 껍질 하나씩만 깎인다
+  //   (세기가 아니라 **때린 횟수**가 답 — 빠른 무기를 쥐어야 한다)
+  hermit:    { name:'소라게',   spd:2, aps:1,   portrait:'portrait_hermit',    atk:6, def:3, hp:14, shell:3,
+    loot: [['shellpiece', 50, 1], ['pincer', 35, 1]] },
+  bigpincer: { name:'큰 집게',  spd:2, aps:0.9, portrait:'portrait_bigpincer', atk:8, def:4, hp:22, shell:6,
+    loot: [['pincer', 60, 2], ['shellpiece', 40, 1]] },
+  cavekeeper:{ name:'동굴 주인', spd:2, aps:0.9, portrait:'portrait_cavekeeper', atk:10, def:5, hp:34, shell:14,
+    loot: [['shellpiece', 100, 2], ['pincer', 60, 2], ['scale', 40, 1]] },
   // v9.42.0: 👑 탑의 눈 — 첫 레이드 주인. **움직이지 않고**(move:'hold') 제자리를 지킨다.
   //   사거리 15칸 · 한 번 쏘면 **다섯 번 연달아**(hits) 꽂힌다. 한 번에 3 × 5 = 15
   towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, size:2,
@@ -4771,6 +4806,32 @@ const LANE_BG = {
              { file: 'prop_rock', h: 0.44, odds: 0.08 }],
     near:   [{ file: 'prop_stalactite', h: 0.75, odds: 0.1, top: true }, { file: 'prop_boulder', h: 0.75, odds: 0.06 }],
     nearSpeed: 1.75,                                              // v9.18.0: 맨 앞 층 — 지나가며 기사를 덮는다
+    frontSpeed: 1.3,
+  },
+  spidernest: {                                                   // v9.50.0: 거미 둥지 — 줄로 덮인 숲 속
+    far:    { file: 'bg_spidernest-far', kan: 6, speed: 0.3 },
+    ground: { file: 'bg_spidernest-ground', kan: 4 },
+    edge:   { file: 'bg_spidernest-edge', kan: 6 },
+    props:  [{ file: 'prop_deadtree', h: 0.62, odds: 0.16 },
+             { file: 'prop_bush', h: 0.3, odds: 0.12 },
+             { file: 'prop_vine', h: 0.5, odds: 0.1, top: true }],
+    front:  [{ file: 'prop_vine', h: 0.8, odds: 0.1, top: true },
+             { file: 'prop_bush', h: 0.45, odds: 0.06 }],
+    near:   [{ file: 'prop_vine', h: 1.1, odds: 0.08, top: true }, { file: 'prop_deadtree', h: 1.0, odds: 0.05 }],
+    nearSpeed: 1.75,
+    frontSpeed: 1.3,
+  },
+  shellcave: {                                                    // v9.50.0: 껍질 동굴 — 물이 드나드는 굴
+    far:    { file: 'bg_shellcave-far', kan: 6, speed: 0.3 },
+    ground: { file: 'bg_shellcave-ground', kan: 4 },
+    edge:   { file: 'bg_shellcave-edge', kan: 6 },
+    props:  [{ file: 'prop_rock', h: 0.3, odds: 0.16 },
+             { file: 'prop_stalagmite', h: 0.52, odds: 0.12 },
+             { file: 'prop_boulder', h: 0.4, odds: 0.1 }],
+    front:  [{ file: 'prop_stalagmite', h: 0.72, odds: 0.1 },
+             { file: 'prop_rock', h: 0.5, odds: 0.07 }],
+    near:   [{ file: 'prop_stalactite', h: 0.8, odds: 0.1, top: true }, { file: 'prop_boulder', h: 0.78, odds: 0.06 }],
+    nearSpeed: 1.75,
     frontSpeed: 1.3,
   },
   towerruin: {                                                    // v9.42.0: 그을린 벌판 · 부서진 탑
@@ -5072,9 +5133,30 @@ const RAID_PLAN = [
   { loot:1, at:0.30 },
   { fight:'towereye', boss:true, at:0.90 },
 ];
+// v9.50.0: 🕸 거미 둥지 — 되돌려받는 싸움. 🐚 껍질 동굴 — 껍질을 깨는 싸움
+const NEST_PLAN = [
+  { loot:1, at:0.12 },
+  { fight:'spider', at:0.26 },
+  { loot:1, at:0.40 },
+  { fight:'spider', at:0.54 },
+  { fight:'webmother', mid:true, at:0.70 },
+  { loot:1, at:0.82 },
+  { fight:'nestkeeper', boss:true, at:0.93 },
+];
+const SHELL_PLAN = [
+  { loot:1, at:0.12 },
+  { fight:'hermit', at:0.26 },
+  { loot:1, at:0.40 },
+  { fight:'hermit', at:0.54 },
+  { fight:'bigpincer', mid:true, at:0.70 },
+  { loot:1, at:0.82 },
+  { fight:'cavekeeper', boss:true, at:0.93 },
+];
 const EXP_PLAN = {
   stonehide: DUNGEON_PLAN,
   swamptomb: SWAMP_PLAN,
+  spidernest: NEST_PLAN,
+  shellcave: SHELL_PLAN,
   towerruin: RAID_PLAN,
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
@@ -5088,7 +5170,8 @@ const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 // v0.13.4 · v9.14.0: 땅마다 채집 포인트 그림 (없으면 산 것)
 //   들머리 마른 가지 · 산 돌무더기 · 초원 약초 · 숲 통나무 · 강가 조개 · 굴 광석 · 늪지 썩은 뿌리
 const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassland', forest: 'forest',
-  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin' };
+  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin',
+  spidernest: 'spidernest', shellcave: 'shellcave' };
 // v9.22.0: **원정은 여럿** — 기사와 궁수가 서로 다른 땅에 나갈 수 있다.
 //   `EXPS` 가 진행 중인 원정들, `exp` 는 '지금 다루는 원정'(돌리거나 그리는 동안만 바뀐다)
 let EXPS = [];
@@ -5442,6 +5525,15 @@ function expFight(dt){
       const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
       const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
       const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
+      // v9.50.0: **겉껍질** — 깨지기 전엔 피해가 안 들어간다. 한 대에 하나씩만 깎인다 (빠른 무기가 답)
+      if ((e.sh == null ? (e.sh = def.shell || 0) : e.sh) > 0){
+        e.sh -= 1;
+        e.awake = true;
+        exp.stallMs = 0;                                          // 껍질을 깎는 동안은 '진척 없음'이 아니다
+        expSwing(k, exp.foe, 0, false, 'shell');
+        if (e.sh <= 0) exp.line = `${def.name}의 껍질이 깨졌다`;
+        continue;
+      }
       if (hRanged(k)){                                            // v9.35.0: 활은 **닿을 때** 들어간다 (깨우는 것도 그때)
         const fly = flyMsOf(g);
         exp.shots = exp.shots || [];
@@ -5453,6 +5545,18 @@ function expFight(dt){
         e.awake = true;                                            // v9.36.0: 맞으면 깨어난다
         expSwing(k, exp.foe, dmg, blocked, kindTxt);               // v9.29.0: 방어 무시도 표시
         if (bleed && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed'); }
+        // v9.50.0: **되돌려받기** — 붙어서 친 쪽이 그만큼 아프다 (활로 쏘면 안 돌아온다)
+        const back = def.thorns || 0;
+        if (back > 0){
+          const st2 = hSt(k);
+          st2.hp = Math.max(0, st2.hp - back);
+          expSwing(exp.foe, k, back, false, 'thorn');
+          if (st2.hp <= 0){
+            exp.P[k].out = true;
+            exp.line = `${hName(k)} 쓰러졌다`;
+            exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };
+          }
+        }
       }
     }
     if (!hit) h.cd = Math.min(h.cd, every);
@@ -6323,9 +6427,15 @@ function expSwing(from, to, dmg, blocked, kind, flyMs){                 // v4.3.
   const foeKind = !foeDef ? null : foeDef.beam ? 'beam' : foeRange(foeDef) >= 3 ? 'shot' : 'swing';
   for (const a of toksOf(from)) flash(a, 'atk', 300);
   // v9.46.2: 방어를 0으로 치는 것은 **'방어 무시'** 다 (코드 키 이름만 `pierce`)
-  const text = kind === 'bleed' ? `-${dmg} 출혈` : kind === 'pierce' ? `-${dmg} 방어 무시`
+  if (kind === 'shell'){                                          // v9.50.0: 껍질을 한 겹 깎았다
+    for (const b of toksOf(to)){ flash(b, 'hurt', 200); floatText(b, '껍질 −1', 'shellhit'); }
+    return;
+  }
+  const text = kind === 'bleed' ? `-${dmg} 출혈` : kind === 'thorn' ? `-${dmg} 되받음`
+    : kind === 'pierce' ? `-${dmg} 방어 무시`
     : blocked ? `-${dmg} 막힘` : `-${dmg}`;
-  const cls = blocked ? 'blocked' : kind === 'bleed' ? 'bleedhit' : kind === 'pierce' ? 'pierce' : '';
+  const cls = blocked ? 'blocked' : kind === 'bleed' ? 'bleedhit' : kind === 'thorn' ? 'thornhit'
+    : kind === 'pierce' ? 'pierce' : '';
   // v9.31.0: 피해가 클수록 이펙트도 크게 (최대 체력 대비)
   const maxHp = typeof to === 'number'
     ? ((ENEMIES[((exp && exp.foes[to]) || {}).key] || {}).hp || 10) : hMax(to);
@@ -6591,9 +6701,11 @@ function questStep(id){
 // v9.43.1: **열리는 조건은 표 하나로.** 자물쇠에 적는 글과 실제 해금이 같은 것을 본다.
 //   전엔 적는 쪽만 `FIELDS` 차례의 바로 앞 땅을 집어, 강가에 '늪지 무덤 클리어'라고 잘못 적혔다
 //   (해금은 바깥 땅끼리 이어지는 `OUT_FIELDS` 차례를 따르므로 실제로는 숲을 깨면 열렸다)
-const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide' };
+const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', spidernest:'swamptomb', shellcave:'spidernest' };
 const UNLOCK_SAY = { stonehide:'산이 무너진 자리에 굴이 있다',
-  swamptomb:'굴 아래로 물 흐르는 소리가 난다' };
+  swamptomb:'굴 아래로 물 흐르는 소리가 난다',
+  spidernest:'무덤 너머 나무 사이가 줄로 덮여 있다',
+  shellcave:'줄을 걷어내니 물 냄새 나는 굴이 보인다' };
 // v9.43.2: **레이드는 레이드끼리 이어진다.** 첫 레이드는 아무것도 요구하지 않는다 —
 //   필드도 던전도 깰 것 없이 언제든 덤빌 수 있다 (이길 수 있는지는 별개)
 function unlockAfter(id){                                         // 이 땅을 열려면 어디를 깨야 하나

@@ -226,20 +226,50 @@ function makeAI({ ctx, clock }){
       })()`);
     },
     // 그 땅에 맞는 무기로 바꿔 쥔다 (회복하는 놈에겐 출혈, 단단한 놈에겐 방어 무시)
+    // v9.50.0: 그 땅의 기믹에 **답이 되는 무기를 가졌나** — 없으면 지금은 갈 곳이 아니다
+    //   (지금 AI 는 궁수를 쓸 줄 모른다. 사람은 궁수를 보내거나 활을 쥐면 된다)
+    canAnswer(field){
+      return g(`(function(){
+        const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
+        const mine = t => have(t) > 0 || equipped('weapon') === t;
+        if (foes.some(f => f.thorns))
+          return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
+        if (foes.some(f => f.shell))
+          return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) >= 1.1 && mine(t));
+        return true;
+      })()`);
+    },
+    // v9.50.0: 그 땅의 기믹을 푸는 무기 하나 — 만들 줄 아는 것 가운데 가장 싼 것
+    answerFor(field){
+      return g(`(function(){
+        const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
+        const want = foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
+          : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) >= 1.1
+          : null;
+        if (!want) return null;
+        const list = CRAFT_TYPES.filter(t => want(t) && have(t) <= 0 && aimReady(t))
+          .sort((a, b) => (DEFS[a].step || 0) - (DEFS[b].step || 0));
+        return list[0] || null;
+      })()`);
+    },
     armFor(field){
       return g(`(function(){
         const plan = planOf(${JSON.stringify(field)});
         const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const needBleed = foes.some(f => f.regen), needPierce = foes.some(f => f.def >= 9);
+        const needRange = foes.some(f => f.thorns), needFast = foes.some(f => f.shell);   // v9.50.0: 되받음 · 껍질
         let bT = null, bV = -1;
         for (const t of CRAFT_TYPES){
-          if (!useOf(t).includes('근접무기')) continue;
+          if (!useOf(t).some(u => u.indexOf('무기') >= 0)) continue;   // 활도 본다 (되받는 땅에서는 활이 답)
+          if (!useOf(t).includes('근접무기') && !needRange) continue;
           const mine = have(t) > 0 || equipped('weapon') === t;
           if (!mine) continue;
           const d = DEFS[t];
           let v = (d.atk || 0);
           if (needBleed && d.bleed) v += 20;
           if (needPierce && d.pierce) v += 20;
+          if (needRange && useOf(t).includes('원거리무기')) v += 30;   // 붙지 않는 것이 제일 크다
+          if (needFast) v += (d.aps || 1) * 12;                       // 껍질은 때린 횟수로 깎인다
           if (v > bV){ bV = v; bT = t; }
         }
         if (bT && equipped('weapon') !== bT){ const sl = slotByKey('weapon'); if (have(bT) > 0) equipCard(sl, bT); }
@@ -348,7 +378,12 @@ function play(ai, note){
     const target = next || list[list.length - 1];
     if (target){
       ai.armFor(target.id);                                        // 그 땅에 맞는 무기로
-      const ok = ai.canBeat(target.id);
+      // v9.50.0: 기믹에 답이 없으면(되받음엔 활, 껍질엔 빠른 무기) **그 무기를 먼저 목표로 건다**
+      if (!ai.canAnswer(target.id)){
+        const want = ai.answerFor(target.id);
+        if (want && ai.state().goal !== want){ ai.goal(want); note(`기믹 대비 목표 ${want}`); }
+      }
+      const ok = ai.canBeat(target.id) && ai.canAnswer(target.id);
       let go = target.id;
       if (!ok){
         // 못 넘을 것 같으면 — 벌이(재료 · 경험치)와 **정찰**을 번갈아 한다.
