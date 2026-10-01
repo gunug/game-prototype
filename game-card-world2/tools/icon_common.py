@@ -38,10 +38,12 @@ PAINT = (
     "painterly brush texture, soft cel-shaded volumes, "
     "bright warm lighting, rich vivid colors, grounded mature art direction for teen and adult players. "
 )
-# 캐릭터 · 크리처 — 작게 보여도 읽히도록 슈퍼 데포르메 비율
+# 캐릭터 · 크리처 — 2026-10-02: **슈퍼 데포르메 문구를 걷어냄**.
+#   'oversized head · small compact body' 가 박혀 있어 곤충 · 짐승까지 큰 눈 달린 귀여운 꼴로 나왔다.
+#   이제 **그 종의 제 비율**로 그리라고 못 박는다 (그림체는 PAINT 로 그대로 이어진다)
 CHARACTER_PREFIX = (
-    "Stylized fantasy RPG game icon, super deformed (SD) style with chunky exaggerated proportions, "
-    "characters have an oversized head and a small compact body, " + PAINT
+    "Stylized fantasy RPG game icon, chunky readable shapes, true natural proportions for the species, "
+    "no chibi, no super deformed, no oversized head, no big cartoon eyes, " + PAINT
 )
 CHARACTER_SUFFIX = (
     ", single character, centered composition, clean readable silhouette, "
