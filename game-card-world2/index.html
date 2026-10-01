@@ -4998,8 +4998,11 @@ function expTickOne(dt){
     }
     if (exp.t >= 1){ expEnd('clear'); return; }
   } else if (exp.phase === 'search'){
-    // v9.36.0: 채집 중엔 **아무도 때리지 않는다** (궁수도 안 쏜다). 깨어난 적이 채집 칸을 넘어오면 그때 싸운다
+    // v9.36.0: 채집 중엔 **아무도 때리지 않는다** (궁수도 안 쏜다)
     for (const k of exp.party) exp.P[k].cd = 0;
+    // 안전장치 — 깨어난 적이 채집 칸을 **넘어서면** 그때 싸운다.
+    //   지금 규칙으론 걸릴 일이 없다: 깨어난 적은 그 싸움에서 죽고(광역기가 없어 남이 깨지 않는다),
+    //   쫓는 적은 제 사거리에서 멈춰 채집 칸을 밟지 못한다. 광역기 · 뒤로 도는 적이 생기면 그때 쓰인다
     const spNow = exp.spots[exp.spot];
     const over = exp.foes.findIndex(f => !f.dead && f.awake && spNow && f.x <= spNow.x);
     if (over >= 0){ expEngage(over); return; }
@@ -5133,7 +5136,8 @@ function expFoes(dt){
   }
   return { crowd, foeHit, alive, aimOf };
 }
-// v9.36.0: 싸움이 끝나면 — 뒤지던 자리가 남았으면 그 자리로 돌아간다 (채집은 없어지지 않는다)
+// v9.36.0: 싸움이 끝나면 — 뒤지던 자리가 남아 있으면 **선 자리에서 마저 뒤진다** (채집은 없어지지 않는다)
+//   뒤지는 이는 채집 칸에 서 있고 적은 그 칸을 못 밟으니(칸 점유), 싸워도 자리를 뜨지 않는다
 function expAfterFight(){
   exp.foe = -1;
   exp.phase = exp.spot >= 0 && exp.spots[exp.spot] && !exp.spots[exp.spot].done ? 'search' : 'run';
