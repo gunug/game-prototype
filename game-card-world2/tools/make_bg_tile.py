@@ -83,7 +83,8 @@ def tone_match(im, k=10):
 
 def seamless(im, band=0.16):
     """좌우가 이어지게 — 반 폭 굴린 그림을 양 끝에서 겹쳐 섞는다.
-    끝(x=0)은 굴린 그림의 값(원본 W/2)이라 되풀이해도 끊기지 않는다. 가운데는 원본 그대로."""
+    끝(x=0)은 굴린 그림의 값(원본 W/2)이라 되풀이해도 끊기지 않는다. 가운데는 원본 그대로.
+    v9.48.5: 섞는 폭(band)을 넓게 쓰고 계단을 **두 번** 매끄럽게 해 이음매가 느긋하게 녹아들게 한다."""
     W, H = im.size
     rolled = Image.new(im.mode, (W, H))
     rolled.paste(im.crop((W // 2, 0, W, H)), (0, 0))
@@ -92,9 +93,10 @@ def seamless(im, band=0.16):
     px = mask.load()
     for x in range(W):
         d = abs(x - (W - 1) / 2) / ((W - 1) / 2)                   # 가운데 0 → 끝 1
-        t = max(0.0, (d - (1 - band)) / band)
-        px[x, 0] = int(round(255 * (t * t * (3 - 2 * t))))          # 매끄러운 계단
-    return Image.composite(rolled, im, mask.resize((W, H)))
+        t = max(0.0, min(1.0, (d - (1 - band)) / band))
+        t = t * t * (3 - 2 * t)                                    # 매끄러운 계단
+        px[x, 0] = int(round(255 * t * t * (3 - 2 * t)))            # v9.48.5: 한 번 더 — 더 느긋하게 섞인다
+    return Image.composite(rolled, im, mask.resize((W, H), Image.BILINEAR))
 
 
 def main():
