@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.4';
+const VERSION = 'v9.43.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2881,6 +2881,10 @@ let BOSS_FOES = null;                                             // 대본(plan
 const bossFoes = () => BOSS_FOES || (BOSS_FOES = new Set(FIELDS.flatMap(f => planOf(f.id).filter(e => e.fight && e.boss).map(e => e.fight))));
 const foeFrame = k => bossFoes().has(k) ? 'silver' : 'bronze';
 const foeSeen = k => editMode || ((S.seenFoes || []).includes(k) && !(S.newFoes || []).includes(k));
+// v9.43.5: **이름 · 그림을 보여 줄까는 '첫 조우'로 정한다** — 싸움이 붙은 순간부터 아는 놈이다.
+//   전엔 크리처 카드만 '잡았을 때'를 봐서, 마주쳐 싸우는 중에도 카드가 ??? 였다
+//   (책의 발견 도장은 그대로 `foeSeen` — 새 것은 책에 끼우기 전까지 실루엣)
+const foeKnown = k => editMode || (S.metFoes || []).includes(k) || (S.killed || []).includes(k);
 // v9.25.0: 콜렉터북의 캐릭터 한 장 (늘 얻은 것 — 우리 편이니까)
 const HEROES_ALL = ['knight', 'ally'];
 function heroSlotHtml(k){
@@ -4003,7 +4007,7 @@ const allyCardHtml = drag => heroCardHtml('ally', drag);
 // 크리처 카드 — 레벨 · 경험치만 없고 나머지는 같다
 function foeCardHtml(key, opts){
   const e = ENEMIES[key] || {};
-  const known = (opts && opts.known !== undefined) ? opts.known : ((S.killed || []).includes(key) || editMode);
+  const known = (opts && opts.known !== undefined) ? opts.known : foeKnown(key);   // v9.43.5: 첫 조우부터
   return beingCardHtml({
     cls: `f-${foeFrame(key)} foe${known ? '' : ' unknown'}${(opts && opts.sel) ? ' sel' : ''}`,
     attrs: (opts && opts.attrs) || '',
@@ -4293,7 +4297,7 @@ function foeChips(k){
 function renderFoeInsp(){
   const k = foePick, e = ENEMIES[k];
   if (!e) return false;
-  const known = (S.killed || []).includes(k) || (S.metFoes || []).includes(k) || editMode;
+  const known = foeKnown(k);                                      // v9.43.5: 한 규칙으로
   inspEl.innerHTML = `<div class="head"><div class="pic${known ? '' : ' locked'}">`
     + `<img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
     + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
