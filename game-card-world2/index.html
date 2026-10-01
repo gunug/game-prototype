@@ -1557,7 +1557,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.40.1';
+const VERSION = 'v9.41.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5650,6 +5650,20 @@ function expPaint(){
   }
   exp = keep || EXPS[0] || null;
 }
+// v9.41.0: 이 줄의 카메라가 담아야 할 적 — 교전 중인 것 중 가장 먼 놈
+function camFoe(k){
+  const h = exp.P[k];
+  if (!h || h.out || !hAlive(k)) return null;
+  const ti = targetFor(k);
+  let best = ti >= 0 ? exp.foes[ti] : null;
+  let far = best ? Math.abs(best.x - h.x) : -1;
+  for (const f of exp.foes){                                      // 나를 때릴 수 있는 놈도 담는다 (자든 깨든)
+    if (f.dead) continue;
+    const gap = Math.abs(f.x - h.x);
+    if (foeRange(ENEMIES[f.key]) >= gap && gap > far){ far = gap; best = f; }
+  }
+  return best;
+}
 function paintLane(el, lane){
   // v9.0.0: 카메라 — 기사를 화면의 35% 자리에 두고 트랙을 흘린다. 트랙 끝에서는 카메라가 멈춘다
   const laneW = lane.clientWidth || 1;
@@ -5663,8 +5677,10 @@ function paintLane(el, lane){
   // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
   // v9.38.0: 적도 **줄 주인 기준**이다. 원정이 싸우는 중이라고 줄까지 따라 줌아웃하면,
   //   궁수가 10칸 밖 적을 쏘는 동안 **아직 싸우지도 않는 기사**가 그 적과 한 화면에 잡혔다
-  const foeIdx = targetFor(camK);                                 // 이 줄 주인이 지금 때릴 수 있는 적 (없으면 혼자)
-  const foeNow = foeIdx >= 0 ? exp.foes[foeIdx] : null;
+  // v9.41.0: **교전 중인 적 가운데 가장 먼 놈**까지 담는다 —
+  //   ① 내가 때릴 수 있거나 ② 그놈이 나를 때릴 수 있거나. 아군은 안 담는다(가장자리에 걸려도 된다).
+  //   ②가 없으면 사거리 긴 크리처가 생겼을 때 **때린 놈이 화면 밖**이라 맞는 까닭이 안 보인다
+  const foeNow = camFoe(camK);
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
   // 카메라는 **시계**로 미끄러진다 — 한 프레임에 두 번 그려도 두 배로 움직이지 않게
   const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
