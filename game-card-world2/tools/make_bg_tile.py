@@ -29,6 +29,18 @@ SCENE_SUFFIX = (
 )
 
 
+def pad_sky(im, h):
+    """원경 그림 **위쪽에 하늘을 덧댄다** — 경치는 아래에 그대로 두고 맨 윗줄 색으로 위를 채운다.
+    줄(레인)은 그림의 아래쪽만 보여 주고, 줌아웃해 그림이 짧아질 때 덧댄 하늘이 위를 덮는다.
+    맨 윗줄을 그대로 늘리므로 가로 이음매는 그대로 이어진다."""
+    W, H = im.size
+    out = Image.new(im.mode, (W, h))
+    top = im.crop((0, 0, W, 1)).resize((W, h - H), Image.NEAREST)
+    out.paste(top, (0, 0))
+    out.paste(im, (0, h - H))
+    return out
+
+
 def quiet_roll(im, band):
     """이음매를 **한산한 자리**로 옮긴다.
     섞는 자리는 두 군데 — 끝(x≈0)과 반 폭 건너(x≈W/2) — 이 둘이 함께 한산한 곳을 고른다.
@@ -96,6 +108,8 @@ def main():
     ap.add_argument("--gen-h", type=int, default=448)
     ap.add_argument("--out-w", type=int, default=288, help="저장 폭 (기본 288 = 96px 칸 셋)")
     ap.add_argument("--out-h", type=int, default=126, help="저장 높이 (기본 126 = 트랙 높이)")
+    ap.add_argument("--sky-h", type=int, default=0,
+                    help="위쪽에 하늘을 덧대어 이 높이까지 키운다 (원경용). 줌아웃해도 줄을 덮게")
     ap.add_argument("--colors", type=int, default=32)
     ap.add_argument("--band", type=float, default=0.16, help="이음매를 섞는 폭 (0~1, 기본 0.16). 넓으면 겹친 그림이 비쳐 보인다")
     ap.add_argument("--crop-bottom", type=float, default=0, help="그림의 아래 이만큼만 쓴다 (0~1). 가로로 긴 띠를 뽑을 때")
@@ -154,7 +168,10 @@ def main():
     im.save(dest)
     raw.unlink()
 
+    if a.sky_h and a.sky_h > im.size[1]:
+        im = pad_sky(im, a.sky_h)                                   # v9.46.0: 위쪽은 맨 윗줄(하늘)로 채운다
     opts = [f"--kan {a.kan}", f"--out-w {a.out_w}", f"--out-h {a.out_h}", f"--band {a.band}"]
+    if a.sky_h: opts.append(f"--sky-h {a.sky_h}")
     if a.no_seam:
         opts.append("--no-seam")
     if a.no_pick:
@@ -166,7 +183,7 @@ def main():
     if a.crop_bottom:
         opts += ["--crop-bottom", str(a.crop_bottom)]
     record(a.name, a.label, a.prompt, seed, ["(bg-tile)"] + opts, file=f"images/bg/{a.name}.png")
-    print(f"tile  {dest}  {a.out_w}x{a.out_h}  ({a.kan}칸)")
+    print(f"tile  {dest}  {im.size[0]}x{im.size[1]}  ({a.kan}칸)")
 
 
 if __name__ == "__main__":
