@@ -453,11 +453,9 @@
   .exp-lane .pr.flip{transform:translateX(-50%) scaleX(-1);}
   .exp-lane .lane-props .pr{filter:brightness(.38) saturate(.8);}  /* v9.17.0: 뒤에 있는 것은 반투명일 까닭이 없다 */
   /* 앞 오브제 — 평소엔 불투명. 기사 · 크리처와 겹칠 때만 비친다 */
-  .exp-lane .lane-front .pr{filter:brightness(.3) saturate(.85);transition:opacity .15s linear;}
-  .exp-lane .lane-front .pr.over{opacity:.45;}
+  .exp-lane .lane-front .pr{filter:brightness(.3) saturate(.85);}   /* v9.48.1: 투명도는 JS 가 천천히 몬다 */
   /* v9.18.0: 맨 앞 겹 — 더 어둡고 살짝 흐리게 (가까울수록 초점이 나간다) */
-  .exp-lane .lane-near .pr{filter:brightness(.22) saturate(.8) blur(1px);transition:opacity .15s linear;}
-  .exp-lane .lane-near .pr.over{opacity:.4;}
+  .exp-lane .lane-near .pr{filter:brightness(.22) saturate(.8) blur(1px);}   /* v9.48.1 */
   .exp-lane [hidden]{display:none;}
   /* v9.1.0: 칸 눈금 — 배경으로 깔고 카메라만큼 밀어 흐름이 보이게 */
   .exp-lane .lane-grid{position:absolute;inset:0;pointer-events:none;z-index:0;
@@ -1594,7 +1592,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.48.0';
+const VERSION = 'v9.48.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4808,12 +4806,12 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct, shift0, baseKA
       const sc = 0.85 + cellRnd(c, salt + 13) * 0.35;              // 크기도 조금씩
       const flip = cellRnd(c, salt + 19) < 0.5 ? ' flip' : '';
       const anchor = pick.top ? 'top:0' : `bottom:${bottomPct}%`;  // v9.18.0: 천장에 매달리는 것(종유석 · 덩굴)
-      html += `<img class="pr${flip}" src="images/icon/${pick.file}.png" alt="" draggable="false"`
-        + ` style="left:${((c + 0.5 + off) * baseKAN).toFixed(1)}px;height:${(pick.h * sc * 100).toFixed(1)}%;${anchor}">`;
+      html += `<img class="pr${flip}" src="images/icon/${pick.file}.png" alt="" draggable="false" data-c="${c}"`
+        + ` style="left:${((c + 0.5 + off) * baseKAN).toFixed(1)}px;height:${(pick.h * sc * 100).toFixed(1)}%;${anchor};opacity:0">`;
     }
     box.innerHTML = html;
     // v9.17.0: 겹침을 따지려면 너비가 있어야 한다 — 다시 지을 때 한 번만 재 둔다 (매 프레임 재면 느리다)
-    box._items = [...box.children].map(el => ({ el, left: parseFloat(el.style.left), w: el.offsetWidth || 40 }));
+    box._items = [...box.children].map(el => ({ el, c: +el.dataset.c, left: parseFloat(el.style.left), w: el.offsetWidth || 40 }));
   }
   const z = KAN / baseKAN;                                        // v9.28.1: 줌은 층 통째로 (자리는 그대로)
   box.style.transformOrigin = '0 100%';
@@ -4821,14 +4819,29 @@ function paintScatter(box, list, base, vis, KAN, salt, bottomPct, shift0, baseKA
   box._base = base; box._shift0 = shift0 || 0; box._z = z;
 }
 // v9.17.0: 앞 오브제는 **불투명**이 기본. 기사 · 크리처와 겹칠 때만 반투명해진다
-function frontFade(box, KAN, spots){
+// v9.48.1: 오브제의 투명도는 **JS 가 천천히 몬다** (전엔 class 를 껐다 켜 0.15초 CSS 전환 — 겹침 경계에서 번쩍였다)
+//   · 캐릭터 · 크리처와 겹치면 흐려진다 (앞 층만)
+//   · **무대 밖으로 나가면 서서히 사라진다** — 한 칸(KAN)에 걸쳐 0 이 된다. 새로 생긴 것은 0 에서 올라온다
+const FADE_MS = 170;                                              // 투명도가 목표에 다가가는 빠르기 (댐핑)
+function scatterFade(box, KAN, spots, dt, stageL, stageW, dim){
   if (!box || !box._items) return;
   const z = box._z || 1, shift = (box._base || 0) * KAN - (box._shift0 || 0);
+  const stageR = stageL + stageW, fade = Math.max(12, KAN);
+  box._al = box._al || new Map();                                 // 칸 번호 → 지금 투명도 (다시 지어도 이어진다)
+  const k = Math.min(1, (dt || 16) / FADE_MS);
   for (const it of box._items){
     const c = it.left * z - shift, half = it.w * z / 2;
-    let hit = false;
-    for (const s2 of spots) if (Math.abs(c - s2[0]) < half + s2[1]){ hit = true; break; }
-    it.el.classList.toggle('over', hit);
+    let a = 1;
+    if (dim && spots){
+      for (const s2 of spots) if (Math.abs(c - s2[0]) < half + s2[1]){ a = dim; break; }
+    }
+    const out = Math.max(stageL - (c + half), (c - half) - stageR, 0);   // 무대 밖으로 나간 거리
+    if (out > 0) a *= Math.max(0, 1 - out / fade);
+    let cur = box._al.get(it.c);
+    if (cur == null) cur = 0;                                     // 새로 생긴 것은 투명에서 시작
+    cur += (a - cur) * k;
+    box._al.set(it.c, cur);
+    it.el.style.opacity = cur.toFixed(3);
   }
 }
 // v9.6.0: **칸 점유 표** — 살아 있는 몸은 한 칸에 하나. 앞이 차 있으면 그 뒤 칸에 선다 (줄)
@@ -5852,7 +5865,10 @@ function paintLane(el, lane){
     //   층 전체가 줌(z)으로 함께 줄어드니 **기본 줌에서의 띠 높이**로 잰다
     const bandBase = baseKAN * ((cfg.ground && cfg.ground.kan) || 4) * 40 / 384;
     const bandPct = Math.round(bandBase * 0.45 / (lane.clientHeight || 1) * 100);
-    if (props && cfg.props) paintScatter(props, cfg.props, cam, vis, KAN, 1, bandPct, stageL, baseKAN);
+    if (props && cfg.props){
+      paintScatter(props, cfg.props, cam, vis, KAN, 1, bandPct, stageL, baseKAN);
+      scatterFade(props, KAN, null, camDt, stageL, stageW, 0);     // 뒤 층은 겹쳐도 안 흐려진다 — 가장자리만
+    }
     const near = lane.querySelector('.lane-near');
     if (near) near.hidden = !cfg.near;
     if ((front && cfg.front) || (near && cfg.near)){
@@ -5861,11 +5877,11 @@ function paintLane(el, lane){
       for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
       if (front && cfg.front){
         paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0, stageL, baseKAN);
-        frontFade(front, KAN, who);
+        scatterFade(front, KAN, who, camDt, stageL, stageW, 0.45);
       }
       if (near && cfg.near){                                       // v9.18.0: 맨 앞 층 — 더 빨리 흐르고 더 크다
         paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, 0, stageL, baseKAN);
-        frontFade(near, KAN, who);
+        scatterFade(near, KAN, who, camDt, stageL, stageW, 0.40);
       }
     }
   }
