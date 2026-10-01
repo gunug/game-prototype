@@ -1627,7 +1627,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.50.0';
+const VERSION = 'v9.50.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6056,11 +6056,12 @@ function paintLane(el, lane){
       const who = exp.party.filter(k2 => !exp.P[k2].out).map(k2 => [px(exp.P[k2].xd != null ? exp.P[k2].xd : exp.P[k2].x), half]);
       for (const f of exp.foes) if (!f.dead) who.push([px(f.xd != null ? f.xd : f.x), half]);
       if (front && cfg.front){
-        paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, 0, stageL, baseKAN);
+        // v9.50.1: 앞 층은 **조금 내려** 뿌리 · 밑동이 줄 아래로 잘리게 한다 (가까이 있는 것처럼 보이게)
+        paintScatter(front, cfg.front, cam * (cfg.frontSpeed || 1.3), vis, KAN, 2, -7, stageL, baseKAN);
         scatterFade(front, KAN, who, camDt, stageL, stageW, 0.45);
       }
       if (near && cfg.near){                                       // v9.18.0: 맨 앞 층 — 더 빨리 흐르고 더 크다
-        paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, 0, stageL, baseKAN);
+        paintScatter(near, cfg.near, cam * (cfg.nearSpeed || 1.75), vis, KAN, 3, -12, stageL, baseKAN);   // v9.50.1: 맨 앞 층은 더 내린다
         scatterFade(near, KAN, who, camDt, stageL, stageW, 0.40);
       }
     }
