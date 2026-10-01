@@ -1552,7 +1552,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.37.0';
+const VERSION = 'v9.38.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2760,7 +2760,7 @@ function renderInsp(){
     const foreseen = foreseenOf(t);
   if (!cardKnown(t)){                                            // 콜렉터북의 미발견 칸
     inspEl.innerHTML = `<div class="head"><div class="pic locked">${iconHtml(t)}</div><div><div class="nm">???</div><div class="kd">${fieldText(t)} · 보유 ??</div></div></div>`
-      + '<div class="desc">아직 발견하지 못한 카드.</div>';
+      + '<div class="desc">아직 밝혀지지 않음.</div>';           // v9.38.0: 카드의 ??? 와 같은 말
     return;
   }
   let h = `<div class="head"><div class="pic">${iconHtml(t)}</div><div><div class="nm">${esc(d.name)}</div>`
@@ -3608,7 +3608,9 @@ function sideReachFog(sd, d){
 }
 // 안개 후보인가 — 지금 길이 다 보이진 않지만, 가려진 재료가 **갈 수 있는 땅**에 있다
 const aimFogged = t => !aimReady(t) && aimRecipes(t).some(x => sideReachFog(x.a, 3) && sideReachFog(x.b, 3));
-const aimSeen = t => editMode || (S.seen || []).includes(t);     // 이름을 보여도 되나
+// v9.38.0: 이름을 보여도 되나 — **인스펙터와 같은 기준**(`cardKnown`)을 쓴다.
+//   재료를 다 본 조합 결과는 아직 안 만들었어도 아는 것으로 친다 (v6.6.0 규칙)
+const aimSeen = t => editMode || cardKnown(t);
 function aimCandidates(){                                         // 만들 줄 아는 것 — 지금 목표만 뺀다
   const list = CRAFT_TYPES.filter(t => t !== S.goal && aimGoalOk(t));
   const fog = new Map();                                          // 0 = 길이 보임 · 1 = 안개 · 2 = 아예 못 닿음
@@ -5625,7 +5627,10 @@ function paintLane(el, lane){
   const CAM = exp.P[camK];
   const kxView = CAM.xd != null ? CAM.xd : CAM.x;                 // v9.11.0: 카메라도 그림 자리를 따른다
   // v9.19.0: 싸울 땐 기사와 적의 **가운데**를 본다 — 사거리 4(다섯 칸)도 무대 안에 들어온다
-  const foeNow = exp.phase === 'fight' && exp.foes[exp.foe] ? exp.foes[exp.foe] : null;
+  // v9.38.0: 적도 **줄 주인 기준**이다. 원정이 싸우는 중이라고 줄까지 따라 줌아웃하면,
+  //   궁수가 10칸 밖 적을 쏘는 동안 **아직 싸우지도 않는 기사**가 그 적과 한 화면에 잡혔다
+  const foeIdx = targetFor(camK);                                 // 이 줄 주인이 지금 때릴 수 있는 적 (없으면 혼자)
+  const foeNow = foeIdx >= 0 ? exp.foes[foeIdx] : null;
   const foeView = foeNow ? (foeNow.xd != null ? foeNow.xd : foeNow.x) : null;
   // 카메라는 **시계**로 미끄러진다 — 한 프레임에 두 번 그려도 두 배로 움직이지 않게
   const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
