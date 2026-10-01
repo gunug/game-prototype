@@ -923,6 +923,14 @@
     border-bottom:1px solid var(--hairline);}
   .book-head2:first-child{margin-top:0;}
   .book-row{display:flex;gap:10px;flex-wrap:wrap;}
+  /* v9.49.0: 완성품 계보 — 칸(열)은 단계, 줄(행)은 갈래. 부모와 자식을 선으로 잇는다 */
+  .fin-tree{display:grid;grid-template-columns:repeat(var(--cols,1), max-content);
+    gap:12px 22px;align-items:center;justify-items:start;overflow-x:auto;padding:2px 2px 4px;}
+  .fin-node{position:relative;}
+  .fin-node.child::before{content:'';position:absolute;right:100%;top:50%;width:22px;height:2px;
+    background:rgba(255,255,255,.28);}                             /* 부모에서 오는 가로 선 */
+  .fin-node.below::after{content:'';position:absolute;right:calc(100% + 20px);bottom:50%;width:2px;
+    height:calc((var(--ch) + 20px) * var(--up, 1));background:rgba(255,255,255,.28);}   /* 위 형제에서 내려오는 세로 선 */
   /* 슬리브: 카드를 끼우는 투명 비닐 주머니. 앞면 아래쪽 덮개(::after)가 카드 위에 겹쳐 '끼워진' 느낌 */
   .sleeve{position:relative;width:calc(var(--cw) + 8px);height:calc(var(--ch) + 8px);border-radius:calc(var(--r-md) + 2px);cursor:pointer;
     background:rgba(255,255,255,.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);}
@@ -1607,7 +1615,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.48.9';
+const VERSION = 'v9.49.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2873,6 +2881,45 @@ const FIN_GROUPS = [
   { name:'🏠 건축',   uses:['건축'] },
   { name:'🧴 소모품', uses:['소모품'] },
 ];
+// v9.49.0: **완성품 계보** — 부모(왼쪽)에서 자식(오른쪽)으로. 갈래가 둘이면 아래로 쌓고 선으로 잇는다.
+//   부모는 손으로 적지 않는다 — 조합식에서 **완성품인 재료**가 곧 부모다 (무기 + 무기재료 규칙 덕에 하나뿐)
+function finParent(t){
+  const r2 = CRAFT_RECIPES.find(x => !x.cook && (x.out || []).includes(t));
+  if (!r2) return null;
+  for (const sd of [r2.a, r2.b]) if (sd.card && sd.card !== t && isFinished(sd.card)) return sd.card;
+  return null;
+}
+// 한 묶음(무기 · 방어구 …)을 줄 · 칸으로 늘어놓는다 — 칸은 깊이(한 단 올라갈 때마다 오른쪽)
+function finLayout(list){
+  const set = new Set(list);
+  const dad = new Map();
+  for (const t of list){ const p = finParent(t); if (p && set.has(p)) dad.set(t, p); }
+  const kids = new Map();
+  for (const t of list){
+    const p = dad.get(t);
+    if (!p) continue;
+    if (!kids.has(p)) kids.set(p, []);
+    kids.get(p).push(t);
+  }
+  const nodes = [];
+  let row = 0, maxCol = 0;
+  const place = (t, col, up) => {
+    nodes.push({ t, col, row, up });
+    maxCol = Math.max(maxCol, col);
+    const ks = kids.get(t) || [];
+    ks.forEach((k, i) => {
+      const from = nodes.find(n => n.t === t).row;
+      if (i > 0) row++;
+      place(k, col + 1, i > 0 ? row - from : 0);
+    });
+  };
+  for (const t of list){
+    if (dad.has(t)) continue;                                     // 뿌리부터
+    place(t, 0, 0);
+    row++;
+  }
+  return { nodes, cols: maxCol + 1 };
+}
 function bookCardsOf(id){
   if (id === 'land' || id === 'foe' || id === 'hero') return [];  // v7.9.0 · v7.9.1 · v9.25.0: 카드(DEFS)가 아니라 따로 그린다
   return id === 'fin' ? CRAFT_TYPES.filter(isFinished) : CRAFT_TYPES.filter(t => !isFinished(t));
@@ -3376,8 +3423,20 @@ function renderBook(){
       h += foeGroup('🗡️ 필드', OUT_FIELDS());
       h += foeGroup('🏚 던전', DUNGEONS());
     } else if (bookTier === 'fin'){
-      for (const g of FIN_GROUPS) h += sect(g.name, inTab.filter(t => useOf(t).some(u => g.uses.includes(u))));
-      h += sect('그 밖', inTab);
+      // v9.49.0: 완성품은 **계보**로 — 왼쪽이 부모, 오른쪽이 그 다음 단계. 갈래는 아래로 쌓고 선으로 잇는다
+      const tree = (title, list) => {
+        const only = list.filter(t => inTab.includes(t) && !seen.has(t));
+        if (!only.length) return '';
+        for (const t of only) seen.add(t);
+        const { nodes, cols } = finLayout(only);
+        return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
+          + `<div class="fin-tree" style="--cols:${cols}">`
+          + nodes.map(n => `<div class="fin-node${n.col ? ' child' : ''}${n.up ? ' below' : ''}"`
+              + ` style="grid-column:${n.col + 1};grid-row:${n.row + 1};--up:${n.up}">${slotHtml(n.t)}</div>`).join('')
+          + '</div></div>';
+      };
+      for (const g of FIN_GROUPS) h += tree(g.name, inTab.filter(t => useOf(t).some(u => g.uses.includes(u))));
+      h += tree('그 밖', inTab);
     } else {
       for (const f of FIELDS){                                    // ① 1단계 — 나오는 곳
         if (f.id === 'prelude') continue;                         // 들머리는 튜토리얼 전용 (산이 같은 재료를 갖는다)
