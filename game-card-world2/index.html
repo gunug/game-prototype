@@ -1627,7 +1627,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.50.3';
+const VERSION = 'v9.51.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4407,8 +4407,14 @@ function renderFoeInsp(){
         + statRow('atk', '공격', e.atk) + statRow('def', '방어', e.def) + statRow('hp', '체력', e.hp)
         + statRow('spd', '이동', foeSpd(e)) + statRow('range', '사거리', foeRange(e))
         + '</div>'
-        + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. <b>보통 공격은 통하지 않는다</b> — 방어를 무시하는 무기가 필요하다.</div>' : '')
-        + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. <b>출혈</b>이 걸린 동안에는 차오르지 않는다.</div>` : '')   // v6.0.0
+        // v9.51.0: 설명은 **본 것만** 적는다 — 해법은 적지 않는다. 길은 하나가 아니다
+        //   (방어 무시로 뚫든, 출혈로 아물지 못하게 하든, 그냥 더 센 공격으로 눌러 버리든 플레이어가 고른다)
+        + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. 어지간한 날은 <b>긁히기만 한다</b>.</div>' : '')
+        + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. 벤 자리가 <b>그만큼 빨리 아문다</b>.</div>` : '')   // v6.0.0
+        + (e.thorns ? `<div class="desc">몸에 가시가 섰다. <b>붙어서 때린 쪽</b>이 <b>${e.thorns}</b>씩 되돌려받는다. 멀리서 날아온 것에는 아무 일도 없다.</div>` : '')   // v9.51.0
+        + (e.shell ? `<div class="desc">겉껍질이 <b>${e.shell}</b>겹이다. 한 대에 한 겹씩 깨지고, 다 깨지기 전에는 <b>안쪽에 닿지 않는다</b> — 세게 치든 약하게 치든 한 겹이다.</div>` : '')   // v9.51.0
+        + (foeHits(e) > 1 ? `<div class="desc">한 번 공격하면 <b>${foeHits(e)}번</b> 연달아 꽂힌다.</div>` : '')   // v9.51.0
+        + (foeMove(e) === 'hold' ? '<div class="desc">제자리를 지킨다. 쫓아오지 않는다.</div>' : '')
         + '<div class="sub">떨구는 것</div><div class="rows">'
         + (e.loot || []).map(l => `<div class="row">${iconHtml(l[0], true)} ${esc(DEFS[l[0]].name)} <span class="i-muted">${l[1]}%</span></div>`).join('')
         + '</div>'
@@ -4503,7 +4509,7 @@ function renderFieldInsp(){
     + (landCleared(f) ? '<span class="chip trait">깬 곳</span>' : '') + '</div>'
     + (tip ? (tip.ok
         ? `<div class="row fit-ok">✔ ${esc(tip.why)} 무기를 쥐고 있다 — ${esc(DEFS[tip.type].name)}</div>`
-        : `<div class="row fit-no">⚠ ${esc(tip.what)} — <b>${esc(tip.why)}</b>${hasJong(tip.why) ? '이' : '가'} 필요하다`
+        : `<div class="row fit-no">⚠ ${esc(tip.what)} — <b>${esc(tip.why)}</b>${hasJong(tip.why) ? '이' : '가'} 수월하다`   // v9.51.0: 길은 하나가 아니다 ('필요하다' → '수월하다')
           + (tip.type ? ` <button class="armbtn" data-arm="${tip.type}">${esc(DEFS[tip.type].name)} 쥐기</button>` : '') + '</div>') : '')
     + `<div class="sub">이곳에서</div><div class="row i-muted">${esc(f.exp || '')}</div>`
     + '<div class="sub">주워 오는 것</div><div class="rows">'          // v0.73.0: 카드 목록은 가로로 묶고 폭이 모자라면 줄내림
