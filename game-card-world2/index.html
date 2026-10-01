@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.3';
+const VERSION = 'v9.43.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5224,9 +5224,14 @@ function expShotsTick(dt){
   }
 }
 // v9.43.0: 빔 한 줄기 — 연타가 끝날 때까지 적과 캐릭터를 잇는다
+// v9.43.4: **줄마다 하나씩** 긋는다. `tokOf` 는 첫 줄의 토큰만 집어 와, 둘이 함께 나간 레이드에서
+//   한 줄에만 빔이 보이고 다른 줄은 아무 일도 없는 것처럼 보였다 (다른 그림들은 줄마다 짝지어 그린다)
 function foeBeam(fromIdx, k, ms, hitMs){
-  const a = tokOf(fromIdx), b = tokOf(k);
-  if (a && b && a.parentElement === b.parentElement) beamFx(a, b, ms, hitMs);
+  const as = toksOf(fromIdx), bs = toksOf(k);
+  for (let i = 0; i < bs.length; i++){
+    const b = bs[i], a = as[i] || as[0];
+    if (a && b && a.parentElement === b.parentElement) beamFx(a, b, ms, hitMs);
+  }
 }
 // v9.36.0: **적의 차례** — 걷는 중이든 채집 중이든 싸움 중이든 늘 돈다.
 //   움직이는 놈은 깨어난 놈뿐. 자는 놈도 제 사거리에 닿으면 때린다
