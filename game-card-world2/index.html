@@ -1583,7 +1583,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.43.0';
+const VERSION = 'v9.43.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6423,10 +6423,21 @@ function questStep(id){
 // v0.47.0: 보스를 잡으면 그다음 잠긴 필드가 열림
 //   자물쇠가 바들바들 떨리다 → 열린 자물쇠로 바뀌고 → 아래로 내려가며 사라짐 → 흐리던 색이 돌아오고 → 마지막에 이름이 나타남
 // v0.98.0: 그 필드가 열리는 조건 — 필드는 앞 필드를 처음 깨면 하나씩 열린다
+// v9.43.1: **열리는 조건은 표 하나로.** 자물쇠에 적는 글과 실제 해금이 같은 것을 본다.
+//   전엔 적는 쪽만 `FIELDS` 차례의 바로 앞 땅을 집어, 강가에 '늪지 무덤 클리어'라고 잘못 적혔다
+//   (해금은 바깥 땅끼리 이어지는 `OUT_FIELDS` 차례를 따르므로 실제로는 숲을 깨면 열렸다)
+const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', towerruin:'river' };
+const UNLOCK_SAY = { stonehide:'산이 무너진 자리에 굴이 있다',
+  swamptomb:'굴 아래로 물 흐르는 소리가 난다',
+  towerruin:'강 건너 벌판에 부러진 탑이 서 있다' };
+function unlockAfter(id){                                         // 이 땅을 열려면 어디를 깨야 하나
+  if (UNLOCK_AFTER[id]) return UNLOCK_AFTER[id];
+  const outs = OUT_FIELDS(), i = outs.findIndex(f => f.id === id);   // 바깥 땅은 바깥 땅끼리 이어진다
+  return i > 0 ? outs[i - 1].id : null;
+}
 function fieldNeed(id){
-  const i = FIELDS.findIndex(f => f.id === id);
-  const prev = i > 0 ? FIELDS[i - 1] : null;
-  return prev ? `${prev.name} 클리어` : '잠김';                    // v0.98.1: '필요' 뺌
+  const p = unlockAfter(id), f = p && FIELD_BY_ID[p];
+  return f ? `${f.name} 클리어` : '잠김';                          // v0.98.1: '필요' 뺌
 }
 // v4.1.2: 깬 곳의 **다음 땅은 언제나 열려 있게** 맞춰 둔다 (예전 저장 · 다시 깬 경우도)
 //   newly: 방금 처음 깬 곳이면 그 id — 자물쇠 열리는 연출을 한 번 보여 준다
@@ -6441,20 +6452,12 @@ function syncUnlocks(newly){
       else S.fields[next.id].locked = false;                       // 조용히 맞춤
     }
   }
-  if (cleared.includes('stonehide') && S.fields.swamptomb && S.fields.swamptomb.locked){
-    S.fields.swamptomb.locked = false;                             // v6.0.0: 굴을 깨면 그 아래 물길이 보인다
-    if (newly === 'stonehide') knightSay('굴 아래로 물 흐르는 소리가 난다');
-    addUnlockNote('swamptomb');
-  }
-  if (cleared.includes('river') && S.fields.towerruin && S.fields.towerruin.locked){
-    S.fields.towerruin.locked = false;                            // v9.42.0: 강을 따라가면 그을린 벌판이 나온다
-    if (newly === 'river') knightSay('강 건너 벌판에 부러진 탑이 서 있다');
-    addUnlockNote('towerruin');
-  }
-  if (cleared.includes('mountain') && S.fields.stonehide && S.fields.stonehide.locked){
-    S.fields.stonehide.locked = false;                             // v4.0.0: 산을 깨면 🪨 돌가죽 굴이 드러난다
-    if (newly === 'mountain') knightSay('산이 무너진 자리에 굴이 있다');
-    addUnlockNote('stonehide');
+  for (const id in UNLOCK_AFTER){                                 // v9.43.1: 굴 · 늪 · 탑은 표가 정한다
+    const need = UNLOCK_AFTER[id], st = S.fields[id];
+    if (!st || !st.locked || !cleared.includes(need)) continue;
+    st.locked = false;
+    if (newly === need && UNLOCK_SAY[id]) knightSay(UNLOCK_SAY[id]);
+    addUnlockNote(id);
   }
   save();
 }
