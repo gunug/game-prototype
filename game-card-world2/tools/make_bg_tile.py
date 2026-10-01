@@ -165,11 +165,11 @@ def main():
         im = Image.merge("RGBA", (*rgb.split(), im.split()[3]))
     else:
         im = im.resize((a.out_w, a.out_h), Image.LANCZOS).quantize(colors=a.colors, dither=Image.Dither.NONE).convert("RGB")
+    if a.sky_h and a.sky_h > im.size[1]:
+        im = pad_sky(im, a.sky_h)                                   # v9.46.0: 위쪽은 맨 윗줄(하늘)로 채운다 — **저장 전에**
     im.save(dest)
     raw.unlink()
 
-    if a.sky_h and a.sky_h > im.size[1]:
-        im = pad_sky(im, a.sky_h)                                   # v9.46.0: 위쪽은 맨 윗줄(하늘)로 채운다
     opts = [f"--kan {a.kan}", f"--out-w {a.out_w}", f"--out-h {a.out_h}", f"--band {a.band}"]
     if a.sky_h: opts.append(f"--sky-h {a.sky_h}")
     if a.no_seam:
