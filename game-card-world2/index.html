@@ -1481,8 +1481,11 @@ const usableRecipes = (x, y) => recipesFor(x, y);
 // v0.23.1: 인스펙터에 카드가 나오면 늘 보유 수량을 함께. 가려진 카드(???)는 보유도 ??
 // v6.6.0: **재료를 모두 본 적이 있으면 그 조합 결과도 아는 것으로 친다** — 아직 만들어 보지 않았어도
 //   (인스펙터 · 조합식 표기 · 보유 수량이 모두 이 하나를 본다. 콜렉터북의 발견 도장은 그대로 S.seen)
-const foreseenOf = t => !S.seen.includes(t) && CRAFT_RECIPES.some(x => !x.cook && (x.out || []).includes(t)
-  && sideKnown(x.a) && sideKnown(x.b));
+// v9.40.0: **끝까지 거슬러 본다.** 중간재료를 한 번도 손에 쥔 적 없어도,
+//   맨 밑 재료를 다 입수했으면 그 위로 만들어지는 것도 아는 것으로 친다.
+//   (후보에 올리는 기준 `aimReady` 는 이미 이렇게 봤는데 이름만 ??? 로 가려 짝이 안 맞았다)
+const foreseenOf = t => !S.seen.includes(t)
+  && aimRecipes(t).some(x => sideReachKnown(x.a, 3) && sideReachKnown(x.b, 3));
 const cardKnown = t => S.seen.includes(t) || foreseenOf(t);
 const haveText = (t, known = cardKnown(t)) => `<span class="i-muted">보유 ${known ? have(t) : '??'}</span>`;
 // ── 조합식 표기 (v0.63.0) — 인스펙터·콜렉터북·끌기 표시가 모두 이 규칙 하나를 쓴다 ──
@@ -1554,7 +1557,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.39.1';
+const VERSION = 'v9.40.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
