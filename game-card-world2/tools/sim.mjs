@@ -136,7 +136,7 @@ function makeAI({ ctx, clock }){
       return g(`(function(){
         const t = ${JSON.stringify(type)}, blind = ${blind}, out = [];
         for (const f of FIELDS){
-          if (fieldLocked(f.id)) continue;
+          if (fieldLocked(f.id) || f.raid) continue;               // v9.43.0: 레이드는 재료 벌러 가는 곳이 아니다
           if (f.id === 'prelude' && (S.cleared || []).includes('prelude')) continue;
           if (yieldsOf(f.id).includes(t)){ out.push(f.id); continue; }   // 줍는 것은 목표 차례가 알려 준다
           if (lootTypes(f.id).includes(t) && (!blind || lootKnown(f.id, t))) out.push(f.id);   // 떨구는 것은 받아 봐야 안다
@@ -151,7 +151,7 @@ function makeAI({ ctx, clock }){
           lv: S.knight.lv, hp: S.knight.hp, maxhp: knightMaxHp(), atk: knightAtk(), def: knightDef(),
           exp: !!exp, tab: S.tab, goal: S.goal, cards, seen: S.seen.length,
           equip: S.equip, cleared: S.cleared || [],
-          fields: FIELDS.filter(f => !fieldLocked(f.id)).map(f => f.id),
+          fields: FIELDS.filter(f => !fieldLocked(f.id) && !f.raid).map(f => f.id),   // v9.43.0: 레이드는 AI 가 안 간다
           quests: (S.quests || []).filter(q => !q.done).map(q => q.id),
         }));
       })()`);
@@ -255,7 +255,7 @@ function makeAI({ ctx, clock }){
     },
     yieldsOf(id){ return g(`JSON.parse(JSON.stringify(yieldsOf(${JSON.stringify(id)})))`); },
     lootOf(id){ return g(`JSON.parse(JSON.stringify(lootTypes(${JSON.stringify(id)})))`); },
-    fields(){ return g(`JSON.parse(JSON.stringify(FIELDS.map(f => ({ id: f.id, name: f.name, dungeon: !!f.dungeon, locked: fieldLocked(f.id) }))))`); },
+    fields(){ return g(`JSON.parse(JSON.stringify(FIELDS.filter(f => !f.raid).map(f => ({ id: f.id, name: f.name, dungeon: !!f.dungeon, locked: fieldLocked(f.id) }))))`); },
     log(){ return g('JSON.parse(JSON.stringify(LOG))'); },
     snapshot(){ return g('JSON.parse(JSON.stringify(progressSnapshot()))'); },
     minutes(){ return (clock.now() - g('LOG.start')) / 60000; },
