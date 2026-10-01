@@ -1551,7 +1551,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.36.0';
+const VERSION = 'v9.36.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4920,16 +4920,15 @@ function expStart(id, cardEl, who){
   renderGather(); renderInsp(); save();
 }
 // v9.21.1: 동료의 걸음은 **앞장선 이의 사정과 따로** 돈다 — 기사가 채집하거나 싸우는 동안에도 멈추지 않는다
-//   · 걸을 때는 앞장선 이의 한 칸 뒤
-//   · 앞장선 이가 채집 중이면 두 칸 앞까지 먼저 나가 살핀다 (거기서 기다린다)
+// v9.36.1: 언제나 **앞장선 이의 한 칸 뒤**. 앞질러 나가는 일은 없다 —
+//   칸 점유 때문에 서로를 지나칠 수 없으니 **줄 선 차례는 원정 내내 그대로**다.
+//   (전엔 채집하는 동안 두 칸 앞까지 나가 망봤다. 자는 적 사거리에 들어가 일방적으로 맞았다)
 function alliesStep(dt){
   const lead = expLead(), L = exp.P[lead];
   for (const k of exp.party){
     if (k === lead || exp.P[k].out) continue;
     const h = exp.P[k];
-    // 앞서 있으면 한 칸 앞을 지킨다 — 뒤로 물리려 들면 서로 길을 막는다
-    const tgt = exp.phase === 'search' ? Math.min(exp.len, L.x + 2)
-      : h.x > L.x ? Math.min(exp.len, L.x + 1) : Math.max(0, L.x - 1);
+    const tgt = Math.max(0, L.x - 1);
     const far = Math.abs(tgt - exp.P[k].x) > 1;
     heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
   }
