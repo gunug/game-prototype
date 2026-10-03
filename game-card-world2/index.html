@@ -1072,8 +1072,11 @@ const FIELD_YIELDS = {
   grassland: ['grass', 'seed', 'honeycomb', 'feather'],        // v0.52.0: 짐승은 뺌 — 들개·들소를 잡으면 같은 재료가 나옴
   forest:    ['vine', 'berry', 'sap', 'herb'],                  // v3.8.2: 나무는 산 몫 — 숲은 덩굴
   river:     ['water', 'soil', 'sand', 'fish'],
-  stonehide: ['obsidian'],                                      // v4.0.0: 굴 벽의 검은 돌
-  swamptomb: ['bogmoss'],                                       // v6.0.0: 무덤을 덮은 이끼
+  stonehide: ['obsidian', 'cavecrystal', 'limerock', 'cavemush'],   // v4.0.0 굴 벽의 검은 돌 · v9.53.0 넷으로
+  swamptomb: ['bogmoss', 'rotroot', 'bogclay', 'glowcap'],          // v6.0.0 무덤을 덮은 이끼 · v9.53.0
+  spidernest:['silkweb', 'cocoon', 'feather', 'vine'],              // v9.53.0: 줄과 고치, 걸린 깃털 · 덩굴
+  shellcave: ['shellpiece', 'nacreshard', 'barnacle', 'sand'],      // v9.53.0
+  towerruin: ['ash', 'burntbrick', 'scrapiron', 'stone'],           // v9.53.0: 그을린 벌판에서 줍는 것
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
 // 2단계 묶음 (v0.5.0) — 2단계는 필드가 없어 쓰임별로 콜렉터북에 묶음
@@ -1099,6 +1102,30 @@ const DEFS = {
   // 🌲 숲
   tree:    { name:'나무',   kind:'material', step:1, field:'forest' },
   obsidian: { name:'흑요석', kind:'material', step:1, field:'stonehide' },   // v4.0.0: 🪨 던전 안에서만
+  // v9.53.0: 던전 · 레이드도 필드처럼 **제 재료**를 갖는다 (줍는 것 넷 · 떨구는 것 넷 + 희귀 하나)
+  cavecrystal:{ name:'굴 수정', kind:'material', step:1, field:'stonehide' },
+  limerock:   { name:'석회암', kind:'material', step:1, field:'stonehide' },
+  cavemush:   { name:'굴 버섯', kind:'material', step:1, field:'stonehide' },
+  stonescale: { name:'돌비늘', kind:'material', step:1, field:'stonehide' },
+  cavecore:   { name:'굴의 핵', kind:'material', step:1, field:'stonehide' },
+  rotroot:    { name:'썩은 뿌리', kind:'material', step:1, field:'swamptomb' },
+  bogclay:    { name:'수렁 진흙', kind:'material', step:1, field:'swamptomb' },
+  glowcap:    { name:'인광 버섯', kind:'material', step:1, field:'swamptomb' },
+  webfoot:    { name:'물갈퀴', kind:'material', step:1, field:'swamptomb' },
+  silkweb:    { name:'거미줄', kind:'material', step:1, field:'spidernest' },
+  cocoon:     { name:'고치',   kind:'material', step:1, field:'spidernest' },
+  venomfang:  { name:'독니',   kind:'material', step:1, field:'spidernest' },
+  spidereye:  { name:'거미 눈', kind:'material', step:1, field:'spidernest' },
+  motheregg:  { name:'어미의 알', kind:'material', step:1, field:'spidernest' },
+  nacreshard: { name:'자개 조각', kind:'material', step:1, field:'shellcave' },
+  barnacle:   { name:'따개비', kind:'material', step:1, field:'shellcave' },
+  shellplate: { name:'갑각판', kind:'material', step:1, field:'shellcave' },
+  pearl:      { name:'진주',   kind:'material', step:1, field:'shellcave' },
+  ash:        { name:'재',     kind:'material', step:1, field:'towerruin' },
+  burntbrick: { name:'그을린 벽돌', kind:'material', step:1, field:'towerruin' },
+  scrapiron:  { name:'부서진 쇠', kind:'material', step:1, field:'towerruin' },
+  towershard: { name:'탑의 파편', kind:'material', step:1, field:'towerruin' },
+  eyecrystal: { name:'눈의 수정', kind:'material', step:1, field:'towerruin' },
   bogmoss:  { name:'늪 이끼', kind:'material', step:1, field:'swamptomb' },   // v6.0.0: 🍄 무덤 안에서만
   vine:    { name:'덩굴',   kind:'material', step:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
   berry:   { name:'열매',   kind:'material', step:1, field:'forest' },
@@ -1256,6 +1283,15 @@ const USE = {
   huntbow:['무기', '원거리무기'], longbow:['무기', '원거리무기'], obsidianbow:['무기', '원거리무기'],
   greatbow:['무기', '원거리무기'],
   bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
+  // v9.53.0: 던전 · 레이드 재료의 갈래 (조합식은 다음 단계에서 짠다 — 태그가 먼저 자리를 잡는다)
+  cavecrystal:['장신구재료'], limerock:['건축재료'], cavemush:['약품재료'],
+  stonescale:['갑옷재료'], cavecore:['무기재료', '장신구재료'],
+  rotroot:['약품재료'], bogclay:['건축재료'], glowcap:['약품재료', '장신구재료'], webfoot:['갑옷재료'],
+  silkweb:['무기재료', '도구재료'], cocoon:['갑옷재료'], venomfang:['무기재료'],
+  spidereye:['장신구재료', '약품재료'], motheregg:['약품재료'],
+  nacreshard:['장신구재료'], barnacle:['건축재료'], shellplate:['갑옷재료'], pearl:['장신구재료'],
+  ash:['건축재료', '약품재료'], burntbrick:['건축재료'], scrapiron:['무기재료'],
+  towershard:['무기재료', '건축재료'], eyecrystal:['장신구재료'],
   // v7.0.0: 갈래가 없던 보스 전리품 넷
   bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
   stonepelt:['갑옷재료', '건축재료'],   // v7.0.0
@@ -1359,6 +1395,30 @@ const DESC = {
   claw:      '땅을 헤집던 것. 끝이 안으로 굽어 잘 걸린다.',
   scale:     '겹쳐 대면 물도 칼도 미끄러진다.',
   obsidian:  '검은 유리 돌. 깨진 자리가 칼보다 날카롭다.',
+  // v9.53.0: 던전 · 레이드에서 나오는 것들
+  cavecrystal:'굴 벽에서 자란 맑은 수정. 불빛을 모아 되쏜다.',
+  limerock:  '켜켜이 쌓인 흰 돌. 물러서 다듬기 쉽다.',
+  cavemush:  '빛도 없는 데서 자란 버섯. 쓴맛이 오래 남는다.',
+  stonescale:'돌벌레의 등에서 떨어진 비늘. 손톱으로는 흠집도 안 난다.',
+  cavecore:  '굴 깊은 데서만 나오는 핵. 쪼개면 안쪽이 아직 뜨겁다.',
+  rotroot:   '물에 잠겨 삭은 뿌리. 짜면 검은 물이 흐른다.',
+  bogclay:   '발이 빠지는 진흙. 말리면 돌처럼 굳는다.',
+  glowcap:   '어둠에서 푸르게 빛나는 버섯. 가까이 대면 글씨가 읽힌다.',
+  webfoot:   '두꺼비의 발. 물갈퀴가 질기다.',
+  silkweb:   '손으로는 잘 끊어지지 않는 줄. 감아 두면 쓸 데가 많다.',
+  cocoon:    '무언가가 들어 있던 고치. 안쪽이 보드랍다.',
+  venomfang: '속이 빈 이빨. 끝에 아직 독이 맺혀 있다.',
+  spidereye: '여덟 개가 한 덩이로 붙어 있다. 어느 쪽에서 봐도 눈이 마주친다.',
+  motheregg: '어미가 끝까지 품던 알. 아직 따뜻하다.',
+  nacreshard:'껍데기 안쪽이 떨어져 나온 조각. 돌리면 빛깔이 바뀐다.',
+  barnacle:  '바위에 붙어 자란 껍데기 무리. 떼면 자국이 남는다.',
+  shellplate:'게의 등을 덮던 판. 두껍고 가볍다.',
+  pearl:     '껍데기 속에서 굴러 나온 구슬. 흠 하나 없다.',
+  ash:       '타고 남은 재. 아직 온기가 있다.',
+  burntbrick:'불에 그을린 벽돌. 모서리가 부서졌어도 단단하다.',
+  scrapiron: '녹슬어 휘어진 쇳조각. 갈면 날이 선다.',
+  towershard:'탑에서 떨어진 돌조각. 새겨진 금이 아직 남아 있다.',
+  eyecrystal:'탑의 눈에서 나온 수정. 들여다보면 저쪽이 비친다.',
   obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
   woodbow:'궁수가 늘 쥐고 있는 활. 힘은 약해도 다섯 칸 밖에서 먼저 쏜다.',
   huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
@@ -1645,7 +1705,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.52.0';
+const VERSION = 'v9.53.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4658,18 +4718,18 @@ const ENEMIES = {
   // v3.8.4: 🏞️ 강가 전리품 넷 — 생선살 · 비늘 · 집게발 · 조개껍데기 (+ 보스 메기 수염)
   // v4.0.0: 🪨 돌가죽 굴 — 방어가 높아 방어 무시가 없으면 한 대에 1
   stonebug:  { name:'돌벌레',   spd:2, portrait:'portrait_stonebug',  atk:4, def:4, hp:6,
-    loot: [['obsidian', 60, 1], ['stonepelt', 40, 1]] },
+    loot: [['stonepelt', 45, 1], ['obsidian', 35, 1], ['stonescale', 20, 1]] },
   shellback: { name:'바위 등껍질', spd:1, aps:0.8, portrait:'portrait_shellback', atk:8, def:9, hp:16,
-    loot: [['obsidian', 50, 2], ['stonepelt', 50, 1]] },
+    loot: [['stonescale', 45, 1], ['stonepelt', 35, 1], ['obsidian', 25, 1], ['bone', 20, 1]] },
   stonelord: { name:'돌가죽 주인', spd:2, aps:0.9, portrait:'portrait_stonelord', atk:10, def:11, hp:30,
-    loot: [['stonepelt', 60, 2], ['obsidian', 40, 2]] },
+    loot: [['stonepelt', 60, 2], ['stonescale', 45, 1], ['obsidian', 40, 1], ['bone', 25, 1], ['cavecore', 10, 1]] },
   // v6.0.0: 🍄 늪지 무덤 — 박자마다 살이 차오른다(regen). 출혈이 걸리면 멈춘다
   mosstoad:  { name:'이끼 두꺼비', spd:2, portrait:'portrait_mosstoad', atk:6, def:2, hp:12, regen:1,
-    loot: [['bogmoss', 55, 1], ['toadhide', 45, 1]] },
+    loot: [['toadhide', 50, 1], ['bogmoss', 30, 1], ['webfoot', 20, 1]] },
   bogarm:    { name:'수렁 팔',    spd:1, aps:0.9, range:2, portrait:'portrait_bogarm',   atk:9, def:4, hp:20, regen:3,
-    loot: [['toadhide', 50, 2], ['bogmoss', 50, 1]] },
+    loot: [['webfoot', 45, 1], ['toadhide', 35, 1], ['bogmoss', 30, 1], ['bone', 20, 1]] },
   tombkeeper:{ name:'무덤 주인',  spd:2, aps:0.9, portrait:'portrait_tombkeeper', atk:10, def:3, hp:30, regen:10,  // v7.18.0: 회복은 10 그대로 — 기믹은 세게, 대신 출혈을 올렸다
-    loot: [['graveseal', 100, 1], ['toadhide', 50, 2]] },
+    loot: [['toadhide', 60, 2], ['webfoot', 45, 1], ['bogmoss', 40, 1], ['bone', 25, 1], ['graveseal', 10, 1]] },
   crayfish:  { name:'가재',     spd:2, portrait:'portrait_crayfish',  atk:5, def:0, hp:16,
     loot: [['fillet', 40, 1], ['pincer', 35, 1], ['shellpiece', 25, 1]] },
   crocodile: { name:'악어',     spd:3, aps:0.9, portrait:'portrait_crocodile', atk:7, def:3, hp:44,
@@ -4678,24 +4738,24 @@ const ENEMIES = {
     loot: [['fillet', 40, 2], ['scale', 30, 1], ['shellpiece', 20, 1], ['catfishwhisker', 10, 1]] },
   // v9.50.0: 🕸 거미 둥지 — `thorns` = **붙어서 맞으면 때린 쪽이 그만큼 아프다** (근접만. 활은 안 돌려받는다)
   spider:    { name:'거미',     spd:3, aps:1.1, portrait:'portrait_spider',    atk:5, def:2, hp:12, thorns:2,
-    loot: [['sinew', 45, 1], ['fang', 30, 1], ['feather', 20, 1]] },
+    loot: [['sinew', 45, 1], ['venomfang', 30, 1], ['spidereye', 25, 1]] },
   webmother: { name:'거미 어미', spd:2, aps:1,   portrait:'portrait_webmother', atk:7, def:3, hp:20, thorns:4,
-    loot: [['sinew', 60, 2], ['fang', 40, 1]] },
+    loot: [['sinew', 55, 2], ['venomfang', 40, 1], ['spidereye', 30, 1], ['fang', 20, 1]] },
   nestkeeper:{ name:'둥지 주인', spd:2, aps:0.9, portrait:'portrait_nestkeeper', atk:9, def:4, hp:34, thorns:8,
-    loot: [['sinew', 100, 2], ['feather', 60, 2], ['fang', 40, 1]] },
+    loot: [['sinew', 60, 2], ['venomfang', 50, 1], ['spidereye', 40, 1], ['fang', 25, 1], ['motheregg', 10, 1]] },
   // v9.50.0: 🐚 껍질 동굴 — `shell` = **겉껍질**. 깨지기 전에는 피해가 안 들어가고, 한 대에 껍질 하나씩만 깎인다
   //   (세기가 아니라 **때린 횟수**가 답 — 빠른 무기를 쥐어야 한다)
   hermit:    { name:'소라게',   spd:2, aps:1,   portrait:'portrait_hermit',    atk:6, def:3, hp:14, shell:3,
-    loot: [['shellpiece', 50, 1], ['pincer', 35, 1]] },
+    loot: [['shellpiece', 50, 1], ['pincer', 35, 1], ['shellplate', 20, 1]] },
   bigpincer: { name:'큰 집게',  spd:2, aps:0.9, portrait:'portrait_bigpincer', atk:8, def:4, hp:22, shell:6,
-    loot: [['pincer', 60, 2], ['shellpiece', 40, 1]] },
+    loot: [['pincer', 55, 2], ['shellplate', 40, 1], ['shellpiece', 30, 1], ['scale', 20, 1]] },
   cavekeeper:{ name:'동굴 주인', spd:2, aps:0.9, portrait:'portrait_cavekeeper', atk:10, def:5, hp:34, shell:14,
-    loot: [['shellpiece', 100, 2], ['pincer', 60, 2], ['scale', 40, 1]] },
+    loot: [['shellpiece', 60, 2], ['pincer', 50, 1], ['shellplate', 45, 1], ['scale', 25, 1], ['pearl', 10, 1]] },
   // v9.42.0: 👑 탑의 눈 — 첫 레이드 주인. **움직이지 않고**(move:'hold') 제자리를 지킨다.
   //   사거리 15칸 · 한 번 쏘면 **다섯 번 연달아**(hits) 꽂힌다. 한 번에 3 × 5 = 15
   towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, size:2,
     portrait:'portrait_towereye', atk:3, def:3, hp:90,
-    loot: [['graveseal', 100, 2], ['scale', 60, 2], ['bearclaw', 40, 1]] },
+    loot: [['towershard', 60, 2], ['scrapiron', 50, 1], ['scale', 40, 1], ['bearclaw', 25, 1], ['eyecrystal', 10, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
