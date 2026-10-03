@@ -231,4 +231,44 @@ try {
   else console.log('✓ 무기끼리 합치는 조합식 0 (무기 + 무기재료만)');
 } catch (e){ report('무기끼리 합침', e); }
 
+// 10) 진행 막힘 없음 (v9.54.0) — 던전의 기믹을 깰 무기는 **그 던전에 닿기 전에 열리는 땅들만으로** 만들 수 있어야 한다.
+//     조합식을 손볼 때(새 재료를 끼울 때) 그 무기의 재료가 뒷땅으로 밀려나면 그 지점에서 영원히 막힌다
+try {
+  const r = vm.runInContext(`(function(){
+    // 몇 번째 물결에 열리는 땅인가 (열 조건이 없으면 0)
+    const waveOf = id => { let w = 0, cur = id, seen = {};
+      while (true){ const p = unlockAfter(cur); if (!p || seen[p]) break; seen[p] = 1; w++; cur = p; } return w; };
+    // 그 땅에서 **얻을 수 있는** 1단계 — 줍는 것 + 사는 것들이 떨구는 것
+    const fromField = id => { const out = new Set(yieldsOf(id));
+      for (const st of (planOf(id) || [])) for (const l of ((ENEMIES[st.fight] || {}).loot || [])) out.add(l[0]);
+      return [...out]; };
+    // 물결 w 까지 열린 땅으로 만들 수 있는 모든 것 (조합식 닫힘)
+    const upto = w => { const have = new Set();
+      for (const f of FIELDS) if (waveOf(f.id) <= w) for (const t of fromField(f.id)) have.add(t);
+      for (let i = 0; i < 12; i++) for (const rc of CRAFT_RECIPES){
+        if (rc.cook || !rc.a.card || !rc.b.card) continue;
+        if (have.has(rc.a.card) && have.has(rc.b.card)) for (const o of (rc.out || [])) have.add(o);
+      }
+      return have; };
+    const isW = t => useOf(t).includes('무기');
+    const ANSWER = { swamptomb: ['bleed', '출혈'], spidernest: ['range', '원거리'], shellcave: ['multi', '연타'] };
+    const bad = [], far = [];
+    for (const id in ANSWER){
+      const [prop, say] = ANSWER[id], w = waveOf(id);
+      const have = upto(w - 1);                                   // **그 땅에 들어가기 전**까지
+      const ok = [...have].some(t => isW(t) && (DEFS[t][prop] || 0) >= (prop === 'range' ? 2 : 1));
+      if (!ok) bad.push(FIELD_BY_ID[id].name + ' — ' + say + ' 무기를 먼저 만들 수 없다');
+    }
+    const last = upto(99);                                        // 끝까지 열어도 못 만드는 조합식
+    for (const rc of CRAFT_RECIPES){
+      if (rc.cook || !rc.a.card || !rc.b.card) continue;
+      if (!last.has(rc.a.card) || !last.has(rc.b.card)) far.push((rc.id || '?') + ': ' + (DEFS[rc.a.card]||{}).name + ' + ' + (DEFS[rc.b.card]||{}).name);
+    }
+    return { bad, far };
+  })()`, ctx);
+  const msg = r.bad.concat(r.far.length ? ['닿을 수 없는 조합식 ' + r.far.length + '개 — ' + r.far.slice(0, 4).join(' | ')] : []);
+  if (msg.length) report('진행 막힘', new Error(msg.join(' | ')));
+  else console.log('✓ 진행 막힘 없음 (기믹 해법 무기는 그 땅 전에 만들 수 있고, 모든 조합식이 닿는다)');
+} catch (e){ report('진행 막힘', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
