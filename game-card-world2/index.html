@@ -1729,7 +1729,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.1';
+const VERSION = 'v9.55.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7007,11 +7007,12 @@ function renderQuest(){
   const el = document.getElementById('quest');
   const list = S.quests || [];
   const goalRow = goalRowHtml();                                  // v3.0.5: 목표에 건 목표의 **지금 한 단계**
+  const innRow = innRowHtml();                                    // v9.55.2: 여관에 등록한 사람 — 지금 걸음 한 줄
   el.hidden = false;
-  el.classList.toggle('show', (list.length > 0 || !!goalRow) && !knightLine);   // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
-  if (!list.length && !goalRow){
+  el.classList.toggle('show', (list.length > 0 || !!goalRow || !!innRow) && !knightLine);   // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
+  if (!list.length && !goalRow && !innRow){
     clearTimeout(questClear);
-    questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml()) el.innerHTML = ''; }, 360);
+    questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml() && !innRowHtml()) el.innerHTML = ''; }, 360);
     return;
   }
   clearTimeout(questClear);
@@ -7020,17 +7021,45 @@ function renderQuest(){
   el.innerHTML = '<div class="q-book">📓 기사의 수첩</div>' + list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
-  }).join('') + goalRow
+  }).join('') + innRow + goalRow
     + (note ? `<div class="q-op">👆 ${esc(note)}</div>` : '');
   linkTabs(el);                                                   // v7.8.0: 수첩 글 속 탭 이름은 눌러서 간다
   paintIcons(el);                                                 // v3.5.0
+  if (innRow && innStepKeyNow() !== lastInnStep){                 // v9.55.2: 걸음이 하나 끝나면 새 줄처럼 올라온다
+    lastInnStep = innStepKeyNow();
+    const row = el.querySelector('.q-row.inn');
+    if (row) flash(row, 'q-step-in', 1400);
+  }
   if (goalRow && goalStepKey() !== lastGoalStep){                 // 한 단계 끝나면 다음 단계가 새 퀘스트처럼 올라옴
     lastGoalStep = goalStepKey();
     const row = el.querySelector('.q-row.goal');
     if (row) flash(row, 'q-step-in', 1400);
   }
 }
-let lastGoalStep = null;
+let lastGoalStep = null, lastInnStep = null;
+// v9.55.2: **여관 퀘스트** — 등록하면 수첩에 한 줄로 올라온다. 세 걸음 가운데 지금 걸음만 적는다
+//   (장인을 못 찾은 동안엔 이 줄이 '지금 뭘 해야 하는지'를 말해 주는 유일한 자리다)
+function innStepKeyNow(){
+  const n = innSt();
+  if (!n || !n.reg) return null;
+  return `${n.reg}:${smithStep(n.reg)}`;
+}
+function innRowHtml(){
+  const n = innSt();
+  if (!n || !n.reg || !SMITH_BY_ID[n.reg]) return '';
+  const sm = SMITH_BY_ID[n.reg], i = smithStep(sm.id);
+  if (i >= INN_STEPS.length) return '';
+  const pic = smithFound(sm.id)
+    ? `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`
+    : (i === 0 ? fieldPic(sm.land) : '<span class="q-pic emo">🏨</span>');
+  const body = i === 0 ? `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${(FIELD_BY_ID[sm.land] || {}).name || ''}에 다녀오자`
+    : i === 1 ? `🏨 여관에 건네자 — ${innStepNote(sm, 1)}`
+    : `⚔ ${(ENEMIES[sm.proof] || {}).name || ''}을 넘자`;
+  return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
+    + `<b class="q-name">${esc(smithName(sm.id))} 찾기</b>`
+    + `<span class="q-text">${esc(INN_STEPS[i])} · ${body} <span class="q-prog">${i}/${INN_STEPS.length}</span></span>`
+    + '<span class="q-n"></span></div>';
+}
 function goalStepKey(){
   const g = S.goal;
   if (!g || !DEFS[g]) return null;
