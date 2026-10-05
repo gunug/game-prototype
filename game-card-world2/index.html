@@ -1729,7 +1729,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.0';
+const VERSION = 'v9.55.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3094,6 +3094,13 @@ function select(id){
 }
 // v9.55.0: 장인 정보 칸 — 무엇을 열어 주는 사람인지, 세 걸음이 어디까지 왔는지
 function renderSmithInsp(){
+  if (innPick === 'inn'){
+    inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_inn.png" alt="" draggable="false"></div>'
+      + '<div><div class="nm">여관</div><div class="kd">사람이 모이는 곳</div></div></div>'
+      + '<div class="desc">길이 갈라지는 자리에 선 집. 손을 쓸 줄 아는 사람들이 여기에 앉아 있다 — '
+      + '누가 앉아 있는지는 소문을 쫓아야 알 수 있다.</div>';
+    return true;
+  }
   if (innPick === 'keeper'){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
       + '<div><div class="nm">여관 주인</div><div class="kd">여관 · 사람을 찾아 준다</div></div></div>'
@@ -4272,10 +4279,15 @@ function screenRows(){
   if (S.tab === 'inn'){
     const n = S.inn = S.inn || freshInn();
     const reg = n.reg && SMITH_BY_ID[n.reg] ? n.reg : null;
-    const keeper = '<div class="cw framed f-stone camp-lab keeper" data-smith="keeper">'
-      + '<div class="emoji"><img class="icon" src="images/icon/card_innkeeper.png" alt="여관 주인" draggable="false"></div>'
-      + '<div class="name">여관 주인</div><div class="sub-lab">한 명씩</div></div>';
-    const rows = [{ card: keeper, slots: [{ id:'inn:reg', open:true, card: !!reg,
+    // v9.55.1: 땅 줄과 같은 꼴 — **왼쪽에 여관 주인**(크리처가 앉는 자리 · 동테), 그 옆이 여관 카드
+    const keeper = `<div class="foelist">${beingCardHtml({
+      cls: `f-bronze foe keeper${innPick === 'keeper' ? ' sel' : ''}`,
+      attrs: ' data-smith="keeper" title="여관 주인"',
+      pic: 'images/icon/card_innkeeper.png', name: '여관 주인' })}</div>`;
+    const innCard = `<div class="cw framed f-stone field${innPick === 'inn' ? ' sel' : ''}" data-smith="inn">`
+      + '<div class="emoji"><img class="icon" src="images/icon/card_inn.png" alt="여관" draggable="false"></div>'
+      + '<div class="name">여관</div></div>';
+    const rows = [{ card: keeper + innCard, slots: [{ id:'inn:reg', open:true, card: !!reg,
       icon: reg ? `<img class="icon" src="images/icon/${SMITH_BY_ID[reg].card}.png" alt="" draggable="false">` : '',
       cardName: reg ? smithName(reg) : '', frame:'bronze', lab:'등록',
       unseen: !!reg && !smithFound(reg) }] }];
