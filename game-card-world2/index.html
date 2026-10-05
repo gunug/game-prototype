@@ -1746,7 +1746,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.56.6';
+const VERSION = 'v9.56.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7121,7 +7121,9 @@ function renderQuest(){
   const goalRow = goalRowHtml();                                  // v3.0.5: 목표에 건 목표의 **지금 한 단계**
   const innRow = innRowHtml();                                    // v9.55.2: 여관에 등록한 사람 — 지금 걸음 한 줄
   el.hidden = false;
-  el.classList.toggle('show', (list.length > 0 || !!goalRow || !!innRow) && !knightLine);   // v0.43.0: 기사가 말하는 동안엔 퀘스트를 감춤
+  // v9.56.7: **적을 것이 하나라도 있으면 판은 열려 있다.** 전엔 기사가 한마디 할 때마다 판 전체를 감춰(v0.43.0),
+  //   목표 · 여관 줄이 멀쩡히 있는데도 수첩이 열렸다 닫혔다 했다. 대사는 말풍선이 따로 말한다
+  el.classList.toggle('show', list.length > 0 || !!goalRow || !!innRow);
   if (!list.length && !goalRow && !innRow){
     clearTimeout(questClear);
     questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml() && !innRowHtml()) el.innerHTML = ''; }, 360);
