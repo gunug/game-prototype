@@ -1729,7 +1729,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.54.0';
+const VERSION = 'v9.55.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1832,6 +1832,9 @@ const QUESTS = {
   boar:       { name:'길을 막는 멧돼지', text:'⚔ 멧돼지를 넘자',    goal:1, key:'kill:boar' },
   lv5:        { name:'몸을 단련하자',   text:'몸을 단련하자 (5레벨)',             goal:1, key:'level:5',
                 say:'들소의 뿔을 맞고 버틸 몸이 필요해' },
+  // v9.55.0: 갑옷은 레벨이 아니라 **사람**이 열어 준다 — 여관으로 보낸다
+  innarmor:   { name:'갑옷을 만들 사람',  text:'🏨 여관에서 갑옷 장인을 찾자',  goal:1, key:'smith:armorsmith',
+                say:'들소의 뿔을 맞고 버틸 것이 필요해 — 가죽을 다룰 사람을 찾자' },
   garmor:     { name:'몸을 지키자',     text:'갑옷을 걸치자',         goal:1, key:'equip:armor',
                 say:'이제 갑옷을 걸칠 수 있겠어' },
   bison:      { name:'초원의 주인',     text:'👑 들소를 쓰러뜨리자',      goal:1, key:'kill:bison' },
@@ -1840,7 +1843,7 @@ const QUESTS = {
 };
 // 끝나면 바로 이어지는 다음 퀘스트
 const QUEST_NEXT = { pierce:'stonelord', bleed:'tombkeeper', goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
-  grass:'gweapon', gweapon:'boar', boar:'lv5', lv5:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0: 초원 사슬
+  grass:'gweapon', gweapon:'boar', boar:'innarmor', innarmor:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0 초원 · v9.55.0 여관
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
 function questSelfCheck(){
@@ -1863,6 +1866,7 @@ function questSelfCheck(){
   }
   for (let lv = 2; lv <= knightLv(); lv++) questHit(`level:${lv}`);
   for (const k of (S.killed || [])) questHit(`kill:${k}`);         // v0.66.0: 퀘스트를 받기 전에 이미 잡았어도 인정
+  for (const id of ((S.inn || {}).done || [])) questHit(`smith:${id}`);   // v9.55.0: 이미 찾아 둔 장인
   for (const id in (S.marks || {})) questHit(`exp-end:${id}`);
 }
 // 사슬이 끊긴 채로 저장됐으면 (끝냈는데 다음을 못 받은 경우) 다시 이어 준다
@@ -1877,6 +1881,7 @@ function questResume(){
 // 일어난 일 하나로 지금 퀘스트를 판정 — 맞는 게 없으면 아무 일도 안 함
 function questHit(key){
   traceHit(key);                                                  // v2.2.0: 같은 사건이 흔적도 연다
+  innHit(key);                                                    // v9.55.0: 여관 걸음도 같은 사건으로 민다
   for (const q of (S.quests || [])){
     if (q.done || QUESTS[q.id].key !== key) continue;
     questStep(q.id);
@@ -1947,6 +1952,106 @@ function traceHit(key){
   toast(`📜 흔적: ${t.name}`);
   renderNew(); save();
 }
+// --- 여관 걸음 (v9.55.0) ------------------------------
+// 소문: 그 장인의 흔적이 있는 땅을 **다녀온다** / 물건: 쓰는 재료를 **건넨다** / 증명: 그가 지목한 놈을 **넘는다**
+//   세 걸음 모두 보통 놀이 중에 일어나는 일로 판정한다 (원정 끝 · 납품 · 사냥)
+const innStepKey = (sm, i) => i === 0 ? `exp-end:${sm.land}` : i === 2 ? `kill:${sm.proof}` : '';
+const innGiven = id => ((innSt() || {}).given || {})[id] || {};
+const innGiveNeed = type => {                                     // 지금 등록된 장인에게 이 카드가 몇 장 더 필요한가
+  const n = innSt();
+  if (!n || !n.reg || smithStep(n.reg) !== 1) return 0;
+  const sm = SMITH_BY_ID[n.reg], g = (sm.give || []).find(x => x[0] === type);
+  if (!g) return 0;
+  return Math.max(0, g[1] - (innGiven(n.reg)[type] || 0));
+};
+const innGiveDone = id => { const sm = SMITH_BY_ID[id], got = innGiven(id);
+  return (sm.give || []).every(([t, n]) => (got[t] || 0) >= n); };
+function innStepNote(sm, i){                                      // 지금 걸음에 적어 주는 한 줄
+  if (i === 0) return `${(FIELD_BY_ID[sm.land] || {}).name || ''} 다녀오기`;
+  if (i === 1){ const got = innGiven(sm.id);
+    return (sm.give || []).map(([t, n]) => `${DEFS[t].name} ${Math.min(got[t] || 0, n)}/${n}`).join(' · '); }
+  return `${(ENEMIES[sm.proof] || {}).name || ''} 넘기`;
+}
+function innRegister(id){
+  const sm = SMITH_BY_ID[id];
+  if (!sm || smithOk(id)) return false;
+  if (smithLocked(id)){ toast(`🔒 ${smithNeed(id)}`); return false; }
+  S.inn = S.inn || freshInn();
+  S.inn.reg = id;
+  logEv('inn-reg', { smith: id });
+  toast(smithFound(id) ? `🏨 ${sm.name} 찾기` : '🏨 소문을 쫓는다');
+  innSelfCheck();
+  renderAll(); renderInsp(); save();
+  return true;
+}
+function innUnregister(){
+  const n = innSt();
+  if (!n || !n.reg) return;
+  n.reg = null;                                                   // 걸음은 남는다 — 다시 등록하면 이어서 간다
+  toast('🏨 등록을 풀었다');
+  renderAll(); renderInsp(); save();
+}
+function innGive(type){                                           // 물건 걸음 — 카드 한 장을 건넨다
+  const need = innGiveNeed(type);
+  if (need <= 0) return false;
+  const c = cardOf(type);
+  if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
+  const n = S.inn, id = n.reg;
+  n.given[id] = n.given[id] || {};
+  n.given[id][type] = (n.given[id][type] || 0) + 1;
+  useOne(c);
+  if (innGiveDone(id)) innAdvance();
+  else toast(`🏨 ${DEFS[type].name} 건넴`);
+  renderAll(); renderInsp(); save();
+  return true;
+}
+function innAdvance(quiet){
+  const n = innSt();
+  if (!n || !n.reg) return;
+  const id = n.reg, sm = SMITH_BY_ID[id];
+  const st = smithStep(id) + 1;
+  n.prog[id] = st;
+  if (st === 1 && !(n.found || []).includes(id)){                  // 소문을 들으면 **누구인지** 알게 된다
+    n.found.push(id);
+    if (!quiet) toast(`🏨 ${sm.name} — ${sm.rumor || '소문을 들었다'}`);
+  } else if (!quiet) toast(`🏨 ${INN_STEPS[st - 1]} 끝`);
+  if (st >= INN_STEPS.length) innFinish(id);
+  else { renderAll(); renderInsp(); save(); }
+}
+function innFinish(id){
+  const n = S.inn, sm = SMITH_BY_ID[id];
+  if (!n.done.includes(id)) n.done.push(id);
+  if (!n.found.includes(id)) n.found.push(id);
+  n.reg = null;
+  logEv('inn-done', { smith: id });
+  toast(`🏨 ${sm.name} 합류`);
+  questHit(`smith:${id}`);
+  renderTabs(); renderAll(); renderInsp(); renderQuest(); save();
+  setTimeout(() => knightSay(`${sm.name}이 손을 보탠다 — 이제 만들 수 있다`), 500);
+}
+// 보통 놀이에서 일어난 일로 걸음을 민다 (questHit 과 같은 열쇠를 쓴다)
+function innHit(key){
+  const n = innSt();
+  if (!n || !n.reg) return;
+  const sm = SMITH_BY_ID[n.reg], st = smithStep(n.reg);
+  if (st < INN_STEPS.length && innStepKey(sm, st) === key) innAdvance();
+}
+// 등록하기 전에 이미 해 둔 걸음은 바로 인정한다 — 받고 보니 끝나 있는 일로 막히지 않게
+function innSelfCheck(){
+  const n = innSt();
+  if (!n || !n.reg) return;
+  for (let i = 0; i < INN_STEPS.length; i++){
+    const id = n.reg;
+    if (!id) return;
+    const sm = SMITH_BY_ID[id], st = smithStep(id);
+    if (st >= INN_STEPS.length) return;
+    const ok = st === 0 ? (S.marks || {})[sm.land] != null
+      : st === 1 ? innGiveDone(id)
+      : (S.killed || []).includes(sm.proof);
+    if (!ok) return;
+    innAdvance(true);
+  }
+}
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
 const questText = (def, q) => {
@@ -1991,7 +2096,9 @@ const ARCHER = { name: '궁수', atk: 1, def: 0, hp: 14, spd: 4, weapon: 'woodbo
 //   체력 +2 · 체력 +2 · 체력 +2 · 방어 +1 · 공격 +1
 //   방어는 5의 배수(5 · 10 · 15 · 20), 공격은 그 다음 레벨(6 · 11 · 16), 나머지는 최대 체력
 const LV_CYCLE = ['atk', 'hp', 'hp', 'hp', 'def'];                // (레벨−1) % 5 자리
-const LV_SLOT = { 5:'armor', 10:'shield', 15:'trinket', 20:'consumable' };   // 장비 칸이 열리는 레벨. v1.9.0: 20 소모품
+// v9.55.0: **레벨로 칸을 열지 않는다** — 칸은 여관에서 찾아낸 장인이 연다.
+//   표를 비우면 5 · 10 · 15 · 20 레벨은 제 차례의 능력치(방어 +1)를 그대로 받는다
+const LV_SLOT = {};
 const LV_MAX_SHOWN = 20;                                          // 인스펙터 표에 보여 주는 데까지
 // v0.85.0: **해금 레벨은 해금만** 준다 (능력치는 없음).
 //   그래서 사라지는 방어 +1은 **바로 앞 레벨**이 대신 받는다 (그 자리의 최대 체력 +2 대신)
@@ -2025,15 +2132,15 @@ const BOARDS = [
   // v0.53.0: 위 격자엔 완성품, 아래엔 그 재료들. v0.56.0: 처음부터 열려 있음
   // v0.93.0: 방어구·방패는 갑옷 화면으로 내보냄 — 무기 화면은 무기만
   // v1.0.0: 아래 재료 자리 = **무기가 되기 직전의 재료만** — 무기 조합식에 직접 들어가는 것 (dyn)
-  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'],
+  { id:'weapon', name:'무기', icon:'card_workbench', tags:['무기재료', '무기'], smith:'weaponsmith',
     top:'무기', tops:['무기'], dyn:['무기'], mats:['무기재료'] },   // v6.4.0: 무기재료는 모두 여기 아래에                     // v0.33.0: 이모지 대신 작업대 그림
   // v0.93.0: 몸을 지키는 것들. v0.95.0: 연장도 `갑옷재료` 태그로 정식으로 아래에 놓임 (topIds 꼼수 없앰)
   // v4.6.0: 갑옷 하나였던 탭을 **방어구 · 방패 · 장신구 셋으로 쪼갬** — 몸에 차는 칸마다 만드는 자리가 따로
-  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구'],
+  { id:'armor',  name:'갑옷', icon:'card_leatherarmor', tags:['갑옷재료', '방어구'], smith:'armorsmith',
     top:'방어구', tops:['방어구'], dyn:['방어구'], mats:['갑옷재료'] },   // v6.4.0
-  { id:'shield', name:'방패', icon:'card_woodshield', tags:['방패재료', '방패'],
+  { id:'shield', name:'방패', icon:'card_woodshield', tags:['방패재료', '방패'], smith:'shieldsmith',
     top:'방패',  tops:['방패'],  dyn:['방패'], mats:['방패재료'] },       // v7.16.0
-  { id:'trinket',name:'장신구', icon:'card_claynecklace', tags:['장신구재료', '장신구'],
+  { id:'trinket',name:'장신구', icon:'card_claynecklace', tags:['장신구재료', '장신구'], smith:'trinketsmith',
     top:'장신구', tops:['장신구'], dyn:['장신구'], mats:['장신구재료'] },   // v7.16.0
   // v6.3.0: 🍖 음식 · 🧪 약품 — 먹고 바르는 것은 조합 판에서 빼내 제 탭으로
   //   위 격자엔 만들어 둔 음식 · 약품, 아래엔 그 재료(고기 · 약초 …)만
@@ -2056,12 +2163,13 @@ const BOARDS = [
 //   원거리든 근접이든 무기는 모두 ⚔️ 무기 탭에서 만든다 ('무기' 태그는 둘 다 가짐)
 const SLOTS = [
   // v9.25.0: 무기 칸의 갈래는 **누구의 칸인가**에 따라 다르다 (기사 근접 · 궁수 원거리)
-  { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk',
+  { key:'weapon', name:'근접무기', tag:'근접무기', stat:'atk', smith:'weaponsmith',
     byHero: { knight: { name:'근접무기', tag:'근접무기' }, ally: { name:'원거리무기', tag:'원거리무기' } } },
-  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', lv:5 },
-  { key:'shield', name:'방패',  tag:'방패',   stat:'def', lv:10 },
-  { key:'trinket',name:'장신구', tag:'장신구', stat:'def', lv:15 },   // v0.69.0. v2.3.0: 첫 장신구(흙 목걸이) — 방어를 더함
-  { key:'consumable', name:'소모품', tag:'소모품', lv:20 },       // v1.9.0: 장신구 다음. 아직 이 태그를 가진 카드는 없음
+  // v9.55.0: **레벨 해금 폐지** — 칸을 여는 것은 레벨이 아니라 여관에서 찾아낸 **장인**이다
+  { key:'armor',  name:'갑옷',  tag:'방어구', stat:'def', smith:'armorsmith' },
+  { key:'shield', name:'방패',  tag:'방패',   stat:'def', smith:'shieldsmith' },
+  { key:'trinket',name:'장신구', tag:'장신구', stat:'def', smith:'trinketsmith' },   // v0.69.0. v2.3.0: 첫 장신구(흙 목걸이)
+  { key:'consumable', name:'소모품', tag:'소모품', smith:'herbalist' },   // v1.9.0: 아직 이 태그를 가진 카드는 없음
 ];
 // v0.66.0: **거점은 캐릭터 장비가 아니다.** 정비 화면에 하나뿐인 공통 칸이고 모든 캐릭터에게 같이 적용된다
 const CAMP = { key:'camp', name:'거점', tag:'거점' };
@@ -2072,8 +2180,50 @@ const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
 // v9.25.0: 그 줄(캐릭터)에서 이 칸이 받는 갈래 · 이름
 const slotTag = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).tag;
 const slotName = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).name;
-// v0.66.0: 레벨로 열림. v9.24.0: **캐릭터마다** 제 레벨로 (기사와 궁수가 따로 큰다)
-const slotOpen = (key, who) => { const sl = slotByKey(key); return !!sl && (!sl.lv || hLv(who || 'knight') >= sl.lv); };
+// --- 여관 . 장인 (v9.55.0) ---------------------------
+// 확정: **만들 수 있는가 / 없는가를 가르는 것은 레벨이 아니라 사람이다.**
+//   무기 · 갑옷 · 방패 · 장신구 · 소모품은 각자 제 장인이 있어야 만들고 끼울 수 있다.
+//   무기 장인은 처음부터 여관에 앉아 있고(그래서 무기는 처음부터 만든다), 나머지 넷은 **밝혀지지 않은 채** 앉아 있다.
+//   여관 주인에게 한 명을 등록하면 **소문 → 물건 → 증명** 세 걸음이 돌아간다 (한 번에 한 명).
+//   그 걸음을 끝낼 수 없을 만큼 땅이 잠겨 있으면 장인도 잠긴다 — 카드에 '산 클리어'처럼 적는다
+const SMITHS = [
+  { id:'weaponsmith', name:'무기 장인', card:'card_weaponsmith', free:true,
+    opens:{ board:'weapon', slot:'weapon' },
+    desc:'여관 구석에서 쇠를 두드리는 사람. 처음 보는 얼굴에게도 숫돌을 내준다.' },
+  { id:'armorsmith', name:'갑옷 장인', card:'card_armorsmith',
+    opens:{ board:'armor', slot:'armor' }, land:'grassland',
+    give:[['hide', 3], ['toughhide', 2]], proof:'boar',
+    rumor:'초원 바람에 가죽 냄새가 섞여 있다고 한다',
+    desc:'가죽을 손질해 몸에 맞게 붙이는 사람. 멧돼지 가죽을 보면 눈이 달라진다.' },
+  { id:'shieldsmith', name:'방패 장인', card:'card_shieldsmith',
+    opens:{ board:'shield', slot:'shield' }, land:'forest',
+    give:[['tree', 3], ['vine', 2]], proof:'wolfleader',
+    rumor:'숲에서 나무를 쪼개는 소리가 들린다고 한다',
+    desc:'나무를 켜서 겹쳐 붙이는 사람. 막아 본 것만 믿는다.' },
+  { id:'trinketsmith', name:'장신구 장인', card:'card_trinketsmith',
+    opens:{ board:'trinket', slot:'trinket' }, land:'river',
+    give:[['shellpiece', 2], ['sand', 2]], proof:'crocodile',
+    rumor:'강가에서 조개를 갈아 꿰는 사람이 있다고 한다',
+    desc:'조개와 돌을 갈아 꿰는 사람. 작은 것에 값을 매긴다.' },
+  { id:'herbalist', name:'약재 장인', card:'card_herbalist',
+    opens:{ slot:'consumable' }, land:'swamptomb',
+    give:[['herb', 3], ['glowcap', 2]], proof:'bogarm',
+    rumor:'늪에서 약초를 캐 가는 사람이 있다고 한다',
+    desc:'물에 잠긴 뿌리와 버섯을 가려내는 사람. 쓴 것을 쓸 줄 안다.' },
+];
+const SMITH_BY_ID = Object.fromEntries(SMITHS.map(x => [x.id, x]));
+const INN_STEPS = ['소문', '물건', '증명'];
+const innSt = () => (typeof S !== 'undefined' && S && S.inn) ? S.inn : null;   // load 중엔 아직 없다
+const freshInn = () => ({ reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] });
+const smithDone = id => { const n = innSt(); return !!n && (n.done || []).includes(id); };
+const smithOk = id => editMode || !SMITH_BY_ID[id] || !!SMITH_BY_ID[id].free || smithDone(id);
+const smithFound = id => editMode || smithDone(id) || ((innSt() || {}).found || []).includes(id);
+const smithName = id => smithFound(id) ? (SMITH_BY_ID[id] || {}).name : '???';
+const smithLocked = id => { const sm = SMITH_BY_ID[id]; return !!sm && !!sm.land && fieldLocked(sm.land); };
+const smithNeed = id => { const sm = SMITH_BY_ID[id]; return sm && sm.land ? fieldNeed(sm.land) : ''; };
+const smithStep = id => Math.min((((innSt() || {}).prog) || {})[id] || 0, INN_STEPS.length);
+// v0.66.0: 레벨로 열림 → v9.55.0: **장인으로 열림** (레벨은 이제 능력치만 준다)
+const slotOpen = (key, who) => { const sl = slotByKey(key); return !!sl && (!sl.smith || smithOk(sl.smith)); };
 // v9.24.2: 칸 id 는 `<줄>:<칸>` — **줄이 곧 누구의 칸인가**. 여기저기서 따로 쪼개다 보니
 //   궁수 칸을 만지면서 기사 장비를 건드리는 일이 있었다. 읽는 곳을 이 함수 하나로 모은다
 const slotId = id => {
@@ -2082,7 +2232,7 @@ const slotId = id => {
 };
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'book', 'settings'];   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
+const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'inn', 'book', 'settings'];   // v9.55.0: 여관   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -2135,13 +2285,17 @@ const onTopGrid = (type, id) => { const b = boardOf(id);
   return !!b.tops && useOf(type).some(u => b.tops.includes(u)); };
 const boardFor = type => (BOARDS.find(b => b.dyn && boardOpen(b) && (onBoard(type, b.id) || onTopGrid(type, b.id)))   // v1.0.0
   || BOARDS.find(b => useOf(type).some(u => b.tags.includes(u)) && boardOpen(b)) || BOARDS[0]).id;
-const boardOpen = b => editMode || !b.needs || (S.boards || []).includes(b.id);
+// v9.55.0: 탭을 여는 것도 장인 — 갑옷 장인을 못 찾았으면 갑옷 탭에서 아무것도 만들 수 없다
+const boardOpen = b => editMode || ((!b.needs || (S.boards || []).includes(b.id)) && (!b.smith || smithOk(b.smith)));
+const boardNeed = b => b && b.smith && !smithOk(b.smith)
+  ? (smithLocked(b.smith) ? smithNeed(b.smith) : `${smithName(b.smith)} 찾기`) : '';
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
 const els = new Map();
 let selected = null;
 
 function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], newLands: [], seenLands: [], newFoes: [], seenFoes: [], hints: {}, tab: 'battle', intro: 'done',   // v7.13.0   // v0.18.2: 크리처별로 받아 본 전리품
+  inn: freshInn(),                                                                // v9.55.0: 여관 — 무기 장인은 처음부터
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 },
   ally: { hp: ARCHER.hp, lv: 1, xp: 0 } }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
@@ -2199,6 +2353,22 @@ function load(){
     s.boards = Array.isArray(s.boards) ? s.boards.filter(id => BOARD_BY_ID[id]) : [];
     for (const id of ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build']) if (!s.boards.includes(id)) s.boards.push(id);   // v0.56.0 · v0.93.0 · v4.6.0
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
+    // v9.55.0: 여관 — 옛 저장은 **레벨로 열려 있던 칸을 장인으로 환산**해 그대로 준다 (진행이 뒤로 가지 않게)
+    const n0 = s.inn && typeof s.inn === 'object' ? s.inn : null;
+    const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] };
+    if (n0){
+      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith'))];
+      inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
+      inn.reg = SMITH_BY_ID[n0.reg] && !inn.done.includes(n0.reg) ? n0.reg : null;
+      for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
+      for (const id in (n0.given || {})) if (SMITH_BY_ID[id]) inn.given[id] = n0.given[id];
+    } else {
+      const lv = Math.max((s.knight && s.knight.lv) || 1, (s.ally && s.ally.lv) || 1);
+      const byLv = [[5, 'armorsmith'], [10, 'shieldsmith'], [15, 'trinketsmith'], [20, 'herbalist']];
+      for (const [need, id] of byLv) if (lv >= need) inn.done.push(id);
+      inn.found = [...inn.done];
+    }
+    s.inn = inn;
     s.marks = s.marks && typeof s.marks === 'object' ? s.marks : {};   // v0.61.0: 필드마다 가장 멀리 간 지점
     // v0.66.0: 잡아 본 적. v0.76.0: ENEMIES는 아직 선언 전(load는 맨 위에서 불림)이라 모양만 본다
     s.killed = Array.isArray(s.killed) ? s.killed.filter(k => typeof k === 'string') : [];
@@ -2214,8 +2384,7 @@ function load(){
     s.tab = s.tab === 'gather' ? 'battle' : s.tab === 'craft' ? 'tool' : s.tab;   // v0.20.0: 예전 탭 이름
     const freeTab = t => freeTabs.includes(t);                   // v0.91.0: 보드가 아닌 화면
     if (!BOARD_BY_ID[s.tab] && !freeTab(s.tab)) s.tab = 'battle';
-    if (!freeTab(s.tab) && !boardOpen(BOARD_BY_ID[s.tab])) s.tab = 'battle';
-    delete s.quest;
+    delete s.quest;                                               // v9.55.0: 잠긴 탭 되돌림은 초기화 뒤에서 (여관을 읽을 수 있을 때)
     s.intro = 'done';
     const ok = s.knight || {};                                    // v0.13.0: 기사. v0.66.0: 레벨·경험치
     s.knight = { hp: 0, lv: Math.max(1, Math.floor(ok.lv) || 1), xp: Math.max(0, Math.floor(ok.xp) || 0) };
@@ -2522,6 +2691,7 @@ const ICONS = {
   lock:'ui_lock', unlock:'ui_lock-open',
   dungeon:'card_dungeon', bone:'card_bone', cloth:'card_leatherarmor', trinket:'card_claynecklace',
   raid:'ui_raid',                                                 // v9.42.0: 레이드 탭
+  inn:'ui_inn',                                                   // v9.55.0: 여관 탭
   prelude:'card_prelude', mountain:'card_mountain', grassland:'card_grassland', forest:'card_forest', river:'card_river',
 };
 const uiIcon = (id, cls = 'inline') => ICONS[id]
@@ -2534,7 +2704,7 @@ const EMOJI_ICON = {
   '✨':'xp', '🩸':'down', '⚠':'warn', '🌿':'nature', '⚒':'forge', '🛠':'tools', '🧱':'build',
   '🍖':'food', '🔱':'trident', '🏹':'bow', '🪢':'rope', '🎒':'bag', '🪨':'rock', '🕸':'web',
   '🍄':'mushroom', '🐚':'shell', '🏃':'run', '📋':'clip', '🔒':'lock', '🔓':'unlock',
-  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket', '🗼':'raid',
+  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket', '🗼':'raid', '🏨':'inn',
   '🏕':'prelude', '⛰':'mountain', '🌾':'grassland', '🌲':'forest', '🏞':'river',
   '⚔':'field',                                                   // 중간보스 표시도 같은 칼 그림
 };
@@ -2542,7 +2712,7 @@ const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?'
 // v7.8.0: 글 속 **그림이 붙은 탭 이름**(🎯 목표 · ⚔️ 무기 · 📖 콜렉터북 …)은 눌러서 그 탭으로 간다.
 //   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
 const TAB_LINK = {
-  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'gearup',
+  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'gearup', '🏨 여관':'inn',
   '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'weapon', '🔨 조합':'tool',
   '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
 };
@@ -2913,6 +3083,7 @@ addEventListener('pointercancel', endDrag);
 // ── 인스펙터 ────────────────────────────────────────
 const UNK = '<span class="i-muted">???</span>';
 let inspType = null;                                             // v0.3.0: 콜렉터북에서 고른 카드 종류
+let innPick = null;                                              // v9.55.0: 여관에서 고른 사람 ('keeper' · 장인 id)
 function select(id){
   slotPick = null;                                                 // v0.25.0: 카드를 고르면 칸 선택은 풀림
   if (selected != null) els.get(selected)?.classList.remove('sel');
@@ -2921,7 +3092,38 @@ function select(id){
   els.get(id)?.classList.add('sel');
   renderInsp();
 }
+// v9.55.0: 장인 정보 칸 — 무엇을 열어 주는 사람인지, 세 걸음이 어디까지 왔는지
+function renderSmithInsp(){
+  if (innPick === 'keeper'){
+    inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
+      + '<div><div class="nm">여관 주인</div><div class="kd">여관 · 사람을 찾아 준다</div></div></div>'
+      + '<div class="desc">누구를 찾을지 등록 칸에 올려 두면, 소문을 모아 어디로 가야 하는지 알려 준다. 한 번에 한 명.</div>';
+    return true;
+  }
+  const sm = SMITH_BY_ID[innPick];
+  if (!sm) return false;
+  const found = smithFound(sm.id), lock = smithLocked(sm.id), done = smithDone(sm.id);
+  const opens = [sm.opens.board ? `${(BOARD_BY_ID[sm.opens.board] || {}).name || ''} 탭` : '',
+    sm.opens.slot ? `${(slotByKey(sm.opens.slot) || {}).name || ''} 칸` : ''].filter(Boolean).join(' · ');
+  const st = smithStep(sm.id);
+  const steps = INN_STEPS.map((nm, i) => {
+    const ok = st > i, now = st === i && (S.inn || {}).reg === sm.id;
+    const body = !found && i > 0 ? '???' : innStepNote(sm, i);
+    return `<div class="q-row${ok ? ' done' : ''}">${ok ? '✔' : now ? '▶' : '·'} ${esc(nm)}`
+      + ` <span class="i-muted">${esc(body)}</span></div>`;
+  }).join('');
+  inspEl.innerHTML = `<div class="head"><div class="pic${found ? '' : ' locked'}">`
+    + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
+    + `<div><div class="nm">${esc(smithName(sm.id))}</div>`
+    + `<div class="kd">장인 · ${esc(opens || '—')}</div></div></div>`
+    + `<div class="desc">${found ? esc(sm.desc) : '아직 밝혀지지 않음.'}</div>`
+    + (done ? '<div class="i-ok">합류 — 이제 만들 수 있다</div>'
+      : lock ? `<div class="i-muted">🔒 ${esc(smithNeed(sm.id))}</div>`
+      : sm.free ? '' : `<div class="i-sect">세 걸음</div>${steps}`);
+  return true;
+}
 function renderInsp(){
+  if (S.tab === 'inn' && innPick && renderSmithInsp()) return;     // v9.55.0: 여관
   if (isFieldTab(S.tab)) return renderFieldInsp();                // v4.3.0 던전 · v9.42.0 레이드도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('foe:') && renderFoeInsp()) return;    // v7.9.1: 책에서 고른 크리처
@@ -3459,7 +3661,8 @@ const boardLabel = id => `${BOARD_MARK[id] || ''} ${boardOf(id).name.replace(/^\
 const sideHere = (t, id) => onBoard(t, id) || onTopGrid(t, id);
 const sideOnBoard = (sd, id) => sd.card ? sideHere(sd.card, id)
   : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && sideHere(t, id));
-const recipeBoards = r => BOARDS.filter(b => sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
+// v9.55.0: **열려 있는 탭만** 센다 — 장인을 못 찾아 잠긴 탭의 조합은 지금 할 수 없고, 목표에도 뜨지 않는다
+const recipeBoards = r => BOARDS.filter(b => boardOpen(b) && sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
   const now = recipeNow(r);                                       // v2.9.1: 지금 두 재료가 다 있음
@@ -3773,13 +3976,15 @@ function renderTabs(){                                            // v0.21.0: �
   const boardBtn = b => boardOpen(b)
     ? `<button class="tabbtn" data-tab="${b.id}">${lab(b)}</button>`
     : `<button class="tabbtn locked" data-tab="${b.id}"><img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">${lab(b)}`
-      + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '') + '</button>';   // v0.98.0 · v0.98.1
+      + (b.needs ? ` <span class="i-muted">· ${esc(DEFS[b.needs].name)}</span>` : '')
+      + (boardNeed(b) ? ` <span class="i-muted">· ${esc(boardNeed(b))}</span>` : '') + '</button>';   // v0.98.0 · v9.55.0 장인
   // v4.5.0: 같은 결끼리 묶어 보이게 — [나가는 곳][준비][만드는 곳][기록][설정]
   //   단추 동작은 그대로. 묶음마다 살짝 다른 바탕과 구분선만 둔다
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
   const groups = [
     { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전'), btn('raid', '🗼 레이드')] },
-    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표')] },
+    // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
+    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표'), btn('inn', '🏨 여관')] },
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b)).map(boardBtn) },
   ];
@@ -3816,7 +4021,7 @@ function renderTabs(){                                            // v0.21.0: �
   for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
-const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', raid:'🗼 레이드', aim:'🎯 목표', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', raid:'🗼 레이드', aim:'🎯 목표', inn:'🏨 여관', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -3825,7 +4030,7 @@ function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'aim';   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드도 줄 화면
+const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'aim' || tab === 'inn';   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드 · v9.55.0 여관
 // ── 🎯 목표 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
@@ -4044,13 +4249,45 @@ function slotHtmlOf(sl){
     ? `<div class="cw framed f-${sl.frame || 'wood'}${sl.unseen ? ' unseen' : ''}">${sl.unseen ? '' : statsHtml(sl.type)}`
       + `<div class="emoji">${sl.icon}</div><div class="name">${esc(sl.cardName || '')}</div></div>`
     : sl.open ? `<span class="pslot-lab">${esc(sl.lab || '')}</span>`
+      + (sl.note ? `<b class="lockneed">${esc(sl.note)}</b>` : '')   // v9.55.0: 지금 걸음에 할 일
     : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">`   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
       + (sl.need ? `<b class="lockneed">${esc(sl.need)}</b>` : '')                    // v0.98.0: 자물쇠 위에 조건
       + (sl.lab ? `<span class="pslot-lab">${esc(sl.lab)}</span>` : '');
   return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
 }
 // 이 화면의 줄 목록
+// v9.55.0: 장인 카드 — 아직 밝혀지지 않았으면 검은 실루엣 + ??? (목표의 안개 카드와 같은 규칙)
+function smithCardHtml(id, drag){
+  const sm = SMITH_BY_ID[id], found = smithFound(id), lock = smithLocked(id);
+  return `<div class="cw framed f-${found ? 'bronze' : 'stone'} smith${found ? '' : ' unseen'}`
+    + `${innPick === id ? ' sel' : ''}"${drag ? ` data-token="${id}"` : ''} data-smith="${id}">`
+    + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
+    + `<div class="name">${esc(smithName(id))}</div>`
+    + (lock ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
+      + `<b class="lockneed">${esc(smithNeed(id))}</b></div>` : '')
+    + (smithDone(id) ? '<div class="sub-lab">합류</div>' : '') + '</div>';
+}
 function screenRows(){
+  // v9.55.0: 🏨 여관 — 윗줄은 여관 주인(등록 칸 하나), 등록한 장인이 있으면 그 아래 **세 걸음** 줄
+  if (S.tab === 'inn'){
+    const n = S.inn = S.inn || freshInn();
+    const reg = n.reg && SMITH_BY_ID[n.reg] ? n.reg : null;
+    const keeper = '<div class="cw framed f-stone camp-lab keeper" data-smith="keeper">'
+      + '<div class="emoji"><img class="icon" src="images/icon/card_innkeeper.png" alt="여관 주인" draggable="false"></div>'
+      + '<div class="name">여관 주인</div><div class="sub-lab">한 명씩</div></div>';
+    const rows = [{ card: keeper, slots: [{ id:'inn:reg', open:true, card: !!reg,
+      icon: reg ? `<img class="icon" src="images/icon/${SMITH_BY_ID[reg].card}.png" alt="" draggable="false">` : '',
+      cardName: reg ? smithName(reg) : '', frame:'bronze', lab:'등록',
+      unseen: !!reg && !smithFound(reg) }] }];
+    if (reg){
+      const sm = SMITH_BY_ID[reg], st = smithStep(reg);
+      rows.push({ card: smithCardHtml(reg), slots: INN_STEPS.map((nm, i) => ({
+        id: `inn:step${i}`, open: true, card: st > i, frame:'gold',
+        icon: st > i ? '<img class="icon" src="images/icon/ui_lock-open.png" alt="" draggable="false">' : '',
+        cardName: st > i ? nm : '', lab: nm, note: st === i ? innStepNote(sm, i) : '' })) });
+    }
+    return rows;
+  }
   if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
     const g = S.goal && DEFS[S.goal] ? S.goal : null;
     const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
@@ -4095,7 +4332,9 @@ function screenRows(){
     const t = open ? equipped(sl.key, row) : null;
     return { id: `${row}:${sl.key}`, open, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
-      lab: slotName(sl, row), need: open || !sl.lv ? '' : `${sl.lv}레벨` };   // v0.98.0: 조건은 자물쇠 위에. v0.98.1: '필요' 뺌
+      // v9.55.0: 조건은 레벨이 아니라 사람 — 땅이 잠겨 그 장인부터 못 찾으면 땅 조건을 적는다
+      lab: slotName(sl, row), need: open || !sl.smith ? ''
+        : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` };
   };
   const campCard = '<div class="cw framed f-stone camp-lab"><div class="emoji">🔥</div>'
     + '<div class="name">거점</div><div class="sub-lab">모두 공통</div></div>';
@@ -4107,6 +4346,21 @@ function screenRows(){
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
+  // v9.55.0: 여관 — 아직 못 찾은 장인들. 물건 걸음이면 건넬 재료도 함께 깔린다
+  if (S.tab === 'inn'){
+    const reg = (S.inn || {}).reg;
+    const out = SMITHS.filter(x => !smithOk(x.id) && x.id !== reg).map(x => {   // 등록한 사람은 윗줄에 이미 있다
+      const can = !smithLocked(x.id) && !reg;                     // 한 번에 한 명 — 등록 중엔 못 끈다
+      return { token: can ? x.id : null, html: smithCardHtml(x.id, can) };
+    });
+    if (reg && smithStep(reg) === 1) for (const [t] of (SMITH_BY_ID[reg].give || [])){
+      if (innGiveNeed(t) <= 0 || have(t) <= 0) continue;
+      out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">${statsHtml(t)}`
+        + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
+        + `<div class="cnt">${have(t)}</div></div>` });
+    }
+    return out;
+  }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
   if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0: 캐릭터 둘
     const outK = !!expOf('knight'), outA = !!expOf('ally');
@@ -4267,6 +4521,9 @@ function renderScreen(){
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
+      : S.tab === 'inn' ? ((S.inn || {}).reg                      // v9.55.0
+        ? (smithStep(S.inn.reg) === 1 ? '재료를 물건 칸에 끌어다 놓으세요' : '세 걸음은 놀이 중에 저절로 채워집니다')
+        : '찾고 싶은 사람을 여관 주인의 등록 칸에 끌어다 놓으세요')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
@@ -4278,6 +4535,11 @@ const renderSlots = () => {};                                     // v0.29.0: �
 // 칸에 놓았을 때
 function dropOnSlot(id, token){
   const { row: rowKey, key: slotKey } = slotId(id);               // v9.24.2
+  if (S.tab === 'inn'){                                           // v9.55.0: 등록 칸 · 물건 칸
+    if (slotKey === 'reg') innRegister(token);
+    else if (slotKey === 'step1') innGive(token);
+    return;
+  }
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
   if (isFieldTab(S.tab)){                                         // v4.0.0
     if (token !== 'knight' && token !== 'ally') return;           // v9.20.0
@@ -4286,13 +4548,19 @@ function dropOnSlot(id, token){
     return;
   }
   const sl = slotByKey(slotKey);
-  if (sl && !slotOpen(sl.key, rowKey)){ toast(`${slotName(sl, rowKey)} 칸은 ${sl.lv}레벨에 열림`); return; }   // v0.56.0 · v0.66.0
+  // v9.55.0: 칸은 장인이 연다 — 누구를 찾아야 하는지 적어 준다
+  if (sl && !slotOpen(sl.key, rowKey)){ toast(`${slotName(sl, rowKey)} 칸은 ${smithName(sl.smith)}이 있어야 열림`); return; }
   if (!sl || !useOf(token).includes(slotTag(sl, rowKey))){ toast(`${sl ? slotName(sl, rowKey) : '이 칸'} 칸에 넣을 수 없음`); return; }
   equipCard(sl, token, rowKey);
 }
 // 그 칸에 이 카드를 넣을 수 있나
 function slotTakes(id, token){
   const { key: slotKey, who } = slotId(id);                        // v9.24.2
+  if (S.tab === 'inn'){                                           // v9.55.0
+    if (slotKey === 'reg') return !!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token) && !(S.inn || {}).reg;
+    if (slotKey === 'step1') return innGiveNeed(token) > 0;
+    return false;
+  }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (isFieldTab(S.tab)) return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
   const sl = slotByKey(slotKey);
@@ -4325,6 +4593,13 @@ function unequipSlot(sl, who){
 }
 // ── 끌기 (v0.29.0) — 아래 카드를 원본 그대로 들어 올려 칸에 놓음. 칸의 카드를 끌어내면 빼기
 let tokenDrag = null;
+gatherEl.addEventListener('click', e => {                         // v9.55.0: 줄에 놓인 장인 카드 · 여관 주인
+  const sm = e.target.closest('[data-smith]');
+  if (!sm || !isRowScreen(S.tab) || S.tab !== 'inn') return;
+  innPick = sm.dataset.smith;
+  slotPick = null; heroPick = null;
+  renderScreen(); renderInsp();
+});
 gatherEl.addEventListener('pointerdown', e => {
   if (paused) return;
   const slotEl = e.target.closest('[data-slot-id]');
@@ -4334,7 +4609,10 @@ gatherEl.addEventListener('pointerdown', e => {
   const fromSlot = !tokEl && slotEl ? slotEl.dataset.slotId : null;
   if (fromSlot && !slotEl.classList.contains('filled')) return;    // 빈 칸은 끌 것이 없음
   const fs = slotId(fromSlot);                                    // v9.24.2: 어느 줄(누구)의 칸인지까지 읽는다
-  const token = tokEl ? tokEl.dataset.token : (S.tab === 'aim' ? S.goal : equipped(fs.key, fs.who));
+  const token = tokEl ? tokEl.dataset.token
+    : S.tab === 'aim' ? S.goal
+    : S.tab === 'inn' ? (fs.key === 'reg' ? (S.inn || {}).reg : null)   // v9.55.0
+    : equipped(fs.key, fs.who);
   if (!token) return;
   const r0 = el.getBoundingClientRect();
   tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false };
@@ -4396,16 +4674,19 @@ addEventListener('pointerup', e => {
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can');
   if (!d.moved){                                                  // 탭 — 정보만
     if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
+    else if (SMITH_BY_ID[d.token]){ innPick = d.token; slotPick = null; renderScreen(); renderInsp(); }   // v9.55.0: 장인
     else if (d.token === 'knight' || d.token === 'ally'){ heroPick = d.token; fieldPick = null; foePick = null; slotPick = null; renderScreen(); renderInsp(); }   // v7.13.2 · v9.24.0
     else { inspType = d.token; selected = null; heroPick = null; slotPick = null; renderScreen(); renderInsp(); }   // v6.6.0: 목표 탭 카드도 골라짐
     return;
   }
   const hit = d.snap || null;                                     // v9.39.0: 스냅돼 있던 칸에만 들어간다
   if (hit && hit !== d.fromSlot){
-    if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
+    if (d.fromSlot && S.tab === 'inn') innUnregister();            // v9.55.0
+    else if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
     dropOnSlot(hit, d.token);
   } else if (d.fromSlot && !hit){
     if (S.tab === 'aim'){ S.goal = null; slotPick = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4 · v5.4.0
+    else if (S.tab === 'inn') innUnregister();                     // v9.55.0: 등록 칸에서 끌어내면 푼다
     else { const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // 칸 밖으로 빼기. v9.24.2: 그 줄의 것만
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림

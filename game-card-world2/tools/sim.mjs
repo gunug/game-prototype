@@ -235,7 +235,7 @@ function makeAI({ ctx, clock }){
         if (foes.some(f => f.thorns))
           return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
         if (foes.some(f => f.shell))
-          return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 1.4 && mine(t));
+          return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 2 && mine(t));
         return true;
       })()`);
     },
@@ -244,7 +244,7 @@ function makeAI({ ctx, clock }){
       return g(`(function(){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const want = foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
-          : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 1.4
+          : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 2
           : null;
         if (!want) return null;
         const list = CRAFT_TYPES.filter(t => want(t) && have(t) <= 0 && aimReady(t))
@@ -276,6 +276,33 @@ function makeAI({ ctx, clock }){
         return equipped('weapon');
       })()`);
     },
+    // v9.55.0: 여관 — 지금 등록된 사람 · 걸음 · 모자란 물건 · 등록할 수 있는 사람
+    inn(){
+      return g(`(function(){
+        const n = S.inn || {}, reg = n.reg || null;
+        const open = SMITHS.filter(x => !smithOk(x.id) && !smithLocked(x.id)).map(x => x.id);
+        const step = reg ? smithStep(reg) : -1;
+        const miss = [];
+        if (reg && step === 1) for (const [t2] of (SMITH_BY_ID[reg].give || [])){
+          const k = innGiveNeed(t2); if (k > 0) miss.push([t2, k]);
+        }
+        return JSON.parse(JSON.stringify({ reg, step, open, miss }));
+      })()`);
+    },
+    smithLand(id){ return g(`(SMITH_BY_ID[${JSON.stringify(id)}] || {}).land || null`); },
+    innReg(id){ this.spend(COST.tab); return g(`innRegister(${JSON.stringify(id)})`); },
+    innHand(){                                                     // 가진 만큼 건넨다 — 건넨 장수를 돌려준다
+      this.spend(COST.equip);
+      return g(`(function(){
+        const n = S.inn;
+        if (!n || !n.reg || smithStep(n.reg) !== 1) return 0;
+        let k = 0;
+        for (const [t2] of (SMITH_BY_ID[n.reg].give || [])){
+          for (let i = 0; i < 9 && innGiveNeed(t2) > 0 && have(t2) > 0; i++){ innGive(t2); k++; }
+        }
+        return k;
+      })()`);
+    },
     restTo(frac = 1){                                              // 체력이 그만큼 찰 때까지 쉰다
       for (let i = 0; i < 600; i++){
         if (g('S.knight.hp') >= Math.floor(g('knightMaxHp()') * frac)) return true;
@@ -288,6 +315,7 @@ function makeAI({ ctx, clock }){
     fields(){ return g(`JSON.parse(JSON.stringify(FIELDS.filter(f => !f.raid).map(f => ({ id: f.id, name: f.name, dungeon: !!f.dungeon, locked: fieldLocked(f.id) }))))`); },
     log(){ return g('JSON.parse(JSON.stringify(LOG))'); },
     snapshot(){ return g('JSON.parse(JSON.stringify(progressSnapshot()))'); },
+    smiths(){ return g('JSON.parse(JSON.stringify((S.inn || {}).done || []))'); },
     minutes(){ return (clock.now() - g('LOG.start')) / 60000; },
   };
   return ai;
@@ -372,6 +400,20 @@ function play(ai, note){
     // ② 목표 차례 — 지금 만들 수 있으면 만든다
     if (st.goal && craftStep()) continue;
 
+    // ②-2 v9.55.0: 여관 — 장인이 없으면 그 탭에서 아무것도 못 만든다. 한 명씩 등록하고 물건을 건넨다
+    const inn = ai.inn();
+    // 지금 넘을 만한 땅의 사람부터 찾는다 — 못 가는 땅의 물건을 요구받으면 그 자리에서 헛돈다
+    const pick = inn.open.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
+    if (!inn.reg && pick){ ai.innReg(pick); ai.touch(); note(`여관 등록 ${pick}`); continue; }
+    if (inn.reg && inn.step === 1){
+      if (ai.innHand() > 0){ ai.touch(); note('여관 납품'); continue; }
+      const want = inn.miss[0] && fieldFor(inn.miss[0][0]);        // 모자란 물건이 나오는 땅으로
+      if (want && ai.canBeat(want)){                               // 못 넘을 땅으로는 물건 벌러 가지 않는다
+        ai.armFor(want); ai.restTo(1); ai.touch();
+        if (ai.sortie(want) === 'go'){ ai.finishExp(craftStep); note(`원정 ${want} (여관 물건)`); continue; }
+      }
+    }
+
     // ③ 다음 땅: 넘을 만하면 간다. 아니면 **약한 땅에서 재료 · 경험치**를 벌어 온다 (사람도 그렇게 했다)
     const list = ai.fields().filter(f => !f.locked);
     const next = list.find(f => !st.cleared.includes(f.id));
@@ -435,6 +477,8 @@ function runOnce(seed){
     레벨: ai.state().lv,
     발견카드: ai.state().seen,
     헤맴_분: +((log.active - log.expTime) / 60000).toFixed(1),      // 논 시간에서 원정을 뺀 것 = 화면 앞에서 손질한 시간
+    장인: (ai.smiths() || []).length,                              // v9.55.0: 여관에서 찾아낸 사람 수 (무기 장인 포함)
+    장인_분: ev.filter(e => e.k === 'inn-done').map(e => `${e.smith}:${(e.t / 60000).toFixed(1)}`),
     모르는조합: ai.unknownCraft || 0,
     모르는출처: ai.unknownSource || 0,
     원정: ev.filter(e => e.k === 'expStart').length,

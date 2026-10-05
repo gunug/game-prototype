@@ -125,7 +125,13 @@ try {
     for (const id in TREES){ bookTree = id; renderBook(); }
     S.goal = CRAFT_TYPES.find(t => CRAFT_RECIPES.some(r => (r.out || []).includes(t))) || null;
     goalRowHtml(); goalPlanHtml(); opNote(); renderQuest();
-    for (const tab of ['aim', 'battle', 'gearup']){ S.tab = tab; screenRows(); screenTokens(); }
+    for (const tab of ['aim', 'battle', 'gearup', 'inn']){ S.tab = tab; screenRows(); screenTokens(); }
+    // v9.55.0: 여관 — 등록 전 · 세 걸음 각각 · 정보 칸(장인 다섯 + 여관 주인)
+    S.tab = 'inn';
+    S.inn = { reg:'armorsmith', prog:{}, given:{}, done:['weaponsmith'], found:['weaponsmith'] };
+    for (const n of [0, 1, 2]){ S.inn.prog.armorsmith = n; screenRows(); screenTokens(); }
+    for (const id of SMITHS.map(x => x.id).concat('keeper')){ innPick = id; renderInsp(); }
+    innPick = null; S.inn = freshInn();
     S.tab = 'aim'; aimCandidates();
     for (const t of CRAFT_TYPES.slice(0, 12)){ inspType = t; S.tab = 'tool'; renderInsp(); }
     // v4.7.0: 좁은 화면 ☰ 메뉴 — 접고 펴고 다시 넓혀도 단추가 살아 있는지
@@ -270,5 +276,50 @@ try {
   if (msg.length) report('진행 막힘', new Error(msg.join(' | ')));
   else console.log('✓ 진행 막힘 없음 (기믹 해법 무기는 그 땅 전에 만들 수 있고, 모든 조합식이 닿는다)');
 } catch (e){ report('진행 막힘', e); }
+
+// 11) 장인 걸음이 닿는가 (v9.55.0) — 여관의 세 걸음(소문 · 물건 · 증명)이 **그 장인을 찾을 수 있는 시점에**
+//     전부 가능해야 한다. 재료를 뒷땅에서만 구하거나, 지목한 놈이 그 땅에 없으면 그 자리에서 영원히 막힌다
+try {
+  const bad = vm.runInContext(`(function(){
+    const out = [];
+    const waveOf = id => { let w = 0, cur = id, seen = {};
+      while (true){ const p = unlockAfter(cur); if (!p || seen[p]) break; seen[p] = 1; w++; cur = p; } return w; };
+    const fromField = id => { const got = new Set(yieldsOf(id));
+      for (const st of (planOf(id) || [])) for (const l of ((ENEMIES[st.fight] || {}).loot || [])) got.add(l[0]);
+      return [...got]; };
+    const upto = w => { const have = new Set();
+      for (const f of FIELDS) if (waveOf(f.id) <= w) for (const t of fromField(f.id)) have.add(t);
+      for (let i = 0; i < 12; i++) for (const rc of CRAFT_RECIPES){
+        if (rc.cook || !rc.a.card || !rc.b.card) continue;
+        if (have.has(rc.a.card) && have.has(rc.b.card)) for (const o of (rc.out || [])) have.add(o);
+      }
+      return have; };
+    for (const sm of SMITHS){
+      if (sm.free){                                               // 처음부터 있는 사람은 걸음이 없다
+        if (sm.land || sm.give || sm.proof) out.push(sm.name + ' — 처음부터 있는데 걸음이 붙어 있다');
+        continue;
+      }
+      if (!FIELD_BY_ID[sm.land]) { out.push(sm.name + ' — 소문의 땅이 없다'); continue; }
+      if (!ENEMIES[sm.proof]) { out.push(sm.name + ' — 증명할 놈이 없다'); continue; }
+      const w = waveOf(sm.land);
+      const here = (planOf(sm.land) || []).some(st => st.fight === sm.proof);
+      if (!here) out.push(sm.name + ' — ' + ENEMIES[sm.proof].name + '이 ' + FIELD_BY_ID[sm.land].name + '에 없다');
+      const have = upto(w);                                       // 그 땅이 열린 시점까지
+      for (const [t, n] of (sm.give || [])){
+        if (!DEFS[t]) { out.push(sm.name + ' — 없는 재료 ' + t); continue; }
+        if (!have.has(t)) out.push(sm.name + ' — ' + DEFS[t].name + ' ' + n + '을 그때 구할 수 없다');
+      }
+      const o = sm.opens || {};
+      if (o.board && !BOARD_BY_ID[o.board]) out.push(sm.name + ' — 없는 탭 ' + o.board);
+      if (o.slot && !slotByKey(o.slot)) out.push(sm.name + ' — 없는 칸 ' + o.slot);
+    }
+    // 칸과 탭마다 **맡은 장인이 하나**여야 한다 (아무도 안 맡으면 영원히 잠긴다)
+    for (const sl of SLOTS) if (sl.smith && !SMITH_BY_ID[sl.smith]) out.push(sl.name + ' 칸 — 없는 장인 ' + sl.smith);
+    for (const b of BOARDS) if (b.smith && !SMITH_BY_ID[b.smith]) out.push(b.name + ' 탭 — 없는 장인 ' + b.smith);
+    return out;
+  })()`, ctx);
+  if (bad.length) report('장인 걸음', new Error(bad.join(' | ')));
+  else console.log('✓ 장인 걸음이 닿는다 (소문의 땅 · 물건 재료 · 증명할 놈이 그 시점에 다 있다)');
+} catch (e){ report('장인 걸음', e); }
 
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);

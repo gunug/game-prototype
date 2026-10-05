@@ -16,6 +16,7 @@ OUT = HERE.parent / "images" / "icon"
 
 # (파일명, 한글 이름, 영문 프롬프트, 흰 배경 여부)
 ICONS = [
+    ("ui_inn",      "여관",       "a small stone-and-timber roadside inn hut with a thatched roof and a warm lit window, no people", False),
     ("ui_aim",      "목적",       "a round archery target board with three rings and one arrow stuck in the center", False),
     ("ui_tree",     "길",         "a small bare branching tree diagram carved from wood, trunk splitting into three branches", False),
     ("ui_book",     "콜렉터북",   "a thick closed leather-bound book with a bone clasp", False),
