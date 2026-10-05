@@ -801,6 +801,10 @@
   .insp .i-muted{color:var(--muted);}
   /* v9.56.0: 사람 카드의 한마디 — 설명 아래 기울임으로 한 줄 */
   .insp .i-quip{margin-top:6px;color:var(--muted);font-style:italic;line-height:1.45;}
+  /* v9.56.5: 사람의 전신 그림 — 정보 칸 안에 한 장 (비율 그대로, 바닥에 세운다) */
+  .insp .insp-body{display:flex;justify-content:center;align-items:flex-end;margin:4px 0 2px;}
+  .insp .insp-body img{height:132px;width:auto;image-rendering:pixelated;
+    filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));}
   /* v9.56.2: 이 사람이 열어 주는 것 — 눈에 먼저 들어오게 노랗게 */
   .insp .i-open{margin:6px 0 2px;color:var(--brand-yellow);font-weight:800;}
   .cw .smith-open{text-align:center;color:var(--brand-yellow);font-weight:800;
@@ -1742,7 +1746,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.56.4';
+const VERSION = 'v9.56.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3171,6 +3175,7 @@ function renderSmithInsp(){
   if (innPick === 'keeper'){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
       + '<div><div class="nm">여관 주인</div><div class="kd">여관 · 사람을 찾아 준다</div></div></div>'
+      + bodyPicHtml('portrait_innkeeper')
       + '<div class="desc">누구를 찾을지 등록 칸에 올려 두면, 소문을 모아 어디로 가야 하는지 알려 준다. 한 번에 한 명.</div>'
       + '<div class="i-quip">“외상은 안 된다. 소문은 공짜다.”</div>';
     return true;
@@ -3191,6 +3196,7 @@ function renderSmithInsp(){
     + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div><div class="nm">${esc(sm.name)}</div>`
     + `<div class="kd">여관 · 장인</div></div></div>`
+    + bodyPicHtml(`portrait_${sm.id}`)
     + `<div class="i-open">${esc(smithOpensText(sm.id))}</div>`    // 노란 한 줄 — 이 사람이 열어 주는 것
     + `<div class="desc">${esc(sm.desc)}</div>`
     + (sm.quip ? `<div class="i-quip">“${esc(sm.quip)}”</div>` : '')   // v9.56.0: 사람마다 한마디
@@ -3362,6 +3368,9 @@ function heroSlotHtml(k){
     + `<div class="name">${esc(hName(k))}</div>`
     + `<div class="land-done">Lv ${hLv(k)}</div></div></div>`;
 }
+// v9.56.5: **사람은 카드(얼굴)와 전신을 따로 가진다** — 작은 네모엔 얼굴, 정보 칸 안에는 전신 한 장
+//   (크리처는 얼굴을 따로 그리지 않는다. 전신 하나로 카드에도 필드에도 쓴다 — docs/게임_규칙.md)
+const bodyPicHtml = file => `<div class="insp-body"><img src="images/portrait/${file}.png" alt="" draggable="false"></div>`;
 // v9.56.0: 여관 사람들도 책에 모인다 — 여관 주인은 늘 보이고, 장인은 소문을 들어야 이름이 드러난다
 function smithSlotHtml(id){
   if (id === 'keeper'){
@@ -4965,6 +4974,7 @@ function renderFieldInsp(){
     const gAtk = gearStatOf(who, 'atk'), gDef = gearStatOf(who, 'def');
     inspEl.innerHTML = `<div class="head"><div class="pic"><img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false"></div>`
       + `<div><div class="nm">${esc(hName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
+      + bodyPicHtml(hPic(who))
       + `<div class="desc">${who === 'ally' ? '말수는 적고 화살은 멀리 간다. 다섯 칸 밖에서 먼저 쏜다.' : '말이 없다. 대신 걷고, 맞고, 돌아온다.'}</div>`
       // v9.56.1: 사람마다 한마디 — 장인들과 같은 자리, 같은 꾸밈
       + `<div class="i-quip">“${who === 'ally' ? '맞혔다는 말만 한다. 빗나간 화살은 세지 않는다.'

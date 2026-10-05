@@ -58,6 +58,14 @@ OBJECT_SUFFIX = (
     ", single object, centered composition, isolated object, clean readable silhouette, "
     "simple solid {bg} background, no text, no people, no characters, no hands, no additional objects"
 )
+# 2026-10-05: **카드 그림의 틀**은 둘뿐이다 (docs/게임_규칙.md '캐릭터와 크리처')
+#   person   — 사람(기사 · 궁수 · 여관 주인 · 장인). 카드에는 **얼굴과 깃**까지만. 전신은 make_portrait.py 로 따로 뽑는다
+#   creature — 크리처. 얼굴만 따로 뽑지 않는다. **전신** 하나로 카드에도 필드에도 쓴다
+FRAMING = {
+    "person": (", tight bust portrait: the head fills most of the frame, cropped just below the collar, "
+               "face and collar only, no hands, no held objects, no chest, no torso"),
+    "creature": ", the whole body is visible from head to feet, standing, three-quarter view",
+}
 STYLE_PREFIX = CHARACTER_PREFIX                                  # 옛 이름
 # 검은 오브젝트·불·고리 모양은 검은 배경이 남으므로 흰 배경으로
 BG_COLORS = {"black": "#000000", "white": "#ffffff white"}
@@ -175,6 +183,8 @@ def main(kind):
     ap.add_argument("--no-style", action="store_true", help="그림체 머리말을 붙이지 않음")
     ap.add_argument("--no-suffix", action="store_true", help="배경 제거용 프롬프트 꼬리말을 붙이지 않음")
     ap.add_argument("--force", action="store_true", help="같은 이름 파일이 있으면 덮어씀")
+    ap.add_argument("--frame", choices=sorted(FRAMING), default=None,
+                    help="그림 틀 — person: 사람 얼굴+깃 (카드용) / creature: 전신")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
     a = ap.parse_args()
 
@@ -184,7 +194,8 @@ def main(kind):
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
-    text = a.prompt if a.no_suffix else a.prompt.rstrip(" ,.") + k["suffix"].format(bg=BG_COLORS[a.bg])
+    body = a.prompt.rstrip(" ,.") + (FRAMING[a.frame] if a.frame else "")
+    text = a.prompt if a.no_suffix else body + k["suffix"].format(bg=BG_COLORS[a.bg])
     if not a.no_style:
         text = k["prefix"] + text
     seed = a.seed if a.seed is not None else random.randint(0, 2**48)
@@ -207,6 +218,8 @@ def main(kind):
         opts += ["--size", str(a.size)]
     if a.colors != 32:
         opts += ["--colors", str(a.colors)]
+    if a.frame:
+        opts += ["--frame", a.frame]
     record(a.name, a.label, a.prompt, seed, [f"({kind})"] + opts)
 
     print(f"icon  {dest}")
