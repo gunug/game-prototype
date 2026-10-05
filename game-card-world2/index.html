@@ -1730,7 +1730,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.4';
+const VERSION = 'v9.55.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1971,7 +1971,8 @@ function innStepNote(sm, i){                                      // 지금 걸�
   if (i === 0) return `${(FIELD_BY_ID[sm.land] || {}).name || ''} 다녀오기`;
   if (i === 1){ const got = innGiven(sm.id);
     return (sm.give || []).map(([t, n]) => `${DEFS[t].name} ${Math.min(got[t] || 0, n)}/${n}`).join(' · '); }
-  return `${(ENEMIES[sm.proof] || {}).name || ''} 넘기`;
+  // v9.55.5: 어디서 잡는지까지 — 등록만 해 놓고 어느 땅으로 가야 할지 몰라 헤매지 않게
+  return `${(FIELD_BY_ID[sm.land] || {}).name || ''}에서 ${(ENEMIES[sm.proof] || {}).name || ''} 넘기`;
 }
 // v9.55.4: 물건 걸음은 사실 **두 토막**이다 — ① 구하기(어디서 나는지까지) ② 제출하기(물건 칸에 건네기)
 //   손에 다 쥐기 전에는 '어디로 가야 하나'가, 다 쥔 뒤에는 '어디에 내야 하나'가 궁금하다
@@ -2002,6 +2003,9 @@ function innRegister(id){
   if (!sm || smithOk(id)) return false;
   if (smithLocked(id)){ toast(`🔒 ${smithNeed(id)}`); return false; }
   S.inn = S.inn || freshInn();
+  // v9.55.5: 이미 누가 올라와 있으면 **그 자리를 내준다** — 앞사람 걸음은 그대로 남아 나중에 이어 간다
+  const was = S.inn.reg;
+  if (was && was !== id) toast(`🏨 ${smithName(was)} 등록을 풀었다`);
   S.inn.reg = id;
   logEv('inn-reg', { smith: id });
   toast(smithFound(id) ? `🏨 ${sm.name} 찾기` : '🏨 소문을 쫓는다');
@@ -4391,7 +4395,7 @@ function screenTokens(){
   if (S.tab === 'inn'){
     const reg = (S.inn || {}).reg;
     const out = SMITHS.filter(x => !smithOk(x.id) && x.id !== reg).map(x => {   // 등록한 사람은 윗줄에 이미 있다
-      const can = !smithLocked(x.id) && !reg;                     // 한 번에 한 명 — 등록 중엔 못 끈다
+      const can = !smithLocked(x.id);                             // v9.55.5: 등록 중이어도 끌 수 있다 — 올리면 앞사람이 내려온다
       return { token: can ? x.id : null, html: smithCardHtml(x.id, can) };
     });
     if (reg && smithStep(reg) === 1) for (const [t] of (SMITH_BY_ID[reg].give || [])){
@@ -4598,7 +4602,7 @@ function dropOnSlot(id, token){
 function slotTakes(id, token){
   const { key: slotKey, who } = slotId(id);                        // v9.24.2
   if (S.tab === 'inn'){                                           // v9.55.0
-    if (slotKey === 'reg') return !!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token) && !(S.inn || {}).reg;
+    if (slotKey === 'reg') return !!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token);   // v9.55.5: 차 있어도 바꿔 낄 수 있다
     if (slotKey === 'step1') return innGiveNeed(token) > 0;
     return false;
   }
@@ -7085,7 +7089,8 @@ function innRowHtml(){
   const lab = i === 1 ? (ready ? '제출하기' : '구하기') : INN_STEPS[i];
   const body = i === 0 ? `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${(FIELD_BY_ID[sm.land] || {}).name || ''}에 다녀오자`
     : i === 1 ? (ready ? `🏨 여관 <b>물건</b> 칸에 끌어다 놓자 — ${esc(innStepNote(sm, 1))}` : innGetBody(sm))
-    : `⚔ ${(ENEMIES[sm.proof] || {}).name || ''}을 넘자`;
+    : `⚔ ${objP((ENEMIES[sm.proof] || {}).name || '')} 넘자 <span class="i-muted">`
+      + `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${esc((FIELD_BY_ID[sm.land] || {}).name || '')}에서</span>`;
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(sm.id))} 찾기</b>`
     + `<span class="q-prog">(${i}/${INN_STEPS.length})</span>`                 // v9.55.3: 진행 수는 **제목 바로 옆**
