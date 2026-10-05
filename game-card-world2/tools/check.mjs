@@ -308,6 +308,8 @@ try {
       for (const [t, n] of (sm.give || [])){
         if (!DEFS[t]) { out.push(sm.name + ' — 없는 재료 ' + t); continue; }
         if (!have.has(t)) out.push(sm.name + ' — ' + DEFS[t].name + ' ' + n + '을 그때 구할 수 없다');
+        // v9.56.4: 내는 물건은 **줍거나 떨구는 날것**이어야 한다 — 만들어야 하는 것이면 그 탭이 잠겨 막힐 수 있다
+        if ((DEFS[t].step || 0) > 1) out.push(sm.name + ' — ' + DEFS[t].name + '은 만들어야 하는 것이다 (1단계만)');
       }
       const o = sm.opens || {};
       if (o.board && !BOARD_BY_ID[o.board]) out.push(sm.name + ' — 없는 탭 ' + o.board);

@@ -1742,7 +1742,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.56.3';
+const VERSION = 'v9.56.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2195,7 +2195,7 @@ const BOARDS = [
   { id:'build',  name:'건축', icon:'card_plank', tags:['건축재료'], mats:['건축재료'], smith:'carpenter' },
   { id:'food',   name:'음식', icon:'card_jerky', tags:['음식재료', '음식'], smith:'cook',
     top:'음식', tops:['음식'], dyn:['음식'], mats:['음식재료'] },
-  { id:'potion', name:'약품', icon:'card_salve', tags:['약품재료', '약품'],
+  { id:'potion', name:'약품', icon:'card_salve', tags:['약품재료', '약품'], smith:'herbalist',
     top:'약품', tops:['약품'], dyn:['약품'], mats:['약품재료'] },
   // v0.55.0: 처음부터 열려 있음. '거점' 칸에 모닥불을 넣으면 회복이 빨라짐
   { id:'gearup', name:'정비', icon:'card_campfire', tags:['무기', '방어구', '방패', '장신구', '거점'] },
@@ -2267,7 +2267,7 @@ const SMITHS = [
     desc:'조개와 돌을 갈아 꿰는 사람. 작은 것에 값을 매긴다.',
     quip:'작은 것에 값을 매긴다. 큰 것에도 매긴다. 어느 쪽이든 비싸다.' },
   { id:'herbalist', name:'약재 장인', card:'card_herbalist',
-    opens:{ slot:'consumable' }, land:'swamptomb',
+    opens:{ board:'potion', slot:'consumable' }, land:'swamptomb',
     give:[['herb', 3], ['glowcap', 2]], proof:'bogarm',
     rumor:'늪에서 약초를 캐 가는 사람이 있다고 한다',
     desc:'물에 잠긴 뿌리와 버섯을 가려내는 사람. 쓴 것을 쓸 줄 안다.',
@@ -2423,7 +2423,7 @@ function load(){
     const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] };
     if (n0){
       // v9.55.7: 음식 탭은 전까지 늘 열려 있었다 — 옛 저장에서 뺏지 않는다 (새로 시작한 판만 요리사를 찾는다)
-      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith', 'cook', 'carpenter'))];
+      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith', 'cook', 'carpenter', 'herbalist'))];
       inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
       inn.reg = SMITH_BY_ID[n0.reg] && !inn.done.includes(n0.reg) ? n0.reg : null;
       for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
@@ -2432,7 +2432,7 @@ function load(){
       const lv = Math.max((s.knight && s.knight.lv) || 1, (s.ally && s.ally.lv) || 1);
       const byLv = [[5, 'armorsmith'], [10, 'shieldsmith'], [15, 'trinketsmith'], [20, 'herbalist']];
       for (const [need, id] of byLv) if (lv >= need) inn.done.push(id);
-      inn.done.push('cook', 'carpenter');                         // v9.55.7 음식 · v9.56.0 건축 — 전까지 늘 열려 있었다
+      inn.done.push('cook', 'carpenter', 'herbalist');            // v9.55.7 음식 · v9.56.0 건축 · v9.56.4 약품 — 전까지 늘 열려 있었다
       inn.found = [...inn.done];
     }
     s.inn = inn;
