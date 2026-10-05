@@ -404,7 +404,7 @@ function play(ai, note){
     const inn = ai.inn();
     // 지금 넘을 만한 땅의 사람부터 찾는다 — 못 가는 땅의 물건을 요구받으면 그 자리에서 헛돈다
     // 힘이 되는 사람부터 — 요리사(음식)는 AI 에게 쓸모가 없어 맨 뒤로 민다
-    const rank = id => id === 'cook' ? 1 : 0;
+    const rank = id => (id === 'cook' || id === 'carpenter') ? 1 : 0;   // 음식 · 건축은 AI 에게 쓸모가 없다
     const openOrd = inn.open.slice().sort((a2, b2) => rank(a2) - rank(b2));
     const pick = openOrd.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
     if (!inn.reg && pick){ ai.innReg(pick); ai.touch(); note(`여관 등록 ${pick}`); continue; }
