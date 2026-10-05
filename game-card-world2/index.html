@@ -1730,7 +1730,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.5';
+const VERSION = 'v9.55.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1978,17 +1978,16 @@ function innStepNote(sm, i){                                      // 지금 걸�
 //   손에 다 쥐기 전에는 '어디로 가야 하나'가, 다 쥔 뒤에는 '어디에 내야 하나'가 궁금하다
 const innHandReady = id => (SMITH_BY_ID[id].give || [])
   .every(([t, n]) => (innGiven(id)[t] || 0) + have(t) >= n);
-// 어디서 나는가 — 수첩 한 줄에 들어가게 **가장 잘 나오는 곳 하나만** (떨구는 놈이면 확률이 가장 높은 놈)
+// v9.55.6: 어디서 나는가 — **땅 이름으로만** 말한다.
+//   떨구는 놈 이름을 수첩이 먼저 불러 버리면, 가서 만나 보는 재미(크리처 카드가 ??? 에서 열리는 일)를 앗아간다.
+//   줍는 것이면 '산에서 주움', 짐승이 떨구는 것이면 '초원에서 나옴' — 어디로 갈지는 알려 주고 무엇이 사는지는 가서 본다
 function innWhereShort(t){
-  let best = null;
-  for (const f of FIELDS){
-    if (fieldLocked(f.id) || f.raid) continue;
-    for (const k of foesOf(f.id)) for (const l of ((ENEMIES[k] || {}).loot || []))
-      if (l[0] === t && (!best || l[1] > best.p)) best = { k, p: l[1] };
-  }
   const w = gatherText(t);
   if (w) return `${w}에서 주움`;
-  return best ? `${ENEMIES[best.k].name} ${best.p}% 떨굼` : '구할 곳을 아직 모름';
+  const lands = FIELDS.filter(f => !fieldLocked(f.id) && !f.raid && lootTypes(f.id).includes(t)
+      && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')))
+    .map(f => `${f.emoji} ${f.name}`);
+  return lands.length ? `${lands.slice(0, 2).join(' · ')}에서 나옴` : '구할 곳을 아직 모름';
 }
 function innGetBody(sm){                                          // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
   const got = innGiven(sm.id);
