@@ -247,7 +247,8 @@
   .quest .q-name{flex:none;}
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
   .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
-  .quest .q-prog{color:var(--brand-yellow);font-weight:800;font-variant-numeric:tabular-nums;}   /* v0.44.0: 진행 수는 글 뒤에 작게 */
+  .quest .q-prog{color:var(--brand-yellow);font-weight:800;font-variant-numeric:tabular-nums;}   /* v0.44.0 */
+  .quest .q-name + .q-prog{margin-left:4px;margin-right:2px;}      /* v9.55.3: 진행 수는 제목 바로 옆 */
   .q-row.done .q-n{color:#8fdc8f;}
   /* v0.41.0: 블록형 퀘스트 — 중제목 · 소제목 */
   .q-mid{display:flex;gap:6px;align-items:center;padding-left:14px;font-size:12px;color:var(--muted);min-height:20px;white-space:nowrap;}
@@ -1729,7 +1730,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.2';
+const VERSION = 'v9.55.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7057,7 +7058,8 @@ function innRowHtml(){
     : `⚔ ${(ENEMIES[sm.proof] || {}).name || ''}을 넘자`;
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(sm.id))} 찾기</b>`
-    + `<span class="q-text">${esc(INN_STEPS[i])} · ${body} <span class="q-prog">${i}/${INN_STEPS.length}</span></span>`
+    + `<span class="q-prog">(${i}/${INN_STEPS.length})</span>`                 // v9.55.3: 진행 수는 **제목 바로 옆**
+    + `<span class="q-text">${esc(INN_STEPS[i])} · ${body}</span>`
     + '<span class="q-n"></span></div>';
 }
 function goalStepKey(){
@@ -7096,16 +7098,19 @@ const QUEST_PIC = {
 };
 function questRowHtml(q, def){
   const goal = questGoal(def);
-  const prog = def.steps || q.done || goal <= 1 ? '' : ` <span class="q-prog">${Math.min(q.n, goal)}/${goal}</span>`;
-  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${(QUEST_PIC[q.id] || (() => ''))()}<b class="q-name">${esc(def.name)}</b>`
-    + `<span class="q-text">${esc(q.done ? '했다' : questText(def, q))}${prog}</span>`
+  // v9.55.3: 진행 수(3/5)는 **제목 바로 옆** — 할 일 글 끝에 붙으면 글과 숫자가 붙어 읽혔다
+  const prog = def.steps || q.done || goal <= 1 ? '' : `<span class="q-prog">(${Math.min(q.n, goal)}/${goal})</span>`;
+  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${(QUEST_PIC[q.id] || (() => ''))()}<b class="q-name">${esc(def.name)}</b>${prog}`
+    + `<span class="q-text">${esc(q.done ? '했다' : questText(def, q))}</span>`
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
 }
 // v0.41.0: 블록형 — 대제목 · 중제목은 모두 보이고, 소제목(완료 조건)은 지금 덩어리 것만
 function questBlockHtml(q, def){
   const st = questGroupState(def);
+  // v9.55.3: 진행 수는 제목 바로 옆
   let h = `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">📜</span><b class="q-name">${esc(def.name)}</b>`
-    + `<span class="q-text">${q.done ? '완료' : `<span class="q-prog">${Math.min(st.done.filter(Boolean).length, def.groups.length)}/${def.groups.length}</span>`}</span>`
+    + (q.done ? '' : `<span class="q-prog">(${Math.min(st.done.filter(Boolean).length, def.groups.length)}/${def.groups.length})</span>`)
+    + `<span class="q-text">${q.done ? '완료' : ''}</span>`
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
   def.groups.forEach((g, i) => {
     const done = st.done[i], now = i === st.now;
