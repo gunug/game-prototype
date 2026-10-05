@@ -1730,7 +1730,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.3';
+const VERSION = 'v9.55.4';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1967,11 +1967,35 @@ const innGiveNeed = type => {                                     // 지금 등�
 };
 const innGiveDone = id => { const sm = SMITH_BY_ID[id], got = innGiven(id);
   return (sm.give || []).every(([t, n]) => (got[t] || 0) >= n); };
-function innStepNote(sm, i){                                      // 지금 걸음에 적어 주는 한 줄
+function innStepNote(sm, i){                                      // 지금 걸음에 적어 주는 한 줄 (칸에 들어가는 짧은 글)
   if (i === 0) return `${(FIELD_BY_ID[sm.land] || {}).name || ''} 다녀오기`;
   if (i === 1){ const got = innGiven(sm.id);
     return (sm.give || []).map(([t, n]) => `${DEFS[t].name} ${Math.min(got[t] || 0, n)}/${n}`).join(' · '); }
   return `${(ENEMIES[sm.proof] || {}).name || ''} 넘기`;
+}
+// v9.55.4: 물건 걸음은 사실 **두 토막**이다 — ① 구하기(어디서 나는지까지) ② 제출하기(물건 칸에 건네기)
+//   손에 다 쥐기 전에는 '어디로 가야 하나'가, 다 쥔 뒤에는 '어디에 내야 하나'가 궁금하다
+const innHandReady = id => (SMITH_BY_ID[id].give || [])
+  .every(([t, n]) => (innGiven(id)[t] || 0) + have(t) >= n);
+// 어디서 나는가 — 수첩 한 줄에 들어가게 **가장 잘 나오는 곳 하나만** (떨구는 놈이면 확률이 가장 높은 놈)
+function innWhereShort(t){
+  let best = null;
+  for (const f of FIELDS){
+    if (fieldLocked(f.id) || f.raid) continue;
+    for (const k of foesOf(f.id)) for (const l of ((ENEMIES[k] || {}).loot || []))
+      if (l[0] === t && (!best || l[1] > best.p)) best = { k, p: l[1] };
+  }
+  const w = gatherText(t);
+  if (w) return `${w}에서 주움`;
+  return best ? `${ENEMIES[best.k].name} ${best.p}% 떨굼` : '구할 곳을 아직 모름';
+}
+function innGetBody(sm){                                          // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
+  const got = innGiven(sm.id);
+  return (sm.give || []).map(([t, n]) => {
+    const mine = Math.min((got[t] || 0) + have(t), n);
+    const where = mine >= n ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`;
+    return `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${n}</b>${where}`;
+  }).join(' · ');
 }
 function innRegister(id){
   const sm = SMITH_BY_ID[id];
@@ -3116,9 +3140,11 @@ function renderSmithInsp(){
   const st = smithStep(sm.id);
   const steps = INN_STEPS.map((nm, i) => {
     const ok = st > i, now = st === i && (S.inn || {}).reg === sm.id;
-    const body = !found && i > 0 ? '???' : innStepNote(sm, i);
-    return `<div class="q-row${ok ? ' done' : ''}">${ok ? '✔' : now ? '▶' : '·'} ${esc(nm)}`
-      + ` <span class="i-muted">${esc(body)}</span></div>`;
+    const label = i === 1 && now && !ok ? (innHandReady(sm.id) ? '제출하기' : '구하기') : nm;   // v9.55.4
+    const body = !found && i > 0 ? '???'
+      : (i === 1 && now && !ok && !innHandReady(sm.id)) ? innGetBody(sm) : esc(innStepNote(sm, i));
+    return `<div class="q-row${ok ? ' done' : ''}">${ok ? '✔' : now ? '▶' : '·'} ${esc(label)}`
+      + ` <span class="i-muted">${body}</span></div>`;
   }).join('');
   inspEl.innerHTML = `<div class="head"><div class="pic${found ? '' : ' locked'}">`
     + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
@@ -4297,7 +4323,9 @@ function screenRows(){
       rows.push({ card: smithCardHtml(reg), slots: INN_STEPS.map((nm, i) => ({
         id: `inn:step${i}`, open: true, card: st > i, frame:'gold',
         icon: st > i ? '<img class="icon" src="images/icon/ui_lock-open.png" alt="" draggable="false">' : '',
-        cardName: st > i ? nm : '', lab: nm, note: st === i ? innStepNote(sm, i) : '' })) });
+        cardName: st > i ? nm : '',
+        lab: i === 1 && st === 1 ? (innHandReady(sm.id) ? '물건 내기' : '물건 구하기') : nm,   // v9.55.4
+        note: st === i ? innStepNote(sm, i) : '' })) });
     }
     return rows;
   }
@@ -7043,7 +7071,7 @@ let lastGoalStep = null, lastInnStep = null;
 function innStepKeyNow(){
   const n = innSt();
   if (!n || !n.reg) return null;
-  return `${n.reg}:${smithStep(n.reg)}`;
+  return `${n.reg}:${smithStep(n.reg)}:${smithStep(n.reg) === 1 && innHandReady(n.reg) ? 'hand' : 'get'}`;
 }
 function innRowHtml(){
   const n = innSt();
@@ -7053,13 +7081,15 @@ function innRowHtml(){
   const pic = smithFound(sm.id)
     ? `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`
     : (i === 0 ? fieldPic(sm.land) : '<span class="q-pic emo">🏨</span>');
+  const ready = i === 1 && innHandReady(sm.id);                   // v9.55.4: 다 쥐었나 — 그러면 '제출하기'
+  const lab = i === 1 ? (ready ? '제출하기' : '구하기') : INN_STEPS[i];
   const body = i === 0 ? `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${(FIELD_BY_ID[sm.land] || {}).name || ''}에 다녀오자`
-    : i === 1 ? `🏨 여관에 건네자 — ${innStepNote(sm, 1)}`
+    : i === 1 ? (ready ? `🏨 여관 <b>물건</b> 칸에 끌어다 놓자 — ${esc(innStepNote(sm, 1))}` : innGetBody(sm))
     : `⚔ ${(ENEMIES[sm.proof] || {}).name || ''}을 넘자`;
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(sm.id))} 찾기</b>`
     + `<span class="q-prog">(${i}/${INN_STEPS.length})</span>`                 // v9.55.3: 진행 수는 **제목 바로 옆**
-    + `<span class="q-text">${esc(INN_STEPS[i])} · ${body}</span>`
+    + `<span class="q-text">${esc(lab)} · ${body}</span>`
     + '<span class="q-n"></span></div>';
 }
 function goalStepKey(){
