@@ -1742,7 +1742,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.56.2';
+const VERSION = 'v9.56.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4088,7 +4088,8 @@ function renderTabs(){                                            // v0.21.0: �
     // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
     { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표'), btn('inn', '🏨 여관')] },
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
-    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b)).map(boardBtn) },
+    // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 여관이 말해 준다
+    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b) && boardOpen(b)).map(boardBtn) },
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
   host.insertAdjacentHTML('afterbegin', html);
