@@ -172,13 +172,15 @@
   .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
   .pslot.hot{border-style:solid;border-color:var(--brand-yellow);background:rgba(255,212,0,.22);box-shadow:0 0 8px rgba(255,212,0,.45);}
   .pslot.locked{border-style:solid;opacity:.45;background:transparent;}
-  .pslot .lock{width:55%;image-rendering:pixelated;}
+  .pslot .lock{width:calc(var(--cw) * .3);image-rendering:pixelated;}   /* v9.56.1: 카드의 자물쇠와 같은 크기 */
   /* v0.98.0: 자물쇠 위에 겹쳐 '무엇이 있어야 열리는지' — 모든 자물쇠 공통 */
   .lockneed{position:absolute;left:50%;transform:translate(-50%,-50%);z-index:5;pointer-events:none;white-space:nowrap;
     padding:2px 6px;border-radius:var(--r-pill);background:rgba(10,9,7,.86);border:1px solid rgba(255,255,255,.18);
     color:#fff;font-weight:800;line-height:1.1;text-shadow:0 1px 2px rgba(0,0,0,.8);}
-  .pslot .lockneed{top:55%;font-size:calc(var(--cf) * .085);}
-  .gather .cw.field .lockneed{top:52%;font-size:calc(var(--cf) * .075);}
+  /* v9.56.1: 조건 글씨도 한 가지 크기 — 전엔 칸 .085 · 땅 카드 .075 · 사람 카드는 제멋대로였다 */
+  .lockneed{font-size:calc(var(--cf) * .08);}
+  .pslot .lockneed{top:58%;}
+  .cw .lockbox .lockneed{position:static;transform:none;}
   .pslot > .icon{width:70%;height:auto;}                           /* v0.29.2: 칸에 바로 놓인 그림만 (카드 안 그림은 건드리지 않음) */
   .pslot-lab{font-size:calc(var(--cf) * .1);color:var(--muted);}
   /* v0.30.0: 장비 실루엣 — 빈 칸 가운데(큰 것), 카드 왼쪽 위(작은 것) */
@@ -302,13 +304,14 @@
     background:#ff5a5a;color:#fff;font-size:11px;font-weight:900;line-height:1;vertical-align:1px;font-variant-numeric:tabular-nums;}
   .nbadge[hidden]{display:none;}
   /* v0.9.0: 잠긴 필드 — 어둡게 + 자물쇠 */
-  .gather .cw.field.field-locked{cursor:default;}
-  .gather .cw.field.field-locked > :not(.lockbox):not(.name){filter:brightness(.3) saturate(.15);}   /* v3.12.0: 이름은 또렷하게 */
-  .gather .cw.field.field-locked .name{opacity:.85;}
-  .gather .cw.field .lockbox{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);z-index:5;
+  /* v9.56.1: 잠김 꾸밈은 **카드 갈래를 가리지 않는다** — 땅 카드 · 사람 카드가 같은 자물쇠, 같은 크기, 같은 글씨 */
+  .gather .cw.field.field-locked, .cw.smith-locked{cursor:default;}
+  .gather .cw.field.field-locked > :not(.lockbox):not(.name),
+  .cw.smith-locked > :not(.lockbox):not(.name){filter:brightness(.3) saturate(.15);}   /* v3.12.0: 이름은 또렷하게 */
+  .gather .cw.field.field-locked .name, .cw.smith-locked .name{opacity:.85;}
+  .cw .lockbox{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);z-index:5;
     display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;}
-  .gather .cw.field .lockbox .lock{width:calc(var(--cw) * .3);height:auto;position:static;transform:none;}
-  .gather .cw.field .lockbox .lockneed{position:static;transform:none;font-size:calc(var(--cf) * .08);}
+  .cw .lockbox .lock{width:calc(var(--cw) * .3);height:auto;position:static;transform:none;image-rendering:pixelated;}
   .gather .cw.field .lock{position:absolute;left:50%;top:40%;width:46%;transform:translate(-50%,-50%);image-rendering:pixelated;pointer-events:none;z-index:4;filter:drop-shadow(0 2px 3px rgba(0,0,0,.7));}   /* v0.9.1: 어둡게 한 형제(필터)보다 위로 */
   /* v0.10.0: 갓 — 채집 화면 위쪽 캐릭터 카드 + 오른쪽 말풍선 */
   /* 기사 줄 · 원정 트랙 (v0.13.0) */
@@ -1732,7 +1735,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.56.0';
+const VERSION = 'v9.56.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4344,7 +4347,8 @@ function slotHtmlOf(sl){
 // v9.55.0: 장인 카드 — 아직 밝혀지지 않았으면 검은 실루엣 + ??? (목표의 안개 카드와 같은 규칙)
 function smithCardHtml(id, drag){
   const sm = SMITH_BY_ID[id], found = smithFound(id), lock = smithLocked(id);
-  return `<div class="cw framed f-${found ? 'bronze' : 'stone'} smith${found ? '' : ' unseen'}`
+  // v9.56.1: 잠긴 사람 카드는 **잠긴 땅 카드와 똑같이** 보인다 (어둡게 + 아래쪽 자물쇠 + 조건 한 줄)
+  return `<div class="cw framed f-${found ? 'bronze' : 'stone'} smith${lock ? ' smith-locked' : ''}${found ? '' : ' unseen'}`
     + `${innPick === id ? ' sel' : ''}"${drag ? ` data-token="${id}"` : ''} data-smith="${id}">`
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(smithName(id))}</div>`
@@ -4947,6 +4951,9 @@ function renderFieldInsp(){
     inspEl.innerHTML = `<div class="head"><div class="pic"><img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false"></div>`
       + `<div><div class="nm">${esc(hName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
       + `<div class="desc">${who === 'ally' ? '말수는 적고 화살은 멀리 간다. 다섯 칸 밖에서 먼저 쏜다.' : '말이 없다. 대신 걷고, 맞고, 돌아온다.'}</div>`
+      // v9.56.1: 사람마다 한마디 — 장인들과 같은 자리, 같은 꾸밈
+      + `<div class="i-quip">“${who === 'ally' ? '맞혔다는 말만 한다. 빗나간 화살은 세지 않는다.'
+        : '무엇을 묻든 고개만 끄덕인다. 두 번 물으면 두 번 끄덕인다.'}”</div>`
       // v8.6.0: 상태는 **표**로 — 이름과 값이 세로로 맞아 눈이 한 줄씩 읽는다
       + '<div class="sub">상태</div><div class="stat-grid">'
       + statRow('atk', '공격', hAtk(who), 'v-atk')
