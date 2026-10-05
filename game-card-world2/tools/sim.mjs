@@ -403,7 +403,10 @@ function play(ai, note){
     // ②-2 v9.55.0: 여관 — 장인이 없으면 그 탭에서 아무것도 못 만든다. 한 명씩 등록하고 물건을 건넨다
     const inn = ai.inn();
     // 지금 넘을 만한 땅의 사람부터 찾는다 — 못 가는 땅의 물건을 요구받으면 그 자리에서 헛돈다
-    const pick = inn.open.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
+    // 힘이 되는 사람부터 — 요리사(음식)는 AI 에게 쓸모가 없어 맨 뒤로 민다
+    const rank = id => id === 'cook' ? 1 : 0;
+    const openOrd = inn.open.slice().sort((a2, b2) => rank(a2) - rank(b2));
+    const pick = openOrd.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
     if (!inn.reg && pick){ ai.innReg(pick); ai.touch(); note(`여관 등록 ${pick}`); continue; }
     if (inn.reg && inn.step === 1){
       if (ai.innHand() > 0){ ai.touch(); note('여관 납품'); continue; }

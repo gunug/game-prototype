@@ -1730,7 +1730,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.55.6';
+const VERSION = 'v9.55.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2177,7 +2177,7 @@ const BOARDS = [
     top:'도구', tops:['도구'], dyn:['도구'], mats:['도구재료'] },
   // v6.4.0: 🏠 건축 — 아직 만드는 것이 없다. 건축재료를 모아 두는 자리 (조합식이 생기면 위 격자를 연다)
   { id:'build',  name:'건축', icon:'card_plank', tags:['건축재료'], mats:['건축재료'] },
-  { id:'food',   name:'음식', icon:'card_jerky', tags:['음식재료', '음식'],
+  { id:'food',   name:'음식', icon:'card_jerky', tags:['음식재료', '음식'], smith:'cook',
     top:'음식', tops:['음식'], dyn:['음식'], mats:['음식재료'] },
   { id:'potion', name:'약품', icon:'card_salve', tags:['약품재료', '약품'],
     top:'약품', tops:['약품'], dyn:['약품'], mats:['약품재료'] },
@@ -2218,6 +2218,11 @@ const SMITHS = [
   { id:'weaponsmith', name:'무기 장인', card:'card_weaponsmith', free:true,
     opens:{ board:'weapon', slot:'weapon' },
     desc:'여관 구석에서 쇠를 두드리는 사람. 처음 보는 얼굴에게도 숫돌을 내준다.' },
+  { id:'cook', name:'요리사', card:'card_cook',
+    opens:{ board:'food' }, land:'mountain',
+    give:[['meat', 3], ['tallow', 2]], proof:'wolf',
+    rumor:'산자락에서 고기 굽는 냄새가 내려온다고 한다',
+    desc:'불과 솥을 다루는 사람. 질긴 것도 씹을 수 있게 만든다.' },
   { id:'armorsmith', name:'갑옷 장인', card:'card_armorsmith',
     opens:{ board:'armor', slot:'armor' }, land:'grassland',
     give:[['hide', 3], ['toughhide', 2]], proof:'boar',
@@ -2385,7 +2390,8 @@ function load(){
     const n0 = s.inn && typeof s.inn === 'object' ? s.inn : null;
     const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] };
     if (n0){
-      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith'))];
+      // v9.55.7: 음식 탭은 전까지 늘 열려 있었다 — 옛 저장에서 뺏지 않는다 (새로 시작한 판만 요리사를 찾는다)
+      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith', 'cook'))];
       inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
       inn.reg = SMITH_BY_ID[n0.reg] && !inn.done.includes(n0.reg) ? n0.reg : null;
       for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
@@ -2394,6 +2400,7 @@ function load(){
       const lv = Math.max((s.knight && s.knight.lv) || 1, (s.ally && s.ally.lv) || 1);
       const byLv = [[5, 'armorsmith'], [10, 'shieldsmith'], [15, 'trinketsmith'], [20, 'herbalist']];
       for (const [need, id] of byLv) if (lv >= need) inn.done.push(id);
+      inn.done.push('cook');                                      // v9.55.7: 음식은 전까지 늘 만들 수 있었다
       inn.found = [...inn.done];
     }
     s.inn = inn;
@@ -7087,7 +7094,8 @@ function innRowHtml(){
   const ready = i === 1 && innHandReady(sm.id);                   // v9.55.4: 다 쥐었나 — 그러면 '제출하기'
   const lab = i === 1 ? (ready ? '제출하기' : '구하기') : INN_STEPS[i];
   const body = i === 0 ? `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${(FIELD_BY_ID[sm.land] || {}).name || ''}에 다녀오자`
-    : i === 1 ? (ready ? `🏨 여관 <b>물건</b> 칸에 끌어다 놓자 — ${esc(innStepNote(sm, 1))}` : innGetBody(sm))
+    : i === 1 ? (ready ? `🏨 여관 <b>물건</b> 칸에 끌어다 놓자 — ${esc((sm.give || []).map(([t, n]) =>
+        `${DEFS[t].name} ×${n - (innGiven(sm.id)[t] || 0)}`).join(' · '))}` : innGetBody(sm))
     : `⚔ ${objP((ENEMIES[sm.proof] || {}).name || '')} 넘자 <span class="i-muted">`
       + `${(FIELD_BY_ID[sm.land] || {}).emoji || ''} ${esc((FIELD_BY_ID[sm.land] || {}).name || '')}에서</span>`;
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
