@@ -33,6 +33,8 @@ ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크�
 | 크리처 (토끼 · 곰 · 거미 …) | `game-card-world2/tools/make_icon_character.py --frame creature` | **전신**. 크리처는 얼굴을 따로 그리지 않고 전신 하나를 카드에도 필드에도 쓴다 |
 | 인스펙터 전신 포트레이트 | `game-card-world2/tools/make_portrait.py --kind character·creature·place` | `place`는 사물용 머리말을 씀. **사람은 얼굴 카드와 전신을 둘 다** 뽑는다 (docs/게임_규칙.md '캐릭터와 크리처') |
 
+- 크리처 전신은 **왼쪽을 보게** 그린다 (원정이 왼→오른쪽이라 기다리는 쪽이 왼쪽을 본다). 프롬프트에 `side view facing to the left`. 반대로 나왔으면 다시 뽑지 말고 **좌우를 뒤집는다** (`--flip`). 좌우가 같은 꼴(거미 · 게 · 두꺼비 · 사람 꼴 보스)은 정면도 좋다.
+
 - 공통 부분은 `tools/icon_common.py` (직접 실행 안 함).
 - 원정 트랙 **배경 타일**은 `tools/make_bg_tile.py` — 배경을 지우지 않고 좌우 이음매를 섞어 가로로 이어 붙게 만든다. 기본 288×126 (한 칸 96px × 3칸). 결과는 `images/bg/bg_<땅id>.png`, 표는 `index.html` 의 `LANE_BG`.
   - **원경(`-far`)은 처음부터 세로로 길게** 뽑는다 — `--gen-w 1024 --gen-h 896 --out-w 576 --out-h 512 --kan 6`.
