@@ -46,7 +46,7 @@ ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크�
 python tools/make_character_sheet.py --name archer --kind person --label 궁수     --desc "a young woman archer in a green hooded cloak ..."
 ```
 
-- 그림체는 워크플로우 기본 톤(AAA western key art · semi-realistic oil painting)으로 **스크립트에 박혀 있다**. `--desc` 엔 그 캐릭터 묘사만 적는다.
+- 그림 결은 `--style` 둘 — `real`(기본, AAA western key art · 반실사) · `deform`(**데포르메**, 머리를 키우고 이목구비를 또렷하게 한 게임 그림). `--desc` 엔 그 캐릭터 묘사만 적는다. 궁수는 `--style deform` 으로 뽑혀 있다 (2026-10-06).
 - **크리처는 `--kind creature` 를 반드시 준다** — 사람 · 인간형 · 손 · 옷 · 무기가 끼지 않게 단계마다 못을 박고, 전신은 **왼쪽을 보게** 그린다 (원정이 왼→오른쪽이라 기다리는 쪽이 왼쪽을 본다). 좌우가 같은 꼴(거미 · 게 · 두꺼비)은 정면도 좋다. 이미 뽑은 그림이 반대면 좌우를 뒤집는다.
 - 틀이 맘에 안 들면 다시 뽑지 말고 크롭 손잡이만 돌린다 — `--face-pad`(크면 얼굴에서 멀어짐) · `--upper-pad` · `--upper-down` · `--face-down`. 같은 `--seed` 면 그림은 그대로다.
 - 구도가 맘에 안 들면 `--seed` 만 바꾼다. 한 벌에 약 70초, 한 단계만 다시 뽑으면(`--only face`) 약 8초.

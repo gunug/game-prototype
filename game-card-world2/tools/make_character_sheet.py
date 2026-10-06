@@ -49,6 +49,31 @@ NOT_ANIME = (
     "NOT anime, NOT manga, NOT cel-shaded, no flat colors, no black outlines, no lineart, "
     "no chibi, no big glossy eyes, no text, no watermark"
 )
+# ── 데포르메 결 (2026-10-06) — 실사 말고 **얼굴이 큼직한** 게임 그림 ──────────
+#   사람은 머리를 키워 다섯 머리 키쯤으로, 이목구비를 크고 또렷하게. 크리처도 같은 결로 간다
+STYLE_DEFORM = (
+    "stylized fantasy video-game character art, hand-painted illustration with visible painterly "
+    "brushwork, soft cel-shaded volumes with clean readable shapes, warm vivid colors, "
+    "gentle rim lighting, appealing character-design rendering, sharp focus"
+)
+NOT_REAL = (
+    "no photorealism, not a photo, no hyperreal skin pores, no gritty realism, "
+    "no text, no watermark, no extra characters"
+)
+PROP_DEFORM = {                                                  # 단계마다 '얼굴을 키운다'고 못을 박는다
+    "person": {
+        "full": ("stylized deformed proportions: a large expressive head about one fifth of the "
+                 "body height, compact sturdy body, small hands and feet"),
+        "upper": "a large expressive head, broad clear facial features, simplified stylized anatomy",
+        "face": ("a big round-cheeked face filling the frame, large clear eyes, bold simple features, "
+                 "soft smooth skin shading"),
+    },
+    "creature": {
+        "full": "stylized deformed proportions: an oversized expressive head, compact chunky body, short sturdy legs",
+        "upper": "an oversized expressive head, chunky simplified body",
+        "face": "a big expressive head filling the frame, large clear eyes, bold simple features",
+    },
+}
 # 배경 — 잘라내기 좋게 민짜가 기본. --bg scene 이면 워크플로우 예시처럼 배경을 그린다
 BG_PLAIN = "plain flat neutral grey studio backdrop, no scenery, no props, no other characters"
 
@@ -86,9 +111,18 @@ OUTS = {
 }
 
 
-def prompt_of(kind, stage, desc, bg):
+def prompt_of(kind, stage, desc, bg, style="real"):
     """단계별 프롬프트 = 틀 + 설명 + 그림체 + 배경 + 금지"""
     head = KINDS[kind][stage].format(desc=desc.rstrip(" ,."))
+    if style == "deform":                                        # 실사 문구를 데포르메 문구로 갈아 끼운다
+        head = (head.replace("realistic human proportions and anatomy", PROP_DEFORM["person"]["full"])
+                    .replace("realistic anatomy and skin texture", PROP_DEFORM["person"]["upper"])
+                    .replace("realistic facial anatomy, detailed skin texture", PROP_DEFORM["person"]["face"])
+                    .replace("detailed fur and skin texture", PROP_DEFORM["creature"]["face"]))
+        if kind == "creature":
+            head += ", " + PROP_DEFORM["creature"]["full" if stage == "full" else "upper"]
+        tail = STYLE_DEFORM + ", " + (bg if bg else BG_PLAIN)
+        return f"{head}. {tail}. {NOT_REAL}."
     tail = STYLE + ", " + (bg if bg else BG_PLAIN)
     return f"{head}. {tail}. {NOT_ANIME}."
 
@@ -197,6 +231,8 @@ def main():
     ap.add_argument("--desc", required=True, help="영문 묘사 — 세 단계가 같은 묘사를 쓴다 (머리색·옷·종 따위)")
     ap.add_argument("--label", default="", help="기록용 한글 이름 (예: 궁수)")
     ap.add_argument("--bg", default="", help="배경 묘사. 비우면 잘라내기 좋은 민짜 배경")
+    ap.add_argument("--style", choices=("real", "deform"), default="real",
+                    help="그림 결 — real: 워크플로우 기본 톤(반실사) / deform: 데포르메, 얼굴을 키운 게임 그림")
     ap.add_argument("--seed", type=int, default=None, help="1단 시드 (없으면 랜덤). 구도가 맘에 안 들면 이것만 바꾼다")
     ap.add_argument("--steps", type=int, default=8)
     ap.add_argument("--width", type=int, default=720)
@@ -231,13 +267,13 @@ def main():
     if a.seed is None:
         a.seed = random.randrange(2 ** 31)
 
-    texts = {s: prompt_of(a.kind, s, a.desc, a.bg) for s in ("full", "upper", "face")}
+    texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style) for s in ("full", "upper", "face")}
     for s in ("full", "upper", "face"):
         print(f"\n[{s}] {texts[s]}")
     print(f"\nseed {a.seed} · {a.kind} · {a.width}x{a.height}")
     outs = C.run_workflow(a.url, build(a, texts), timeout=1800)
 
-    opts = [f"--kind {a.kind}", f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
+    opts = [f"--kind {a.kind}", f"--style {a.style}", f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
             f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
             f"--upper-pad {a.upper_pad}", f"--upper-down {a.upper_down}",
             f"--face-pad {a.face_pad}", f"--face-down {a.face_down}"]
