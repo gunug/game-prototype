@@ -807,9 +807,10 @@
     filter:drop-shadow(0 3px 6px rgba(0,0,0,.6));}
   /* v9.56.2: 이 사람이 열어 주는 것 — 눈에 먼저 들어오게 노랗게 */
   .insp .i-open{margin:6px 0 2px;color:var(--brand-yellow);font-weight:800;}
-  .cw .smith-open{text-align:center;color:var(--brand-yellow);font-weight:800;
-    font-size:calc(var(--cf) * .07);line-height:1.05;padding:0 2px;
-    text-shadow:0 1px 2px rgba(0,0,0,.9);pointer-events:none;}
+  /* v9.58.3: 장인 카드 — 무엇을 열어 주는지는 **인스펙터**에서 읽는다 (카드의 노란 글씨는 뺌).
+     그 자리를 그림에 주고, 이름은 조금 아래로 내린다 */
+  .cw.smith .emoji{font-size:calc(var(--cw) * .52);}
+  .cw.smith .name{position:relative;top:calc(var(--cw) * .05);}
   /* 사람 카드는 이름이 아래쪽에 있어 자물쇠를 한 칸 위로 올린다 (땅 카드와 같은 꼴을 지키면서 글자를 안 가리게) */
   .cw.smith .lockbox{bottom:calc(var(--cw) * .5);}
   /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
@@ -1746,7 +1747,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.58.1';
+const VERSION = 'v9.58.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4398,7 +4399,6 @@ function smithCardHtml(id, drag){
     + `${innPick === id ? ' sel' : ''}"${drag ? ` data-token="${id}"` : ''} data-smith="${id}">`
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(sm.name)}</div>`
-    + (lock ? '' : `<div class="smith-open">${esc(smithOpensText(id))}</div>`)   // v9.56.2: 무엇을 열어 주는지
     + (lock ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
       + `<b class="lockneed">${esc(smithNeed(id))}</b></div>` : '')
     + (smithDone(id) ? '<div class="sub-lab">합류</div>' : '') + '</div>';
