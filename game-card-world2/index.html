@@ -1746,7 +1746,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.57.0';
+const VERSION = 'v9.57.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3365,13 +3365,18 @@ const HEROES_ALL = ['knight', 'ally'];
 function heroSlotHtml(k){
   return `<div class="sleeve${bookPick === 'hero:' + k ? ' sel' : ''}" data-book="hero:${k}">`
     + `<div class="cw framed f-${k === 'ally' ? 'bronze' : 'gold'}">`
-    + `<div class="emoji"><img class="icon" src="images/portrait/${hPic(k)}.png" alt="" draggable="false"></div>`
+    + `<div class="emoji"><img class="icon" src="images/icon/${hCard(k)}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(hName(k))}</div>`
     + `<div class="land-done">Lv ${hLv(k)}</div></div></div>`;
 }
 // v9.56.5: **사람은 카드(얼굴)와 전신을 따로 가진다** — 작은 네모엔 얼굴, 정보 칸 안에는 전신 한 장
 //   (크리처는 얼굴을 따로 그리지 않는다. 전신 하나로 카드에도 필드에도 쓴다 — docs/게임_규칙.md)
 const bodyPicHtml = file => `<div class="insp-body"><img src="images/portrait/${file}.png" alt="" draggable="false"></div>`;
+// v9.57.0: **크리처도 그림이 세 장이다** — 얼굴은 카드에, 상반신은 인스펙터에, 전신은 줄에 선다
+//   (파일 이름은 portrait 이름에서 따온다. 들개처럼 두 크리처가 그림 한 벌을 나눠 쓰기도 한다)
+const foeArtId = k => ((ENEMIES[k] || {}).portrait || 'portrait_animal').slice(9);
+const foeFacePic = k => `images/icon/card_${foeArtId(k)}.png`;    // 카드 — 얼굴
+const foeBust = k => `bust_${foeArtId(k)}`;                       // 인스펙터 — 상반신
 // v9.56.0: 여관 사람들도 책에 모인다 — 여관 주인은 늘 보이고, 장인은 소문을 들어야 이름이 드러난다
 function smithSlotHtml(id){
   if (id === 'keeper'){
@@ -3393,7 +3398,7 @@ function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
     + `<div class="cw framed f-${foeFrame(o.key)}${on ? '' : ' locked'}">`   // v7.9.2
-    + `<div class="emoji"><img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
+    + `<div class="emoji"><img class="icon" src="${foeFacePic(o.key)}" alt="" draggable="false"></div>`
     + `<div class="name">${on ? esc(e.name) : '???'}</div>`
     + (on && (S.killed || []).includes(o.key) ? '<div class="land-done">잡음</div>' : '')
     + (o.boss ? '<div class="foe-mark">👑</div>' : o.mid ? '<div class="foe-mark">⚔</div>' : '') + '</div></div>';
@@ -4020,7 +4025,7 @@ async function runInserts(){
       } else {
         const e = ENEMIES[it.id];
         card.className = `cw framed f-${foeFrame(it.id)} insert`;
-        card.innerHTML = `<div class="emoji"><img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
+        card.innerHTML = `<div class="emoji"><img class="icon" src="${foeFacePic(it.id)}" alt="" draggable="false"></div>`
           + `<div class="name">${esc(e.name)}</div>`;
       }
       slot.appendChild(card);
@@ -4605,7 +4610,7 @@ function foeCardHtml(key, opts){
   return beingCardHtml({
     cls: `f-${foeFrame(key)} foe${known ? '' : ' unknown'}${(opts && opts.sel) ? ' sel' : ''}`,
     attrs: (opts && opts.attrs) || '',
-    pic: `images/portrait/${e.portrait || 'portrait_animal'}.png`, name: e.name || '',
+    pic: foeFacePic(key), name: e.name || '',
     atk: e.atk, def: e.def, hp: (opts && opts.hp != null) ? opts.hp : e.hp, max: e.hp,
     spd: foeSpd(e), range: foeRange(e), known,
   });
@@ -4920,8 +4925,9 @@ function renderFoeInsp(){
   if (!e) return false;
   const known = foeKnown(k);                                      // v9.43.5: 한 규칙으로
   inspEl.innerHTML = `<div class="head"><div class="pic${known ? '' : ' locked'}">`
-    + `<img class="icon" src="images/portrait/${e.portrait}.png" alt="" draggable="false"></div>`
+    + `<img class="icon" src="${foeFacePic(k)}" alt="" draggable="false"></div>`
     + `<div><div class="nm">${known ? esc(e.name) : '???'}</div><div class="kd">크리처</div></div></div>`
+    + (known ? bodyPicHtml(foeBust(k)) : '')                      // v9.57.0: 정보 칸 안은 상반신 (사람과 같은 꼴)
     + foeChips(k)                                                 // v7.10.0: 갈래 태그 (테두리와 같은 뜻을 글로도)
     + (known
       ? '<div class="stat-grid">'                                  // v8.6.0: 기사와 같은 표

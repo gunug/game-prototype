@@ -50,7 +50,15 @@ python tools/make_character_sheet.py --name archer --kind person --label 궁수 
 - **크리처는 `--kind creature` 를 반드시 준다** — 사람 · 인간형 · 손 · 옷 · 무기가 끼지 않게 단계마다 못을 박고, 전신은 **왼쪽을 보게** 그린다 (원정이 왼→오른쪽이라 기다리는 쪽이 왼쪽을 본다). 좌우가 같은 꼴(거미 · 게 · 두꺼비)은 정면도 좋다. 이미 뽑은 그림이 반대면 좌우를 뒤집는다.
 - 틀이 맘에 안 들면 다시 뽑지 말고 크롭 손잡이만 돌린다 — `--face-pad`(크면 얼굴에서 멀어짐) · `--upper-pad` · `--upper-down` · `--face-down`. 같은 `--seed` 면 그림은 그대로다.
 - 구도가 맘에 안 들면 `--seed` 만 바꾼다. 한 벌에 약 70초, 한 단계만 다시 뽑으면(`--only face`) 약 8초.
+- 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것(바위 등껍질 · 돌벌레 · 거미 · 소라게 …)은 `--card-from full` — 카드에 **전신**을 담아야 64px 에서 읽힌다.
 - 원본 큰 그림(720×1280 · 720×1024 · 1024×1024, 투명본 포함)은 `ComfyUI/output/krea2_chain/` 에 남는다.
+- 명단은 `tools/roster_characters.py` — 사람 9 · 크리처 25 의 id · 한글 이름 · 영문 묘사가 들어 있다. 한꺼번에 다시 뽑을 때 쓴다.
+
+```bash
+python tools/roster_characters.py            # 아직 얼굴 카드가 없는 것만
+python tools/roster_characters.py --all      # 전부 (약 40분)
+python tools/roster_characters.py --only wolf fox
+```
 
 - 공통 부분은 `tools/icon_common.py` (직접 실행 안 함).
 - 원정 트랙 **배경 타일**은 `tools/make_bg_tile.py` — 배경을 지우지 않고 좌우 이음매를 섞어 가로로 이어 붙게 만든다. 기본 288×126 (한 칸 96px × 3칸). 결과는 `images/bg/bg_<땅id>.png`, 표는 `index.html` 의 `LANE_BG`.

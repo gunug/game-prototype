@@ -212,6 +212,8 @@ def main():
     ap.add_argument("--saturation", type=float, default=1.1)
     ap.add_argument("--seg-text", default="face", help="CLIPSeg 로 찾을 것 (크리처는 head 가 나을 수 있음)")
     ap.add_argument("--only", default="", help="일부만 저장 — face,upper,full 중 쉼표로 (그림은 체인이라 어차피 다 돌린다)")
+    ap.add_argument("--card-from", choices=("face", "upper", "full"), default="face",
+                    help="카드에 쓸 그림. 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것(바위 등껍질 · 거미 …)은 full 로 — 통째로 담아야 읽힌다")
     ap.add_argument("--force", action="store_true", help="같은 파일이 있으면 덮어씀")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
     a = ap.parse_args()
@@ -235,11 +237,12 @@ def main():
     print(f"\nseed {a.seed} · {a.kind} · {a.width}x{a.height}")
     outs = C.run_workflow(a.url, build(a, texts), timeout=1800)
 
-    opts = [f"--kind {a.kind}", f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
+    opts = [f"--kind {a.kind}", f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
+            f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
             f"--upper-pad {a.upper_pad}", f"--upper-down {a.upper_down}",
             f"--face-pad {a.face_pad}", f"--face-down {a.face_down}"]
     for s in want:
-        node = f"save_rgba_{s}"
+        node = f"save_rgba_{a.card_from if s == 'face' else s}"   # 카드만 다른 단계에서 떠올 수 있다
         imgs = outs.get(node, {}).get("images") or []
         if not imgs:
             sys.exit(f"no output: {node}")
