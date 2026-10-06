@@ -243,9 +243,10 @@ def main():
     ap.add_argument("--upper-down", type=int, default=170, help="상반신 세로 연장량 — 키우면 얼굴이 위로 가고 몸이 더 담김")
     ap.add_argument("--face-pad", type=int, default=60, help="얼굴 크롭량 — 줄이면 얼굴에 바짝 붙음")
     ap.add_argument("--face-down", type=int, default=10, help="얼굴 세로 연장량")
-    ap.add_argument("--brightness", type=float, default=1.2)
-    ap.add_argument("--contrast", type=float, default=1.5)
-    ap.add_argument("--saturation", type=float, default=1.1)
+    # 2026-10-07: 색보정 기본을 **1 (손대지 않음)** 로 — 대비 1.5 가 그림자를 먹어 얼굴이 뭉개졌다
+    ap.add_argument("--brightness", type=float, default=1.0)
+    ap.add_argument("--contrast", type=float, default=1.0)
+    ap.add_argument("--saturation", type=float, default=1.0)
     ap.add_argument("--seg-text", default="face", help="CLIPSeg 로 찾을 것 (크리처는 head 가 나을 수 있음)")
     ap.add_argument("--only", default="", help="일부만 저장 — face,upper,full 중 쉼표로 (그림은 체인이라 어차피 다 돌린다)")
     ap.add_argument("--card-from", choices=("face", "upper", "full"), default="face",

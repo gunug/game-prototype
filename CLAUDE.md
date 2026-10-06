@@ -51,6 +51,7 @@ python tools/make_character_sheet.py --name archer --kind person --label 궁수 
 - 틀이 맘에 안 들면 다시 뽑지 말고 크롭 손잡이만 돌린다 — `--face-pad`(크면 얼굴에서 멀어짐) · `--upper-pad` · `--upper-down` · `--face-down`. 같은 `--seed` 면 그림은 그대로다.
 - 구도가 맘에 안 들면 `--seed` 만 바꾼다. 한 벌에 약 70초, 한 단계만 다시 뽑으면(`--only face`) 약 8초.
 - 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것(바위 등껍질 · 돌벌레 · 거미 · 소라게 …)은 `--card-from full` — 카드에 **전신**을 담아야 64px 에서 읽힌다.
+- 색보정 기본은 **1 · 1 · 1 (손대지 않음)** — `--brightness` · `--contrast` · `--saturation`. 워크플로우 기본값(1.2 · 1.5 · 1.1)은 그림자를 먹어 얼굴이 뭉갰다 (2026-10-07).
 - 원본 큰 그림(720×1280 · 720×1024 · 1024×1024, 투명본 포함)은 `ComfyUI/output/krea2_chain/` 에 남는다.
 - 명단은 `tools/roster_characters.py` — 사람 9 · 크리처 25 의 id · 한글 이름 · 영문 묘사가 들어 있다. 한꺼번에 다시 뽑을 때 쓴다.
 
