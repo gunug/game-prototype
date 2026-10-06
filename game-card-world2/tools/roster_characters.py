@@ -46,7 +46,8 @@ CREATURES = [
     ("shellback", "바위 등껍질", "a large armored creature whose back is a slab of grey rock, low and heavy"),
     ("stonelord", "돌가죽 주인", "a hulking beast covered in grey stone plates, glowing eyes under a rocky brow"),
     ("mosstoad", "이끼 두꺼비", "a huge swamp toad covered in green moss, warty wet skin, squatting low"),
-    ("bogarm", "수렁 팔", "a monstrous long arm of mud and roots rising out of swamp water, clawed hand, dripping sludge"),
+    ("bogarm", "수렁 팔", "a giant muddy arm reaching up out of dark swamp water, five clawed fingers spread wide at the top, "
+     "wet grey-brown mud and tangled green roots dripping off it, no fire, no glowing, no head, no face, no body, only the arm and hand"),
     ("tombkeeper", "무덤 주인", "a hulking swamp guardian beast made of waterlogged flesh, moss and grave stones, hunched, glowing pale eyes, dripping wet"),
     ("crayfish", "가재", "a big red river crayfish, raised pincers, segmented tail"),
     ("crocodile", "악어", "a crocodile, long toothy jaws, scaly green back, low stance"),
@@ -62,7 +63,9 @@ CREATURES = [
 # 얼굴을 찾는 말 — 사람은 face, 짐승은 head. 얼굴이랄 것이 없는 것은 따로 적는다
 SEG = {"bogarm": "hand", "towereye": "eye", "catfish": "fish head", "crayfish": "head"}
 # 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것들 — 카드는 **전신 그림**으로 뜬다 (통째로 담아야 64px 에서 읽힌다)
-CARD_FROM_FULL = {"bison", "forestbear", "stonebug", "shellback", "stonelord", "spider", "webmother", "hermit"}
+CARD_FROM_FULL = {"bison", "forestbear", "stonebug", "shellback", "stonelord", "spider", "webmother", "hermit", "bogarm"}
+# 머리 · 몸통이 없는 것 — 데포르메 비율 문구를 붙이면 짐승이 되어 버린다 (수렁 팔이 꼬리 달린 짐승으로 나왔다)
+NO_PROP = {"bogarm", "towereye"}
 
 
 def rows(args):
@@ -83,6 +86,8 @@ def main():
     ap = argparse.ArgumentParser(description="명단대로 캐릭터 시트를 한꺼번에 뽑는다")
     ap.add_argument("--all", action="store_true", help="이미 있는 것도 다시 뽑는다")
     ap.add_argument("--only", nargs="*", default=[], help="고른 id 만")
+    ap.add_argument("--style", choices=("deform", "real"), default="deform",
+                    help="그림 결 (2026-10-07 부터 집 결은 deform — 머리를 키운 게임 그림)")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
     a = ap.parse_args()
 
@@ -93,10 +98,12 @@ def main():
     for n, (cid, label, kind, desc, face_pad) in enumerate(todo, 1):
         print(f"\n===== [{n}/{len(todo)}] {cid} ({label}) =====")
         cmd = [sys.executable, str(SHEET), "--name", cid, "--kind", kind, "--label", label,
-               "--desc", desc, "--face-pad", str(face_pad), "--force", "--url", a.url]
+               "--desc", desc, "--face-pad", str(face_pad), "--style", a.style, "--force", "--url", a.url]
         cmd += ["--seg-text", SEG.get(cid, "face" if kind == "person" else "head")]
         if cid in CARD_FROM_FULL:
             cmd += ["--card-from", "full"]
+        if cid in NO_PROP:
+            cmd += ["--no-prop"]
         r = subprocess.run(cmd, cwd=str(ROOT))
         if r.returncode:
             fail.append(cid)

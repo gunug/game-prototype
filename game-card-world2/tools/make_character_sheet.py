@@ -111,7 +111,7 @@ OUTS = {
 }
 
 
-def prompt_of(kind, stage, desc, bg, style="real"):
+def prompt_of(kind, stage, desc, bg, style="real", prop=True):
     """단계별 프롬프트 = 틀 + 설명 + 그림체 + 배경 + 금지"""
     head = KINDS[kind][stage].format(desc=desc.rstrip(" ,."))
     if style == "deform":                                        # 실사 문구를 데포르메 문구로 갈아 끼운다
@@ -119,7 +119,7 @@ def prompt_of(kind, stage, desc, bg, style="real"):
                     .replace("realistic anatomy and skin texture", PROP_DEFORM["person"]["upper"])
                     .replace("realistic facial anatomy, detailed skin texture", PROP_DEFORM["person"]["face"])
                     .replace("detailed fur and skin texture", PROP_DEFORM["creature"]["face"]))
-        if kind == "creature":
+        if kind == "creature" and prop:                           # 머리 · 몸통이 없는 것(수렁 팔 …)은 이 문구를 빼야 짐승이 안 된다
             head += ", " + PROP_DEFORM["creature"]["full" if stage == "full" else "upper"]
         tail = STYLE_DEFORM + ", " + (bg if bg else BG_PLAIN)
         return f"{head}. {tail}. {NOT_REAL}."
@@ -231,6 +231,8 @@ def main():
     ap.add_argument("--desc", required=True, help="영문 묘사 — 세 단계가 같은 묘사를 쓴다 (머리색·옷·종 따위)")
     ap.add_argument("--label", default="", help="기록용 한글 이름 (예: 궁수)")
     ap.add_argument("--bg", default="", help="배경 묘사. 비우면 잘라내기 좋은 민짜 배경")
+    ap.add_argument("--no-prop", action="store_true",
+                    help="데포르메 비율 문구를 붙이지 않는다 — 머리 · 몸통이 없는 것(수렁 팔 · 탑의 눈)에 쓴다")
     ap.add_argument("--style", choices=("real", "deform"), default="real",
                     help="그림 결 — real: 워크플로우 기본 톤(반실사) / deform: 데포르메, 얼굴을 키운 게임 그림")
     ap.add_argument("--seed", type=int, default=None, help="1단 시드 (없으면 랜덤). 구도가 맘에 안 들면 이것만 바꾼다")
@@ -268,13 +270,13 @@ def main():
     if a.seed is None:
         a.seed = random.randrange(2 ** 31)
 
-    texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style) for s in ("full", "upper", "face")}
+    texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style, not a.no_prop) for s in ("full", "upper", "face")}
     for s in ("full", "upper", "face"):
         print(f"\n[{s}] {texts[s]}")
     print(f"\nseed {a.seed} · {a.kind} · {a.width}x{a.height}")
     outs = C.run_workflow(a.url, build(a, texts), timeout=1800)
 
-    opts = [f"--kind {a.kind}", f"--style {a.style}", f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
+    opts = [f"--kind {a.kind}", f"--style {a.style}"] + (["--no-prop"] if a.no_prop else []) + [ f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
             f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
             f"--upper-pad {a.upper_pad}", f"--upper-down {a.upper_down}",
             f"--face-pad {a.face_pad}", f"--face-down {a.face_down}"]
