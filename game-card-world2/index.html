@@ -688,6 +688,10 @@
   /* v0.88.0: 수치가 있는 카드만 그림·이름을 조금 위로 올리고, 수치도 살짝 올림 */
   .cw .stats ~ .emoji,.cw .stats ~ .name{position:relative;top:calc(var(--cw) * -.07);}
   /* v8.4.0: 무기의 성격 — 카드 위쪽 가운데 라운드 박스 */
+  /* v9.65.0: **도구의 특징 칸** — 이름 아래 한 칸. 성격(연타 · 방어 무시 · 출혈) + 수치(공 · 방 · 사거리 · 이동) */
+  .cw .feat{display:flex;flex-direction:column;align-items:center;gap:1px;pointer-events:none;}
+  .cw .feat .trait-b{position:static;transform:none;left:auto;top:auto;}
+  .cw .feat .stats{position:static;bottom:auto;}
   .cw .trait-b{position:absolute;left:50%;top:calc(var(--cw) * .04);z-index:3;transform:translateX(-50%);
     padding:0 calc(var(--cf) * .07);height:calc(var(--cf) * .17);display:flex;align-items:center;white-space:nowrap;
     border-radius:var(--r-pill);background:rgba(255,212,0,.92);color:var(--on-brand);
@@ -814,8 +818,9 @@
   /* 카드 속은 **위에서부터** 쌓는다 — 자식 수가 달라도 그림 · 이름 자리가 흔들리지 않게 */
   .cw{justify-content:flex-start;}
   .cw.being.withjob .pic{margin-top:calc(var(--cw) * .06);}
-  /* ② 직업 줄이 없는 카드(크리처 · 땅 · 사물) — 그 한 줄만큼 **그림을 아래로** (이름 자리가 같아진다) */
-  .cw.being:not(.withjob) .pic,.cw:not(.being) .emoji{margin-top:calc(var(--cw) * .205);}
+  /* ② 직업 줄도 특징 칸도 없는 카드(크리처 · 땅 · 재료) — 그 한 줄만큼 **그림을 아래로** (이름 자리가 같아진다) */
+  .cw.being:not(.withjob) .pic,.cw:not(.being):not(:has(.feat)) .emoji{margin-top:calc(var(--cw) * .205);}
+  .cw:has(.feat) .emoji{margin-top:calc(var(--cw) * .06);}        /* 도구 카드 = 사람 카드와 같은 자리 */
   /* ③ 필드 캐릭터 — 막대 둘은 **바닥에 덧붙는다** (자리를 안 먹으니 그림 · 이름은 기본과 같은 자리) */
   .cw.being .hpbar,.cw.being .xpbar{position:absolute;left:8%;right:8%;width:auto;margin:0;}
   .cw.being .hpbar{bottom:calc(var(--cw) * .13);}
@@ -1764,7 +1769,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.64.0';
+const VERSION = 'v9.65.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2619,18 +2624,24 @@ function statsHtml(t){
   const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${campHeal(t)}/s</span>` : '';   // v7.11.0
   const showRange = d.range && d.range > BASE_RANGE;              // v8.3.0: 맨손보다 멀리 닿는 무기만
   if (!d.atk && !d.def && !camp && !showRange && !d.spd) return '';
-  // v9.64.0: **수치는 카드에 적지 않는다** (정보 칸이 맡는다). 성격 딱지만 카드에 남는다
+  // v9.65.0: **도구 카드에는 '특징 칸'이 하나 더 붙는다** — 이름 아래 한 칸에 성격과 수치를 함께 적는다
+  //   (사람 카드의 직업 줄이 있는 자리다. 그래서 도구 카드도 사람 카드와 같은 높이로 선다)
   // v8.4.0: 성격(방어 무시 · 출혈)은 수치 줄이 아니라 **카드 위쪽 라운드 박스**로 — 한눈에 성격부터 읽히게
   const trait = d.multi > 1 ? `<div class="trait-b">연타 ×${d.multi}</div>`   // v9.52.0
     : d.pierce ? '<div class="trait-b">방어 무시</div>'                       // v4.3.0
     : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>` : '';    // v6.0.0
-  return trait;
+  return `<div class="feat">${trait}<div class="stats">`                // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
+    + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
+    + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
+    + (showRange ? `<span class="s-range">${statImg('range')}${d.range}</span>` : '')   // v8.3.0
+    + (d.spd ? `<span class="s-spd">${statImg('spd')}${d.spd > 0 ? '+' : ''}${d.spd}</span>` : '')
+    + camp + '</div></div>';
 }
 function cardHtml(c){
   const d = DEFS[c.type];
-  const html = statsHtml(c.type);
-  return html
-    + `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div><div class="cnt">${c.n}</div>`
+  return `<div class="emoji">${iconHtml(c.type)}</div><div class="name">${esc(d.name)}</div>`
+    + statsHtml(c.type)                                           // v9.65.0: 특징 칸은 이름 아래
+    + `<div class="cnt">${c.n}</div>`
     + (S.newCards.includes(c.type) ? '<div class="new-b">NEW</div>' : '');
 }
 // v0.9.0: 숫자 바꾸기 공통 — 글이 실제로 바뀌면 톡 튐 (처음 채울 땐 안 튐). 숫자가 바뀌는 곳은 모두 이걸로
@@ -3449,8 +3460,9 @@ const shownOpen = t => nameShown(t);                              // v0.24.0: �
 function slotHtml(t){
   const on = shownOpen(t);
   return `<div class="sleeve${bookPick === t ? ' sel' : ''}" data-book="${t}">`
-    + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}">${on ? statsHtml(t) : ''}`
-    + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div></div></div>`;
+    + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}">`
+    + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div>`
+    + (on ? statsHtml(t) : '') + '</div></div>';
 }
 // v3.3.2: 카드를 고르면 **인스펙터**가 바뀐다 — 책 위 한 줄에 정보를 겹쳐 쓰지 않음
 // v7.15.0: '슬리브를 탭하면 …' 안내는 없앰 (한 번 보면 그만인 말 — 자리만 먹었다)
