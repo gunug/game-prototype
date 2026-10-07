@@ -158,15 +158,6 @@
   .chars .cw.hero{position:relative;flex:none;cursor:grab;}
   /* v5.1.0: 원정 중인 캐릭터 — 끌 수 없고 '출전중' 딱지가 붙는다 */
   .cw.hero.out{cursor:default;filter:grayscale(.55) brightness(.72);}
-  .sleeve .cw .foe-mark{position:absolute;left:calc(var(--cw) * -.04);top:calc(var(--cw) * -.06);z-index:3;   /* v7.9.1 */
-    font-size:calc(var(--cf) * .16);}
-  .sleeve .cw .land-done{position:absolute;right:calc(var(--cw) * -.06);bottom:calc(var(--cw) * .04);z-index:3;   /* v7.9.0 */
-    padding:0 5px;border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);
-    font-size:calc(var(--cf) * .11);font-weight:900;}
-  .cw.hero.out .out-lab{position:absolute;left:0;right:0;top:38%;z-index:3;display:flex;flex-direction:column;align-items:center;
-    gap:1px;padding:2px 0;background:rgba(0,0,0,.62);color:var(--brand-yellow);font-weight:900;
-    font-size:calc(var(--cf) * .13);letter-spacing:.04em;filter:none;}
-  .cw.hero.out .out-where{font-size:calc(var(--cf) * .1);font-weight:700;color:var(--ink);opacity:.85;}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
   .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
@@ -812,17 +803,29 @@
   /* v9.59.0: 사람 카드(장인 · 여관 주인)는 **크리처 카드를 기준**으로 맞춘다 —
      그림은 카드 폭의 .87, 위에서 .02cw 띄우고, 이름은 바닥에 붙여 .175cw 글씨.
      (여관 주인은 크리처와 같은 .being 틀이라 따로 손댈 것이 없다) */
-  .cw.smith{padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
-  /* v9.63.0: **카드의 꼴 하나** — 책 · 여관 · 필드가 같다 (docs/게임_규칙.md '카드의 꼴')
-     그림은 카드 폭의 .65, 이름 .15, 직업 .105. 그림과 이름은 붙고 남는 자리는 아래로 */
+  /* v9.63.0 · v9.64.0: **카드의 꼴 하나** — 사람 · 크리처 · 땅 · 사물이 모두 같다 (docs/게임_규칙.md '카드의 꼴')
+     그림은 카드 폭의 .65, 이름 .13(다섯 글자 + 띄어쓰기 하나가 한 줄에), 직업 .105 */
   .cw .job{font-size:calc(var(--cw) * .105);color:var(--muted);line-height:1.1;text-align:center;
     padding:0 2px;pointer-events:none;}
-  .cw.being .pic{width:65%;height:50%;}
-  .cw.being .name{margin-top:0;font-size:calc(var(--cw) * .15);}
-  /* ② 크리처 — 직업 줄이 없으니 그 한 줄만큼 **그림을 아래로** (이름 자리가 기본과 같아진다) */
-  .cw.being:not(.withjob) .pic{margin-top:calc(var(--cw) * .145);}
-  /* ③ 필드 캐릭터 — 막대 둘은 바닥에 (남는 자리는 이름 밑) */
-  .cw.being .hpbar{margin-top:auto;}
+  .cw.being .pic,.cw .emoji{width:65%;height:50%;min-height:0;flex:none;}
+  .cw .emoji{display:flex;align-items:center;justify-content:center;font-size:calc(var(--cw) * .42);}
+  .cw .emoji .icon{width:100%;height:100%;object-fit:contain;}
+  .cw .name,.cw.being .name{margin-top:0;font-size:calc(var(--cw) * .13);white-space:nowrap;}
+  /* 카드 속은 **위에서부터** 쌓는다 — 자식 수가 달라도 그림 · 이름 자리가 흔들리지 않게 */
+  .cw{justify-content:flex-start;}
+  .cw.being.withjob .pic{margin-top:calc(var(--cw) * .06);}
+  /* ② 직업 줄이 없는 카드(크리처 · 땅 · 사물) — 그 한 줄만큼 **그림을 아래로** (이름 자리가 같아진다) */
+  .cw.being:not(.withjob) .pic,.cw:not(.being) .emoji{margin-top:calc(var(--cw) * .205);}
+  /* ③ 필드 캐릭터 — 막대 둘은 **바닥에 덧붙는다** (자리를 안 먹으니 그림 · 이름은 기본과 같은 자리) */
+  .cw.being .hpbar,.cw.being .xpbar{position:absolute;left:8%;right:8%;width:auto;margin:0;}
+  .cw.being .hpbar{bottom:calc(var(--cw) * .13);}
+  .cw.being .xpbar{bottom:calc(var(--cw) * .05);}
+  /* 모든 카드가 같은 안쪽 여백 — 자리마다 카드 크기는 달라도 비율은 같다 */
+  .cw{padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
+  /* 상태 뱃지 — **우하단 한 자리** (합류 · 잡음 · 깸 · 출전중) */
+  .cw .s-badge{position:absolute;right:calc(var(--cw) * -.06);bottom:calc(var(--cw) * .04);z-index:3;
+    padding:0 5px;border-radius:var(--r-pill);background:var(--brand-yellow);color:var(--on-brand);
+    font-size:calc(var(--cf) * .11);font-weight:900;white-space:nowrap;pointer-events:none;}
   /* 사람 카드는 이름이 아래쪽에 있어 자물쇠를 한 칸 위로 올린다 (땅 카드와 같은 꼴을 지키면서 글자를 안 가리게) */
   .cw.smith .lockbox{bottom:calc(var(--cw) * .5);}
   /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
@@ -1761,7 +1764,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.63.0';
+const VERSION = 'v9.64.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2616,16 +2619,12 @@ function statsHtml(t){
   const camp = useOf(t).includes('거점') ? `<span class="s-hp">${statImg('hp')}+${campHeal(t)}/s</span>` : '';   // v7.11.0
   const showRange = d.range && d.range > BASE_RANGE;              // v8.3.0: 맨손보다 멀리 닿는 무기만
   if (!d.atk && !d.def && !camp && !showRange && !d.spd) return '';
+  // v9.64.0: **수치는 카드에 적지 않는다** (정보 칸이 맡는다). 성격 딱지만 카드에 남는다
   // v8.4.0: 성격(방어 무시 · 출혈)은 수치 줄이 아니라 **카드 위쪽 라운드 박스**로 — 한눈에 성격부터 읽히게
   const trait = d.multi > 1 ? `<div class="trait-b">연타 ×${d.multi}</div>`   // v9.52.0
     : d.pierce ? '<div class="trait-b">방어 무시</div>'                       // v4.3.0
     : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>` : '';    // v6.0.0
-  return trait + '<div class="stats">'                             // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
-    + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
-    + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
-    + (showRange ? `<span class="s-range">${statImg('range')}${d.range}</span>` : '')   // v8.3.0
-    + (d.spd ? `<span class="s-spd">${statImg('spd')}${d.spd > 0 ? '+' : ''}${d.spd}</span>` : '')
-    + camp + '</div>';
+  return trait;
 }
 function cardHtml(c){
   const d = DEFS[c.type];
@@ -3403,17 +3402,18 @@ function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
     + beingCardHtml({ cls: `f-${foeFrame(o.key)}${on ? '' : ' locked'}`, pic: foeFacePic(o.key),   // v7.9.2
-        name: e.name, known: on, tag: on && (S.killed || []).includes(o.key) ? '잡음' : '',
-        mark: o.boss ? '👑' : o.mid ? '⚔' : '' })
+        name: e.name, known: on, tag: on && (S.killed || []).includes(o.key) ? '잡음' : '' })
     + '</div>';
 }
 function landSlotHtml(f){
-  const on = landSeen(f);
+  const on = landSeen(f), lock = !on && fieldLocked(f.id);        // v9.64.0: 잠김은 장인과 같은 꼴 — ??? + 자물쇠 + 조건 한 줄
   return `<div class="sleeve${bookPick === 'land:' + f.id ? ' sel' : ''}" data-book="land:${f.id}">`
     + `<div class="cw framed f-stone${on ? '' : ' locked'}">`     // v7.9.1: 깬 곳도 테두리는 그대로 — '깸' 표시로 충분
-    + `<div class="emoji">${on ? fieldIcon(f) : `<img class="icon" src="images/icon/card_${f.id}.png" alt="" draggable="false">`}</div>`
+    + `<div class="emoji"><img class="icon" src="images/icon/card_${f.id}.png" alt="" draggable="false"></div>`
     + `<div class="name">${on ? esc(f.name) : '???'}</div>`
-    + (on && landCleared(f) ? '<div class="land-done">깸</div>' : '') + '</div></div>';
+    + (lock ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
+      + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>` : '')
+    + (on && landCleared(f) ? '<div class="s-badge">깸</div>' : '') + '</div></div>';
 }
 // v3.10.0: 이 가공품은 어느 땅 재료로 만드나 — DEFS.made 가 있으면 그것, 없으면 재료가 나오는 곳
 function madeAt(t){
@@ -4441,7 +4441,7 @@ function screenRows(){
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
       const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
-        + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${f.name}</div>`
+        + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${locked ? '???' : esc(f.name)}</div>`   // v9.64.0: 잠김은 장인과 같은 꼴
         + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>`
           : '')
@@ -4582,13 +4582,12 @@ function beingCardHtml(o){
     + (o.bar && o.max ? hpBarHtml(o.hp, o.max) : '')                // v9.33.0: 캐릭터만 체력 막대
     + (o.known === false || !o.xpNeed ? '' :                        // 경험치만 얇은 막대로 (기사)
         `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>`)
-    + (o.tag ? `<div class="land-done">${esc(o.tag)}</div>` : '')    // 모서리 딱지 (합류 · 잡음 · Lv)
-    + (o.mark ? `<div class="foe-mark">${o.mark}</div>` : '')
+    + (o.tag ? `<div class="s-badge">${esc(o.tag)}</div>` : '')      // v9.64.0: **상태 뱃지** — 우하단 하나뿐 (합류 · 잡음 · 깸 · 출전중)
     + '</div>';
 }
 // v9.23.0: 캐릭터 카드는 **하나의 틀**로 — 기사도 궁수도 같은 함수, 같은 꾸밈(`.cw.hero`)을 쓴다
 //   (전엔 '출전중' 딱지 꾸밈이 `.cw.knight` 에만 걸려 궁수 카드에서는 글씨가 그대로 겹쳐 보였다)
-const outLabHtml = E => `<div class="out-lab">출전중<span class="out-where">${esc(FIELD_BY_ID[E.id].name)}</span></div>`;
+// v9.64.0: '출전중'도 **상태 뱃지** — 우하단 한 자리 (어디로 갔는지는 줄에서 보인다)
 function heroCardHtml(key, drag){
   const st = hSt(key), E = expOf(key), out = !!E;                 // v5.1.0: 원정 중
   const sel = heroPick === key;
@@ -4600,7 +4599,7 @@ function heroCardHtml(key, drag){
     atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key), bar: true,   // v9.33.0: 체력 막대
     spd: hSpd(key), range: hRange(key),
     lv: hLv(key), xp: st.xp || 0, xpNeed: xpNeed(hLv(key)),
-    extra: out ? outLabHtml(E) : '',
+    tag: out ? '출전중' : '',                                      // v9.64.0: 상태 뱃지
   });
 }
 const knightCardHtml = drag => heroCardHtml('knight', drag);
