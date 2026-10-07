@@ -813,17 +813,19 @@
      그림은 카드 폭의 .87, 위에서 .02cw 띄우고, 이름은 바닥에 붙여 .175cw 글씨.
      (여관 주인은 크리처와 같은 .being 틀이라 따로 손댈 것이 없다) */
   .cw.smith{padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
+  /* v9.62.0: **사람 그림은 어디서나 카드 폭의 .65** — 책은 너무 작고(.44) 여관은 너무 컸다(.87) */
   .cw.smith .emoji{display:flex;align-items:center;justify-content:center;
-    width:92%;height:72%;min-height:0;margin-top:calc(var(--cw) * .02);}   /* .cw.being .pic 과 같은 상자 */
+    width:65%;height:51%;min-height:0;margin-top:calc(var(--cw) * .02);}
   .cw.smith .emoji .icon{width:100%;height:100%;object-fit:contain;}
   .cw.smith .name{margin-top:auto;font-size:calc(var(--cw) * .175);}
   /* v9.60.0: 이름 밑 작은 직업 — 이름이 누구인지, 직업이 무엇을 하는지 */
   .cw .job{font-size:calc(var(--cw) * .115);color:var(--muted);line-height:1.1;text-align:center;
     padding:0 2px;pointer-events:none;}
   /* 직업 줄이 붙은 카드는 한 줄이 더 들어가니 그림과 이름을 조금 줄인다 (크리처 카드는 그대로) */
-  .cw.being.withjob .pic{height:56%;}
+  .cw.being.withjob .pic{width:65%;height:50%;}
   .cw.being.withjob .name{font-size:calc(var(--cw) * .15);}
   .cw.smith .job{font-size:calc(var(--cw) * .105);}
+  .cw.pcard .emoji{font-size:calc(var(--cw) * .565);}             /* 책의 사람 칸 — 그림은 1.15em 이라 .65 가 된다 */
   /* 사람 카드는 이름이 아래쪽에 있어 자물쇠를 한 칸 위로 올린다 (땅 카드와 같은 꼴을 지키면서 글자를 안 가리게) */
   .cw.smith .lockbox{bottom:calc(var(--cw) * .5);}
   /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
@@ -1762,7 +1764,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.61.0';
+const VERSION = 'v9.62.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3371,7 +3373,7 @@ const foeKnown = k => editMode || (S.metFoes || []).includes(k) || (S.killed || 
 const HEROES_ALL = ['knight', 'ally'];
 function heroSlotHtml(k){
   return `<div class="sleeve${bookPick === 'hero:' + k ? ' sel' : ''}" data-book="hero:${k}">`
-    + `<div class="cw framed f-${k === 'ally' ? 'bronze' : 'gold'}">`
+    + `<div class="cw framed pcard f-${k === 'ally' ? 'bronze' : 'gold'}">`
     + `<div class="emoji"><img class="icon" src="images/icon/${hCard(k)}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(pName(k))}</div><div class="job">${esc(hName(k))}</div>`
     + `<div class="land-done">Lv ${hLv(k)}</div></div></div>`;
@@ -3389,13 +3391,13 @@ const foeFacePic = k => `images/icon/card_${foeArtId(k)}.png`;    // 카드 — 
 function smithSlotHtml(id){
   if (id === 'keeper'){
     return `<div class="sleeve${bookPick === 'smith:keeper' ? ' sel' : ''}" data-book="smith:keeper">`
-      + '<div class="cw framed f-bronze"><div class="emoji">'
+      + '<div class="cw framed pcard f-bronze"><div class="emoji">'
       + '<img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
       + `<div class="name">${esc(pName('keeper'))}</div><div class="job">여관 주인</div></div></div>`;
   }
   const sm = SMITH_BY_ID[id];
   return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
-    + `<div class="cw framed f-bronze${smithDone(id) ? '' : ' locked'}">`   // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
+    + `<div class="cw framed pcard f-bronze${smithDone(id) ? '' : ' locked'}">`   // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(smithDone(id) ? pName(id) : '???')}</div>`
     + (smithDone(id) ? `<div class="job">${esc(sm.name)}</div>` : '')
