@@ -57,8 +57,8 @@ STYLE_DEFORM = (
     "gentle rim lighting, appealing character-design rendering, sharp focus"
 )
 NOT_REAL = (
-    "no photorealism, not a photo, no hyperreal skin pores, no gritty realism, "
-    "no text, no watermark, no extra characters"
+    "no photorealism, not a photo, no hyperreal skin pores, no hyperreal fur, no wildlife photography, "
+    "no gritty realism, no text, no watermark, no extra characters"
 )
 PROP_DEFORM = {                                                  # 단계마다 '얼굴을 키운다'고 못을 박는다
     "person": {
@@ -68,10 +68,18 @@ PROP_DEFORM = {                                                  # 단계마다 
         "face": ("a big round-cheeked face filling the frame, large clear eyes, bold simple features, "
                  "soft smooth skin shading"),
     },
-    "creature": {
-        "full": "stylized deformed proportions: an oversized expressive head, compact chunky body, short sturdy legs",
-        "upper": "an oversized expressive head, chunky simplified body",
-        "face": "a big expressive head filling the frame, large clear eyes, bold simple features",
+    "bug": {        # 거미 · 게 · 벌레 — 머리가 아니라 **몸통**을 키운다
+        "full": ("stylized deformed proportions: a big round body about half the whole height, "
+                 "short chunky legs, simple bold shapes"),
+        "upper": "a big round body, large glossy eyes, simple bold shapes",
+        "face": "a big round front body filling the frame, large glossy eyes, simple bold shapes, smooth shading",
+    },
+    "creature": {   # 2026-10-08: **사람 것과 같은 문구**를 쓴다 (다리 · 발만 짐승 말로)
+        "full": ("stylized deformed proportions: a large expressive head about one fifth of the "
+                 "body height, compact sturdy body, short sturdy legs and small paws"),
+        "upper": "a large expressive head, broad clear features, simplified stylized anatomy",
+        "face": ("a big round-cheeked face filling the frame, large clear eyes, bold simple features, "
+                 "soft smooth shading"),
     },
 }
 # 배경 — 잘라내기 좋게 민짜가 기본. --bg scene 이면 워크플로우 예시처럼 배경을 그린다
@@ -88,17 +96,38 @@ PERSON = {
              "detailed skin texture"),
 }
 # 크리처 — 사람·인간형이 끼지 않게 단계마다 못을 박는다. 전신은 **왼쪽**을 본다
-NO_HUMAN = ("an animal only: no human, no person, no humanoid, no anthropomorphic figure, "
-            "no hands, no clothing, no armor, no weapon, no rider, true natural animal anatomy "
-            "and proportions for the species")
+# 2026-10-08: **사람 금지만 남긴다.** 전엔 여기 'true natural animal anatomy and proportions' 가 붙어 있어
+#   뒤에 붙이는 데포르메 문구와 싸웠다 (앞 문구가 이겨 크리처만 반실사로 나왔다).
+#   '제 비율' 문구는 real 결에서만 붙인다
+# 2026-10-08 ②: **살짝 의인화**를 허락한다 — 눈 · 눈썹에 감정이 읽히되 얼굴은 짐승 얼굴 그대로.
+#   사람 얼굴 · 사람 살갗 · 옷 · 손 · 두 발 서기는 그대로 막는다
+NO_HUMAN = ("an animal only: no human face, no human skin, no person, no humanoid body, "
+            "not standing on two legs, no hands, no clothing, no armor, no weapon, no rider")
+ANTHRO = (", gently anthropomorphic FACE ONLY: readable emotion in the eyes and brow, an expressive "
+          "cartoon-character face, while the head stays an animal head with a real muzzle and animal ears")
+# 전신은 **제 자세**를 지킨다 — 의인화 문구가 두 발로 세워 버리는 것을 막는다 (거미 · 악어가 섰다)
+STANCE = (", standing in the natural stance of its species on all of its legs, body horizontal, "
+          "not upright, not bipedal, not standing on two legs, not rearing up")
+REAL_ANIM = ", true natural animal anatomy and proportions for the species"
+# 2026-10-08: **크리처 틀 = 사람(기사) 틀 그대로.** 결이 안 맞던 까닭은 틀이 따로 자랐기 때문이다.
+#   사람 문구를 그대로 쓰고, 크리처라는 표시만 한 마디씩 더한다 (짐승 머리 · 네 발 · 옷 없음).
+#   `--style real` 일 때만 '제 비율' 문구가 붙는다 ({anat} · {skin})
+BEAST = (", an animal character: an animal head with a real muzzle and animal ears, "
+         "no human face, no human skin, no clothing, no hands")
+BEAST_BUG = ", a creature character: no human face, no human skin, no clothing, no hands"
+# 전신에만 — 자세를 못 박지 않으면 몸을 세워 앉는다 (악어가 그랬다)
+STANCE = (", all of its feet on the ground, body held horizontal in the natural stance of its species, "
+          "not upright, not sitting up, not rearing up, not bipedal")
+# 거미 · 게 · 벌레처럼 **얼굴이랄 것이 없는 몸** — '둥근 뺨 · 큰 눈'이 걸릴 데가 없어 따로 적는다
+BUG = (", one big round body, simplified chunky legs, a cluster of large glossy eyes, "
+       "smooth shell with simple bold markings, no fine hair detail")
 CREATURE = {
-    "full": ("Full-body creature art of {desc} — " + NO_HUMAN + ". Standing in a natural stance, "
-             "side view facing to the left, whole body visible from head to feet, "
-             "centered composition"),
-    "upper": ("Head and shoulders creature portrait of {desc} — " + NO_HUMAN + ". "
-              "Facing to the left, front half of the body visible"),
-    "face": ("Close-up head portrait of the animal: {desc} — " + NO_HUMAN + ". "
-             "Facing the viewer, detailed fur and skin texture"),
+    "full": ("Full-body character splash art of {desc}, standing in a relaxed ready stance, "
+             "side view facing to the left, body turned three-quarters, whole body visible from head to toe, "
+             "centered composition" + "{beast}" + STANCE + "{body}{anat}"),
+    "upper": ("Upper-body character portrait of {desc}, facing the viewer, head and chest, "
+              "body turned three-quarters" + "{beast}{body}{anat}{skin}"),
+    "face": ("Close-up face portrait of {desc}, facing the viewer" + "{beast}{body}{anat}{skin}"),
 }
 KINDS = {"person": PERSON, "creature": CREATURE}
 
@@ -111,16 +140,22 @@ OUTS = {
 }
 
 
-def prompt_of(kind, stage, desc, bg, style="real", prop=True):
+def prompt_of(kind, stage, desc, bg, style="real", prop=True, body="beast"):
     """단계별 프롬프트 = 틀 + 설명 + 그림체 + 배경 + 금지"""
-    head = KINDS[kind][stage].format(desc=desc.rstrip(" ,."))
-    if style == "deform":                                        # 실사 문구를 데포르메 문구로 갈아 끼운다
+    deform = style == "deform"
+    head = KINDS[kind][stage].format(
+        desc=desc.rstrip(" ,."),
+        beast=BEAST_BUG if body == "bug" else BEAST,              # 벌레에겐 주둥이 · 귀를 말하지 않는다
+        body=BUG if body == "bug" else "",                        # 거미 · 게 · 벌레는 몸꼴을 따로 적는다
+        anat="" if (deform and prop) else REAL_ANIM,              # 데포르메면 '제 비율' 문구를 빼 둔다
+        skin="" if deform else ", detailed fur and skin texture")
+    if deform:                                                   # 실사 문구를 데포르메 문구로 갈아 끼운다
         head = (head.replace("realistic human proportions and anatomy", PROP_DEFORM["person"]["full"])
                     .replace("realistic anatomy and skin texture", PROP_DEFORM["person"]["upper"])
                     .replace("realistic facial anatomy, detailed skin texture", PROP_DEFORM["person"]["face"])
                     .replace("detailed fur and skin texture", PROP_DEFORM["creature"]["face"]))
         if kind == "creature" and prop:                           # 머리 · 몸통이 없는 것(수렁 팔 …)은 이 문구를 빼야 짐승이 안 된다
-            head += ", " + PROP_DEFORM["creature"]["full" if stage == "full" else "upper"]
+            head += ", " + PROP_DEFORM["bug" if body == "bug" else "creature"][stage]
         tail = STYLE_DEFORM + ", " + (bg if bg else BG_PLAIN)
         return f"{head}. {tail}. {NOT_REAL}."
     tail = STYLE + ", " + (bg if bg else BG_PLAIN)
@@ -231,6 +266,8 @@ def main():
     ap.add_argument("--desc", required=True, help="영문 묘사 — 세 단계가 같은 묘사를 쓴다 (머리색·옷·종 따위)")
     ap.add_argument("--label", default="", help="기록용 한글 이름 (예: 궁수)")
     ap.add_argument("--bg", default="", help="배경 묘사. 비우면 잘라내기 좋은 민짜 배경")
+    ap.add_argument("--body", choices=("beast", "bug"), default="beast",
+                    help="몸꼴 — beast: 머리 달린 짐승 / bug: 거미 · 게 · 벌레(몸통을 키운다)")
     ap.add_argument("--no-prop", action="store_true",
                     help="데포르메 비율 문구를 붙이지 않는다 — 머리 · 몸통이 없는 것(수렁 팔 · 탑의 눈)에 쓴다")
     ap.add_argument("--style", choices=("real", "deform"), default="real",
@@ -254,6 +291,7 @@ def main():
     ap.add_argument("--card-from", choices=("face", "upper", "full"), default="face",
                     help="카드에 쓸 그림. 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것(바위 등껍질 · 거미 …)은 full 로 — 통째로 담아야 읽힌다")
     ap.add_argument("--force", action="store_true", help="같은 파일이 있으면 덮어씀")
+    ap.add_argument("--out-dir", default="", help="시험용 — 게임 폴더 대신 이 폴더에 저장한다 (기록도 남기지 않음)")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
     a = ap.parse_args()
 
@@ -263,20 +301,23 @@ def main():
     bad = [s for s in want if s not in OUTS]
     if bad:
         sys.exit(f"--only 는 {', '.join(OUTS)} 중에서: {bad}")
-    dests = {s: OUTS[s][1] / OUTS[s][0].format(n=a.name) for s in want}
+    out_dir = Path(a.out_dir) if a.out_dir else None              # 시험용 폴더
+    if out_dir:
+        out_dir.mkdir(parents=True, exist_ok=True)
+    dests = {s: (out_dir or OUTS[s][1]) / OUTS[s][0].format(n=a.name) for s in want}
     exists = [p for p in dests.values() if p.exists()]
     if exists and not a.force:
         sys.exit("exists: " + ", ".join(str(p) for p in exists) + " (--force 로 덮어쓰기)")
     if a.seed is None:
         a.seed = random.randrange(2 ** 31)
 
-    texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style, not a.no_prop) for s in ("full", "upper", "face")}
+    texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style, not a.no_prop, a.body) for s in ("full", "upper", "face")}
     for s in ("full", "upper", "face"):
         print(f"\n[{s}] {texts[s]}")
     print(f"\nseed {a.seed} · {a.kind} · {a.width}x{a.height}")
     outs = C.run_workflow(a.url, build(a, texts), timeout=1800)
 
-    opts = [f"--kind {a.kind}", f"--style {a.style}"] + (["--no-prop"] if a.no_prop else []) + [ f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
+    opts = [f"--kind {a.kind}", f"--style {a.style}", f"--body {a.body}"] + (["--no-prop"] if a.no_prop else []) + [ f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
             f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
             f"--upper-pad {a.upper_pad}", f"--upper-down {a.upper_down}",
             f"--face-pad {a.face_pad}", f"--face-down {a.face_down}"]
@@ -287,10 +328,12 @@ def main():
             sys.exit(f"no output: {node}")
         raw = Image.open(BytesIO(C.fetch_image(a.url, imgs[0])))
         fname, folder, size, colors, valign = OUTS[s]
-        dest = folder / fname.format(n=a.name)
+        dest = (out_dir or folder) / fname.format(n=a.name)
         fit(raw, size, colors, valign).save(dest)
+        print(f"saved {dest}  ({raw.size[0]}x{raw.size[1]} → {size[0]}x{size[1]})")
+        if out_dir:
+            continue                                              # 시험판은 기록하지 않는다
         rel = dest.relative_to(ROOT).as_posix()
-        print(f"saved {rel}  ({raw.size[0]}x{raw.size[1]} → {size[0]}x{size[1]})")
         C.record(dest.stem, f"{a.label} — {s}" if a.label else "", texts["face" if s == "face" else s],
                  a.seed, opts, file=f"{rel}")
     print("\n원본 큰 그림: ComfyUI/output/krea2_chain/")

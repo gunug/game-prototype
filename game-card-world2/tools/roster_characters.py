@@ -66,6 +66,8 @@ SEG = {"bogarm": "hand", "towereye": "eye", "catfish": "fish head", "crayfish": 
 CARD_FROM_FULL = {"bison", "forestbear", "stonebug", "shellback", "stonelord", "spider", "webmother", "hermit", "bogarm"}
 # 머리 · 몸통이 없는 것 — 데포르메 비율 문구를 붙이면 짐승이 되어 버린다 (수렁 팔이 꼬리 달린 짐승으로 나왔다)
 NO_PROP = {"bogarm", "towereye"}
+# 2026-10-08: 거미 · 게 · 벌레는 **몸통**을 키운다 (머리가 따로 없어 '둥근 뺨 · 큰 눈'이 걸릴 데가 없다)
+BUGS = {"spider", "webmother", "nestkeeper", "stonebug", "hermit", "bigpincer", "cavekeeper", "crayfish"}
 
 
 def rows(args):
@@ -104,6 +106,8 @@ def main():
             cmd += ["--card-from", "full"]
         if cid in NO_PROP:
             cmd += ["--no-prop"]
+        if cid in BUGS:
+            cmd += ["--body", "bug"]
         r = subprocess.run(cmd, cwd=str(ROOT))
         if r.returncode:
             fail.append(cid)
