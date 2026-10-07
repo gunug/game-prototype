@@ -809,11 +809,14 @@
   .insp .i-open{margin:6px 0 2px;color:var(--brand-yellow);font-weight:800;}
   /* v9.58.3: 장인 카드 — 무엇을 열어 주는지는 **인스펙터**에서 읽는다 (카드의 노란 글씨는 뺌).
      그 자리를 그림에 주고, 이름은 조금 아래로 내린다 */
-  .cw.smith .emoji,.cw.keeper .emoji{font-size:calc(var(--cw) * .52);}
-  .cw.smith .name,.cw.keeper:not(.being) .name{position:relative;top:calc(var(--cw) * .05);}
-  /* v9.58.4: 여관 주인 카드는 **크리처 틀**(.being)로 그려져 그림이 혼자 컸다 — 장인 카드와 같은 비율(폭의 60%)로 */
-  .cw.being.keeper .pic{width:63%;height:auto;margin-top:calc(var(--cw) * .147);}
-  .cw.being.keeper .name{position:relative;top:calc(var(--cw) * .026);}
+  /* v9.59.0: 사람 카드(장인 · 여관 주인)는 **크리처 카드를 기준**으로 맞춘다 —
+     그림은 카드 폭의 .87, 위에서 .02cw 띄우고, 이름은 바닥에 붙여 .175cw 글씨.
+     (여관 주인은 크리처와 같은 .being 틀이라 따로 손댈 것이 없다) */
+  .cw.smith{padding:calc(var(--cw) * .06) 0 calc(var(--cw) * .05);}
+  .cw.smith .emoji{display:flex;align-items:center;justify-content:center;
+    width:92%;height:72%;min-height:0;margin-top:calc(var(--cw) * .02);}   /* .cw.being .pic 과 같은 상자 */
+  .cw.smith .emoji .icon{width:100%;height:100%;object-fit:contain;}
+  .cw.smith .name{margin-top:auto;font-size:calc(var(--cw) * .175);}
   /* 사람 카드는 이름이 아래쪽에 있어 자물쇠를 한 칸 위로 올린다 (땅 카드와 같은 꼴을 지키면서 글자를 안 가리게) */
   .cw.smith .lockbox{bottom:calc(var(--cw) * .5);}
   /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
@@ -1750,7 +1753,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.58.4';
+const VERSION = 'v9.59.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3386,13 +3389,13 @@ const foeFacePic = k => `images/icon/card_${foeArtId(k)}.png`;    // 카드 — 
 function smithSlotHtml(id){
   if (id === 'keeper'){
     return `<div class="sleeve${bookPick === 'smith:keeper' ? ' sel' : ''}" data-book="smith:keeper">`
-      + '<div class="cw framed f-bronze keeper"><div class="emoji">'
+      + '<div class="cw framed f-bronze"><div class="emoji">'
       + '<img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
       + '<div class="name">여관 주인</div><div class="land-done">여관</div></div></div>';
   }
   const sm = SMITH_BY_ID[id];
   return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
-    + `<div class="cw framed f-bronze smith${smithDone(id) ? '' : ' locked'}">`   // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
+    + `<div class="cw framed f-bronze${smithDone(id) ? '' : ' locked'}">`   // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div class="name">${esc(sm.name)}</div>`
     + (smithDone(id) ? '<div class="land-done">합류</div>' : '') + '</div></div>';
