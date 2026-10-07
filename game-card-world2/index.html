@@ -817,6 +817,13 @@
     width:92%;height:72%;min-height:0;margin-top:calc(var(--cw) * .02);}   /* .cw.being .pic 과 같은 상자 */
   .cw.smith .emoji .icon{width:100%;height:100%;object-fit:contain;}
   .cw.smith .name{margin-top:auto;font-size:calc(var(--cw) * .175);}
+  /* v9.60.0: 이름 밑 작은 직업 — 이름이 누구인지, 직업이 무엇을 하는지 */
+  .cw .job{font-size:calc(var(--cw) * .115);color:var(--muted);line-height:1.1;text-align:center;
+    padding:0 2px;pointer-events:none;}
+  /* 직업 줄이 붙은 카드는 한 줄이 더 들어가니 그림과 이름을 조금 줄인다 (크리처 카드는 그대로) */
+  .cw.being.withjob .pic{height:56%;}
+  .cw.being.withjob .name{font-size:calc(var(--cw) * .15);}
+  .cw.smith .job{font-size:calc(var(--cw) * .105);}
   /* 사람 카드는 이름이 아래쪽에 있어 자물쇠를 한 칸 위로 올린다 (땅 카드와 같은 꼴을 지키면서 글자를 안 가리게) */
   .cw.smith .lockbox{bottom:calc(var(--cw) * .5);}
   /* v0.89.0: 수치 글씨도 그림과 같은 색 (경험치는 사이안) */
@@ -1755,7 +1762,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.59.2';
+const VERSION = 'v9.60.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3184,7 +3191,7 @@ function renderSmithInsp(){
   }
   if (innPick === 'keeper'){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
-      + '<div><div class="nm">여관 주인</div><div class="kd">여관 · 사람을 찾아 준다</div></div></div>'
+      + `<div><div class="nm">${esc(pName('keeper'))}</div><div class="kd">여관 주인 · 사람을 찾아 준다</div></div></div>`
       + bodyPicHtml('bust_innkeeper')
       + '<div class="desc">누구를 찾을지 등록 칸에 올려 두면, 소문을 모아 어디로 가야 하는지 알려 준다. 한 번에 한 명.</div>'
       + '<div class="i-quip">“외상은 안 된다. 소문은 공짜다.”</div>';
@@ -3204,8 +3211,8 @@ function renderSmithInsp(){
   }).join('');
   inspEl.innerHTML = '<div class="head"><div class="pic">'
     + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
-    + `<div><div class="nm">${esc(sm.name)}</div>`
-    + `<div class="kd">여관 · 장인</div></div></div>`
+    + `<div><div class="nm">${esc(pName(sm.id))}</div>`
+    + `<div class="kd">${esc(sm.name)} · 여관</div></div></div>`
     + bodyPicHtml(`bust_${sm.id}`)
     + `<div class="i-open">${esc(smithOpensText(sm.id))}</div>`    // 노란 한 줄 — 이 사람이 열어 주는 것
     + `<div class="desc">${esc(sm.desc)}</div>`
@@ -3375,7 +3382,7 @@ function heroSlotHtml(k){
   return `<div class="sleeve${bookPick === 'hero:' + k ? ' sel' : ''}" data-book="hero:${k}">`
     + `<div class="cw framed f-${k === 'ally' ? 'bronze' : 'gold'}">`
     + `<div class="emoji"><img class="icon" src="images/icon/${hCard(k)}.png" alt="" draggable="false"></div>`
-    + `<div class="name">${esc(hName(k))}</div>`
+    + `<div class="name">${esc(pName(k))}</div><div class="job">${esc(hName(k))}</div>`
     + `<div class="land-done">Lv ${hLv(k)}</div></div></div>`;
 }
 // v9.56.5: **사람은 카드(얼굴)와 전신을 따로 가진다** — 작은 네모엔 얼굴, 정보 칸 안에는 전신 한 장
@@ -3393,13 +3400,14 @@ function smithSlotHtml(id){
     return `<div class="sleeve${bookPick === 'smith:keeper' ? ' sel' : ''}" data-book="smith:keeper">`
       + '<div class="cw framed f-bronze"><div class="emoji">'
       + '<img class="icon" src="images/icon/card_innkeeper.png" alt="" draggable="false"></div>'
-      + '<div class="name">여관 주인</div><div class="land-done">여관</div></div></div>';
+      + `<div class="name">${esc(pName('keeper'))}</div><div class="job">여관 주인</div></div></div>`;
   }
   const sm = SMITH_BY_ID[id];
   return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
     + `<div class="cw framed f-bronze${smithDone(id) ? '' : ' locked'}">`   // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
-    + `<div class="name">${esc(sm.name)}</div>`
+    + `<div class="name">${esc(smithDone(id) ? pName(id) : '???')}</div>`
+    + (smithDone(id) ? `<div class="job">${esc(sm.name)}</div>` : '')
     + (smithDone(id) ? '<div class="land-done">합류</div>' : '') + '</div></div>';
 }
 const BOOK_PEOPLE = () => ['keeper'].concat(SMITHS.map(x => x.id));
@@ -4406,7 +4414,8 @@ function smithCardHtml(id, drag){
   return `<div class="cw framed f-bronze smith${lock ? ' smith-locked' : ''}`
     + `${innPick === id ? ' sel' : ''}"${drag ? ` data-token="${id}"` : ''} data-smith="${id}">`
     + `<div class="emoji"><img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
-    + `<div class="name">${esc(sm.name)}</div>`
+    + `<div class="name">${esc(lock ? '???' : pName(id))}</div>`
+    + (lock ? '' : `<div class="job">${esc(sm.name)}</div>`)       // v9.60.0: 이름 밑 작은 직업
     + (lock ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
       + `<b class="lockneed">${esc(smithNeed(id))}</b></div>` : '')
     + (smithDone(id) ? '<div class="sub-lab">합류</div>' : '') + '</div>';
@@ -4420,13 +4429,13 @@ function screenRows(){
     const keeper = `<div class="foelist">${beingCardHtml({
       cls: `f-bronze foe keeper${innPick === 'keeper' ? ' sel' : ''}`,
       attrs: ' data-smith="keeper" title="여관 주인"',
-      pic: 'images/icon/card_innkeeper.png', name: '여관 주인' })}</div>`;
+      pic: 'images/icon/card_innkeeper.png', name: pName('keeper'), job: '여관 주인' })}</div>`;
     const innCard = `<div class="cw framed f-stone field${innPick === 'inn' ? ' sel' : ''}" data-smith="inn">`
       + '<div class="emoji"><img class="icon" src="images/icon/card_inn.png" alt="여관" draggable="false"></div>'
       + '<div class="name">여관</div></div>';
     const rows = [{ card: keeper + innCard, slots: [{ id:'inn:reg', open:true, card: !!reg,
       icon: reg ? `<img class="icon" src="images/icon/${SMITH_BY_ID[reg].card}.png" alt="" draggable="false">` : '',
-      cardName: reg ? smithName(reg) : '', frame:'bronze', lab:'등록' }] }];
+      cardName: reg ? pName(reg) : '', frame:'bronze', lab:'등록' }] }];
     if (reg){
       const sm = SMITH_BY_ID[reg], st = smithStep(reg);
       rows.push({ card: smithCardHtml(reg), slots: INN_STEPS.map((nm, i) => ({
@@ -4470,7 +4479,7 @@ function screenRows(){
           id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
           card: !!(open && who),
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
-          cardName: who ? hName(who) : '', frame: who === 'ally' ? 'bronze' : 'gold', lab: '출전',
+          cardName: who ? pName(who) : '', frame: who === 'ally' ? 'bronze' : 'gold', lab: '출전',
         };
       });
       return { card: foeCards + card, slots };
@@ -4581,13 +4590,14 @@ const hpBarHtml = (hp, max) => {
 };
 function beingCardHtml(o){
   // o = { cls, pic, name, lv, xp, xpNeed, hp, max, bar, extra, attrs, known }
-  return `<div class="cw framed being ${o.cls}"${o.attrs || ''}>`
+  return `<div class="cw framed being ${o.cls}${o.job ? ' withjob' : ''}"${o.attrs || ''}>`
     + (o.lv != null ? `<div class="lv-b">Lv ${o.lv}</div>` : '')   // 좌상단 레벨 (크리처는 없음)
     + (o.extra || '')
     + `<img class="pic" src="${o.pic}" alt="${esc(o.name)}" draggable="false">`
     // v8.6.0: 카드에는 **이름과 레벨만**. 수치(공 · 방 · 체 · 이동 · 사거리)는 정보 칸이 맡는다 —
     //   카드가 작아 다섯 값을 다 넣으면 그림도 이름도 읽히지 않았다
     + `<div class="name">${o.known === false ? '???' : esc(o.name)}</div>`
+    + (o.job && o.known !== false ? `<div class="job">${esc(o.job)}</div>` : '')   // v9.60.0: 이름 밑 작은 직업
     + (o.bar && o.max ? hpBarHtml(o.hp, o.max) : '')                // v9.33.0: 캐릭터만 체력 막대
     + (o.known === false || !o.xpNeed ? '' :                        // 경험치만 얇은 막대로 (기사)
         `<div class="xpbar"><i style="width:${Math.min(100, (o.xp || 0) / o.xpNeed * 100)}%"></i></div>`)
@@ -4603,7 +4613,7 @@ function heroCardHtml(key, drag){
     cls: `f-${key === 'ally' ? 'bronze' : 'gold'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}`,
     attrs: ` data-hero-card="${key}" data-${key === 'ally' ? 'ally' : 'knight'}="1"`
       + (drag && !out ? ` data-token="${key}"` : ''),
-    pic: `images/icon/${hCard(key)}.png`, name: hName(key),
+    pic: `images/icon/${hCard(key)}.png`, name: pName(key), job: hName(key),
     atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key), bar: true,   // v9.33.0: 체력 막대
     spd: hSpd(key), range: hRange(key),
     lv: hLv(key), xp: st.xp || 0, xpNeed: xpNeed(hLv(key)),
@@ -5004,7 +5014,7 @@ function renderFieldInsp(){
     const who = heroPick, k = hSt(who);
     const gAtk = gearStatOf(who, 'atk'), gDef = gearStatOf(who, 'def');
     inspEl.innerHTML = `<div class="head"><div class="pic"><img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false"></div>`
-      + `<div><div class="nm">${esc(hName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">캐릭터 · 원정</div></div></div>`
+      + `<div><div class="nm">${esc(pName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">${esc(hName(who))} · 원정</div></div></div>`
       + bodyPicHtml(bustOf(hPic(who)))                         // v9.58.1: 정보 칸 안은 **상반신**
       + `<div class="desc">${who === 'ally' ? '말수는 적고 화살은 멀리 간다. 다섯 칸 밖에서 먼저 쏜다.' : '말이 없다. 대신 걷고, 맞고, 돌아온다.'}</div>`
       // v9.56.1: 사람마다 한마디 — 장인들과 같은 자리, 같은 꾸밈
@@ -5235,6 +5245,14 @@ const foeRange = e => e.range || BASE_RANGE;
 // v9.20.0: **캐릭터는 둘.** 'knight' 기사 · 'ally' 궁수. 아래 h… 는 누구든 같은 물음에 답한다
 // v9.24.0: 레벨 보상도 장비도 같은 규칙 — 몸(HERO_BASE) + 레벨 보상 + 낀 장비
 const HERO_BASE = k => k === 'ally' ? ARCHER : KNIGHT;
+// v9.60.0: **사람에게는 이름이 있다.** 카드엔 이름, 그 아래 작은 글씨로 직업을 적는다
+//   (크리처는 종의 이름 그대로 — 이름을 주지 않는다)
+const PERSON_NAME = {
+  knight:'가렛', ally:'세리나', keeper:'보른',
+  weaponsmith:'두르간', cook:'올가', carpenter:'헤이든', armorsmith:'마르그',
+  shieldsmith:'토른', trinketsmith:'네이라', herbalist:'실바',
+};
+const pName = id => PERSON_NAME[id] || '';
 const hName = k => HERO_BASE(k).name;
 const hPic = k => k === 'ally' ? ARCHER.portrait : 'portrait_knight';
 const hCard = k => k === 'ally' ? ARCHER.card : 'card_knight';
