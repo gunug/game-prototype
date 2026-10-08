@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.68.1';
+const VERSION = 'v9.69.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2103,6 +2103,7 @@ function innFinish(id){
   logEv('inn-done', { smith: id });
   toast(`🏨 ${sm.name} 합류`);
   questHit(`smith:${id}`);
+  setTimeout(giveJoinQuests, 900);                                // v9.69.0: 한 사람이 합류하면 다음 사람이 붙는다
   renderTabs(); renderAll(); renderInsp(); renderQuest(); save();
   setTimeout(() => knightSay(`${sm.name}이 손을 보탠다 — 이제 만들 수 있다`), 500);
 }
@@ -2304,6 +2305,32 @@ const SMITHS = [
     quip:'쓸수록 잘 듣는다고 한다. 묻자 "쓰니까 듣는 것"이라고 했다.' },
 ];
 const SMITH_BY_ID = Object.fromEntries(SMITHS.map(x => [x.id, x]));
+// v9.69.0: **장인마다 합류 퀘스트 한 장.** 처음부터 함께인 셋(여관 주인 · 만물상 · 무기 장인)만 빼고,
+//   나머지는 그 사람의 땅이 열리는 순간 수첩에 한 줄이 붙는다 — 🏨 여관에 등록하고 물건을 건네면 끝난다
+const joinQuestId = id => `join_${id}`;
+for (const sm of SMITHS){
+  if (sm.free) continue;                                          // 무기 장인은 처음부터 함께다
+  QUESTS[joinQuestId(sm.id)] = {
+    name: `${sm.name} 합류`, goal: 1, key: `smith:${sm.id}`,
+    text: () => smithOk(sm.id) ? `${subP2(sm.name)} 합류했다`
+      : (S.inn || {}).reg === sm.id ? `🏨 ${sm.name}에게 물건을 건네자`
+      : `🏨 여관에 ${objP(sm.name)} 등록하자`,
+    say: sm.rumor || '',
+  };
+}
+// 땅이 열려 **찾아 나설 수 있게 된** 장인의 합류 퀘스트를 준다.
+//   수첩 규칙 ②를 지켜 **한 번에 한 사람만** — 그가 합류하면 다음 사람이 붙는다
+function giveJoinQuests(){
+  const open = (S.quests || []).filter(q => !q.done
+    && QUESTS[q.id] && String(QUESTS[q.id].key || '').startsWith('smith:'));
+  if (open.length) return;                                        // 이미 찾는 중인 사람이 있다
+  for (const sm of SMITHS){
+    if (sm.free || smithOk(sm.id) || smithLocked(sm.id)) continue;
+    if (S.questDone && S.questDone.includes(joinQuestId(sm.id))) continue;
+    giveQuest(joinQuestId(sm.id));
+    return;
+  }
+}
 // v9.61.0: **걸음은 하나다 — 물건.** 소문 · 증명 두 걸음은 뺐다 (장인 하나 들이는 데 세 걸음은 길었다)
 //   `land` · `proof` 는 남겨 둔다 — '어디서 나는가'를 적어 주는 데 쓰고, 검사(tools/check.mjs)도 본다
 const INN_STEPS = ['물건'];
@@ -7393,6 +7420,7 @@ function syncUnlocks(newly){
     st.locked = false;
     addUnlockNote(f.id);
   }
+  setTimeout(giveJoinQuests, 0);                                  // v9.69.0: 새로 열린 땅의 장인은 합류 퀘스트가 붙는다
   save();
 }
 // v9.43.7: 열렸으면 **그 자리에서** 자물쇠를 지운다. 전엔 기사 대사(`knightSay` → `renderScreen`)가 있는 길만
