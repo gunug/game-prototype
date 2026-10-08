@@ -1783,7 +1783,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.74.1';
+const VERSION = 'v9.74.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4946,7 +4946,7 @@ addEventListener('pointerup', e => {
   if (!d.moved){                                                  // 탭 — 정보만
     if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
     else if (SMITH_BY_ID[d.token]){ innPick = d.token; slotPick = null; renderScreen(); renderInsp(); }   // v9.55.0: 장인
-    else if (d.token === 'knight' || d.token === 'ally'){ heroPick = d.token; fieldPick = null; foePick = null; slotPick = null; renderScreen(); renderInsp(); }   // v7.13.2 · v9.24.0
+    else if (ALL_HEROES().includes(d.token)){ heroPick = d.token; fieldPick = null; foePick = null; slotPick = null; renderScreen(); renderInsp(); }   // v7.13.2 · v9.24.0 · v9.74.2: 누구든
     else { inspType = d.token; selected = null; heroPick = null; slotPick = null; renderScreen(); renderInsp(); }   // v6.6.0: 목표 탭 카드도 골라짐
     return;
   }
@@ -5113,10 +5113,9 @@ function renderFieldInsp(){
     inspEl.innerHTML = `<div class="head"><div class="pic"><img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false"></div>`
       + `<div><div class="nm">${esc(pName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">${esc(hName(who))} · 원정</div></div></div>`
       + bodyPicHtml(bustOf(hPic(who)))                         // v9.58.1: 정보 칸 안은 **상반신**
-      + `<div class="desc">${who === 'ally' ? '말수는 적고 화살은 멀리 간다. 다섯 칸 밖에서 먼저 쏜다.' : '말이 없다. 대신 걷고, 맞고, 돌아온다.'}</div>`
+      + `<div class="desc">${esc(heroDesc(who))}</div>`
       // v9.56.1: 사람마다 한마디 — 장인들과 같은 자리, 같은 꾸밈
-      + `<div class="i-quip">“${who === 'ally' ? '맞혔다는 말만 한다. 빗나간 화살은 세지 않는다.'
-        : '무엇을 묻든 고개만 끄덕인다. 두 번 물으면 두 번 끄덕인다.'}”</div>`
+      + `<div class="i-quip">“${esc(heroQuip(who))}”</div>`
       // v8.6.0: 상태는 **표**로 — 이름과 값이 세로로 맞아 눈이 한 줄씩 읽는다
       + '<div class="sub">상태</div><div class="stat-grid">'
       + statRow('atk', '공격', hAtk(who), 'v-atk')
@@ -5367,6 +5366,17 @@ const PERSON_NAME = {
 };
 const pName = id => PERSON_NAME[id] || '';
 const hName = k => HERO_BASE(k).name;
+// v9.74.2: 사람마다 제 설명 · 제 한마디 (전엔 기사 · 궁수 둘뿐이라 삼항으로 갈랐고, 비전투요원엔 기사 글이 붙었다)
+const HERO_WORD = {
+  knight: { desc:'말이 없다. 대신 걷고, 맞고, 돌아온다.', quip:'무엇을 묻든 고개만 끄덕인다. 두 번 물으면 두 번 끄덕인다.' },
+  ally:   { desc:'말수는 적고 화살은 멀리 간다. 다섯 칸 밖에서 먼저 쏜다.', quip:'맞혔다는 말만 한다. 빗나간 화살은 세지 않는다.' },
+  keeper: { desc:'여관을 지키는 사람. 손은 굼뜨지만 길은 누구보다 잘 안다.', quip:'“외상은 안 된다. 소문은 공짜다.”'.slice(1, -1) },
+  peddler:{ desc:'모든 조합을 아는 늙은 장사치. 싸움은 몰라도 쓸 것은 안다.', quip:'못 만드는 건 없어. 아직 재료를 못 찾았을 뿐이지.' },
+};
+const heroDesc = k => (HERO_WORD[k] || {}).desc
+  || (SMITH_BY_ID[k] || {}).desc || '싸우라고 있는 사람은 아니지만, 따라나설 수는 있다.';
+const heroQuip = k => (HERO_WORD[k] || {}).quip
+  || (SMITH_BY_ID[k] || {}).quip || '손이 근질거리긴 한다.';
 const hPic = k => CREW[k] ? `portrait_${CREW[k].art}` : k === 'ally' ? ARCHER.portrait : 'portrait_knight';
 const hCard = k => CREW[k] ? `card_${CREW[k].art}` : k === 'ally' ? ARCHER.card : 'card_knight';
 // v9.73.0: 비전투요원도 제 몸 상태를 갖는다 (`S.crew`)
@@ -7247,7 +7257,7 @@ function healTick(dt){
   // v9.22.0: 나가 있는 캐릭터는 회복하지 않는다
   // v9.68.1: 속도는 캐릭터마다 다르다 — 제 장신구(회복 갈래)가 더해진다
   if (paused) return;
-  for (const who of ['knight', 'ally']){
+  for (const who of ALL_HEROES()){                                // v9.74.2: 비전투요원도 쉬면 아문다
     const st = hSt(who);
     if (expOf(who) || st.hp >= hMax(who)){ st.healP = 0; continue; }
     st.healP = (st.healP || 0) + dt;
