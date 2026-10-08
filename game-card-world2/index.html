@@ -1772,7 +1772,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.67.0';
+const VERSION = 'v9.67.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3408,10 +3408,11 @@ const foeArtId = k => ((ENEMIES[k] || {}).portrait || 'portrait_animal').slice(9
 const foeFacePic = k => `images/icon/card_${foeArtId(k)}.png`;    // 카드 — 얼굴 (인스펙터 큰 그림은 전신 portrait_*)
 // v9.56.0: 여관 사람들도 책에 모인다 — 여관 주인은 늘 보이고, 장인은 소문을 들어야 이름이 드러난다
 function smithSlotHtml(id){
-  if (id === 'keeper'){
-    return `<div class="sleeve${bookPick === 'smith:keeper' ? ' sel' : ''}" data-book="smith:keeper">`
-      + beingCardHtml({ cls:'f-bronze', pic:'images/icon/card_innkeeper.png',
-          name: pName('keeper'), job:'여관 주인' })
+  if (ALWAYS_PEOPLE.includes(id)){                                // 여관 주인 · 만물상 — 늘 거기 있는 사람
+    const pic = id === 'keeper' ? 'card_innkeeper' : 'card_peddler';
+    const job = id === 'keeper' ? '여관 주인' : '만물상';
+    return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
+      + beingCardHtml({ cls:'f-bronze', pic:`images/icon/${pic}.png`, name: pName(id), job })
       + '</div>';
   }
   const sm = SMITH_BY_ID[id], done = smithDone(id);                // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
@@ -3420,8 +3421,10 @@ function smithSlotHtml(id){
         name: done ? pName(id) : '???', job: done ? sm.name : '', known: done, tag: done ? '합류' : '' })
     + '</div>';
 }
-const BOOK_PEOPLE = () => ['keeper'].concat(SMITHS.map(x => x.id));
-const peopleFound = () => BOOK_PEOPLE().filter(id => id === 'keeper' || smithDone(id)).length;   // v9.56.2: 센 것은 **합류한 사람**
+// v9.67.1: 만물상도 책에 — 여관 사람은 아니지만 **우리를 돕는 사람**이라 같은 묶음에 세운다
+const BOOK_PEOPLE = () => ['keeper', 'peddler'].concat(SMITHS.map(x => x.id));
+const ALWAYS_PEOPLE = ['keeper', 'peddler'];                      // 늘 보이는 사람 (찾아 나설 것이 없다)
+const peopleFound = () => BOOK_PEOPLE().filter(id => ALWAYS_PEOPLE.includes(id) || smithDone(id)).length;   // v9.56.2: 센 것은 **합류한 사람**
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
@@ -3864,7 +3867,7 @@ function renderBook(){
     if (bookTier === 'hero'){                                     // v9.25.0: 캐릭터 — 우리 편
       h += `<div class="book-field"><div class="book-fname">🧍 우리 편 <span class="i-muted">${HEROES_ALL.length}/${HEROES_ALL.length}</span></div>`
         + `<div class="book-row">${HEROES_ALL.map(heroSlotHtml).join('')}</div></div>`
-        + `<div class="book-field"><div class="book-fname">🏨 여관 사람들 <span class="i-muted">${peopleFound()}/${BOOK_PEOPLE().length}</span></div>`
+        + `<div class="book-field"><div class="book-fname">🏨 돕는 사람들 <span class="i-muted">${peopleFound()}/${BOOK_PEOPLE().length}</span></div>`
         + `<div class="book-row">${BOOK_PEOPLE().map(smithSlotHtml).join('')}</div></div>`;   // v9.56.0
     } else if (bookTier === 'land'){                              // v7.9.0
       const row = (title, list) => list.length
@@ -4769,7 +4772,7 @@ function unequipSlot(sl, who){
 let tokenDrag = null;
 gatherEl.addEventListener('click', e => {                         // v9.55.0: 줄에 놓인 장인 카드 · 여관 주인
   const sm = e.target.closest('[data-smith]');
-  if (!sm || !isRowScreen(S.tab) || S.tab !== 'inn') return;
+  if (!sm || !isRowScreen(S.tab) || (S.tab !== 'inn' && S.tab !== 'aim')) return;   // v9.67.1: 🎯 목표의 만물상도
   innPick = sm.dataset.smith;
   slotPick = null; heroPick = null;
   renderScreen(); renderInsp();
