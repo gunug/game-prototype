@@ -1298,8 +1298,8 @@ const DEFS = {
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v9.68.1: **장신구의 회복 갈래** — 싸우는 동안에도, 쉬는 동안에도 살이 차오른다 (거점 칸을 대신한다)
-  emberbead:  { name:'온기 구슬',  kind:'material', step:4, group:'gear', regenFight:0.3, regenRest:1 },
-  emberneck:  { name:'온기 목걸이', kind:'material', step:5, group:'gear', regenFight:0.8, regenRest:2 },
+  emberbead:  { name:'온기 구슬',  kind:'material', step:4, group:'gear', regenFight:0.3 },
+  emberneck:  { name:'온기 목걸이', kind:'material', step:5, group:'gear', regenFight:0.8 },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
   stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
   toadhide:  { name:'두꺼비 가죽', kind:'material', step:1, group:'loot' },   // v6.0.0: 🍄 늪지 무덤
@@ -1802,7 +1802,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.77.1';
+const VERSION = 'v9.78.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2696,8 +2696,8 @@ function statsHtml(t){
   const d = DEFS[t] || {};
   // v0.86.0: 거점(모닥불)은 초당 회복량을 적는다 — '본래의 두 배' 같은 모호한 말 대신 실제 수치
   // v9.68.1: 회복 장신구 — 싸울 때 / 쉴 때 초당 회복을 카드에 적는다
-  const camp = (d.regenFight || d.regenRest)
-    ? `<span class="s-hp">${statImg('hp')}+${d.regenFight}/s<span class="i-muted">·쉴때+${d.regenRest}</span></span>` : '';
+  // v9.78.0: 카드엔 **싸울 때 회복만** 적는다 (쉴 때는 공통 배수라 인스펙터에서 본다)
+  const camp = d.regenFight ? `<span class="s-hp">${statImg('hp')}+${d.regenFight}/s</span>` : '';
   const showRange = d.range && d.range > BASE_RANGE;              // v8.3.0: 맨손보다 멀리 닿는 무기만
   if (!d.atk && !d.def && !camp && !showRange && !d.spd) return '';
   // v9.65.0: **도구 카드에는 '특징 칸'이 하나 더 붙는다** — 이름 아래 한 칸에 성격과 수치를 함께 적는다
@@ -3345,6 +3345,9 @@ function renderInsp(){
   if (d.range) chips.push(`<span class="chip">${statImg('range')} 사거리 ${d.range}</span>`);        // v8.0.0 · v8.3.0
   if (d.spd) chips.push(`<span class="chip">${statImg('spd')} 이동 ${d.spd > 0 ? '+' : ''}${d.spd}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
+  // v9.78.0: 회복 장신구 — 싸울 때 값과 **쉴 때 값**(공통 배수)을 함께
+  if (d.regenFight) chips.push(`<span class="chip">${statImg('hp')} 회복 +${d.regenFight}/s`
+    + `<span class="i-muted"> · 쉴 때 ×${REST_MULT} (+${Math.round(d.regenFight * REST_MULT * 100) / 100}/s)</span></span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // v6.7.0: '쓰이는 조합' · '만드는 법' 칸은 뺌 — 조합법은 콜렉터북(조합법 · 길)이 맡고,
   //   인스펙터는 **이 카드가 무엇인지**만 짧게 말한다
@@ -5746,13 +5749,14 @@ const SEARCH_MS = 1100;                                          // v0.13.4: 채
 // v7.11.0: 회복은 **초당 몇**으로 못 박는다 — 최대 체력이 늘어도 초당 회복량은 그대로다.
 //   그래서 세질수록 가득 차기까지 오래 걸리고, **더 좋은 거점**이 필요해진다 (거점 아이템 사다리)
 //   거점 카드의 `heal` = 초당 회복량. 거점이 없으면 HEAL_BARE
-const HEAL_BARE = 0.5;                                           // 맨바닥, 쉴 때 — 2초에 1
 // v9.74.0: **누구나 조금은 아문다.** 싸우는 중에도 맨몸으로 10초에 한 칸. 장신구(회복 갈래)가 이 위에 더해진다
 const HEAL_BARE_FIGHT = 0.1;
+// v9.78.0: **쉴 때는 싸울 때의 다섯 배.** 회복 수치는 하나(싸울 때)만 두고, 쉴 때는 이 배수로 센다
+const REST_MULT = 5;
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 // v9.68.1: 쉴 때의 회복 = 맨바닥 + **회복 장신구**(캐릭터마다 제 장신구를 본다)
 const regenOf = (who, kind) => { const t = equipped('trinket', who); return (t && DEFS[t] && DEFS[t][kind]) || 0; };
-const healPerSec = who => HEAL_BARE + regenOf(who || 'knight', 'regenRest');
+const healPerSec = who => Math.round(fightRegen(who || 'knight') * REST_MULT * 100) / 100;
 // 싸우는 중의 회복 — 맨몸 + 장신구 (소수점이 지저분해지지 않게 한 자리로 다듬는다)
 const fightRegen = who => Math.round((HEAL_BARE_FIGHT + regenOf(who, 'regenFight')) * 100) / 100;
 const healFullMs = () => Math.round(knightMaxHp() / healPerSec('knight') * 1000);   // 빈사 → 가득 (보여 주기용)
