@@ -1800,7 +1800,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.76.0';
+const VERSION = 'v9.76.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2223,7 +2223,8 @@ const lvSumAt = (lv, key) => { let v = 0; for (let i = 2; i <= lv; i++) v += lvR
 const allyMaxHp = () => hMax('ally');
 const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
   .filter(Boolean).join(' · ');
-const PARTY = [true, true, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 첫 칸만 열림
+const PARTY = [true, true, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 둘만 열림
+const PARTY_MAX = () => PARTY.filter(Boolean).length;            // v9.76.1: 한 원정에 나갈 수 있는 머릿수
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
@@ -4850,7 +4851,11 @@ function slotTakes(id, token){
     return false;
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
-  if (isFieldTab(S.tab)) return ALL_HEROES().includes(token);     // v4.0.0 · v9.20.0 · v9.73.0
+  if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0
+    if (!ALL_HEROES().includes(token)) return false;
+    const E = expAt(slotId(id).row);                              // v9.76.1: 꽉 찬 원정엔 칸이 안 켜진다
+    return !E || E.party.includes(token) || E.party.length < PARTY_MAX();
+  }
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));   // v0.56.0: 잠긴 칸은 안 받음
 }
@@ -5911,6 +5916,8 @@ function expStart(id, cardEl, who){
   const same = expAt(id);
   if (same){                                                      // v9.20.0: 같은 땅이면 **합류**한다
     exp = same;
+    // v9.76.1: **열린 출전 칸 수를 넘겨 받지 않는다** — 칸이 둘인데 셋이 나가던 버그
+    if (same.party.length >= PARTY_MAX()){ toast(`🏃 출전 칸이 다 찼다 (${PARTY_MAX()}명)`); return; }
     if (hAlive(who)){
       // v9.21.0: 늦게 온 이는 **땅 입구(0칸)에서 출발**한다 — 제 이동속도로 걸어 따라잡아야 한다
       let x = 0;
