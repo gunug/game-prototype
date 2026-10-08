@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.72.0';
+const VERSION = 'v9.72.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2335,7 +2335,10 @@ function giveJoinQuests(){
 //   `land` · `proof` 는 남겨 둔다 — '어디서 나는가'를 적어 주는 데 쓰고, 검사(tools/check.mjs)도 본다
 const INN_STEPS = ['물건'];
 const innSt = () => (typeof S !== 'undefined' && S && S.inn) ? S.inn : null;   // load 중엔 아직 없다
-const freshInn = () => ({ reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] });
+// v9.72.1: 여관 저장에 **판 표식**을 남긴다 — 이 표식이 없는 저장만 '옛 저장'으로 보고 보정한다
+//   (전엔 저장이 있기만 하면 요리사 · 목수 · 약재 장인을 합류로 밀어 넣어, 새로 시작한 판도 새로 고치면 합류해 버렸다)
+const INN_VER = 2;
+const freshInn = () => ({ reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER });
 const smithDone = id => { const n = innSt(); return !!n && (n.done || []).includes(id); };
 const smithOk = id => editMode || !SMITH_BY_ID[id] || !!SMITH_BY_ID[id].free || smithDone(id);
 const smithFound = () => true;                                    // v9.56.2: 여관 사람은 가리지 않는다 (옛 ??? 규칙 폐지)
@@ -2479,10 +2482,13 @@ function load(){
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     // v9.55.0: 여관 — 옛 저장은 **레벨로 열려 있던 칸을 장인으로 환산**해 그대로 준다 (진행이 뒤로 가지 않게)
     const n0 = s.inn && typeof s.inn === 'object' ? s.inn : null;
-    const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'] };
+    const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER };
     if (n0){
-      // v9.55.7: 음식 탭은 전까지 늘 열려 있었다 — 옛 저장에서 뺏지 않는다 (새로 시작한 판만 요리사를 찾는다)
-      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id]).concat('weaponsmith', 'cook', 'carpenter', 'herbalist'))];
+      // v9.55.7: 음식 · 건축 · 약품 탭은 **그 판들에선** 늘 열려 있었다 — 옛 저장에서 뺏지 않는다.
+      // v9.72.1: 표식(`born`)이 있는 저장은 **지금 판**이다 — 밀어 넣지 않는다
+      const old = !(n0.born >= INN_VER);
+      inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id])
+        .concat('weaponsmith', ...(old ? ['cook', 'carpenter', 'herbalist'] : [])))];
       inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
       inn.reg = SMITH_BY_ID[n0.reg] && !inn.done.includes(n0.reg) ? n0.reg : null;
       for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
