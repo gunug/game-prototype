@@ -161,7 +161,8 @@
   .aim-tab .chars::-webkit-scrollbar-track,.gear-tab .chars::-webkit-scrollbar-track{background:transparent;}
   .chars .cw.hero{position:relative;flex:none;cursor:grab;}
   /* v5.1.0: 원정 중인 캐릭터 — 끌 수 없고 '출전중' 딱지가 붙는다 */
-  .cw.hero.out{cursor:default;filter:grayscale(.55) brightness(.72);}
+  /* v9.79.0: 못 나가는 사람은 흐리고 집히지 않는다 — 출전중 · 회복중(빈사) 같은 꼴 */
+  .cw.hero.out,.cw.hero.resting{cursor:default;filter:grayscale(.55) brightness(.72);}
   .pslot{position:relative;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     border:2px dashed var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.05);}
   .pslot.can{border-style:solid;border-color:rgba(255,212,0,.75);box-shadow:0 0 0 1px rgba(255,212,0,.25);}   /* v0.32.0: 끌기 시작하면 놓을 수 있는 칸 */
@@ -1802,7 +1803,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.78.0';
+const VERSION = 'v9.79.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4654,8 +4655,9 @@ function screenTokens(){
   }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
   if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0: 합류한 사람 모두
-    return ALL_HEROES().map(k => { const out = !!expOf(k);
-      return { token: out ? null : k, html: heroCardHtml(k, !out) }; });
+    // v9.79.0: 출전중은 물론 **회복중(빈사)** 도 집히지 않는다
+    return ALL_HEROES().map(k => { const can = canSortie(k) && !expOf(k);
+      return { token: can ? k : null, html: heroCardHtml(k, can) }; });
   }
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
@@ -4744,7 +4746,7 @@ function heroCardHtml(key, drag){
   const st = hSt(key), E = expOf(key), out = !!E;                 // v5.1.0: 원정 중
   const sel = heroPick === key;
   return beingCardHtml({
-    cls: `f-${key === 'knight' ? 'gold' : 'bronze'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}`,
+    cls: `f-${key === 'knight' ? 'gold' : 'bronze'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}${!out && hDown(key) ? ' resting' : ''}`,
     attrs: ` data-hero-card="${key}"`                              // v9.73.0: 누구든 같은 표 하나로
       + (drag && !out ? ` data-token="${key}"` : ''),
     pic: `images/icon/${hCard(key)}.png`, name: pName(key), job: hName(key),
