@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.73.0';
+const VERSION = 'v9.74.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2360,7 +2360,7 @@ const slotOpen = (key, who) => { const sl = slotByKey(key); return !!sl && (!sl.
 //   궁수 칸을 만지면서 기사 장비를 건드리는 일이 있었다. 읽는 곳을 이 함수 하나로 모은다
 const slotId = id => {
   const [row, key] = String(id || '').split(':');
-  return { row, key, who: row === 'ally' ? 'ally' : 'knight', sl: slotByKey(key) };
+  return { row, key, who: row === 'knight' || !row ? 'knight' : row, sl: slotByKey(key) };   // v9.74.0: 줄 이름이 곧 누구
 };
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
@@ -4834,7 +4834,7 @@ function slotTakes(id, token){
 }
 // 장착 — 칸에 있던 장비는 아래로 돌아옴 (v0.26.0: 한 장만)
 function equipCard(sl, type, who){
-  who = who === 'ally' ? 'ally' : 'knight';                       // v9.24.0
+  who = ALL_HEROES().includes(who) ? who : 'knight';              // v9.24.0 · v9.74.0: 비전투요원도 제 장비를 낀다
   const old = equipped(sl.key, who);
   if (old === type) return;
   const c = cardOf(type);
@@ -4850,7 +4850,7 @@ function equipCard(sl, type, who){
   renderAll(); renderInsp(); save();
 }
 function unequipSlot(sl, who){
-  who = who === 'ally' ? 'ally' : 'knight';                       // v9.24.0
+  who = ALL_HEROES().includes(who) ? who : 'knight';              // v9.24.0 · v9.74.0: 비전투요원도 제 장비를 낀다
   const t = equipped(sl.key, who);
   if (!t) return;
   gearMap(who)[sl.key] = null;
@@ -5127,7 +5127,7 @@ function renderFieldInsp(){
         ? `<div class="row i-muted">맨몸 ${statImg('atk')}${HERO_BASE(who).atk + lvSumAt(hLv(who), 'atk')} ${statImg('def')}${HERO_BASE(who).def + lvSumAt(hLv(who), 'def')}`
           + ` · 장비 ${statImg('atk')}+${gAtk} ${statImg('def')}+${gDef}</div>` : '')
       + `<div class="row i-muted">${expOf(who)
-        ? `원정 중${regenOf(who, 'regenFight') ? ` — ${statImg('hp')} +${regenOf(who, 'regenFight')}/s` : ''}`
+        ? `원정 중 — ${statImg('hp')} +${fightRegen(who)}/s`
         : `쉬는 중 — ${statImg('hp')} +${healPerSec(who)}/s · 가득까지 ${Math.round(hMax(who) / healPerSec(who))}초`}</div>`
       + lvTableHtml(who);                                          // v0.68.0: 레벨 표
     return;
@@ -5700,11 +5700,15 @@ const SEARCH_MS = 1100;                                          // v0.13.4: 채
 // v7.11.0: 회복은 **초당 몇**으로 못 박는다 — 최대 체력이 늘어도 초당 회복량은 그대로다.
 //   그래서 세질수록 가득 차기까지 오래 걸리고, **더 좋은 거점**이 필요해진다 (거점 아이템 사다리)
 //   거점 카드의 `heal` = 초당 회복량. 거점이 없으면 HEAL_BARE
-const HEAL_BARE = 0.5;                                           // 맨바닥 — 2초에 1
+const HEAL_BARE = 0.5;                                           // 맨바닥, 쉴 때 — 2초에 1
+// v9.74.0: **누구나 조금은 아문다.** 싸우는 중에도 맨몸으로 10초에 한 칸. 장신구(회복 갈래)가 이 위에 더해진다
+const HEAL_BARE_FIGHT = 0.1;
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 // v9.68.1: 쉴 때의 회복 = 맨바닥 + **회복 장신구**(캐릭터마다 제 장신구를 본다)
 const regenOf = (who, kind) => { const t = equipped('trinket', who); return (t && DEFS[t] && DEFS[t][kind]) || 0; };
 const healPerSec = who => HEAL_BARE + regenOf(who || 'knight', 'regenRest');
+// 싸우는 중의 회복 — 맨몸 + 장신구 (소수점이 지저분해지지 않게 한 자리로 다듬는다)
+const fightRegen = who => Math.round((HEAL_BARE_FIGHT + regenOf(who, 'regenFight')) * 100) / 100;
 const healFullMs = () => Math.round(knightMaxHp() / healPerSec('knight') * 1000);   // 빈사 → 가득 (보여 주기용)
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
 // v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
@@ -5963,7 +5967,7 @@ function expSweep(){
 // v9.68.1: 원정 중 회복 — 장신구의 `regenFight` 만큼 초당 (쓰러진 사람은 안 찬다)
 function expRegen(dt){
   for (const who of exp.party){
-    const n = regenOf(who, 'regenFight');
+    const n = fightRegen(who);                                    // v9.74.0: 맨몸에도 조금 있다
     if (!n) continue;
     const st = hSt(who), P = exp.P[who];
     if (!P || P.out || st.hp <= 0 || st.hp >= hMax(who)){ if (P) P.regP = 0; continue; }
