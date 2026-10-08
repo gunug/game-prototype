@@ -1772,7 +1772,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.66.1';
+const VERSION = 'v9.67.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3187,6 +3187,16 @@ function select(id){
 }
 // v9.55.0: 장인 정보 칸 — 무엇을 열어 주는 사람인지, 세 걸음이 어디까지 왔는지
 function renderSmithInsp(){
+  if (innPick === 'peddler'){                                      // v9.67.0: 만물상 — 모든 조합을 아는 사람
+    inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_peddler.png" alt="" draggable="false"></div>'
+      + `<div><div class="nm">${esc(pName('peddler'))}</div><div class="kd">만물상 · 모든 조합을 안다</div></div></div>`
+      + bodyPicHtml('bust_peddler')
+      + '<div class="i-open">🎯 목표에 올린 것의 만드는 차례를 적어 준다</div>'
+      + '<div class="desc">무엇이 무엇과 붙는지를 다 외우고 다니는 늙은 장사치. 팔 것보다 아는 것이 많다. '
+      + '만들고 싶은 것을 목표 칸에 올려 두면, 어디서부터 손을 대야 하는지 차례대로 적어 준다.</div>'
+      + '<div class="i-quip">“못 만드는 건 없어. 아직 재료를 못 찾았을 뿐이지.”</div>';
+    return true;
+  }
   if (innPick === 'inn'){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_inn.png" alt="" draggable="false"></div>'
       + '<div><div class="nm">여관</div><div class="kd">사람이 모이는 곳</div></div></div>'
@@ -3227,7 +3237,7 @@ function renderSmithInsp(){
   return true;
 }
 function renderInsp(){
-  if (S.tab === 'inn' && innPick && renderSmithInsp()) return;     // v9.55.0: 여관
+  if ((S.tab === 'inn' || S.tab === 'aim') && innPick && renderSmithInsp()) return;   // v9.55.0 여관 · v9.67.0 목표의 만물상
   if (isFieldTab(S.tab)) return renderFieldInsp();                // v4.3.0 던전 · v9.42.0 레이드도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('smith:') && renderSmithInsp()) return;   // v9.56.0: 책에서 고른 여관 사람
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
@@ -4443,7 +4453,12 @@ function screenRows(){
   }
   if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
     const g = S.goal && DEFS[S.goal] ? S.goal : null;
-    const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
+    // v9.67.0: 목표 옆에 **만물상** — 모든 조합을 아는 사람. 탭하면 정보 칸이 열린다
+    const ped = `<div class="foelist">${beingCardHtml({
+      cls: `f-bronze foe keeper${innPick === 'peddler' ? ' sel' : ''}`,
+      attrs: ' data-smith="peddler" title="만물상"',
+      pic: 'images/icon/card_peddler.png', name: pName('peddler'), job: '만물상' })}</div>`;
+    const card = ped + '<div class="cw framed f-stone camp-lab"><div class="emoji">🎯</div>'
       + '<div class="name">목표</div><div class="sub-lab">하나만</div></div>';
     return [{ card, slots: [{ id:'aim:goal', open:true, card: !!g, type: g, icon: g ? iconHtml(g) : '',
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'',
@@ -5247,7 +5262,7 @@ const HERO_BASE = k => k === 'ally' ? ARCHER : KNIGHT;
 // v9.60.0: **사람에게는 이름이 있다.** 카드엔 이름, 그 아래 작은 글씨로 직업을 적는다
 //   (크리처는 종의 이름 그대로 — 이름을 주지 않는다)
 const PERSON_NAME = {
-  knight:'가렛', ally:'세리나', keeper:'보른',
+  knight:'가렛', ally:'세리나', keeper:'보른', peddler:'오르반',
   weaponsmith:'두르간', cook:'올가', carpenter:'헤이든', armorsmith:'마르그',
   shieldsmith:'토른', trinketsmith:'네이라', herbalist:'실바',
 };

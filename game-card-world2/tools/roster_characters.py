@@ -23,6 +23,9 @@ SHEET = Path(__file__).resolve().parent / "make_character_sheet.py"
 # (파일 id, 한글 이름, 종류, 묘사)  — 파일 id 는 portrait_<id>.png 의 그 id
 PEOPLE = [
     ("knight", "기사", "a young knight in worn leather and plate armor, short sword at his side, determined face"),
+    ("peddler", "만물상", "an old general-goods trader, weathered kind face with deep wrinkles, grey beard, "
+     "round spectacles, a worn leather apron over simple robes, many small pouches and tools hanging from his belt, "
+     "a knowing calm smile"),
     ("innkeeper", "여관 주인", "a stout bearded innkeeper in a wool apron, one hand holding a clay mug, a cloth over the shoulder"),
     ("weaponsmith", "무기 장인", "a weathered weaponsmith in a thick leather apron, a stone-headed hammer resting on one shoulder"),
     ("cook", "요리사", "a camp cook in a soot-stained apron holding an iron skillet and a wooden ladle"),
