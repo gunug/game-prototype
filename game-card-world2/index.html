@@ -181,6 +181,23 @@
   /* v0.30.0: 장비 실루엣 — 빈 칸 가운데(큰 것), 카드 왼쪽 위(작은 것) */
 
   .pslot{flex-direction:column;}
+  /* v9.76.0: **언락** — 무언가 열렸을 때 화면을 잠깐 덮는 한 장. 사람도 땅도 같은 꼴을 쓴다 */
+  .unlock{position:absolute;inset:0;z-index:2147483040;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.72);
+    animation:unlock-in .28s ease-out;cursor:pointer;}
+  .unlock.out{animation:unlock-out .4s ease-in forwards;}
+  .unlock .u-pic{position:relative;width:132px;height:132px;display:flex;align-items:center;justify-content:center;}
+  .unlock .u-pic img{max-width:100%;max-height:100%;image-rendering:pixelated;
+    filter:drop-shadow(0 6px 14px rgba(0,0,0,.8));animation:unlock-pop .5s cubic-bezier(.2,1.5,.4,1);}
+  .unlock .u-ray{position:absolute;inset:-26px;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle,rgba(255,212,0,.42),rgba(255,212,0,0) 68%);animation:unlock-ray 1.1s ease-out;}
+  .unlock .u-t{color:var(--brand-yellow);font-weight:900;font-size:19px;letter-spacing:.02em;
+    text-shadow:0 2px 8px rgba(0,0,0,.9);animation:unlock-pop .5s .08s backwards cubic-bezier(.2,1.5,.4,1);}
+  .unlock .u-s{color:var(--ink);font-weight:700;font-size:13px;opacity:.9;}
+  @keyframes unlock-in{from{opacity:0} to{opacity:1}}
+  @keyframes unlock-out{to{opacity:0}}
+  @keyframes unlock-pop{from{transform:scale(.6);opacity:0} to{transform:scale(1);opacity:1}}
+  @keyframes unlock-ray{from{transform:scale(.4);opacity:0} 35%{opacity:1} to{transform:scale(1.25);opacity:0}}
   .knight-drag{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;opacity:.9;}
   /* 기사 카드의 작은 장비 칸 (전투 화면) */
   .knight .gearline{position:absolute;left:0;right:0;bottom:calc(var(--cw) * .06);display:flex;justify-content:center;gap:calc(var(--cw) * .04);pointer-events:none;}
@@ -1783,7 +1800,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.75.0';
+const VERSION = 'v9.76.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2106,6 +2123,7 @@ function innFinish(id){
   n.reg = null;
   logEv('inn-done', { smith: id });
   toast(`🏨 ${sm.name} 합류`);
+  unlockShow(`images/portrait/bust_${id}.png`, `${pName(id)} 합류`, sm.name);   // v9.76.0: 언락 연출
   questHit(`smith:${id}`);
   setTimeout(giveJoinQuests, 900);                                // v9.69.0: 한 사람이 합류하면 다음 사람이 붙는다
   renderTabs(); renderAll(); renderInsp(); renderQuest(); save();
@@ -7515,6 +7533,7 @@ function addUnlockNote(id){
   if (!f) return;
   logEv('unlock', { field: id });                                 // v7.6.0
   landFound(id);                                                  // v7.13.0
+  unlockField(f);                                                 // v9.76.0: 같은 언락 연출
   toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`);
   if (isRowScreen(S.tab)) renderScreen();
 }
@@ -7528,7 +7547,26 @@ function unlockNextField(afterId){
   save();
   playUnlock(next);
 }
+// v9.76.0: **언락 연출** — 그림 한 장 + 한 줄을 3초간 덮어 보여 준다 (사람 합류 · 땅 · 던전 · 레이드 공통).
+//   탭하면 바로 닫힌다. 게임은 뒤에서 그대로 돈다
+let unlockT = 0;
+function unlockShow(pic, title, sub){
+  const host = document.getElementById('field') || document.body;
+  document.getElementById('unlock')?.remove();
+  clearTimeout(unlockT);
+  const el = document.createElement('div');
+  el.id = 'unlock'; el.className = 'unlock';
+  el.innerHTML = `<div class="u-pic"><span class="u-ray"></span><img src="${pic}" alt="" draggable="false"></div>`
+    + `<div class="u-t">${esc(title)}</div>` + (sub ? `<div class="u-s">${esc(sub)}</div>` : '');
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
+  el.addEventListener('click', close);
+  host.appendChild(el);
+  unlockT = setTimeout(close, 3000);
+}
+const unlockField = f => unlockShow(`images/icon/card_${f.id}.png`,
+  `${f.emoji} ${f.name} 열림`, f.raid ? '새 레이드' : DUNGEONS().some(d => d.id === f.id) ? '새 던전' : '새 땅');
 function playUnlock(f){
+  unlockShow(`images/icon/card_${f.id}.png`, `${f.emoji} ${f.name} 열림`, '새 땅');
   gatherEl.querySelector(`[data-field="${f.id}"] .lockneed`)?.remove();   // v0.98.0
   const card = gatherEl.querySelector(`[data-field="${f.id}"]`);
   if (!card){ renderScreen(); return; }
