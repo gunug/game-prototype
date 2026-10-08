@@ -150,6 +150,10 @@
   /* v3.5.3: 🎯 목표의 아래 칸 — 카드가 많으면 줄을 내리고, 줄이 넘치면 세로로 굴림 */
   /* v7.5.0: 🔧 정비의 장비 줄도 같은 규칙 — 가로가 모자라면 줄내림, 줄이 넘치면 세로로 굴림 */
   .aim-tab .botarea,.gear-tab .botarea{justify-content:flex-start;overflow:hidden;}
+  /* v9.68.0: 아래 칸의 묶음 이름표 — 한 줄을 통째로 차지해 그 아래를 한 묶음으로 가른다 */
+  .inn-tab .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;}
+  .chars .sect-lab{flex:0 0 100%;text-align:left;padding:2px 4px 0;color:var(--brand-yellow);
+    font-weight:800;font-size:calc(var(--cf) * .12);}
   .aim-tab .chars,.gear-tab .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:calc(var(--cw) * .12);
     width:100%;overflow-y:auto;overscroll-behavior:contain;padding:2px;box-sizing:border-box;}
   .aim-tab .chars::-webkit-scrollbar,.gear-tab .chars::-webkit-scrollbar{width:6px;}
@@ -1772,7 +1776,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.67.1';
+const VERSION = 'v9.68.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4517,19 +4521,27 @@ function screenRows(){
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
-  // v9.55.0: 여관 — 아직 못 찾은 장인들. 물건 걸음이면 건넬 재료도 함께 깔린다
+  // v9.68.0: 여관 아래는 **두 묶음** — 〈합류 전〉은 등록해 합류 퀘스트를 하는 사람,
+  //   〈합류〉는 이미 우리 편이 된 사람 (탭하면 정보만 본다. 뒷날 캐릭터 이야기 퀘스트가 여기에 붙는다)
   if (S.tab === 'inn'){
     const reg = (S.inn || {}).reg;
-    const out = SMITHS.filter(x => !smithOk(x.id) && x.id !== reg).map(x => {   // 등록한 사람은 윗줄에 이미 있다
+    const lab = (t, n) => ({ token: null, html: `<div class="sect-lab">${t} <span class="i-muted">${n}</span></div>` });
+    const pre = SMITHS.filter(x => !smithOk(x.id) && x.id !== reg);
+    const joined = SMITHS.filter(x => smithOk(x.id));
+    const out = [];
+    if (pre.length || reg) out.push(lab('합류 전', pre.length + (reg ? 1 : 0)));
+    for (const x of pre){
       const can = !smithLocked(x.id);                             // v9.55.5: 등록 중이어도 끌 수 있다 — 올리면 앞사람이 내려온다
-      return { token: can ? x.id : null, html: smithCardHtml(x.id, can) };
-    });
-    if (reg && smithStep(reg) === 1) for (const [t] of (SMITH_BY_ID[reg].give || [])){
-      if (innGiveNeed(t) <= 0 || have(t) <= 0) continue;
-      out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">${statsHtml(t)}`
-        + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
-        + `<div class="cnt">${have(t)}</div></div>` });
+      out.push({ token: can ? x.id : null, html: smithCardHtml(x.id, can) });
     }
+    if (reg && smithStep(reg) === 0) for (const [t] of (SMITH_BY_ID[reg].give || [])){
+      if (innGiveNeed(t) <= 0 || have(t) <= 0) continue;
+      out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">`
+        + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
+        + statsHtml(t) + `<div class="cnt">${have(t)}</div></div>` });
+    }
+    if (joined.length) out.push(lab('합류', joined.length));
+    for (const x of joined) out.push({ token: null, html: smithCardHtml(x.id) });   // 합류한 사람은 끌지 않는다 — 탭하면 정보
     return out;
   }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
@@ -4698,7 +4710,7 @@ function renderScreen(){
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : S.tab === 'inn' ? ((S.inn || {}).reg                      // v9.55.0
         ? '재료를 등록 칸의 장인에게 끌어다 놓으세요'
-        : '찾고 싶은 사람을 여관 주인의 등록 칸에 끌어다 놓으세요')
+        : '〈합류 전〉 사람을 등록 칸에 끌어다 놓으면 합류 퀘스트가 시작됩니다')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
@@ -5116,6 +5128,7 @@ function setTab(tab){
   table.hidden = isRowScreen(tab) || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
   fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목표 화면 전용 배치
   fieldEl.classList.toggle('gear-tab', tab === 'gearup');         // v7.5.0: 정비도 같은 배치
+  fieldEl.classList.toggle('inn-tab', tab === 'inn');             // v9.68.0: 여관은 두 묶음으로 줄을 내린다
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
