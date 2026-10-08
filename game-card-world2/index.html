@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.72.1';
+const VERSION = 'v9.73.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2161,6 +2161,11 @@ const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷�
 const foeMove = e => e.move || 'chase';                           // 'chase' 다가옴 · 'kite' 물러남 · 'hold' 제자리
 const foeHits = e => Math.max(1, e.hits || 1);                    // v9.42.0: 한 번 공격에 몇 번 꽂히나 (다단히트)
 const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };
+// v9.73.0: **전투요원과 비전투요원.** 기사 · 궁수는 싸우라고 있는 사람이고,
+//   나머지(여관 주인 · 만물상 · 장인들)는 합류하면 따라 나갈 수는 있으나 몸이 미비하다.
+//   장비도 셋만 — 무기 · 갑옷 · 장신구 (방패와 소모품은 전투요원 몫)
+const CREW_BASE = { atk: 1, def: 0, hp: 8, spd: 2, aps: 0.8 };
+const CREW_SLOT_KEYS = ['weapon', 'armor', 'trinket'];
 // v9.20.0: **둘째 캐릭터 — 궁수.** 몸은 약하고 빠르며, 늘 나무 활을 쥔다 (장비 칸은 아직 기사만)
 const ARCHER = { name: '궁수', atk: 1, def: 0, hp: 14, spd: 4, weapon: 'woodbow',
   // v9.57.0: 그림 세 장 — card(얼굴) · portrait(전신, 줄에 서는 그림) · bust(상반신, 인스펙터)
@@ -4575,10 +4580,8 @@ function screenRows(){
       lab: slotName(sl, row), need: open || !sl.smith ? ''
         : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` };
   };
-  return [                                                        // v9.24.0: 기사 줄 · 궁수 줄
-    { card: heroCardHtml('knight'), slots: SLOTS.map(sl => slotOf('knight', sl)) },
-    { card: heroCardHtml('ally'), slots: SLOTS.map(sl => slotOf('ally', sl)) },
-  ];
+  // v9.73.0: 합류한 사람은 모두 제 줄을 갖는다 (비전투요원은 칸 셋)
+  return ALL_HEROES().map(k => ({ card: heroCardHtml(k), slots: slotsFor(k).map(sl => slotOf(k, sl)) }));
 }
 // 아래 절반에 놓이는 카드들 — 전투는 캐릭터, 정비는 가진 장비
 function screenTokens(){
@@ -4621,10 +4624,9 @@ function screenTokens(){
     return out;
   }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
-  if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0: 캐릭터 둘
-    const outK = !!expOf('knight'), outA = !!expOf('ally');
-    return [{ token: outK ? null : 'knight', html: knightCardHtml(!outK) },
-            { token: outA ? null : 'ally', html: allyCardHtml(!outA) }];
+  if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0: 합류한 사람 모두
+    return ALL_HEROES().map(k => { const out = !!expOf(k);
+      return { token: out ? null : k, html: heroCardHtml(k, !out) }; });
   }
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
@@ -4713,8 +4715,8 @@ function heroCardHtml(key, drag){
   const st = hSt(key), E = expOf(key), out = !!E;                 // v5.1.0: 원정 중
   const sel = heroPick === key;
   return beingCardHtml({
-    cls: `f-${key === 'ally' ? 'bronze' : 'gold'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}`,
-    attrs: ` data-hero-card="${key}" data-${key === 'ally' ? 'ally' : 'knight'}="1"`
+    cls: `f-${key === 'knight' ? 'gold' : 'bronze'} hero ${key}${sel ? ' sel' : ''}${out ? ' out' : ''}`,
+    attrs: ` data-hero-card="${key}"`                              // v9.73.0: 누구든 같은 표 하나로
       + (drag && !out ? ` data-token="${key}"` : ''),
     pic: `images/icon/${hCard(key)}.png`, name: pName(key), job: hName(key),
     atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key), bar: true,   // v9.33.0: 체력 막대
@@ -4805,7 +4807,7 @@ function dropOnSlot(id, token){
   }
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
   if (isFieldTab(S.tab)){                                         // v4.0.0
-    if (token !== 'knight' && token !== 'ally') return;           // v9.20.0
+    if (!ALL_HEROES().includes(token)) return;                   // v9.20.0 · v9.73.0
     const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
     expStart(rowKey, fel, token);
     return;
@@ -4826,7 +4828,7 @@ function slotTakes(id, token){
     return false;
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
-  if (isFieldTab(S.tab)) return token === 'knight' || token === 'ally';   // v4.0.0 · v9.20.0
+  if (isFieldTab(S.tab)) return ALL_HEROES().includes(token);     // v4.0.0 · v9.20.0 · v9.73.0
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));   // v0.56.0: 잠긴 칸은 안 받음
 }
@@ -5327,9 +5329,10 @@ const ENEMIES = {
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
 // v9.24.0: **장비는 캐릭터마다** — 기사는 `S.equip`, 궁수는 `S.gearAlly`. 거점(`camp`)만 모두 공통
-const gearMap = who => who === 'ally' ? (S.gearAlly = S.gearAlly || { weapon: ARCHER.weapon }) : (S.equip = S.equip || {});
+const gearMap = who => CREW[who] ? ((S.gear = S.gear || {})[who] = S.gear[who] || {})
+  : who === 'ally' ? (S.gearAlly = S.gearAlly || { weapon: ARCHER.weapon }) : (S.equip = S.equip || {});
 const equipped = (key, who) => (key === 'camp' ? (S.equip = S.equip || {}) : gearMap(who || 'knight'))[key] || null;
-const gearStatOf = (who, key) => SLOTS.filter(sl => sl.stat === key).reduce((sum, sl) => {
+const gearStatOf = (who, key) => slotsFor(who).filter(sl => sl.stat === key).reduce((sum, sl) => {
   const t = equipped(sl.key, who);
   return sum + (t ? (DEFS[t][key] || 0) : 0);
 }, 0);
@@ -5340,7 +5343,19 @@ const foeSpd = e => e.spd || BASE_SPD;
 const foeRange = e => e.range || BASE_RANGE;
 // v9.20.0: **캐릭터는 둘.** 'knight' 기사 · 'ally' 궁수. 아래 h… 는 누구든 같은 물음에 답한다
 // v9.24.0: 레벨 보상도 장비도 같은 규칙 — 몸(HERO_BASE) + 레벨 보상 + 낀 장비
-const HERO_BASE = k => k === 'ally' ? ARCHER : KNIGHT;
+// v9.73.0: 비전투요원 명단 — 여관 주인 · 만물상 · 장인들. 이름은 PERSON_NAME, 직업은 여기 name
+const CREW = { keeper: { name:'여관 주인', art:'innkeeper' }, peddler: { name:'만물상', art:'peddler' } };
+for (const sm of SMITHS) CREW[sm.id] = { name: sm.name, art: sm.id };
+const isCrew = k => !!CREW[k];
+const crewJoined = k => k === 'keeper' || k === 'peddler' || smithOk(k);   // 늘 있는 둘 + 합류한 장인
+const HERO_BASE = k => CREW[k] ? Object.assign({}, CREW_BASE, { name: CREW[k].name }) : k === 'ally' ? ARCHER : KNIGHT;
+// 싸울 수 있는 몸인가 — 기사 · 궁수만 전투요원이다
+const isFighter = k => k === 'knight' || k === 'ally';
+// 지금 데리고 나갈 수 있는 사람들 (전투요원 + 합류한 비전투요원)
+const CREW_IDS = () => Object.keys(CREW).filter(crewJoined);
+const ALL_HEROES = () => ['knight'].concat(S.ally ? ['ally'] : [], CREW_IDS());
+// 그 사람이 쓰는 장비 칸 — 비전투요원은 셋뿐
+const slotsFor = k => isCrew(k) ? SLOTS.filter(sl => CREW_SLOT_KEYS.includes(sl.key)) : SLOTS;
 // v9.60.0: **사람에게는 이름이 있다.** 카드엔 이름, 그 아래 작은 글씨로 직업을 적는다
 //   (크리처는 종의 이름 그대로 — 이름을 주지 않는다)
 const PERSON_NAME = {
@@ -5350,21 +5365,24 @@ const PERSON_NAME = {
 };
 const pName = id => PERSON_NAME[id] || '';
 const hName = k => HERO_BASE(k).name;
-const hPic = k => k === 'ally' ? ARCHER.portrait : 'portrait_knight';
-const hCard = k => k === 'ally' ? ARCHER.card : 'card_knight';
-const hSt = k => k === 'ally' ? allySt() : S.knight;               // { hp, lv, xp }
+const hPic = k => CREW[k] ? `portrait_${CREW[k].art}` : k === 'ally' ? ARCHER.portrait : 'portrait_knight';
+const hCard = k => CREW[k] ? `card_${CREW[k].art}` : k === 'ally' ? ARCHER.card : 'card_knight';
+// v9.73.0: 비전투요원도 제 몸 상태를 갖는다 (`S.crew`)
+const hSt = k => CREW[k]
+  ? ((S.crew = S.crew || {})[k] = S.crew[k] || { hp: CREW_BASE.hp, lv: 1, xp: 0 })
+  : k === 'ally' ? allySt() : S.knight;                           // { hp, lv, xp }
 const hLv = k => (hSt(k).lv) || 1;
 const hMax = k => HERO_BASE(k).hp + lvSumAt(hLv(k), 'hp');
 const hAtk = k => HERO_BASE(k).atk + lvSumAt(hLv(k), 'atk') + gearStatOf(k, 'atk');
 const hDef = k => HERO_BASE(k).def + lvSumAt(hLv(k), 'def') + gearStatOf(k, 'def');
 const hSpd = k => {          // v8.0.0: 이동속도는 **몸과 장비**가 정한다 (무거운 것을 들면 느려진다)
   let v = HERO_BASE(k).spd;
-  for (const sl of SLOTS){ const t = equipped(sl.key, k); if (t && DEFS[t] && DEFS[t].spd) v += DEFS[t].spd; }
+  for (const sl of slotsFor(k)){ const t = equipped(sl.key, k); if (t && DEFS[t] && DEFS[t].spd) v += DEFS[t].spd; }
   return Math.max(1, v);
 };
 const hWeap = (k, key, dflt) => { const w = equipped('weapon', k); return (w && DEFS[w] && DEFS[w][key]) || dflt; };
 const hRange = k => hWeap(k, 'range', BASE_RANGE);                // v8.0.0: 사거리는 **쥔 무기**가 정한다
-const hAps = k => hWeap(k, 'aps', BASE_APS);                      // v9.0.0: 초당 공격 횟수
+const hAps = k => hWeap(k, 'aps', HERO_BASE(k).aps || BASE_APS);  // v9.0.0: 초당 공격 횟수
 const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출혈
 // v4.0.0: **방어 무시** — 상대 방어를 0으로 친다 (코드 키 이름만 `pierce`).
 //   v9.46.2: 앞을 뚫고 뒤까지 때리는 기능은 **없다**. 그 말과 섞어 쓰지 않는다
@@ -6524,7 +6542,7 @@ function expBlockHtml(E){
         + `${ENEMIES[f.key].size ? ` style="--tsz:${ENEMIES[f.key].size}"` : ''}>`   // v9.44.0: 덩치
         + '<div class="hp"></div><i class="reach" hidden></i><i class="cdpie foe" hidden></i>'   // v9.1.0 사거리 · v9.43.0 공격 대기
         + `<img class="pic" src="images/portrait/${ENEMIES[f.key].portrait}.png" alt="${ENEMIES[f.key].name}" draggable="false"></div>`).join('')
-    + exp.party.map(k => `<div class="tok hero ${k === 'knight' ? 'knight' : 'ally'}${k === who ? ' me' : ''}" data-hero="${k}">`
+    + exp.party.map(k => `<div class="tok hero ${k}${isFighter(k) ? '' : ' crew'}${k === who ? ' me' : ''}" data-hero="${k}">`
         + '<div class="hp"></div><i class="reach" hidden></i><i class="cdpie" hidden></i>'   // v9.35.0: 공격 대기
         + `<img class="pic" src="images/portrait/${hPic(k)}.png" alt="${hName(k)}" draggable="false"></div>`).join('')
     + '<div class="lane-front"></div><div class="lane-near"></div>'   // v9.8.0 기사 앞 · v9.18.0 맨 앞 한 겹 더
