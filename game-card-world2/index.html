@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.69.0';
+const VERSION = 'v9.70.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3773,14 +3773,30 @@ TREES.armor = { name:'갑옷 트리', icon:'🛡',
 ] };
 const sideLabel = sd => sd.card ? (DEFS[sd.card] ? DEFS[sd.card].name : sd.card)
   : `🏷️ ${sd.use || sd.tag || ''}`;
-function dropText(t, field){                                      // 떨구는 크리처 — 확률 높은 셋만
+// v9.70.0: 크리처가 **사는 땅** — 들머리는 뺀다 (튜토리얼이 끝나면 사라지는 땅이라, 거기 사는 굶주린 들개는
+//   다시 만날 수 없다. 목표의 차례가 '못 갈 곳의 놈'을 가리키면 안 된다)
+const foeFields = k => FIELDS.filter(f => f.id !== 'prelude' && planOf(f.id).some(st => st.fight === k));
+function dropHits(t, field){                                      // 이 재료를 떨구는 놈들 — 확률 높은 순
   const keys = field ? foesOf(field) : Object.keys(ENEMIES);
-  const hit = keys.filter(k => ENEMIES[k] && (ENEMIES[k].loot || []).some(l => l[0] === t))
-    .map(k => ({ n: ENEMIES[k].name, p: ENEMIES[k].loot.find(l => l[0] === t)[1] }))
+  return keys.filter(k => ENEMIES[k] && (ENEMIES[k].loot || []).some(l => l[0] === t))
+    .map(k => ({ k, n: ENEMIES[k].name, p: ENEMIES[k].loot.find(l => l[0] === t)[1], fs: foeFields(k) }))
+    .filter(x => field || x.fs.length)                            // 갈 수 있는 땅이 없는 놈은 빼고
     .sort((x, y) => y.p - x.p);
+}
+function dropText(t, field){                                      // 떨구는 크리처 — 확률 높은 셋만 (글만)
+  const hit = dropHits(t, field);
   if (!hit.length) return null;
   return hit.slice(0, 3).map(x => `${x.n} ${x.p}%`).join(' · ') + (hit.length > 3 ? ' …' : '') + ' 떨굼';
 }
+// v9.70.0: 땅 이름은 **눌러서 가는 단추**로 (글 속 땅 이름과 같은 꼴 · 같은 처리)
+const landBtn = f => `<span class="go-tab" data-goland="${f.id}">${f.emoji} ${esc(f.name)}</span>`;
+function dropHtml(t){                                             // 떨구는 놈 + 그놈이 사는 땅 단추
+  const hit = dropHits(t);
+  if (!hit.length) return '';
+  return hit.slice(0, 3).map(x => `${esc(x.n)} ${x.p}% ${x.fs.slice(0, 2).map(landBtn).join(' · ')}`)
+    .join('<span class="i-muted"> · </span>') + (hit.length > 3 ? ' …' : '');
+}
+const gatherHtml = t => gatherFields(t).map(landBtn).join(' · ');  // 줍는 땅 단추
 function autoMake(t, field){
   if (!DEFS[t]) return null;
   const drop = dropText(t, field);
@@ -4339,21 +4355,23 @@ const gatherText = t => { const fs = gatherFields(t);
   return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : ''; };   // 갈 수 있는 곳이 없으면 비움
 function getStepBody(t){
   const card = `${rcpIcon(t, aimSeen(t))} ${esc(aimName(t))}`;
-  const drop = dropText(t);
-  if (drop) return `<span class="i-muted">${esc(drop)}</span> ${card}`;
-  const w = gatherText(t);
-  return w ? `<span class="i-muted">${esc(w)}에서</span> ${card} <span class="i-muted">줍기</span>`
+  const drop = dropHtml(t);                                       // v9.70.0: 땅 이름은 눌러서 가는 단추
+  if (drop) return `${drop} <span class="i-muted">에서</span> ${card} <span class="i-muted">떨굼</span>`;
+  const w = gatherHtml(t);
+  return w ? `${w} <span class="i-muted">에서</span> ${card} <span class="i-muted">줍기</span>`
     : `${card} <span class="i-muted">구할 곳을 아직 모름</span>`;
 }
 // v9.37.0: 못 본 재료 줄 — 이름 대신 **갈 곳**만 말한다
-function scoutWhere(t){
-  const fs = gatherFields(t).map(f => `${f.emoji} ${f.name}`);
-  for (const f of FIELDS) if (!fieldLocked(f.id) && lootTypes(f.id).includes(t)
-    && !fs.includes(`${f.emoji} ${f.name}`)) fs.push(`${f.emoji} ${f.name}`);
-  return fs.length ? fs.join(' · ') : '어딘가';
+function scoutFields(t){                                          // 그 재료가 나오는 땅 (들머리는 뺀다)
+  const fs = gatherFields(t).filter(f => f.id !== 'prelude');
+  for (const f of FIELDS) if (f.id !== 'prelude' && !fieldLocked(f.id) && lootTypes(f.id).includes(t)
+    && !fs.some(x => x.id === f.id)) fs.push(f);
+  return fs;
 }
-const scoutStepBody = (t, where) => `<span class="rcp-ic unk">?</span> <span class="i-muted">`
-  + `${esc(where || scoutWhere(t))}에 가서 못 본 재료를 찾자</span>`;
+const scoutWhere = t => { const fs = scoutFields(t); return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : '어딘가'; };
+const scoutStepBody = (t, where) => `<span class="rcp-ic unk">?</span> `
+  + (where ? `<span class="i-muted">${esc(where)}</span>` : (scoutFields(t).map(landBtn).join(' · ') || '<span class="i-muted">어딘가</span>'))
+  + ' <span class="i-muted">에 가서 못 본 재료를 찾자</span>';
 function aimWhere(t){                                             // 어디서 구하나 — 떨구는 놈 · 줍는 곳
   const d = dropText(t);
   if (d) return d;
