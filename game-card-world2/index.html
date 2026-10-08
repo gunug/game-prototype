@@ -1783,7 +1783,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.74.2';
+const VERSION = 'v9.75.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2073,17 +2073,19 @@ function innUnregister(){
   toast('🏨 등록을 풀었다');
   renderAll(); renderInsp(); save();
 }
-function innGive(type){                                           // 물건 걸음 — 카드 한 장을 건넨다
+// v9.75.0: **한 번에 낸다** — 놓은 재료를 모자란 만큼(가진 만큼) 한꺼번에 건넨다.
+//   전엔 한 장씩이라 다섯 장이 필요하면 다섯 번 끌어다 놓아야 했다
+function innGive(type){
   const need = innGiveNeed(type);
   if (need <= 0) return false;
   const c = cardOf(type);
   if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
-  const n = S.inn, id = n.reg;
+  const give = Math.min(need, c.n), n = S.inn, id = n.reg;
   n.given[id] = n.given[id] || {};
-  n.given[id][type] = (n.given[id][type] || 0) + 1;
-  useOne(c);
+  n.given[id][type] = (n.given[id][type] || 0) + give;
+  for (let i = 0; i < give; i++) useOne(cardOf(type) || c);       // 다 쓰면 카드가 사라지므로 그때그때 다시 집는다
   if (innGiveDone(id)) innAdvance();
-  else toast(`🏨 ${DEFS[type].name} 건넴`);
+  else toast(`🏨 ${DEFS[type].name} ${give}장 건넴${innGiveNeed(type) ? ` (${innGiveNeed(type)}장 더)` : ''}`);
   renderAll(); renderInsp(); save();
   return true;
 }
