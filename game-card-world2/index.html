@@ -1802,7 +1802,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.76.2';
+const VERSION = 'v9.77.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4589,7 +4589,8 @@ function screenRows(){
           id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
           card: !!(open && who),
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
-          cardName: who ? pName(who) : '', frame: who === 'ally' ? 'bronze' : 'gold', lab: '출전',
+          // v9.77.1: 테두리는 **그 사람의 등급** — 기사만 금테, 나머지는 동테 (전엔 비전투요원도 금테로 보였다)
+          cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: '출전',
         };
       });
       return { card: foeCards + card, slots };
@@ -4747,7 +4748,7 @@ function heroCardHtml(key, drag){
     atk: hAtk(key), def: hDef(key), hp: st.hp, max: hMax(key), bar: true,   // v9.33.0: 체력 막대
     spd: hSpd(key), range: hRange(key),
     lv: hLv(key), xp: st.xp || 0, xpNeed: xpNeed(hLv(key)),
-    tag: out ? '출전중' : '',                                      // v9.64.0: 상태 뱃지
+    tag: hStateLab(key),                                          // v9.64.0 상태 뱃지 · v9.77.0 회복중
   });
 }
 const knightCardHtml = drag => heroCardHtml('knight', drag);
@@ -4854,7 +4855,7 @@ function slotTakes(id, token){
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0
-    if (!ALL_HEROES().includes(token)) return false;
+    if (!ALL_HEROES().includes(token) || !canSortie(token)) return false;   // v9.77.0: 회복중은 못 나간다
     const E = expAt(slotId(id).row);                              // v9.76.1: 꽉 찬 원정엔 칸이 안 켜진다
     return !E || E.party.includes(token) || E.party.length < PARTY_MAX();
   }
@@ -5428,6 +5429,12 @@ const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출
 const hMulti = k => Math.max(1, hWeap(k, 'multi', 1));            // v9.52.0: 한 번 휘두를 때 몇 번 꽂히나
 const hPierce = k => !!hWeap(k, 'pierce', false);
 const hAlive = k => hSt(k).hp > 0;
+// v9.77.0: **빈사** — 필드에서 쓰러진 사람은 체력이 **가득 찰 때까지** 다시 못 나간다.
+//   그냥 다친 사람(쓰러지지 않은)은 체력이 덜 차도 나갈 수 있다
+const hDown = k => !!hSt(k).down;
+const heroFell = k => { const st = hSt(k); st.down = true; };     // 쓰러진 순간 표식을 박는다
+const canSortie = k => hAlive(k) && !hDown(k);
+const hStateLab = k => expOf(k) ? '출전중' : hDown(k) ? '회복중' : '';
 // 옛 이름들 (기사 전용으로 부르던 곳)
 const knightAtk = () => hAtk('knight');
 const knightDef = () => hDef('knight');
@@ -5920,7 +5927,7 @@ function expStart(id, cardEl, who){
     exp = same;
     // v9.76.1: **열린 출전 칸 수를 넘겨 받지 않는다** — 칸이 둘인데 셋이 나가던 버그
     if (same.party.length >= PARTY_MAX()){ toast(`🏃 출전 칸이 다 찼다 (${PARTY_MAX()}명)`); return; }
-    if (hAlive(who)){
+    if (canSortie(who)){
       // v9.21.0: 늦게 온 이는 **땅 입구(0칸)에서 출발**한다 — 제 이동속도로 걸어 따라잡아야 한다
       let x = 0;
       if (!cellFree(0, who)){                                      // v9.21.1: 출발선이 막혔으면(둘이 같이 나갈 때) 앞선 이를 한 칸 민다
@@ -5936,7 +5943,7 @@ function expStart(id, cardEl, who){
       renderGather(); renderInsp(); expBuild(); save();
       return;
     }
-    logEv('blocked', { why: 'hp', field: id }); toast(`🩸 ${hName(who)} 빈사`); return;
+    logEv('blocked', { why: 'hp', field: id }); toast(`🩸 ${pName(who)} ${hDown(who) ? '회복중 — 가득 차야 나간다' : '빈사'}`); return;
   }
   if (fieldLocked(id)){
     logEv('blocked', { why: 'locked', field: id });                // v7.7.0
@@ -5944,10 +5951,10 @@ function expStart(id, cardEl, who){
     toast(`🔒 ${FIELD_BY_ID[id].emoji} ${FIELD_BY_ID[id].name} — 아직 잠겨 있음`);
     return;
   }
-  if (hSt(who).hp <= 0){
+  if (!canSortie(who)){                                           // v9.77.0: 쓰러진 사람은 가득 차야 나간다
     logEv('blocked', { why: 'hp', field: id, hp: hSt(who).hp });   // v7.7.0: 회복을 기다리는 시간은 헤맨 게 아니다
     flash(cardEl, 'fail', 600);
-    toast(`🩸 ${hName(who)} 빈사 — 회복될 때까지 기다려야 함`);
+    toast(`🩸 ${pName(who)} 회복중 — 체력이 가득 차야 나갈 수 있다 (${hSt(who).hp}/${hMax(who)})`);
     return;
   }
   flash(cardEl, 'tap', 300);
@@ -6213,6 +6220,7 @@ function expFoes(dt){
         expSwing(exp.foes.indexOf(f), k, ed, false, '', i * HIT_MS);
       }
       if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
+        heroFell(k);                                              // v9.77.0: 빈사 — 가득 찰 때까지 못 나간다
         exp.P[k].out = true;
         exp.line = `${hName(k)} 쓰러졌다`;
         exp.killer = { name: d.name, boss: !!f.boss, mid: !!f.mid };
@@ -6299,6 +6307,7 @@ function expFight(dt){
           st2.hp = Math.max(0, st2.hp - back);
           expSwing(exp.foe, k, back, false, 'thorn');
           if (st2.hp <= 0){
+            heroFell(k);                                          // v9.77.0: 빈사
             exp.P[k].out = true;
             exp.line = `${hName(k)} 쓰러졌다`;
             exp.killer = { name: def.name, boss: !!e.boss, mid: !!e.mid };
@@ -7288,6 +7297,7 @@ function healTick(dt){
   if (paused) return;
   for (const who of ALL_HEROES()){                                // v9.74.2: 비전투요원도 쉬면 아문다
     const st = hSt(who);
+    if (st.hp >= hMax(who)) st.down = false;                      // v9.77.0: 가득 차면 빈사가 풀린다
     if (expOf(who) || st.hp >= hMax(who)){ st.healP = 0; continue; }
     st.healP = (st.healP || 0) + dt;
     const ms = healMs(who);
