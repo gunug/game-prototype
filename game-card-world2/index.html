@@ -1781,7 +1781,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.70.0';
+const VERSION = 'v9.71.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3280,6 +3280,7 @@ function renderInsp(){
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('foe:') && renderFoeInsp()) return;    // v7.9.1: 책에서 고른 크리처
   if (S.tab === 'book' && heroPick) return renderFieldInsp();     // v9.25.0: 책에서 고른 캐릭터
+  if (S.tab === 'inn' && heroPick) return renderFieldInsp();      // v9.71.0: 여관에서 고른 캐릭터
   if (S.tab === 'aim' && slotPick === 'aim:goal' && S.goal && DEFS[S.goal]) return renderGoalInsp();   // v5.4.0
   if (S.tab === 'gearup' && slotPick && renderGearInsp()) return;  // v0.25.0: 칸을 탭했을 때만 칸 정보
   if (S.tab === 'gearup' && heroPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
@@ -4587,8 +4588,17 @@ function screenTokens(){
         + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
         + statsHtml(t) + `<div class="cnt">${have(t)}</div></div>` });
     }
-    if (joined.length) out.push(lab('합류', joined.length));
-    for (const x of joined) out.push({ token: null, html: smithCardHtml(x.id) });   // 합류한 사람은 끌지 않는다 — 탭하면 정보
+    // v9.71.0: 늘 함께인 사람들도 〈합류〉에 선다 — 여관 주인 · 만물상 · 기사 · 궁수
+    const always = ALWAYS_PEOPLE.map(id => ({ html: beingCardHtml({
+      cls: `f-bronze${innPick === id ? ' sel' : ''}`, attrs: ` data-smith="${id}"`,
+      pic: `images/icon/card_${id === 'keeper' ? 'innkeeper' : id}.png`,
+      name: pName(id), job: id === 'keeper' ? '여관 주인' : '만물상' }) }));
+    const heroes = HEROES_ALL.filter(k => k !== 'ally' || S.ally).map(k => ({ html: beingCardHtml({
+      cls: `f-${k === 'ally' ? 'bronze' : 'gold'}${heroPick === k ? ' sel' : ''}`, attrs: ` data-hero-card="${k}"`,
+      pic: `images/icon/${hCard(k)}.png`, name: pName(k), job: hName(k), tag: `Lv ${hLv(k)}` }) }));
+    const all = always.concat(heroes, joined.map(x => ({ html: smithCardHtml(x.id) })));
+    if (all.length) out.push(lab('합류', all.length));
+    for (const c of all) out.push({ token: null, html: c.html });   // 합류한 사람은 끌지 않는다 — 탭하면 정보
     return out;
   }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
@@ -4831,7 +4841,10 @@ function unequipSlot(sl, who){
 let tokenDrag = null;
 gatherEl.addEventListener('click', e => {                         // v9.55.0: 줄에 놓인 장인 카드 · 여관 주인
   const sm = e.target.closest('[data-smith]');
-  if (!sm || !isRowScreen(S.tab) || (S.tab !== 'inn' && S.tab !== 'aim')) return;   // v9.67.1: 🎯 목표의 만물상도
+  if (!isRowScreen(S.tab) || (S.tab !== 'inn' && S.tab !== 'aim')) return;   // v9.67.1: 🎯 목표의 만물상도
+  const hero = e.target.closest('[data-hero-card]');              // v9.71.0: 여관의 기사 · 궁수
+  if (hero){ heroPick = hero.dataset.heroCard; innPick = null; slotPick = null; renderScreen(); renderInsp(); return; }
+  if (!sm) return;
   innPick = sm.dataset.smith;
   slotPick = null; heroPick = null;
   renderScreen(); renderInsp();
