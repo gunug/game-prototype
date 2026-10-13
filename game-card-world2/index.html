@@ -1803,7 +1803,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.79.1';
+const VERSION = 'v9.79.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3493,7 +3493,7 @@ function smithSlotHtml(id){
       + beingCardHtml({ cls:'f-bronze', pic:`images/icon/${pic}.png`, name: pName(id), job })
       + '</div>';
   }
-  const sm = SMITH_BY_ID[id], done = smithDone(id);                // v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
+  const sm = SMITH_BY_ID[id], done = editMode || smithDone(id);    // v9.79.2: 에디터 모드는 다 보인다. v9.56.2: 흐린 것은 '아직 합류 전'이라는 뜻
   return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
     + beingCardHtml({ cls: `f-bronze${done ? '' : ' locked'}`, pic: `images/icon/${sm.card}.png`,
         name: done ? pName(id) : '???', job: done ? sm.name : '', known: done, tag: done ? '합류' : '' })
@@ -3502,7 +3502,7 @@ function smithSlotHtml(id){
 // v9.67.1: 만물상도 책에 — 여관 사람은 아니지만 **우리를 돕는 사람**이라 같은 묶음에 세운다
 const BOOK_PEOPLE = () => ['keeper', 'peddler'].concat(SMITHS.map(x => x.id));
 const ALWAYS_PEOPLE = ['keeper', 'peddler'];                      // 늘 보이는 사람 (찾아 나설 것이 없다)
-const peopleFound = () => BOOK_PEOPLE().filter(id => ALWAYS_PEOPLE.includes(id) || smithDone(id)).length;   // v9.56.2: 센 것은 **합류한 사람**
+const peopleFound = () => BOOK_PEOPLE().filter(id => editMode || ALWAYS_PEOPLE.includes(id) || smithDone(id)).length;   // v9.56.2: 센 것은 **합류한 사람**
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
@@ -7682,6 +7682,7 @@ function setEditMode(on, quiet){
     S.newCards = [];
     S.boards = BOARDS.map(b => b.id);
     for (const id in S.fields) S.fields[id].locked = false;
+    allySt();                                                     // v9.79.2: 궁수도 — 합류 전이어도 줄 · 여관 · 책에 선다
     for (const t of CRAFT_TYPES){                                 // 모든 카드 1개씩
       const c = cardOf(t);
       if (c){ if (c.n < 1) c.n = 1; continue; }
