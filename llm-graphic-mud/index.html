@@ -6,10 +6,92 @@
 <title>LLM 그래픽 머드</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../assets-ds.css">
+<style>
+  .conn{display:grid;gap:var(--s1);max-width:560px;margin-top:24px;}
+  .conn label{display:grid;gap:4px;font-size:13px;color:var(--muted);}
+  .conn input{font:inherit;color:var(--ink);background:var(--surface);
+    border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 10px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .out{white-space:pre-wrap;word-break:break-all;font-size:13px;min-height:3em;
+    background:var(--surface-soft);border-radius:var(--r-sm);padding:10px;margin-top:8px;}
+  .ok{color:#1a7f37;} .err{color:#c62828;}
+</style>
 </head>
 <body>
   <main class="container">
     <h1>LLM 그래픽 머드</h1>
+
+    <section class="card conn">
+      <h3 style="margin:0">연결 테스트</h3>
+      <label>프록시 주소
+        <input id="base" type="url" autocomplete="off">
+      </label>
+      <label>키 (server/proxy.key 내용 · 이 브라우저에만 저장)
+        <input id="key" type="password" autocomplete="off">
+      </label>
+      <div class="row">
+        <button class="btn btn-primary btn-sm" id="btnOllama">Ollama 테스트</button>
+        <button class="btn btn-secondary btn-sm" id="btnComfy">ComfyUI 테스트</button>
+      </div>
+      <div class="out" id="out">대기 중</div>
+    </section>
   </main>
+
+<script>
+const DEFAULT_BASE = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v){ try { localStorage.setItem(k, v); } catch {} },
+};
+
+$('base').value = store.get('mud.base') || DEFAULT_BASE;
+$('key').value = store.get('mud.key') || '';
+$('base').addEventListener('change', e => store.set('mud.base', e.target.value.trim()));
+$('key').addEventListener('change', e => store.set('mud.key', e.target.value.trim()));
+
+// 프록시 호출. ngrok 경고 페이지를 건너뛰는 헤더를 늘 붙인다.
+async function api(path, body){
+  const base = $('base').value.trim().replace(/\/+$/, '');
+  const res = await fetch(base + path, {
+    method: body ? 'POST' : 'GET',
+    headers: {
+      'X-Proxy-Key': $('key').value.trim(),
+      'ngrok-skip-browser-warning': '1',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`${res.status} ${data.error || ''}`);
+  return data;
+}
+
+function show(text, cls){ const o = $('out'); o.textContent = text; o.className = 'out ' + (cls || ''); }
+
+async function run(label, fn){
+  show(label + ' …');
+  const t0 = performance.now();
+  try {
+    const msg = await fn();
+    show(`${label} 성공 (${Math.round(performance.now() - t0)}ms)\n${msg}`, 'ok');
+  } catch (e) {
+    show(`${label} 실패: ${e.message}`, 'err');
+  }
+}
+
+$('btnOllama').onclick = () => run('Ollama', async () => {
+  const d = await api('/ollama/api/chat', {
+    model: 'qwen3:8b', stream: false, think: false,
+    messages: [{ role: 'user', content: '판타지 머드 진행자로서 한 문장으로 인사해.' }],
+  });
+  return d.message.content;
+});
+
+$('btnComfy').onclick = () => run('ComfyUI', async () => {
+  const d = await api('/comfy/queue');
+  return `실행 중 ${d.queue_running.length} · 대기 ${d.queue_pending.length}`;
+});
+</script>
 </body>
 </html>

@@ -31,6 +31,8 @@ ALLOWED_ORIGINS = {
     "https://game.onethelab.com",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://localhost:8765",   # repo 루트 개발 서버 (.claude/launch.json)
+    "http://127.0.0.1:8765",
 }
 ALLOWED_HEADERS = "Content-Type, X-Proxy-Key, ngrok-skip-browser-warning"
 
