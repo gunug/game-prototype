@@ -11,6 +11,10 @@
   .conn label{display:grid;gap:4px;font-size:13px;color:var(--muted);}
   .conn input{font:inherit;color:var(--ink);background:var(--surface);
     border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 10px;}
+  .conn > label[for]{font-size:13px;color:var(--muted);margin-bottom:-4px;}
+  .keyrow{display:flex;gap:8px;}
+  .keyrow input{flex:1;min-width:0;}
+  .unsaved{font-size:12px;color:#c62828;}
   .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
   .out{white-space:pre-wrap;word-break:break-all;font-size:13px;min-height:3em;
     background:var(--surface-soft);border-radius:var(--r-sm);padding:10px;margin-top:8px;}
@@ -26,9 +30,12 @@
       <label>프록시 주소
         <input id="base" type="url" autocomplete="off">
       </label>
-      <label>키 (server/proxy.key 내용 · 이 브라우저에만 저장)
+      <label for="key">키 (server/proxy.key 내용 · 이 브라우저에만 저장)</label>
+      <div class="keyrow">
         <input id="key" type="password" autocomplete="off">
-      </label>
+        <button class="btn btn-secondary btn-sm" id="btnSave">저장</button>
+      </div>
+      <span class="unsaved" id="unsaved" hidden>저장되지 않음</span>
       <div class="row">
         <button class="btn btn-primary btn-sm" id="btnOllama">Ollama 테스트</button>
         <button class="btn btn-secondary btn-sm" id="btnComfy">ComfyUI 테스트</button>
@@ -48,7 +55,22 @@ const store = {
 $('base').value = store.get('mud.base') || DEFAULT_BASE;
 $('key').value = store.get('mud.key') || '';
 $('base').addEventListener('change', e => store.set('mud.base', e.target.value.trim()));
-$('key').addEventListener('change', e => store.set('mud.key', e.target.value.trim()));
+
+// 키는 저장 버튼으로만 저장한다. 저장 안 된 변경이 있으면 표시하고, 나갈 때 경고.
+const keyDirty = () => $('key').value.trim() !== (store.get('mud.key') || '');
+const markKey = () => { $('unsaved').hidden = !keyDirty(); };
+$('key').addEventListener('input', markKey);
+$('key').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnSave').click(); });
+$('btnSave').onclick = () => {
+  store.set('mud.key', $('key').value.trim());
+  markKey();
+  show(keyDirty() ? '키 저장 실패 (브라우저 저장소를 쓸 수 없음)' : '키 저장됨', keyDirty() ? 'err' : 'ok');
+};
+window.addEventListener('beforeunload', e => {
+  if (!keyDirty()) return;
+  e.preventDefault();
+  e.returnValue = '저장되지 않음';   // 요즘 브라우저는 이 글 대신 자체 문구를 띄운다
+});
 
 // 프록시 호출. ngrok 경고 페이지를 건너뛰는 헤더를 늘 붙인다.
 async function api(path, body){
