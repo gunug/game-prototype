@@ -279,12 +279,12 @@ function makeAI({ ctx, clock }){
     // v9.55.0: 여관 — 지금 등록된 사람 · 걸음 · 모자란 물건 · 등록할 수 있는 사람
     inn(){
       return g(`(function(){
-        const n = S.inn || {}, reg = n.reg || null;
+        const n = S.inn || {}, reg = (n.regs || []).find(id => SMITH_BY_ID[id] && !smithDone(id)) || null;   // v9.81.0: AI 는 합류 퀘스트 하나씩
         const open = SMITHS.filter(x => !smithOk(x.id) && !smithLocked(x.id)).map(x => x.id);
         const step = reg ? smithStep(reg) : -1;
         const miss = [];
         if (reg && step === 0) for (const [t2] of (SMITH_BY_ID[reg].give || [])){
-          const k = innGiveNeed(t2); if (k > 0) miss.push([t2, k]);
+          const k = innGiveNeed(t2, reg); if (k > 0) miss.push([t2, k]);
         }
         return JSON.parse(JSON.stringify({ reg, step, open, miss }));
       })()`);
@@ -294,11 +294,11 @@ function makeAI({ ctx, clock }){
     innHand(){                                                     // 가진 만큼 건넨다 — 건넨 장수를 돌려준다
       this.spend(COST.equip);
       return g(`(function(){
-        const n = S.inn;
-        if (!n || !n.reg || smithStep(n.reg) !== 0) return 0;
+        const reg = ((S.inn || {}).regs || []).find(id => SMITH_BY_ID[id] && !smithDone(id));
+        if (!reg || smithStep(reg) !== 0) return 0;
         let k = 0;
-        for (const [t2] of (SMITH_BY_ID[n.reg].give || [])){
-          for (let i = 0; i < 9 && innGiveNeed(t2) > 0 && have(t2) > 0; i++){ innGive(t2); k++; }
+        for (const [t2] of (SMITH_BY_ID[reg].give || [])){
+          for (let i = 0; i < 9 && innGiveNeed(t2, reg) > 0 && have(t2) > 0; i++){ innGive(t2, reg); k++; }
         }
         return k;
       })()`);

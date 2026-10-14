@@ -1806,7 +1806,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.80.1';
+const VERSION = 'v9.81.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2036,13 +2036,17 @@ function traceHit(key){
 // 소문: 그 장인의 흔적이 있는 땅을 **다녀온다** / 물건: 쓰는 재료를 **건넨다** / 증명: 그가 지목한 놈을 **넘는다**
 //   세 걸음 모두 보통 놀이 중에 일어나는 일로 판정한다 (원정 끝 · 납품 · 사냥)
 const innStepKey = () => '';                                      // v9.61.0: 저절로 미는 걸음은 없다 — 물건을 내야 끝난다
+// v9.81.0: **등록은 셋까지** — `S.inn.regs` (합류 퀘스트 · 이야기 섞어서). 칸 차례 그대로 담는다
+const INN_MAX = 3;
+const innRegs = () => (innSt() || {}).regs || [];
 const innGiven = id => ((innSt() || {}).given || {})[id] || {};
-const innGiveNeed = type => {                                     // 지금 등록된 장인에게 이 카드가 몇 장 더 필요한가
-  const n = innSt();
-  if (!n || !n.reg || smithStep(n.reg) !== 0) return 0;
-  const sm = SMITH_BY_ID[n.reg], g = (sm.give || []).find(x => x[0] === type);
+const innGiveNeed = (type, who) => {                              // 그 장인에게 이 카드가 몇 장 더 필요한가 (who 없으면 등록한 장인 가운데 첫 사람)
+  if (who == null){ for (const w of innRegs()){ const k = innGiveNeed(type, w); if (k > 0) return k; } return 0; }
+  const sm = SMITH_BY_ID[who];
+  if (!sm || !innRegs().includes(who) || smithDone(who) || smithStep(who) !== 0) return 0;
+  const g = (sm.give || []).find(x => x[0] === type);
   if (!g) return 0;
-  return Math.max(0, g[1] - (innGiven(n.reg)[type] || 0));
+  return Math.max(0, g[1] - (innGiven(who)[type] || 0));
 };
 const innGiveDone = id => { const sm = SMITH_BY_ID[id], got = innGiven(id);
   return (sm.give || []).every(([t, n]) => (got[t] || 0) >= n); };
@@ -2077,48 +2081,54 @@ function innGetBody(sm){                                          // 구하기 �
     return `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${n}</b>${where}`;
   }).join(' · ');
 }
-function innRegister(id){
+// 등록 칸에 앉힌다 — slot 이 차 있으면 그 사람을 내린다 (걸음은 남는다). 셋이 다 찼으면 못 앉힌다
+function innSeat(id, slot){
+  const n = S.inn = S.inn || freshInn();
+  const regs = n.regs = n.regs || [];
+  if (regs.includes(id)){ toast(`🏨 ${pName(id)} — 이미 등록했다`); return false; }
+  const i = slot != null && slot < regs.length ? slot : regs.length;
+  if (i >= INN_MAX){ toast(`🏨 등록은 ${INN_MAX}명까지 — 한 사람을 내리자`); return false; }
+  if (regs[i]) toast(`🏨 ${pName(regs[i])} 등록을 풀었다`);
+  regs[i] = id;
+  return true;
+}
+function innRegister(id, slot){
   const sm = SMITH_BY_ID[id];
   if (!sm || smithOk(id)) return false;
   if (smithLocked(id)){ toast(`🔒 ${smithNeed(id)}`); return false; }
-  S.inn = S.inn || freshInn();
-  // v9.55.5: 이미 누가 올라와 있으면 **그 자리를 내준다** — 앞사람 걸음은 그대로 남아 나중에 이어 간다
-  const was = S.inn.reg || S.inn.sreg;
-  if (was && was !== id) toast(`🏨 ${pName(was)} 등록을 풀었다`);
-  S.inn.reg = id; S.inn.sreg = null;                              // v9.80.0: 이야기 등록과 칸 하나를 나눠 쓴다
+  if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지 · 찬 칸에 올리면 앞사람이 내려온다
   logEv('inn-reg', { smith: id });
   toast(smithFound(id) ? `🏨 ${sm.name} 찾기` : '🏨 소문을 쫓는다');
   innSelfCheck();
   renderAll(); renderInsp(); save();
   return true;
 }
-function innUnregister(){
+function innUnregister(id){                                        // v9.81.0: 그 사람만 내린다 (id 없으면 모두)
   const n = innSt();
-  if (!n || (!n.reg && !n.sreg)) return;
-  n.reg = null; n.sreg = null;                                    // 걸음은 남는다 — 다시 등록하면 이어서 간다
+  if (!n || !(n.regs || []).length) return;
+  n.regs = id ? n.regs.filter(x => x !== id) : [];                // 걸음은 남는다 — 다시 등록하면 이어서 간다
   toast('🏨 등록을 풀었다');
   renderAll(); renderInsp(); save();
 }
 // v9.75.0: **한 번에 낸다** — 놓은 재료를 모자란 만큼(가진 만큼) 한꺼번에 건넨다.
 //   전엔 한 장씩이라 다섯 장이 필요하면 다섯 번 끌어다 놓아야 했다
-function innGive(type){
-  const need = innGiveNeed(type);
+function innGive(type, who){
+  const need = innGiveNeed(type, who);
   if (need <= 0) return false;
   const c = cardOf(type);
   if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
-  const give = Math.min(need, c.n), n = S.inn, id = n.reg;
+  const give = Math.min(need, c.n), n = S.inn, id = who;
   n.given[id] = n.given[id] || {};
   n.given[id][type] = (n.given[id][type] || 0) + give;
   for (let i = 0; i < give; i++) useOne(cardOf(type) || c);       // 다 쓰면 카드가 사라지므로 그때그때 다시 집는다
-  if (innGiveDone(id)) innAdvance();
+  if (innGiveDone(id)) innAdvance(id);
   else toast(`🏨 ${DEFS[type].name} ${give}장 건넴${innGiveNeed(type) ? ` (${innGiveNeed(type)}장 더)` : ''}`);
   renderAll(); renderInsp(); save();
   return true;
 }
-function innAdvance(quiet){
+function innAdvance(id){
   const n = innSt();
-  if (!n || !n.reg) return;
-  const id = n.reg, sm = SMITH_BY_ID[id];
+  if (!n || !id || !SMITH_BY_ID[id]) return;
   const st = smithStep(id) + 1;
   n.prog[id] = st;
   if (!(n.found || []).includes(id)) n.found.push(id);
@@ -2129,7 +2139,7 @@ function innFinish(id){
   const n = S.inn, sm = SMITH_BY_ID[id];
   if (!n.done.includes(id)) n.done.push(id);
   if (!n.found.includes(id)) n.found.push(id);
-  n.reg = null;
+  n.regs = (n.regs || []).filter(x => x !== id);                  // v9.81.0: 합류하면 칸을 비운다
   logEv('inn-done', { smith: id });
   toast(`🏨 ${sm.name} 합류`);
   unlockShow(`images/portrait/bust_${id}.png`, `${pName(id)} 합류`, sm.name);   // v9.76.0: 언락 연출
@@ -2140,23 +2150,17 @@ function innFinish(id){
 }
 // 보통 놀이에서 일어난 일로 걸음을 민다 (questHit 과 같은 열쇠를 쓴다)
 function innHit(key){
-  const n = innSt();
-  if (!n || !n.reg) return;
-  const sm = SMITH_BY_ID[n.reg], st = smithStep(n.reg);
-  if (st < INN_STEPS.length && innStepKey(sm, st) === key) innAdvance();
+  for (const id of innRegs().slice()){
+    const sm = SMITH_BY_ID[id];
+    if (!sm || smithDone(id)) continue;
+    const st = smithStep(id);
+    if (st < INN_STEPS.length && innStepKey(sm, st) === key) innAdvance(id);
+  }
 }
 // 등록하기 전에 이미 해 둔 걸음은 바로 인정한다 — 받고 보니 끝나 있는 일로 막히지 않게
 function innSelfCheck(){
-  const n = innSt();
-  if (!n || !n.reg) return;
-  for (let i = 0; i < INN_STEPS.length; i++){
-    const id = n.reg;
-    if (!id) return;
-    const sm = SMITH_BY_ID[id], st = smithStep(id);
-    if (st >= INN_STEPS.length) return;
-    if (!innGiveDone(id)) return;
-    innAdvance(true);
-  }
+  for (const id of innRegs().slice())
+    if (SMITH_BY_ID[id] && !smithDone(id) && smithStep(id) < INN_STEPS.length && innGiveDone(id)) innAdvance(id);
 }
 // --- 사람 이야기 (v9.80.0) ----------------------------
 // 확정: **합류한 사람마다 다섯 걸음 이야기가 있다.** 여관 등록 칸에 올리면 그 사람 이야기를 이어서 한다.
@@ -2250,11 +2254,12 @@ const storyCan = id => !!STORY[id] && (id === 'knight' || (id === 'ally' && !!S.
   || id === 'keeper' || id === 'peddler' || (!!SMITH_BY_ID[id] && smithOk(id)));
 const storyNow = id => storyDone(id) ? null : STORY[id][storyStep(id)];
 const storyGiven = id => ((innSt() || {}).sgiven || {})[id] || {};
-const storyGiveNeed = type => {                                   // 지금 이야기 걸음에 이 카드가 몇 장 더 필요한가
-  const n = innSt(), id = n && n.sreg, st = id && storyNow(id);
+const storyGiveNeed = (type, who) => {                            // 그 사람 이야기 걸음에 이 카드가 몇 장 더 필요한가
+  if (who == null){ for (const w of innRegs()){ const k = storyGiveNeed(type, w); if (k > 0) return k; } return 0; }
+  const st = innRegs().includes(who) && storyCan(who) && storyNow(who);
   if (!st || !st.give) return 0;
   const g = st.give.find(x => x[0] === type);
-  return g ? Math.max(0, g[1] - (storyGiven(id)[type] || 0)) : 0;
+  return g ? Math.max(0, g[1] - (storyGiven(who)[type] || 0)) : 0;
 };
 const storyGiveDone = id => { const st = storyNow(id), got = storyGiven(id);
   return !!st && !!st.give && st.give.every(([t, k]) => (got[t] || 0) >= k); };
@@ -2279,70 +2284,69 @@ function storyStepText(st, id, html){
       : `${DEFS[t].name} ${mine}/${k}`;
   }).join(' · ');
 }
-function storyRegister(id){
+function storyRegister(id, slot){
   if (!storyCan(id) || storyDone(id)) return false;
-  const n = S.inn = S.inn || freshInn();
-  const was = n.sreg || n.reg;
-  if (was && was !== id) toast(`🏨 ${pName(was)} 등록을 풀었다`);
-  n.reg = null; n.sreg = id;
+  if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지
   logEv('story-reg', { who: id, step: storyStep(id) });
   toast(`🏨 ${pName(id)} 이야기 (${storyStep(id) + 1}/${STORY_LEN})`);
-  storySelfCheck();
+  storySelfCheck(id);
   renderAll(); renderInsp(); save();
   return true;
 }
-function storyGive(type){
-  const need = storyGiveNeed(type);
+function storyGive(type, who){
+  const need = storyGiveNeed(type, who);
   if (need <= 0) return false;
   const c = cardOf(type);
   if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
-  const n = S.inn, id = n.sreg, give = Math.min(need, c.n);
+  const n = S.inn, id = who, give = Math.min(need, c.n);
   n.sgiven = n.sgiven || {};
   n.sgiven[id] = n.sgiven[id] || {};
   n.sgiven[id][type] = (n.sgiven[id][type] || 0) + give;
   for (let i = 0; i < give; i++) useOne(cardOf(type) || c);
-  if (storyGiveDone(id)) storyAdvance();
-  else toast(`🏨 ${DEFS[type].name} ${give}장 건넴${storyGiveNeed(type) ? ` (${storyGiveNeed(type)}장 더)` : ''}`);
+  if (storyGiveDone(id)) storyAdvance(id);
+  else toast(`🏨 ${DEFS[type].name} ${give}장 건넴${storyGiveNeed(type, id) ? ` (${storyGiveNeed(type, id)}장 더)` : ''}`);
   renderAll(); renderInsp(); save();
   return true;
 }
-function storyAdvance(){
+function storyAdvance(id){
   const n = innSt();
-  if (!n || !n.sreg) return;
-  const id = n.sreg, st = storyNow(id);
+  if (!n || !id) return;
+  const st = storyNow(id);
   if (!st) return;
   n.story = n.story || {};
   n.story[id] = storyStep(id) + 1;
   if (n.sgiven) delete n.sgiven[id];                              // 건넨 물건은 그 걸음 몫 — 다음 걸음은 새로 센다
   logEv('story-step', { who: id, step: n.story[id] });
   if (storyDone(id)){
-    n.sreg = null;
+    n.regs = (n.regs || []).filter(x => x !== id);
     toast(`🏨 ${pName(id)} 이야기 끝`);
   } else toast(`🏨 ${pName(id)} 이야기 ${n.story[id]}/${STORY_LEN}`);
   setTimeout(() => knightSay(st.say), 400);                       // 그 걸음의 한 줄 — 정보 칸에 남는다
   renderAll(); renderInsp(); renderQuest(); save();
 }
-// 보통 놀이 사건(questHit 열쇠)으로 이야기 걸음을 민다
+// 보통 놀이 사건(questHit 열쇠)으로 이야기 걸음을 민다 — 등록한 사람 모두 (같은 놈이면 함께 넘는다)
 function storyHit(key){
-  const n = innSt(), id = n && n.sreg, st = id && storyNow(id);
-  if (!st) return;
-  if ((st.kill && key === `kill:${st.kill}`) || (st.make && key === `make:${st.make}`)) storyAdvance();
+  for (const id of innRegs().slice()){
+    if (!storyCan(id)) continue;
+    const st = storyNow(id);
+    if (st && ((st.kill && key === `kill:${st.kill}`) || (st.make && key === `make:${st.make}`))) storyAdvance(id);
+  }
 }
 // 다 건넨 걸음은 등록하자마자 넘긴다 (손에 쥔 것을 저절로 내지는 않는다 — 건네는 손맛은 남긴다)
-function storySelfCheck(){
-  const n = innSt();
-  if (n && n.sreg && storyGiveDone(n.sreg)) storyAdvance();
+function storySelfCheck(id){
+  if (innRegs().includes(id) && storyGiveDone(id)) storyAdvance(id);
 }
 // 정보 칸 — 다섯 걸음. 마친 걸음은 ✔ + 그 한 줄, 지금 걸음은 할 일, 뒤 걸음은 가린다
 function storyInspHtml(id){
   if (!STORY[id]) return '';
-  const s = storyStep(id), can = storyCan(id), reg = (innSt() || {}).sreg === id;
+  const s = storyStep(id), can = storyCan(id), reg = innRegs().includes(id);
   const rows = STORY[id].map((st, i) => i < s
     ? `<div class="st-row done">✔ ${esc(st.say)}</div>`
     : i === s && can ? `<div class="st-row">${reg ? '▶' : '·'} ${storyStepText(st, id, true)}</div>`
     : '<div class="st-row">· <span class="i-muted">???</span></div>').join('');
   const tail = !can ? '<div class="i-muted">합류하면 이야기가 열린다</div>'
     : s >= STORY_LEN || reg ? ''
+    : S.tab === 'inn' && innRegs().length >= INN_MAX ? `<div class="i-muted">🏨 등록 칸이 찼다 (${INN_MAX}/${INN_MAX}) — 한 사람을 내리자</div>`
     : S.tab === 'inn' ? `<button class="reset story-reg" data-story-reg="${id}">🏨 등록 — 이야기 이어 하기</button>`   // v9.80.1
     : '<div class="i-muted">🏨 여관 등록 칸에 올리면 이어서 한다</div>';
   return `<div class="i-sect">이야기 <span class="i-muted">${s}/${STORY_LEN}${reg ? ' (등록함)' : ''}</span></div>${rows}${tail}`;
@@ -2539,7 +2543,7 @@ for (const sm of SMITHS){
   QUESTS[joinQuestId(sm.id)] = {
     name: `${sm.name} 합류`, goal: 1, key: `smith:${sm.id}`,
     text: () => smithOk(sm.id) ? `${subP2(sm.name)} 합류했다`
-      : (S.inn || {}).reg === sm.id ? `🏨 ${sm.name}에게 물건을 건네자`
+      : innRegs().includes(sm.id) ? `🏨 ${sm.name}에게 물건을 건네자`
       : `🏨 여관에 ${objP(sm.name)} 등록하자`,
     say: sm.rumor || '',
   };
@@ -2564,7 +2568,7 @@ const innSt = () => (typeof S !== 'undefined' && S && S.inn) ? S.inn : null;   /
 // v9.72.1: 여관 저장에 **판 표식**을 남긴다 — 이 표식이 없는 저장만 '옛 저장'으로 보고 보정한다
 //   (전엔 저장이 있기만 하면 요리사 · 목수 · 약재 장인을 합류로 밀어 넣어, 새로 시작한 판도 새로 고치면 합류해 버렸다)
 const INN_VER = 2;
-const freshInn = () => ({ reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER });
+const freshInn = () => ({ regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER });
 const smithDone = id => { const n = innSt(); return !!n && (n.done || []).includes(id); };
 const smithOk = id => editMode || !SMITH_BY_ID[id] || !!SMITH_BY_ID[id].free || smithDone(id);
 const smithFound = () => true;                                    // v9.56.2: 여관 사람은 가리지 않는다 (옛 ??? 규칙 폐지)
@@ -2708,7 +2712,7 @@ function load(){
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     // v9.55.0: 여관 — 옛 저장은 **레벨로 열려 있던 칸을 장인으로 환산**해 그대로 준다 (진행이 뒤로 가지 않게)
     const n0 = s.inn && typeof s.inn === 'object' ? s.inn : null;
-    const inn = { reg: null, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER };
+    const inn = { regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER };
     if (n0){
       // v9.55.7: 음식 · 건축 · 약품 탭은 **그 판들에선** 늘 열려 있었다 — 옛 저장에서 뺏지 않는다.
       // v9.72.1: 표식(`born`)이 있는 저장은 **지금 판**이다 — 밀어 넣지 않는다
@@ -2716,7 +2720,12 @@ function load(){
       inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id])
         .concat('weaponsmith', ...(old ? ['cook', 'carpenter', 'herbalist'] : [])))];
       inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
-      inn.reg = SMITH_BY_ID[n0.reg] && !inn.done.includes(n0.reg) ? n0.reg : null;
+      // v9.81.0: 등록은 셋까지 (`regs`). 옛 저장의 reg · sreg 는 그 안으로.
+      //   이야기 걸음 · 건넨 것도 챙긴다 (v9.80.x 는 여기서 빠뜨려 새로 고치면 이야기가 처음으로 돌아갔다)
+      const was = Array.isArray(n0.regs) ? n0.regs : [n0.reg, n0.sreg];
+      inn.regs = [...new Set(was.filter(id => id && (STORY[id] || SMITH_BY_ID[id])))].slice(0, INN_MAX);
+      for (const id in (n0.story || {})) if (STORY[id]) inn.story[id] = Math.max(0, Math.min(STORY_LEN, n0.story[id] | 0));
+      for (const id in (n0.sgiven || {})) if (STORY[id]) inn.sgiven[id] = n0.sgiven[id];
       for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
       for (const id in (n0.given || {})) if (SMITH_BY_ID[id]) inn.given[id] = n0.given[id];
     } else {
@@ -3486,7 +3495,7 @@ function renderSmithInsp(){
   const sm = SMITH_BY_ID[innPick];
   if (!sm) return false;
   // v9.56.2: **다 보여 준다** — 무엇을 열어 주는 사람인지, 무엇을 내야 하는지, 지금 얼마나 모았는지
-  const lock = smithLocked(sm.id), done = smithDone(sm.id), reg = (S.inn || {}).reg === sm.id;
+  const lock = smithLocked(sm.id), done = smithDone(sm.id), reg = innRegs().includes(sm.id);
   const st = smithStep(sm.id);
   // v9.61.0: 걸음은 하나 — 내야 할 물건만 적는다
   const ok = st > 0;
@@ -4729,8 +4738,8 @@ function smithCardHtml(id, drag, tag){
 function screenRows(){
   // v9.55.0: 🏨 여관 — 윗줄은 여관 주인(등록 칸 하나), 등록한 장인이 있으면 그 아래 **세 걸음** 줄
   if (S.tab === 'inn'){
-    const n = S.inn = S.inn || freshInn();
-    const reg = n.reg && SMITH_BY_ID[n.reg] ? n.reg : null;
+    S.inn = S.inn || freshInn();
+    const regs = innRegs();
     // v9.55.1: 땅 줄과 같은 꼴 — **왼쪽에 여관 주인**(크리처가 앉는 자리 · 동테), 그 옆이 여관 카드
     const keeper = `<div class="foelist">${beingCardHtml({
       cls: `f-bronze foe keeper${innPick === 'keeper' ? ' sel' : ''}`,
@@ -4739,37 +4748,36 @@ function screenRows(){
     const innCard = `<div class="cw framed f-stone field${innPick === 'inn' ? ' sel' : ''}" data-smith="inn">`
       + '<div class="emoji"><img class="icon" src="images/icon/card_inn.png" alt="여관" draggable="false"></div>'
       + '<div class="name">여관</div></div>';
-    // v9.61.0: **줄은 하나다** — 여관 주인 · 여관 · 그 옆 한 칸(등록)
-    // v9.72.0: 등록하면 그 **오른쪽에 재료 슬롯**이 재료 종류마다 하나씩 붙는다 (낸 수 / 필요한 수)
-    const sm = reg ? SMITH_BY_ID[reg] : null;
-    // v9.80.0: 이야기 등록 — 그 사람 그림 + 지금 걸음 칸 (물건이면 재료 슬롯, 사냥 · 만들기면 할 일 한 칸)
-    const sreg = !reg && n.sreg && storyCan(n.sreg) && !storyDone(n.sreg) ? n.sreg : null;
-    if (sreg){
-      const st = storyNow(sreg);
-      const slots = [{ id:'inn:reg', open:true, card:true,
-        icon: `<img class="icon" src="images/icon/${personPic(sreg)}.png" alt="" draggable="false">`,
-        cardName: pName(sreg), frame: sreg === 'knight' ? 'gold' : 'bronze', lab:'등록' }];
-      if (st.give) for (const [t, k] of st.give){
-        const got = storyGiven(sreg)[t] || 0, full = got >= k;
-        slots.push({ id: `inn:give-${t}`, open: true, card: full, type: t,
+    // v9.81.0: **등록 칸은 셋.** 윗줄에 셋, 등록한 사람마다 그 아래에 제 줄 —
+    //   물건 걸음이면 재료 슬롯(낸 수 / 필요한 수), 사냥 · 만들기 걸음이면 할 일 칸 하나
+    const regSlots = [];
+    for (let i = 0; i < INN_MAX; i++){
+      const id = regs[i];
+      regSlots.push({ id: `inn:reg${i}`, open: true, card: !!id,
+        icon: id ? `<img class="icon" src="images/icon/${personPic(id)}.png" alt="" draggable="false">` : '',
+        cardName: id ? pName(id) : '', frame: id === 'knight' ? 'gold' : 'bronze', lab: '등록' });
+    }
+    const rows = [{ card: keeper + innCard, slots: regSlots }];
+    for (const id of regs){
+      const story = storyCan(id), st = story ? storyNow(id) : null;
+      const card = beingCardHtml({ cls: `f-${id === 'knight' ? 'gold' : 'bronze'}${innPick === id || heroPick === id ? ' sel' : ''}`,
+        attrs: id === 'knight' || id === 'ally' ? ` data-hero-card="${id}"` : ` data-smith="${id}"`,
+        pic: `images/icon/${personPic(id)}.png`, name: pName(id), job: personJob(id),
+        tag: story ? `이야기 ${storyStep(id) + 1}/${STORY_LEN}` : '합류 퀘스트' });
+      const give = story ? (st && st.give) : (SMITH_BY_ID[id] || {}).give;
+      const got = story ? storyGiven(id) : innGiven(id);
+      const slots = [];
+      if (give) for (const [t, k] of give){
+        const g = got[t] || 0, full = g >= k;
+        slots.push({ id: `inn:g-${id}-${t}`, open: true, card: full, type: t,
           icon: full ? iconHtml(t) : '', cardName: full ? DEFS[t].name : '',
-          frame: full ? frameOf(DEFS[t]) : 'wood', lab: DEFS[t].name, note: `${got}/${k}` });
-      } else slots.push({ id:'inn:task', open:true, card:false,   // 칸엔 짧게 — 자세한 글은 수첩 줄 · 정보 칸
+          frame: full ? frameOf(DEFS[t]) : 'wood', lab: DEFS[t].name, note: `${g}/${k}` });
+      } else if (st) slots.push({ id: `inn:task-${id}`, open: true, card: false,   // 칸엔 짧게 — 자세한 글은 수첩 줄 · 정보 칸
         lab: st.kill ? '사냥' : '만들기',
         note: st.kill ? (foeKnown(st.kill) ? ENEMIES[st.kill].name : '???') : (nameShown(st.make) ? DEFS[st.make].name : '???') });
-      return [{ card: keeper + innCard, slots }];
+      rows.push({ card, slots });
     }
-    const slots = [{ id:'inn:reg', open:true, card: !!reg,
-      icon: reg ? `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false">` : '',
-      cardName: reg ? pName(reg) : '', frame:'bronze', lab:'등록' }];
-    if (reg) for (const [t, n] of (sm.give || [])){
-      const got = innGiven(reg)[t] || 0, full = got >= n;
-      slots.push({ id: `inn:give-${t}`, open: true, card: full, type: t,
-        icon: full ? iconHtml(t) : '', cardName: full ? DEFS[t].name : '',
-        frame: full ? frameOf(DEFS[t]) : 'wood',
-        lab: DEFS[t].name, note: `${got}/${n}` });
-    }
-    return [{ card: keeper + innCard, slots }];
+    return rows;
   }
   if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
     const g = S.goal && DEFS[S.goal] ? S.goal : null;
@@ -4833,57 +4841,46 @@ function screenTokens(){
   // v9.68.0: 여관 아래는 **두 묶음** — 〈합류 전〉은 등록해 합류 퀘스트를 하는 사람,
   //   〈합류〉는 이미 우리 편이 된 사람 (탭하면 정보만 본다. 뒷날 캐릭터 이야기 퀘스트가 여기에 붙는다)
   if (S.tab === 'inn'){
-    const reg = (S.inn || {}).reg, sreg = (S.inn || {}).sreg;
+    const regs = innRegs();
     const lab = (t, n) => ({ token: null, html: `<div class="sect-lab">${esc(t)} <span class="i-muted">${n}</span></div>` });
-    const pre = SMITHS.filter(x => !smithOk(x.id) && x.id !== reg);
+    const pre = SMITHS.filter(x => !smithOk(x.id) && !regs.includes(x.id));   // 등록한 사람은 윗줄에 이미 있다
     const joined = SMITHS.filter(x => smithOk(x.id));
     const out = [];
-    if (pre.length || reg) out.push(lab('합류 전', String(pre.length + (reg ? 1 : 0))));
+    const preReg = regs.filter(id => !storyCan(id)).length;
+    if (pre.length || preReg) out.push(lab('합류 전', String(pre.length + preReg)));
     for (const x of pre){
-      const can = !smithLocked(x.id);                             // v9.55.5: 등록 중이어도 끌 수 있다 — 올리면 앞사람이 내려온다
+      const can = !smithLocked(x.id);                             // v9.55.5: 찬 칸에 올리면 앞사람이 내려온다
       out.push({ token: can ? x.id : null, html: smithCardHtml(x.id, can) });
     }
-    // v9.72.0: 납품할 재료는 **제 묶음**으로 — 사람 카드와 섞이지 않게
-    if (reg && smithStep(reg) === 0){
-      const sm2 = SMITH_BY_ID[reg], mine = (sm2.give || []).filter(([t]) => innGiveNeed(t) > 0 && have(t) > 0);
-      if (mine.length){
-        const done = (sm2.give || []).filter(([t, n]) => (innGiven(reg)[t] || 0) >= n).length;
-        out.push(lab(`납품 — ${pName(reg)}에게`, `${done}/${(sm2.give || []).length}`));
-        for (const [t, n] of mine) out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">`
-          + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
-          + statsHtml(t) + `<div class="cnt">${have(t)}</div>`
-          + `<div class="s-badge">${innGiven(reg)[t] || 0}/${n}</div></div>` });
-      }
+    // v9.72.0 · v9.81.0: 납품할 재료는 **제 묶음**으로 — 등록한 사람들이 바라는 것을 한 장씩 (어느 줄에 낼지는 끌어서 고른다)
+    const want = [];
+    for (const id of regs){
+      const story = storyCan(id), st = story && storyNow(id);
+      const give = story ? (st && st.give) || [] : smithStep(id) === 0 ? (SMITH_BY_ID[id] || {}).give || [] : [];
+      for (const [t] of give)
+        if (!want.includes(t) && have(t) > 0 && (story ? storyGiveNeed(t, id) : innGiveNeed(t, id)) > 0) want.push(t);
     }
-    // v9.71.0: 늘 함께인 사람들도 〈합류〉에 선다 — 여관 주인 · 만물상 · 기사 · 궁수
-    // v9.80.0: 이야기 걸음이 물건이면 그 재료도 제 묶음으로
-    const sst = sreg && storyNow(sreg);
-    if (sst && sst.give){
-      const mine = sst.give.filter(([t]) => storyGiveNeed(t) > 0 && have(t) > 0);
-      if (mine.length){
-        out.push(lab(`납품 — ${pName(sreg)}에게`, `${sst.give.filter(([t, k]) => (storyGiven(sreg)[t] || 0) >= k).length}/${sst.give.length}`));
-        for (const [t, k] of mine) out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">`
-          + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
-          + statsHtml(t) + `<div class="cnt">${have(t)}</div>`
-          + `<div class="s-badge">${storyGiven(sreg)[t] || 0}/${k}</div></div>` });
-      }
+    if (want.length){
+      out.push(lab('납품', String(want.length)));
+      for (const t of want) out.push({ token: t, html: `<div class="cw framed f-${frameOf(DEFS[t])}">`
+        + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
+        + statsHtml(t) + `<div class="cnt">${have(t)}</div></div>` });
     }
     // v9.80.0: 합류한 사람은 **이야기가 남았으면 끌 수 있다** — 등록 칸에 올리면 이야기를 잇는다
-    const tok = id => storyCan(id) && !storyDone(id) && id !== sreg;
+    const tok = id => storyCan(id) && !storyDone(id) && !regs.includes(id);
     const stTag = id => STORY[id] ? `이야기 ${storyStep(id)}/${STORY_LEN}` : '';
+    // v9.71.0: 늘 함께인 사람들도 〈합류〉에 선다 — 여관 주인 · 만물상 · 기사 · 궁수
     const always = ALWAYS_PEOPLE.map(id => ({ id, html: beingCardHtml({
       cls: `f-bronze${innPick === id ? ' sel' : ''}`, attrs: ` data-smith="${id}"${tok(id) ? ` data-token="${id}"` : ''}`, tag: stTag(id),
-      pic: `images/icon/card_${id === 'keeper' ? 'innkeeper' : id}.png`,
-      name: pName(id), job: id === 'keeper' ? '여관 주인' : '만물상' }) }));
+      pic: `images/icon/${personPic(id)}.png`, name: pName(id), job: personJob(id) }) }));
     const heroes = HEROES_ALL.filter(k => k !== 'ally' || S.ally).map(k => ({ id: k, html: beingCardHtml({
       cls: `f-${k === 'ally' ? 'bronze' : 'gold'}${heroPick === k ? ' sel' : ''}`,
       attrs: ` data-hero-card="${k}"${tok(k) ? ` data-token="${k}"` : ''}`,
-      pic: `images/icon/${hCard(k)}.png`, name: pName(k), job: hName(k), tag: stTag(k) }) }));            // v9.80.0: 레벨은 정보 칸에서
-    const all = always.concat(heroes, joined
-      .map(x => ({ id: x.id, html: smithCardHtml(x.id, tok(x.id), stTag(x.id)) })));
-    const shown = all.filter(c => c.id !== sreg);                 // 등록한 사람은 윗줄에 이미 있다
+      pic: `images/icon/${hCard(k)}.png`, name: pName(k), job: hName(k), tag: stTag(k) }) }));
+    const all = always.concat(heroes, joined.map(x => ({ id: x.id, html: smithCardHtml(x.id, tok(x.id), stTag(x.id)) })));
+    const shown = all.filter(c => !regs.includes(c.id));
     if (shown.length) out.push(lab('합류', String(shown.length)));
-    for (const c of shown) out.push({ token: tok(c.id) ? c.id : null, html: c.html });   // v9.80.0: 이야기가 남았으면 끌 수 있다
+    for (const c of shown) out.push({ token: tok(c.id) ? c.id : null, html: c.html });
     return out;
   }
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
@@ -5050,8 +5047,8 @@ function renderScreen(){
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
-      : S.tab === 'inn' ? ((S.inn || {}).reg || (S.inn || {}).sreg   // v9.55.0 · v9.80.1
-        ? '재료를 등록 칸의 사람에게 끌어다 놓으세요 — 다른 사람을 올리면 바꿔 앉는다'
+      : S.tab === 'inn' ? (innRegs().length                        // v9.55.0 · v9.80.1 · v9.81.0
+        ? `재료를 그 사람 줄의 칸에 끌어다 놓으세요 — 등록 ${innRegs().length}/${INN_MAX}`
         : '〈합류 전〉은 합류 퀘스트, 〈합류〉는 이야기 — 등록 칸에 끌어다 놓거나 카드를 탭해 등록하세요')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
@@ -5065,8 +5062,12 @@ const renderSlots = () => {};                                     // v0.29.0: �
 function dropOnSlot(id, token){
   const { row: rowKey, key: slotKey } = slotId(id);               // v9.24.2
   if (S.tab === 'inn'){                                           // v9.55.0: 등록 칸 · 물건 칸
-    if (slotKey === 'reg') storyCan(token) ? storyRegister(token) : innRegister(token);   // v9.61.0 · v9.80.0: 합류한 사람이면 이야기
-    else if (slotKey.startsWith('give-')) (S.inn || {}).sreg ? storyGive(token) : innGive(token);   // v9.72.0: 제 재료 슬롯에 건넴
+    // v9.81.0: 등록 칸 셋(reg0~2) · 재료 칸은 `g-<누구>-<재료>`
+    if (/^reg\d$/.test(slotKey)){ const i = +slotKey.slice(3); storyCan(token) ? storyRegister(token, i) : innRegister(token, i); }
+    else if (slotKey.startsWith('g-')){
+      const [who, t] = slotKey.slice(2).split('-');
+      if (t === token) storyCan(who) ? storyGive(t, who) : innGive(t, who);
+    }
     return;
   }
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
@@ -5087,10 +5088,12 @@ function slotTakes(id, token){
   const { key: slotKey, who } = slotId(id);                        // v9.24.2
   if (S.tab === 'inn'){                                           // v9.55.0
     // v9.72.0: 등록 칸은 **사람**, 재료 슬롯은 **그 재료**만 받는다
-    if (slotKey === 'reg') return (!!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token))   // v9.55.5: 차 있어도 바꿔 낀다
-      || (storyCan(token) && !storyDone(token));                  // v9.80.0: 합류한 사람 — 이야기
-    if (slotKey.startsWith('give-')) return token === slotKey.slice(5)
-      && ((S.inn || {}).sreg ? storyGiveNeed(token) : innGiveNeed(token)) > 0;
+    if (/^reg\d$/.test(slotKey)) return !innRegs().includes(token)   // v9.81.0: 등록 칸 셋 · 찬 칸에 올리면 바꿔 앉힌다
+      && ((!!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token)) || (storyCan(token) && !storyDone(token)));
+    if (slotKey.startsWith('g-')){
+      const [who, t] = slotKey.slice(2).split('-');
+      return token === t && (storyCan(who) ? storyGiveNeed(t, who) : innGiveNeed(t, who)) > 0;
+    }
     return false;
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
@@ -5150,7 +5153,7 @@ gatherEl.addEventListener('pointerdown', e => {
   const fs = slotId(fromSlot);                                    // v9.24.2: 어느 줄(누구)의 칸인지까지 읽는다
   const token = tokEl ? tokEl.dataset.token
     : S.tab === 'aim' ? S.goal
-    : S.tab === 'inn' ? (fs.key === 'reg' ? (S.inn || {}).reg : null)   // v9.55.0
+    : S.tab === 'inn' ? (/^reg\d$/.test(fs.key) ? innRegs()[+fs.key.slice(3)] : null)   // v9.55.0 · v9.81.0
     : equipped(fs.key, fs.who);
   if (!token) return;
   const r0 = el.getBoundingClientRect();
@@ -5220,12 +5223,14 @@ addEventListener('pointerup', e => {
   }
   const hit = d.snap || null;                                     // v9.39.0: 스냅돼 있던 칸에만 들어간다
   if (hit && hit !== d.fromSlot){
-    if (d.fromSlot && S.tab === 'inn') innUnregister();            // v9.55.0
-    else if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
-    dropOnSlot(hit, d.token);
+    if (d.fromSlot && S.tab === 'inn'){}                           // v9.81.0: 등록 칸끼리는 옮기지 않는다
+    else {
+      if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
+      dropOnSlot(hit, d.token);
+    }
   } else if (d.fromSlot && !hit){
     if (S.tab === 'aim'){ S.goal = null; slotPick = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4 · v5.4.0
-    else if (S.tab === 'inn') innUnregister();                     // v9.55.0: 등록 칸에서 끌어내면 푼다
+    else if (S.tab === 'inn') innUnregister(d.token);              // v9.55.0: 등록 칸에서 끌어내면 그 사람만 푼다
     else { const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // 칸 밖으로 빼기. v9.24.2: 그 줄의 것만
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
@@ -7626,30 +7631,28 @@ function renderQuest(){
 let lastGoalStep = null, lastInnStep = null;
 // v9.55.2: **여관 퀘스트** — 등록하면 수첩에 한 줄로 올라온다. 세 걸음 가운데 지금 걸음만 적는다
 //   (장인을 못 찾은 동안엔 이 줄이 '지금 뭘 해야 하는지'를 말해 주는 유일한 자리다)
-function innStepKeyNow(){
-  const n = innSt();
-  if (n && n.sreg) return `story:${n.sreg}:${storyStep(n.sreg)}`;   // v9.80.0
-  if (!n || !n.reg) return null;
-  return `${n.reg}:${smithStep(n.reg)}:${smithStep(n.reg) === 1 && innHandReady(n.reg) ? 'hand' : 'get'}`;
+function innStepKeyNow(){                                          // v9.81.0: 등록한 사람 모두의 걸음
+  const k = innRegs().map(id => storyCan(id) ? `s:${id}:${storyStep(id)}`
+    : `${id}:${smithStep(id)}:${innHandReady(id) ? 'hand' : 'get'}`).join('|');
+  return k || null;
 }
-function innRowHtml(){
-  const n = innSt();
-  if (n && n.sreg && storyNow(n.sreg)){                           // v9.80.0: 사람 이야기
-    const id = n.sreg;
+function innRowHtml(){ return innRegs().map(innRowOf).join(''); }  // v9.81.0: 한 사람에 한 줄
+function innRowOf(id){
+  if (storyCan(id)){                                              // v9.80.0: 사람 이야기
+    if (!storyNow(id)) return '';
     return `<div class="q-row inn"><span class="q-tag">🏨</span>`
       + `<img class="q-pic" src="images/icon/${personPic(id)}.png" alt="" draggable="false">`
       + `<b class="q-name">${esc(pName(id))} 이야기 (${storyStep(id) + 1}/${STORY_LEN})</b>`
       + `<span class="q-text">${storyStepText(storyNow(id), id, true)}</span><span class="q-n"></span></div>`;
   }
-  if (!n || !n.reg || !SMITH_BY_ID[n.reg]) return '';
-  const sm = SMITH_BY_ID[n.reg], i = smithStep(sm.id);
-  if (i >= INN_STEPS.length) return '';
+  const sm = SMITH_BY_ID[id];
+  if (!sm || smithStep(id) >= INN_STEPS.length) return '';
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
-  const ready = innHandReady(sm.id);                              // 다 쥐었나 — 그러면 '제출하기'
-  const body = ready ? `🏨 여관 <b>등록</b> 칸에 끌어다 놓자 — ${esc((sm.give || []).map(([t, n]) =>
-      `${DEFS[t].name} ×${n - (innGiven(sm.id)[t] || 0)}`).join(' · '))}` : innGetBody(sm);
+  const ready = innHandReady(id);                                 // 다 쥐었나 — 그러면 '제출하기'
+  const body = ready ? `🏨 여관 <b>${esc(pName(id))}</b> 줄의 칸에 끌어다 놓자 — ${esc((sm.give || []).map(([t, n]) =>
+      `${DEFS[t].name} ×${n - (innGiven(id)[t] || 0)}`).join(' · '))}` : innGetBody(sm);
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
-    + `<b class="q-name">${esc(smithName(sm.id))} 찾기</b>`
+    + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
     + `<span class="q-text">${esc(ready ? '제출하기' : '구하기')} · ${body}</span>`
     + '<span class="q-n"></span></div>';
 }
