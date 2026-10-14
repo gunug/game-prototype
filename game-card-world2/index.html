@@ -261,6 +261,7 @@
   .q-row.done .q-name,.q-row.done .q-text{text-decoration:line-through;text-decoration-color:rgba(143,220,143,.7);}
   .quest .q-name{flex:none;}
   .quest .q-text{color:var(--muted);overflow:hidden;text-overflow:ellipsis;}
+  .q-edit-done{flex:none;margin-left:6px;padding:1px 8px;border-radius:var(--r-pill);border:1px solid #c9a227;background:rgba(201,162,39,.18);color:#ffd84a;font:inherit;font-size:11px;font-weight:800;cursor:pointer;}   /* v9.82.0: 에디터 모드 전용 */
   .quest .q-n{display:inline-block;margin-left:auto;flex:none;font-weight:800;font-variant-numeric:tabular-nums;}
   .quest .q-prog{color:var(--brand-yellow);font-weight:800;font-variant-numeric:tabular-nums;}   /* v0.44.0 */
   .quest .q-name + .q-prog{margin-left:4px;margin-right:2px;}      /* v9.55.3: 진행 수는 제목 바로 옆 */
@@ -1806,7 +1807,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.81.0';
+const VERSION = 'v9.82.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1833,6 +1834,7 @@ const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
 inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
+  if (editDoneClick(e)) return;                                   // v9.82.0: 에디터 모드 '완료'
   const sr = e.target.closest('[data-story-reg]');                // v9.80.1: 정보 칸에서 바로 이야기 등록
   if (sr){ storyRegister(sr.dataset.storyReg); return; }
   const arm = e.target.closest('[data-arm]');                     // v7.18.0: 이 땅에 맞는 무기로 한 번에
@@ -2349,7 +2351,7 @@ function storyInspHtml(id){
     : S.tab === 'inn' && innRegs().length >= INN_MAX ? `<div class="i-muted">🏨 등록 칸이 찼다 (${INN_MAX}/${INN_MAX}) — 한 사람을 내리자</div>`
     : S.tab === 'inn' ? `<button class="reset story-reg" data-story-reg="${id}">🏨 등록 — 이야기 이어 하기</button>`   // v9.80.1
     : '<div class="i-muted">🏨 여관 등록 칸에 올리면 이어서 한다</div>';
-  return `<div class="i-sect">이야기 <span class="i-muted">${s}/${STORY_LEN}${reg ? ' (등록함)' : ''}</span></div>${rows}${tail}`;
+  return `<div class="i-sect">이야기 <span class="i-muted">${s}/${STORY_LEN}${reg ? ' (등록함)' : ''}</span>${reg && s < STORY_LEN ? editDoneBtn('story', id) : ''}</div>${rows}${tail}`;
 }
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
 const questGoal = def => def.steps ? def.steps.length : def.goal;  // v0.39.0
@@ -3514,7 +3516,7 @@ function renderSmithInsp(){
     + (done ? '<div class="i-ok">합류 — 이제 만들 수 있다</div>'
       : sm.free ? ''
       : (lock ? `<div class="i-muted">🔒 ${esc(smithNeed(sm.id))} — 그 뒤에 찾아 나설 수 있다</div>` : '')
-        + `<div class="i-sect">내야 할 물건${reg ? ' <span class="i-muted">(등록함)</span>' : ''}</div>${steps}`);
+        + `<div class="i-sect">내야 할 물건${reg ? ' <span class="i-muted">(등록함)</span>' + editDoneBtn('join', sm.id) : ''}</div>${steps}`);
   return true;
 }
 function renderInsp(){
@@ -5344,7 +5346,7 @@ function renderGoalInsp(){
   const first = plan.findIndex(st => !planStepDone(st));
   inspEl.innerHTML = `<div class="head"><div class="pic">${iconHtml(g)}</div>`
     + `<div><div class="nm">${esc(aimName(g))} 만들기</div>`
-    + `<div class="kd">🎯 목표 · ${plan.filter(planStepDone).length}/${plan.length} 됨</div></div></div>`
+    + `<div class="kd">🎯 목표 · ${plan.filter(planStepDone).length}/${plan.length} 됨${editDoneBtn('goal', g)}</div></div></div>`
     + `<div class="aim-plan insp-plan">`
     + (plan.length ? plan.map((st, i) => {
         const done = planStepDone(st);
@@ -6049,7 +6051,7 @@ function goalJumpClick(e){
   if (c && DEFS[c.dataset.gocard]){ goCardTap(c.dataset.gocard); return true; }
   return false;
 }
-document.getElementById('quest').addEventListener('click', goalJumpClick);
+document.getElementById('quest').addEventListener('click', e => { if (!editDoneClick(e)) goalJumpClick(e); });   // v9.82.0: 에디터 모드 '완료'
 document.getElementById('gather').addEventListener('click', goalJumpClick);
 function jumpTo(t){
   const r = CRAFT_RECIPES.find(x => !x.cook && (x.out || []).includes(t));
@@ -7643,7 +7645,7 @@ function innRowOf(id){
     return `<div class="q-row inn"><span class="q-tag">🏨</span>`
       + `<img class="q-pic" src="images/icon/${personPic(id)}.png" alt="" draggable="false">`
       + `<b class="q-name">${esc(pName(id))} 이야기 (${storyStep(id) + 1}/${STORY_LEN})</b>`
-      + `<span class="q-text">${storyStepText(storyNow(id), id, true)}</span><span class="q-n"></span></div>`;
+      + `<span class="q-text">${storyStepText(storyNow(id), id, true)}</span>${editDoneBtn('story', id)}<span class="q-n"></span></div>`;
   }
   const sm = SMITH_BY_ID[id];
   if (!sm || smithStep(id) >= INN_STEPS.length) return '';
@@ -7654,7 +7656,35 @@ function innRowOf(id){
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
     + `<span class="q-text">${esc(ready ? '제출하기' : '구하기')} · ${body}</span>`
-    + '<span class="q-n"></span></div>';
+    + editDoneBtn('join', id) + '<span class="q-n"></span></div>';
+}
+// v9.82.0: **에디터 모드 전용 '완료'** — 조건 · 재료 · 조합 차례와 상관없이 그 결과를 바로 받는다
+//   goal: 목표 카드를 한 장 받는다 / join: 그 장인이 합류한다 / story: 그 사람 이야기 걸음 하나를 넘긴다
+//   (에디터 모드는 시험용 사본이라 저장되지 않는다. 보통 모드에선 버튼 자체가 없다)
+const editDoneBtn = (kind, id) => editMode
+  ? `<button class="q-edit-done" data-edit-done="${kind}:${id}" title="에디터 모드 — 조건을 건너뛰고 끝낸다">완료</button>` : '';
+function editDone(kind, id){
+  if (!editMode) return;
+  if (kind === 'goal'){
+    if (S.goal !== id || !DEFS[id]) return;
+    addCard(id, 0, 0, true, null, true);
+    checkGoalDone();
+  } else if (kind === 'join'){
+    if (!SMITH_BY_ID[id] || smithDone(id)) return;
+    innFinish(id);
+  } else if (kind === 'story'){
+    if (!innRegs().includes(id) || !storyNow(id)) return;
+    storyAdvance(id);
+  }
+  renderAll(); renderInsp(); renderQuest();
+}
+function editDoneClick(e){
+  const b = e.target.closest('[data-edit-done]');
+  if (!b) return false;
+  e.stopPropagation();
+  const [kind, id] = b.dataset.editDone.split(':');
+  editDone(kind, id);
+  return true;
 }
 function goalStepKey(){
   const g = S.goal;
@@ -7670,6 +7700,7 @@ function goalRowHtml(){
   const body = st ? goalStepBody(st) : `${rcpIcon(g, true)} ${esc(aimName(g))} <span class="i-muted">재료가 다 모였다 — 만들기만 하면 된다</span>`;
   return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}</b>`
     + `<span class="q-text">${body}</span>`                       // v3.6.6: '남은 N' 은 헷갈려서 뺌
+    + editDoneBtn('goal', g)                                      // v9.82.0
     + `<span class="q-n"></span></div>`;
 }
 // v0.44.0: 퀘스트 줄 표시 통일 — 오른쪽 끝은 **끝났을 때 ✓** 만.
