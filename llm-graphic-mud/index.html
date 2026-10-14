@@ -224,7 +224,7 @@ $('btnComfy').onclick = () => run('ComfyUI', async () => {
   return `실행 중 ${d.queue_running.length} · 대기 ${d.queue_pending.length}`;
 });
 
-// ---- 캐릭터 생성: Ollama 로 프롬프트 → ComfyUI z-image turbo 로 그림 ----
+// ---- 캐릭터 생성: Ollama 로 프롬프트 → ComfyUI Krea2 turbo 로 그림 ----
 
 const CHAR_SCHEMA = {
   type: 'object',
@@ -237,25 +237,32 @@ const CHAR_SCHEMA = {
 };
 
 const CHAR_SYSTEM = `너는 판타지 머드 게임의 캐릭터 디자이너다. 매번 새롭고 서로 다른 캐릭터를 만든다.
-JSON 으로만 답한다.
+JSON 으로만 답한다. name · desc 는 한글로만 쓴다 — 한자 · 중국어 · 영어 금지.
 - name: 한국어 이름 (2~6자)
 - desc: 한국어 한 줄 소개 (직업 · 성격 · 특징)
-- image_prompt: 영어 이미지 프롬프트. 한 명만, 전신, 단색 배경, 옷과 장비 · 표정 · 자세 · 색을 구체적으로 묘사. 옷을 다 갖춰 입은 건전한 그림. 60단어 안팎.`;
+- image_prompt: 영어 이미지 프롬프트. 캐릭터 한 명만 묘사 — 종족 · 체격 · 옷과 갑옷 · 무기 · 표정 · 자세 · 색을 구체적으로. 화풍 · 배경 · 조명은 쓰지 않는다 (따로 붙인다). 옷을 다 갖춰 입은 건전한 그림. 50단어 안팎.`;
 
-// image_z_image_turbo.json (ComfyUI 템플릿) 과 같은 노드 구성 — API 형식
-function zImageWorkflow(prompt, seed){
+// 화풍 — 코드가 프롬프트 뒤에 붙인다 (Ollama 는 캐릭터 묘사만)
+const CHAR_STYLE = 'Blizzard Entertainment style fantasy character illustration, like World of Warcraft and Diablo '
+  + 'official character art, hand-painted digital painting with bold painterly brush strokes, stylized heroic '
+  + 'proportions, chunky oversized armor and weapons, strong readable silhouette, rich saturated colors, '
+  + 'dramatic rim lighting, full body, plain dark gradient background. '
+  + 'Not photorealistic, not a photo, no text, no watermark.';
+
+// image_krea2_turbo_t2i.json (ComfyUI 템플릿) 의 기본 경로 — API 형식.
+// 워크플로 안의 프롬프트 확장(TextGenerate) · LoRA 는 끈 경로만 옮겼다.
+function krea2Workflow(prompt, seed){
   return {
-    '28': { class_type: 'UNETLoader', inputs: { unet_name: 'z_image_turbo_bf16.safetensors', weight_dtype: 'default' } },
-    '11': { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['28', 0], shift: 3 } },
-    '30': { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen_3_4b.safetensors', type: 'lumina2', device: 'default' } },
-    '27': { class_type: 'CLIPTextEncode', inputs: { clip: ['30', 0], text: prompt } },
-    '33': { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['27', 0] } },
-    '13': { class_type: 'EmptySD3LatentImage', inputs: { width: 720, height: 1280, batch_size: 1 } },
+    '10': { class_type: 'UNETLoader', inputs: { unet_name: 'krea2_turbo_fp8_scaled.safetensors', weight_dtype: 'default' } },
+    '11': { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen3vl_4b_fp8_scaled.safetensors', type: 'krea2', device: 'default' } },
+    '6':  { class_type: 'CLIPTextEncode', inputs: { clip: ['11', 0], text: prompt } },
+    '13': { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['6', 0] } },
+    '5':  { class_type: 'EmptyLatentImage', inputs: { width: 768, height: 1344, batch_size: 1 } },
     '3':  { class_type: 'KSampler', inputs: {
-      model: ['11', 0], positive: ['27', 0], negative: ['33', 0], latent_image: ['13', 0],
-      seed, steps: 8, cfg: 1, sampler_name: 'res_multistep', scheduler: 'simple', denoise: 1 } },
-    '29': { class_type: 'VAELoader', inputs: { vae_name: 'ae.safetensors' } },
-    '8':  { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['29', 0] } },
+      model: ['10', 0], positive: ['6', 0], negative: ['13', 0], latent_image: ['5', 0],
+      seed, steps: 8, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise: 1 } },
+    '12': { class_type: 'VAELoader', inputs: { vae_name: 'qwen_image_vae.safetensors' } },
+    '8':  { class_type: 'VAEDecode', inputs: { samples: ['3', 0], vae: ['12', 0] } },
     '9':  { class_type: 'SaveImage', inputs: { images: ['8', 0], filename_prefix: 'llm-mud/char' } },
   };
 }
@@ -295,8 +302,8 @@ $('btnChar').onclick = async () => {
     });
     const c = JSON.parse(d.message.content);
 
-    stage(`2/2 「${c.name}」 그리는 중 (ComfyUI z-image)…`);
-    const q = await api('/comfy/prompt', { prompt: zImageWorkflow(c.image_prompt, Math.floor(Math.random() * 2 ** 48)) });
+    stage(`2/2 「${c.name}」 그리는 중 (ComfyUI Krea2)…`);
+    const q = await api('/comfy/prompt', { prompt: krea2Workflow(c.image_prompt + '. ' + CHAR_STYLE, Math.floor(Math.random() * 2 ** 48)) });
     if (!q.prompt_id) throw new Error('ComfyUI 가 작업을 받지 않음: ' + JSON.stringify(q).slice(0, 200));
     const img = await waitComfy(q.prompt_id);
 
