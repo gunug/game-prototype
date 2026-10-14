@@ -45,6 +45,7 @@
       <div class="keyrow">
         <input id="key" type="password" autocomplete="off">
         <button class="btn btn-secondary btn-sm" id="btnSave">저장</button>
+        <button class="btn btn-secondary btn-sm" id="btnCopy">복사</button>
       </div>
       <span class="unsaved" id="unsaved" hidden>저장되지 않음</span>
       <div class="row">
@@ -99,6 +100,23 @@ $('btnSave').onclick = () => {
   store.set('mud.key', $('key').value.trim());
   markKey();
   show(keyDirty() ? '키 저장 실패 (브라우저 저장소를 쓸 수 없음)' : '키 저장됨', keyDirty() ? 'err' : 'ok');
+};
+$('btnCopy').onclick = async () => {
+  const k = $('key').value.trim();
+  if (!k) return show('복사할 키가 없음', 'err');
+  try {
+    await navigator.clipboard.writeText(k);
+    return show('키 복사됨', 'ok');
+  } catch {}
+  // 클립보드 API 가 막히면 (창 포커스 없음 등) 예전 방식으로
+  const ta = document.createElement('textarea');
+  ta.value = k;
+  ta.style.cssText = 'position:fixed;opacity:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand('copy');
+  ta.remove();
+  show(ok ? '키 복사됨' : '복사 실패 (브라우저가 클립보드를 막음)', ok ? 'ok' : 'err');
 };
 window.addEventListener('beforeunload', e => {
   if (!keyDirty()) return;
