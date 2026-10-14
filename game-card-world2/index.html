@@ -823,6 +823,7 @@
   /* v9.56.0: 사람 카드의 한마디 — 설명 아래 기울임으로 한 줄 */
   .insp .st-row{margin:3px 0;line-height:1.45;}                     /* v9.80.0: 이야기 걸음 — 줄바꿈 됨 */
   .insp .st-row.done{color:var(--muted);}
+  .insp .story-reg{margin-top:6px;color:var(--text, #eee);}
   .insp .i-quip{margin-top:6px;color:var(--muted);font-style:italic;line-height:1.45;}
   /* v9.56.5: 사람의 전신 그림 — 정보 칸 안에 한 장 (비율 그대로, 바닥에 세운다) */
   .insp .insp-body{display:flex;justify-content:center;align-items:flex-end;margin:4px 0 2px;}
@@ -1805,7 +1806,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.80.0';
+const VERSION = 'v9.80.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1832,6 +1833,8 @@ const table = document.getElementById('table');
 const fieldEl = document.getElementById('field');   // v0.28.1: 1:1 필드 전체 (끄는 카드를 여기 붙임)
 const inspEl = document.getElementById('insp');
 inspEl.addEventListener('click', e => {                           // v1.1.0: 조합식 속 없는 재료 → 그걸 얻는 곳
+  const sr = e.target.closest('[data-story-reg]');                // v9.80.1: 정보 칸에서 바로 이야기 등록
+  if (sr){ storyRegister(sr.dataset.storyReg); return; }
   const arm = e.target.closest('[data-arm]');                     // v7.18.0: 이 땅에 맞는 무기로 한 번에
   if (arm){
     const t = arm.dataset.arm, sl = slotByKey('weapon');
@@ -2339,7 +2342,9 @@ function storyInspHtml(id){
     : i === s && can ? `<div class="st-row">${reg ? '▶' : '·'} ${storyStepText(st, id, true)}</div>`
     : '<div class="st-row">· <span class="i-muted">???</span></div>').join('');
   const tail = !can ? '<div class="i-muted">합류하면 이야기가 열린다</div>'
-    : s >= STORY_LEN || reg ? '' : '<div class="i-muted">🏨 여관 등록 칸에 올리면 이어서 한다</div>';
+    : s >= STORY_LEN || reg ? ''
+    : S.tab === 'inn' ? `<button class="reset story-reg" data-story-reg="${id}">🏨 등록 — 이야기 이어 하기</button>`   // v9.80.1
+    : '<div class="i-muted">🏨 여관 등록 칸에 올리면 이어서 한다</div>';
   return `<div class="i-sect">이야기 <span class="i-muted">${s}/${STORY_LEN}${reg ? ' (등록함)' : ''}</span></div>${rows}${tail}`;
 }
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
@@ -5045,9 +5050,9 @@ function renderScreen(){
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
-      : S.tab === 'inn' ? ((S.inn || {}).reg                      // v9.55.0
-        ? '재료를 등록 칸의 장인에게 끌어다 놓으세요'
-        : '〈합류 전〉 사람을 등록 칸에 끌어다 놓으면 합류 퀘스트가 시작됩니다')
+      : S.tab === 'inn' ? ((S.inn || {}).reg || (S.inn || {}).sreg   // v9.55.0 · v9.80.1
+        ? '재료를 등록 칸의 사람에게 끌어다 놓으세요 — 다른 사람을 올리면 바꿔 앉는다'
+        : '〈합류 전〉은 합류 퀘스트, 〈합류〉는 이야기 — 등록 칸에 끌어다 놓거나 카드를 탭해 등록하세요')
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
