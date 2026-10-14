@@ -283,7 +283,7 @@ function makeAI({ ctx, clock }){
         const open = SMITHS.filter(x => !smithOk(x.id) && !smithLocked(x.id)).map(x => x.id);
         const step = reg ? smithStep(reg) : -1;
         const miss = [];
-        if (reg && step === 1) for (const [t2] of (SMITH_BY_ID[reg].give || [])){
+        if (reg && step === 0) for (const [t2] of (SMITH_BY_ID[reg].give || [])){
           const k = innGiveNeed(t2); if (k > 0) miss.push([t2, k]);
         }
         return JSON.parse(JSON.stringify({ reg, step, open, miss }));
@@ -295,7 +295,7 @@ function makeAI({ ctx, clock }){
       this.spend(COST.equip);
       return g(`(function(){
         const n = S.inn;
-        if (!n || !n.reg || smithStep(n.reg) !== 1) return 0;
+        if (!n || !n.reg || smithStep(n.reg) !== 0) return 0;
         let k = 0;
         for (const [t2] of (SMITH_BY_ID[n.reg].give || [])){
           for (let i = 0; i < 9 && innGiveNeed(t2) > 0 && have(t2) > 0; i++){ innGive(t2); k++; }
@@ -408,7 +408,7 @@ function play(ai, note){
     const openOrd = inn.open.slice().sort((a2, b2) => rank(a2) - rank(b2));
     const pick = openOrd.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
     if (!inn.reg && pick){ ai.innReg(pick); ai.touch(); note(`여관 등록 ${pick}`); continue; }
-    if (inn.reg && inn.step === 1){
+    if (inn.reg && inn.step === 0){
       if (ai.innHand() > 0){ ai.touch(); note('여관 납품'); continue; }
       const want = inn.miss[0] && fieldFor(inn.miss[0][0]);        // 모자란 물건이 나오는 땅으로
       if (want && ai.canBeat(want)){                               // 못 넘을 땅으로는 물건 벌러 가지 않는다
