@@ -204,6 +204,7 @@ def main():
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"[proxy] http://{HOST}:{PORT}  →  ollama {OLLAMA[1]} · comfy {COMFY[1]}")
     print(f"[proxy] 키 파일: {KEY_FILE}")
+    print(f"[proxy] 키: {KEY}")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
