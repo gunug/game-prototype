@@ -30,6 +30,31 @@
   .charout img{width:100%;border-radius:var(--r-sm);display:block;background:var(--surface-soft);}
   .prompt{font-size:12px;color:var(--muted);white-space:pre-wrap;margin:6px 0 0;}
   @media(max-width:560px){.charout{grid-template-columns:1fr;}}
+
+  .chat{margin-top:24px;display:grid;gap:10px;}
+  .chat input,.chat textarea{font:inherit;color:var(--ink);background:var(--surface);
+    border:1px solid var(--hairline);border-radius:var(--r-sm);padding:8px 10px;min-width:0;}
+  .chat textarea{resize:vertical;font-size:13px;}
+  .chatbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .chatbar input{width:160px;}
+  .status{font-size:13px;color:var(--muted);}
+  .status.on{color:#1a7f37;}
+  .panes{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .pane{display:grid;gap:8px;grid-template-rows:auto auto 1fr auto;min-width:0;}
+  .pane:first-child{grid-template-rows:auto 1fr auto;}
+  .panehead{font-weight:600;font-size:14px;}
+  .who{font-weight:400;font-size:12px;color:var(--muted);margin-left:6px;}
+  .log{height:320px;overflow-y:auto;background:var(--surface-soft);border-radius:var(--r-sm);
+    padding:10px;font-size:14px;display:flex;flex-direction:column;gap:4px;}
+  .log .m{white-space:pre-wrap;word-break:break-word;}
+  .log .m b{margin-right:6px;}
+  .log .n{font-size:12px;color:var(--muted);}
+  .log .e{font-size:12px;color:#c62828;}
+  .log .me b{color:var(--brand-yellow-deep);}
+  .log .ai{background:var(--surface);border-radius:var(--r-sm);padding:6px 8px;}
+  .send{display:flex;gap:8px;margin:0;}
+  .send input{flex:1;}
+  @media(max-width:720px){.panes{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -76,6 +101,34 @@
         </div>
       </div>
       <div class="out err" id="charErr" hidden></div>
+    </section>
+
+    <section class="card chat">
+      <h3 style="margin:0">채팅</h3>
+      <div class="chatbar">
+        <input id="nick" placeholder="닉네임" maxlength="16" autocomplete="off">
+        <button class="btn btn-primary btn-sm" id="btnConn">연결</button>
+        <span class="status" id="wsStatus">끊김</span>
+      </div>
+      <div class="panes">
+        <div class="pane">
+          <div class="panehead">온라인 채팅 <span class="who" id="who"></span></div>
+          <div class="log" id="chatLog"></div>
+          <form class="send" id="chatForm">
+            <input id="chatIn" placeholder="메시지" maxlength="500" autocomplete="off">
+            <button class="btn btn-secondary btn-sm">보내기</button>
+          </form>
+        </div>
+        <div class="pane">
+          <div class="panehead">Ollama <span class="who">나만 보임 · /system 글 · /reset</span></div>
+          <textarea id="sysIn" rows="2" placeholder="시스템 프롬프트 (비우면 없음)"></textarea>
+          <div class="log" id="llmLog"></div>
+          <form class="send" id="llmForm">
+            <input id="llmIn" placeholder="Ollama 에게" autocomplete="off">
+            <button class="btn btn-secondary btn-sm">보내기</button>
+          </form>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -125,10 +178,11 @@ window.addEventListener('beforeunload', e => {
 });
 
 // 프록시 호출. ngrok 경고 페이지를 건너뛰는 헤더를 늘 붙인다.
-async function apiRaw(path, body){
+async function apiRaw(path, body, signal){
   const base = $('base').value.trim().replace(/\/+$/, '');
   const res = await fetch(base + path, {
     method: body ? 'POST' : 'GET',
+    signal,
     headers: {
       'X-Proxy-Key': $('key').value.trim(),
       'ngrok-skip-browser-warning': '1',
@@ -263,6 +317,141 @@ $('btnChar').onclick = async () => {
   } finally {
     $('charLoading').hidden = true;
     btn.disabled = false;
+  }
+};
+
+// ---- 채팅 ----
+// 왼쪽 = 접속자 모두의 채팅 (프록시 /chat/stream · /chat/send)
+// 오른쪽 = 나만의 Ollama 대화 (/ollama/api/chat, 스트리밍)
+// WebSocket 이 아니라 HTTP 스트리밍: ngrok 무료판 경고 페이지가 WebSocket 을 가로채고,
+// 브라우저 WebSocket 은 우회 헤더를 못 붙이기 때문.
+
+let chatAbort = null, chatSid = null, chatNick = '';
+let llmMsgs = [], llmBusy = false;
+
+$('nick').value = store.get('mud.nick') || '';
+
+function logLine(box, cls, nick, text){
+  const div = document.createElement('div');
+  div.className = cls;
+  if (nick) { const b = document.createElement('b'); b.textContent = nick; div.append(b); }
+  div.append(document.createTextNode(text));
+  const el = $(box);
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  el.append(div);
+  if (atBottom) el.scrollTop = el.scrollHeight;
+  return div;
+}
+
+function setConn(on, text){
+  $('wsStatus').textContent = text;
+  $('wsStatus').className = 'status' + (on ? ' on' : '');
+  $('btnConn').textContent = on || chatAbort ? '끊기' : '연결';
+}
+
+// 한 줄에 JSON 하나씩 오는 응답을 읽는다
+async function readNdjson(res, onObj){
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (line) onObj(JSON.parse(line));
+    }
+  }
+}
+
+function onChat(m){
+  if (m.type === 'hello') {
+    chatSid = m.sid;
+    setConn(true, `연결됨 · ${m.nick}`);
+    $('chatLog').textContent = '';
+    m.history.forEach(h => logLine('chatLog', 'm', h.nick, h.text));
+  } else if (m.type === 'chat') {
+    logLine('chatLog', 'm' + (m.nick === chatNick ? ' me' : ''), m.nick, m.text);
+  } else if (m.type === 'notice') {
+    logLine('chatLog', 'n', '', m.text);
+  } else if (m.type === 'presence') {
+    $('who').textContent = `${m.nicks.length}명 · ${m.nicks.join(', ')}`;
+  }
+}
+
+$('btnConn').onclick = async () => {
+  if (chatAbort) { chatAbort.abort(); return; }
+  chatNick = $('nick').value.trim() || '손님';
+  store.set('mud.nick', chatNick);
+  chatAbort = new AbortController();
+  setConn(false, '연결 중…');
+  let why = '끊김';
+  try {
+    const res = await apiRaw('/chat/stream?nick=' + encodeURIComponent(chatNick), undefined, chatAbort.signal);
+    await readNdjson(res, onChat);
+  } catch (e) {
+    if (e.name !== 'AbortError') why = '끊김 (' + e.message + ')';
+  }
+  chatAbort = null; chatSid = null;
+  $('who').textContent = '';
+  setConn(false, why);
+};
+
+$('chatForm').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('chatIn').value.trim();
+  if (!text || !chatSid) return;
+  $('chatIn').value = '';
+  try {
+    await api('/chat/send', { sid: chatSid, text });
+  } catch (err) {
+    logLine('chatLog', 'e', '', '보내기 실패: ' + err.message);
+  }
+};
+
+$('llmForm').onsubmit = async e => {
+  e.preventDefault();
+  const text = $('llmIn').value.trim();
+  if (!text) return;
+  $('llmIn').value = '';
+  if (text === '/reset') {
+    llmMsgs = []; $('llmLog').textContent = '';
+    return logLine('llmLog', 'n', '', '대화를 지웠다');
+  }
+  if (text.startsWith('/system')) {
+    $('sysIn').value = text.slice(7).trim();
+    return logLine('llmLog', 'n', '', '시스템 프롬프트: ' + ($('sysIn').value || '(없음)'));
+  }
+  if (llmBusy) return logLine('llmLog', 'e', '', '아직 답하는 중');
+
+  llmMsgs.push({ role: 'user', content: text });
+  llmMsgs = llmMsgs.slice(-40);
+  logLine('llmLog', 'm me', '나', text);
+  const sys = $('sysIn').value.trim();
+  const bubble = logLine('llmLog', 'm ai', '', '');
+  llmBusy = true;
+  try {
+    const res = await apiRaw('/ollama/api/chat', {
+      model: 'qwen3:8b', stream: true, think: false,
+      messages: [...(sys ? [{ role: 'system', content: sys }] : []), ...llmMsgs],
+    });
+    await readNdjson(res, d => {
+      if (d.error) throw new Error(d.error);
+      if (d.message?.content) {
+        bubble.textContent += d.message.content;
+        $('llmLog').scrollTop = $('llmLog').scrollHeight;
+      }
+    });
+    llmMsgs.push({ role: 'assistant', content: bubble.textContent });
+  } catch (err) {
+    llmMsgs.pop();
+    bubble.remove();
+    logLine('llmLog', 'e', '', '오류: ' + err.message);
+  } finally {
+    llmBusy = false;
   }
 };
 </script>

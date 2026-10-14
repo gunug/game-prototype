@@ -7,12 +7,14 @@ GitHub Pages 프론트 → ngrok → 이 프록시(127.0.0.1:8787) → Ollama ·
 - CORS: ALLOWED_ORIGINS 만.
 - 분당 요청 수 제한.
 - 파이썬 표준 라이브러리만 쓴다.
+- /chat/stream · /chat/send : 온라인 채팅 (chat_hub.py, HTTP 스트리밍).
 
 실행: python server/proxy.py   (또는 server/start.ps1 로 ngrok 까지)
 """
 import hmac
 import http.client
 import json
+import os
 import re
 import secrets
 import sys
@@ -23,7 +25,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-HOST, PORT = "127.0.0.1", 8787
+import chat_hub
+
+HOST, PORT = "127.0.0.1", int(os.environ.get("MUD_PROXY_PORT", 8787))
 OLLAMA = ("127.0.0.1", 11434)
 COMFY = ("127.0.0.1", 8188)
 
@@ -148,6 +152,18 @@ class Handler(BaseHTTPRequestHandler):
 
         if not hmac.compare_digest(self.headers.get("X-Proxy-Key", ""), KEY):
             return self.reply_json(401, {"error": "bad key"})
+
+        if url.path in ("/chat/stream", "/chat/send"):
+            if not rate_ok():
+                return self.reply_json(429, {"error": "too many requests"})
+            if url.path == "/chat/stream" and self.command == "GET":
+                return chat_hub.stream(self, parse_qs(url.query).get("nick", [""])[0])
+            if url.path == "/chat/send" and self.command == "POST":
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > 16 * 1024:
+                    return self.reply_json(413, {"error": "body too large"})
+                return self.reply_json(*chat_hub.send(self.rfile.read(n)))
+            return self.reply_json(405, {"error": "method"})
 
         for meth, pat, upstream, build in ROUTES:
             m = pat.match(url.path)
