@@ -5,36 +5,22 @@
       "title": "FLUX.2 Klein 9B"
     },
     "inputs": {
-      "unet_name": "flux-2-klein-9b-int8-ConvRot.safetensors",
+      "unet_name": "krea2_turbo_fp8_scaled.safetensors",
       "weight_dtype": "default"
-    }
-  },
-  "lora": {
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "Pixel Surgeon LoRA"
-    },
-    "inputs": {
-      "model": [
-        "unet",
-        0
-      ],
-      "lora_name": "pixel-surgeon-klein-9b.safetensors",
-      "strength_model": 1
     }
   },
   "clip": {
     "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
-      "type": "flux2",
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2",
       "device": "default"
     }
   },
   "vae": {
     "class_type": "VAELoader",
     "inputs": {
-      "vae_name": "flux2-vae.safetensors"
+      "vae_name": "qwen_image_vae.safetensors"
     }
   },
   "pos": {
@@ -51,16 +37,17 @@
     }
   },
   "neg": {
-    "class_type": "ConditioningZeroOut",
+    "class_type": "CLIPTextEncode",
     "inputs": {
-      "conditioning": [
-        "pos",
+      "clip": [
+        "clip",
         0
-      ]
+      ],
+      "text": ""
     }
   },
   "latent": {
-    "class_type": "EmptyFlux2LatentImage",
+    "class_type": "EmptyLatentImage",
     "_meta": {
       "title": "768x1024 (3:4 세로)"
     },
@@ -74,7 +61,7 @@
     "class_type": "KSampler",
     "inputs": {
       "model": [
-        "lora",
+        "unet",
         0
       ],
       "positive": [
@@ -90,9 +77,9 @@
         0
       ],
       "seed": 0,
-      "steps": 4,
+      "steps": 8,
       "cfg": 1,
-      "sampler_name": "euler",
+      "sampler_name": "er_sde",
       "scheduler": "simple",
       "denoise": 1
     }

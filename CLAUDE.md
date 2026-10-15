@@ -24,6 +24,8 @@
 
 ## 이미지 생성 (game-card-world2)
 
+**모델은 전부 KREA 2 Turbo** (2026-10-15 확정) — 아이템 · 캐릭터 · 장면 · 포트레이트 · 프레임 · 배경 타일 모두. UNet `krea2_turbo_fp8_scaled` · CLIP `qwen3vl_4b_fp8_scaled`(type krea2) · VAE `qwen_image_vae` · 8스텝 · cfg 1 · er_sde. 공통은 `icon_common.build_prompt`, 워크플로 JSON(`portrait_workflow.json` · `card_frame_workflow.json`)도 같은 한 벌. Flux 2 Klein · pixel-surgeon LoRA 는 더 쓰지 않는다.
+
 ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크립트를 골라** 쓴다. 섞어 쓰면 사물에 사람이 끼거나 캐릭터 비율이 틀어진다.
 
 | 그릴 것 | 스크립트 | 비고 |
