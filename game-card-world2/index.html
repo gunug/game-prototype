@@ -1819,7 +1819,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.83.0';
+const VERSION = 'v9.84.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2041,18 +2041,22 @@ const TRACE_BY_ID = Object.fromEntries(TRACES.map(t => [t.id, t]));
 // v9.83.0: **시나리오 카드** — 콜렉터북 📜 흔적 맨 위. 큰 그림 한 장 + 정보 칸에서 읽는 짧은 이야기.
 //   key 가 없으면 처음부터 열려 있다. 있으면 그 사건(questHit 열쇠)으로 열린다 — 흔적과 같은 S.traces 에 담는다.
 //   그림은 tools/make_scene.py (240×320). 이야기 설정은 docs/시나리오.md — 게임 글에 벼락의 까닭은 적지 않는다
-const SCENES = [
-  { id:'goldage', name:'황금탑 이야기', pic:'scene_goldage', from:'여관에서 아이들에게 들려주는 옛이야기',
-    text: [
-      '옛날 옛날에, 황금으로 지은 도시와 황금탑이 있었어요.',
-      '금빛수혜자들은 신을 모셨어요. 신에게서 내려받은 금으로 도구를 만들고, 기술을 쌓고, 탑을 올렸지요. 그 기술이 어떻게 만들어지는지는 탑 아래 사람들에게 끝내 알려 주지 않았대요.',
-      '탑이 한 층 높아질 때마다 커다란 연회가 열렸어요. 금잔이 부딪치고, 노래가 밤새 이어졌어요.',
-      '층은 쌓이고 또 쌓여, 마침내 탑 꼭대기가 하늘에 닿았어요.',
-      '그날, 도시의 높은 분들은 모두 꼭대기에 모였어요. 가장 크고, 가장 눈부신 연회였지요.',
-      '그리고 벼락이 떨어졌어요.',
-      '탑은 허리가 꺾였고, 황금도 연회도 무너진 탑 아래 묻혔어요. 황금 도시는 그날 끝났대요.',
-      '— 왜 벼락이 떨어졌느냐고 물으면, 어른들은 대답 대신 불을 끄고 자라고 해요.',
-    ] },
+const SCENES = [                                                  // v9.84.0: 다섯 장 — 시간 차례
+  { id:'s_bless',  name:'금빛수혜자', pic:'scene_bless',  from:'금빛 시대 · 하나',
+    text: ['하늘에서 내린 빛은 금이 되었다. 그 금을 받은 이들을 금빛수혜자라 불렀다.',
+      '그들은 신을 모셨고, 금으로 무언가를 만드는 법은 저희끼리만 나눴다.'] },
+  { id:'s_tower',  name:'황금탑',     pic:'scene_tower',  from:'금빛 시대 · 둘',
+    text: ['수혜자들은 그 금과 기술로 탑을 올렸다.',
+      '층이 오를수록 기술도 높아졌다. 탑 아래 사람들은 올려다보기만 했다.'] },
+  { id:'s_feast',  name:'연회',       pic:'scene_feast',  from:'금빛 시대 · 셋',
+    text: ['한 층이 완성될 때마다 꼭대기에서 연회가 열렸다.',
+      '금잔과 음악이 밤을 채웠다. 탑 아래로는 그 불빛만 내려왔다.'] },
+  { id:'s_strike', name:'벼락',       pic:'scene_strike', from:'금빛 시대 · 넷',
+    text: ['마침내 탑 꼭대기가 하늘에 닿았다. 그날을 기리는 연회에 높은 이들이 모두 모였다.',
+      '그 위로 벼락이 떨어졌다.'] },
+  { id:'s_fall',   name:'무너짐',     pic:'scene_fall',   from:'금빛 시대 · 다섯',
+    text: ['탑은 허리가 꺾여 쓰러졌다. 금도, 연회장도, 거기 있던 이들도 잔해 아래 묻혔다.',
+      '기술을 쥔 이는 아무도 남지 않았다.'] },
 ];
 const SCENE_BY_ID = Object.fromEntries(SCENES.map(t => [t.id, t]));
 const sceneOn = sc => editMode || !sc.key || (S.traces || []).includes(sc.id);
