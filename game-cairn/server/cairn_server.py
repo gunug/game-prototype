@@ -16,6 +16,8 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"notice", "text"} {"type":"presence", "users":[{nick,color}]} {"type":"ping"}
      {"type":"reset"}   /새게임 — 화면 기록을 비운다
      {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 캐릭터 그림
+     {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
+     {"type":"cost", "kind":"meter|line", "total", "rate", "usd", "label"}   사용료 (달러, rate = 원/달러)
 GET  /img/<파일>   그 그림 (server/images/)
 POST /api/send    헤더 X-Token  {"text", "to_gm"}
 GET  /           play.html (이 서버로 바로 들어와도 된다)
@@ -46,7 +48,13 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-HOST, PORT = "127.0.0.1", int(os.environ.get("CAIRN_PORT", 8790))
+def _arg(flag, default):
+    """--port 8791 --state 경로 — 시험용으로 따로 띄울 때."""
+    import sys
+    return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv[:-1] else default
+
+
+HOST, PORT = "127.0.0.1", int(_arg("--port", os.environ.get("CAIRN_PORT", 8790)))
 
 # 워든 두뇌 — CAIRN_PROVIDER=openrouter(기본) | claude
 PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
@@ -73,7 +81,7 @@ JOIN_BURST = (6, 60)           # IP 하나가 1분에 입장 시도 6번
 PASS_FILE = HERE / "cairn.pass"
 KEY_FILE = HERE / "anthropic.key"
 OR_KEY_FILE = HERE / "openrouter.key"
-STATE_FILE = HERE / "state.json"
+STATE_FILE = Path(_arg("--state", HERE / "state.json"))
 IMG_DIR = HERE / "images"         # 워든이 그린 그림 (커밋 안 함)
 
 # ── 비밀 ─────────────────────────────────────────────
@@ -147,9 +155,11 @@ def build_system():
 - prompt 는 영어로: 나이 · 체격 · 피부 · 머리 · 얼굴 · 옷 · 들고 있는 무기와 눈에 띄는 장비 · 배경(직업)의 분위기를 구체적으로. 성별이 정해지지 않았으면 이름과 분위기에 맞게 정해 적는다.
 - 그 밖의 때(NPC · 괴물 · 장면)에는 부르지 않는다. 그림이 실패해도 게임을 계속한다.
 
-상태 표시
-- 캐릭터의 HP · 능력치 · 짐 칸 · 광원 횟수가 바뀌면, 답의 맨 끝에 한 줄로 요약한다.
-  예: `▸ 아마라 HP 0/2 · STR 9 · 짐 9/10 · 횃불 2 | 세이블 HP 5 · STR 8`
+캐릭터 시트 (화면 옆 시트에 바로 보인다)
+- 캐릭터 생성이 끝나면 update_character 로 시트 전체를 등록한다: player · background · age · 능력치(현재와 최대) · hp · armor · gp · items(전부) · traits · bond.
+- 진행 중 바뀌면 그때마다 update_character 로 바뀐 것만 보낸다: 피해 · 회복(hp · str · dex · wil), 아이템 얻음(add_items) · 잃음/다 씀(remove_items), 쓰는 횟수(items 의 uses 를 바꿔 add_items 로 같은 이름을 다시 보내면 덮어쓴다), 금화(gp), 피로(fatigue), 상태(conditions: 결핍 · 공포 · 치명 피해 · 사망 등).
+- 아이템 칸: 보통 1, petty 0, bulky 2. slots 로 적는다.
+- 시트에 이미 보이므로 수치를 글로 길게 되풀이하지 않는다.
 """
     return [
         {"type": "text", "text": guide},
@@ -161,6 +171,17 @@ def build_system():
 
 
 SYSTEM = build_system()
+
+ITEM = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "slots": {"type": "integer", "description": "보통 1, petty 0, bulky 2"},
+        "uses": {"type": "string", "description": "남은 횟수나 메모. 예: '3회', 'd6', '1 Armor'"},
+    },
+    "required": ["name"],
+    "additionalProperties": False,
+}
 
 TOOLS = [{
     "name": "roll_dice",
@@ -187,6 +208,34 @@ TOOLS = [{
             "caption": {"type": "string", "description": "그림 밑에 붙일 한국어 한 줄. 예: '아마라 — 궁수, 18세'"},
         },
         "required": ["name", "prompt", "caption"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "update_character",
+    "description": "캐릭터 시트를 만들거나 고친다. 처음 등록할 땐 hp · str · dex · wil 넷과 items(배경의 시작 장비 전부 — 식량 · 광원 포함)를 빠짐없이. 그 뒤엔 바뀐 칸만. 화면의 시트에 바로 반영된다.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "캐릭터 이름 (시트를 찾는 열쇠)"},
+            "player": {"type": "string", "description": "조종하는 플레이어 닉네임, 동료 NPC 면 'NPC'"},
+            "background": {"type": "string"}, "age": {"type": "integer"},
+            "hp": {"type": "integer"}, "hp_max": {"type": "integer"},
+            "str": {"type": "integer"}, "str_max": {"type": "integer"},
+            "dex": {"type": "integer"}, "dex_max": {"type": "integer"},
+            "wil": {"type": "integer"}, "wil_max": {"type": "integer"},
+            "armor": {"type": "integer"}, "gp": {"type": "integer"},
+            "fatigue": {"type": "integer", "description": "피로 개수 (한 개당 1칸)"},
+            "items": {"type": "array", "description": "가진 아이템 전부 — 목록을 통째로 바꾼다",
+                      "items": ITEM},
+            "add_items": {"type": "array", "description": "얻은 아이템. 같은 이름이 있으면 덮어쓴다",
+                          "items": ITEM},
+            "remove_items": {"type": "array", "items": {"type": "string"}, "description": "잃거나 다 쓴 아이템 이름"},
+            "conditions": {"type": "array", "items": {"type": "string"}, "description": "지금 상태 전부. 예: ['결핍', '공포']. 없으면 []"},
+            "traits": {"type": "string", "description": "외모 · 성격 한 줄"},
+            "bond": {"type": "string", "description": "본드 한 줄"},
+        },
+        "required": ["name"],
         "additionalProperties": False,
     },
 }]
@@ -288,7 +337,7 @@ def presence():
 
 
 # ── 상태 저장 ────────────────────────────────────────
-state = {"messages": [], "or_messages": [], "log": []}
+state = {"messages": [], "or_messages": [], "log": [], "chars": {}}
 HIST = "messages" if PROVIDER == "claude" else "or_messages"   # 두뇌마다 대화 따로
 if STATE_FILE.exists():
     try:
@@ -330,10 +379,57 @@ def kick_gm():
     threading.Thread(target=gm_turn, args=(lines,), daemon=True).start()
 
 
+# ── 사용료 ───────────────────────────────────────────
+KRW = {"rate": float(os.environ.get("CAIRN_KRW", 1400)), "src": "기본값"}
+turn_cost = {"usd": 0.0}         # 지금 워든 차례에서 쓴 돈 (그림 포함)
+game = {"gen": 0}               # /새게임 마다 +1 — 돌던 워든 차례는 그 자리에서 멈춘다
+_turn = threading.local()
+
+
+def stale():
+    return getattr(_turn, "gen", game["gen"]) != game["gen"]
+
+
+def load_krw():
+    """원/달러 환율 — 서버 켤 때 한 번. 실패하면 기본값."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("https://open.er-api.com/v6/latest/USD", timeout=8) as r:
+            d = json.loads(r.read())
+        KRW.update(rate=float(d["rates"]["KRW"]), src=d.get("time_last_update_utc", "")[:16])
+    except Exception as e:                  # noqa: BLE001
+        print("환율 못 받음, 기본값", KRW["rate"], repr(e))
+
+
+def add_cost(usd, what):
+    """쓴 돈을 차례 합계 · 누적에 더하고 머리줄 계기를 갱신한다."""
+    usd = float(usd or 0)
+    print(f"cost {what} ${usd:.6f}")
+    if usd <= 0 or stale():
+        return
+    with lock:
+        turn_cost["usd"] += usd
+        state["cost_usd"] = state.get("cost_usd", 0.0) + usd
+    broadcast(cost_msg("meter"), keep=False)
+    if what == "image":                     # 그림은 바로 그 밑에 한 줄
+        broadcast(cost_msg("line", usd, "그림"))
+
+
+def cost_msg(kind, usd=None, label=""):
+    with lock:
+        total = state.get("cost_usd", 0.0)
+    m = {"type": "cost", "kind": kind, "total": total, "rate": KRW["rate"]}
+    if usd is not None:
+        m.update(usd=usd, label=label, ts=time.time())
+    return m
+
+
 def gm_turn(lines):
     global gm_busy
+    _turn.gen = game["gen"]
     with lock:
         state[HIST].append({"role": "user", "content": "\n".join(lines)})
+        turn_cost["usd"] = 0.0
     broadcast({"type": "gm_start"}, keep=False)
     try:
         if MOCK:
@@ -348,6 +444,8 @@ def gm_turn(lines):
         broadcast({"type": "notice", "text": f"마스터 오류: {type(e).__name__}: {str(e)[:200]}"})
         print("gm error:", repr(e))
     finally:
+        if turn_cost["usd"] > 0 and not stale():   # 이번 차례 비용 (글 + 그림) — 채팅 끝에
+            broadcast(cost_msg("line", turn_cost["usd"], "이번 차례"))
         save_state()
         with lock:
             gm_busy = False
@@ -355,8 +453,12 @@ def gm_turn(lines):
 
 
 def do_tool(block):
+    if stale():
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "새 게임이 시작됨"}
     if block.name == "draw_character":
         return draw_tool(block)
+    if block.name == "update_character":
+        return sheet_tool(block)
     if block.name != "roll_dice":
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "없는 도구"}
     args = block.input if isinstance(block.input, dict) else {}
@@ -371,6 +473,80 @@ def do_tool(block):
     broadcast({"type": "dice", "expr": expr, "rolls": rolls, "total": total, "why": why, "ts": time.time()})
     return {"type": "tool_result", "tool_use_id": block.id,
             "content": json.dumps({"expr": expr, "rolls": rolls, "total": total}, ensure_ascii=False)}
+
+
+SHEET_INTS = ("age", "hp", "hp_max", "str", "str_max", "dex", "dex_max", "wil", "wil_max", "armor", "gp", "fatigue")
+SHEET_STRS = ("player", "background", "traits", "bond")
+
+
+def item_of(x):
+    if not isinstance(x, dict) or not isinstance(x.get("name"), str) or not x["name"].strip():
+        return None
+    slots = x.get("slots", 1)
+    return {"name": clean(x["name"], 40), "slots": max(0, min(4, int(slots))) if isinstance(slots, (int, float)) else 1,
+            "uses": clean(x.get("uses", ""), 30)}
+
+
+def find_char(name):
+    key = clean(name, 30)
+    for k in state["chars"]:
+        if k.lower() == key.lower():
+            return k
+    return key
+
+
+def chars_view():
+    with lock:
+        out = []
+        for c in state["chars"].values():
+            c = dict(c)
+            c["slots_used"] = sum(i["slots"] for i in c.get("items", [])) + int(c.get("fatigue") or 0)
+            out.append(c)
+    return out
+
+
+def send_chars():
+    broadcast({"type": "chars", "chars": chars_view()}, keep=False)
+
+
+def sheet_tool(block):
+    args = block.input if isinstance(block.input, dict) else {}
+    if not isinstance(args.get("name"), str) or not args["name"].strip():
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True,
+                "content": json.dumps({"INVALID_JSON": json.dumps(args, ensure_ascii=False)}, ensure_ascii=False)}
+    with lock:
+        key = find_char(args["name"])
+        c = state["chars"].setdefault(key, {"name": key, "items": [], "conditions": []})
+        if "image" not in c:                # 먼저 그려 둔 그림이 있으면 붙인다
+            for e in reversed(state["log"]):
+                if e.get("type") == "image" and e.get("name", "").lower() == key.lower():
+                    c["image"] = e["url"]
+                    break
+        for k in SHEET_INTS:
+            if isinstance(args.get(k), (int, float)) and not isinstance(args.get(k), bool):
+                c[k] = int(args[k])
+        for k in SHEET_STRS:
+            if isinstance(args.get(k), str):
+                c[k] = clean(args[k], 200)
+        for k in ("hp", "str", "dex", "wil"):      # 최대가 없으면 처음 값을 최대로
+            if k in c and f"{k}_max" not in c:
+                c[f"{k}_max"] = c[k]
+        if isinstance(args.get("items"), list):
+            c["items"] = [i for i in map(item_of, args["items"]) if i]
+        drop = {clean(n, 40).lower() for n in args.get("remove_items") or [] if isinstance(n, str)}
+        if drop:
+            c["items"] = [i for i in c["items"] if i["name"].lower() not in drop]
+        for i in map(item_of, args.get("add_items") or []):
+            if i:
+                c["items"] = [j for j in c["items"] if j["name"].lower() != i["name"].lower()] + [i]
+        if isinstance(args.get("conditions"), list):
+            c["conditions"] = [clean(x, 20) for x in args["conditions"] if isinstance(x, str) and x.strip()]
+        used = sum(i["slots"] for i in c["items"]) + int(c.get("fatigue") or 0)
+    send_chars()
+    note = f"{key} 시트 반영. 짐 {used}/10칸."
+    if used >= 10:
+        note += " 10칸이 찼다 → HP 0 (룰)."
+    return {"type": "tool_result", "tool_use_id": block.id, "content": note}
 
 
 IMG_STYLE = ("Dark fantasy ink-and-wash illustration in the style of an old-school tabletop RPG book, "
@@ -403,7 +579,7 @@ def draw_image(prompt):
         raise RuntimeError("그림이 오지 않았습니다.")
     head, b64 = imgs[0]["image_url"]["url"].split(",", 1)
     ext = "png" if "png" in head else "webp" if "webp" in head else "jpg"
-    return base64.b64decode(b64), ext
+    return base64.b64decode(b64), ext, (data.get("usage") or {}).get("cost")
 
 
 def draw_tool(block):
@@ -414,7 +590,7 @@ def draw_tool(block):
                 "content": json.dumps({"INVALID_JSON": json.dumps(args, ensure_ascii=False)}, ensure_ascii=False)}
     broadcast({"type": "notice", "text": f"워든이 {clean(name, 30)} 의 그림을 그리는 중… (10초 안팎)"}, keep=False)
     try:
-        raw, ext = draw_image(prompt[:1500])
+        raw, ext, img_cost = draw_image(prompt[:1500])
     except Exception as e:                  # noqa: BLE001 — 그림이 실패해도 게임은 계속
         broadcast({"type": "notice", "text": f"그림 실패: {str(e)[:200]}"})
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": f"그림 실패: {e}"}
@@ -423,7 +599,13 @@ def draw_tool(block):
     (IMG_DIR / fname).write_bytes(raw)
     broadcast({"type": "image", "url": f"/img/{fname}", "name": clean(name, 30),
                "caption": clean(args.get("caption", ""), 120), "ts": time.time()})
-    return {"type": "tool_result", "tool_use_id": block.id, "content": f"{name} 그림을 방에 띄웠다."}
+    add_cost(img_cost, "image")            # 비용 줄은 그림 밑에
+    with lock:
+        key = find_char(name)
+        if key in state["chars"]:
+            state["chars"][key]["image"] = f"/img/{fname}"
+    send_chars()
+    return {"type": "tool_result", "tool_use_id": block.id, "content": f"{name} 그림을 방에 띄우고 시트에 붙였다."}
 
 
 def run_claude():
@@ -431,6 +613,8 @@ def run_claude():
     seg = []                                # 주사위 사이 글 한 토막 (기록용)
     json_retries = 0
     while True:
+        if stale():
+            return
         with lock:
             messages = list(state["messages"])
         try:
@@ -450,6 +634,9 @@ def run_claude():
                         seg.append(event.text)
                         broadcast({"type": "gm_delta", "text": event.text}, keep=False)
                 response = stream.get_final_message()
+            u = response.usage
+            add_cost(((u.input_tokens or 0) * 4 + (u.cache_creation_input_tokens or 0) * 5
+                      + (u.cache_read_input_tokens or 0) * 0.4 + (u.output_tokens or 0) * 20) / 1e6, "chat")
             json_retries = 0
         except ValueError:                  # 도구 입력 JSON 을 아예 못 읽음 — 이 차례만 다시
             json_retries += 1
@@ -462,6 +649,8 @@ def run_claude():
         except anthropic.APIStatusError as e:
             raise RuntimeError(f"API {e.status_code}: {e.message}") from e
 
+        if stale():
+            return
         content = [b.to_dict() for b in response.content]
         with lock:
             state["messages"].append({"role": "assistant", "content": content})
@@ -485,9 +674,17 @@ def run_claude():
 
 
 OR_SYSTEM = "\n\n".join(b["text"] for b in SYSTEM)
+def no_addl(s):
+    """Gemini 함수 선언은 additionalProperties 를 싫어한다 — 안쪽까지 뺀다."""
+    if isinstance(s, dict):
+        return {k: no_addl(v) for k, v in s.items() if k != "additionalProperties"}
+    if isinstance(s, list):
+        return [no_addl(v) for v in s]
+    return s
+
+
 OR_TOOLS = [{"type": "function", "function": {
-    "name": t["name"], "description": t["description"],
-    "parameters": {k: v for k, v in t["input_schema"].items() if k != "additionalProperties"},
+    "name": t["name"], "description": t["description"], "parameters": no_addl(t["input_schema"]),
 }} for t in TOOLS]
 
 
@@ -495,7 +692,7 @@ def or_stream(messages):
     """OpenRouter chat/completions 스트림(SSE). 글은 흘려 보내고, 끝나면 (글, 도구 호출들, 끝난 이유)."""
     import urllib.request
     body = json.dumps({
-        "model": MODEL, "stream": True, "max_tokens": 4000,
+        "model": MODEL, "stream": True, "max_tokens": 4000, "usage": {"include": True},
         "messages": [{"role": "system", "content": OR_SYSTEM}] + messages,
         "tools": OR_TOOLS,
     }).encode()
@@ -503,7 +700,7 @@ def or_stream(messages):
         "Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json",
         "HTTP-Referer": "https://game.onethelab.com", "X-Title": "Cairn Blood Olms",
     })
-    text, calls, finish = [], {}, None
+    text, calls, finish, cost = [], {}, None, 0.0
     try:
         res = urllib.request.urlopen(req, timeout=120)
     except urllib.error.HTTPError as e:
@@ -517,6 +714,8 @@ def or_stream(messages):
             if data == "[DONE]":
                 break
             chunk = json.loads(data)
+            if chunk.get("usage"):
+                cost = (chunk["usage"].get("cost") or 0) or cost
             if chunk.get("error"):
                 raise RuntimeError(f"OpenRouter: {chunk['error'].get('message', chunk['error'])}")
             for ch in chunk.get("choices", []):
@@ -531,14 +730,32 @@ def or_stream(messages):
                     c["name"] = f.get("name") or c["name"]
                     c["args"] += f.get("arguments") or ""
                 finish = ch.get("finish_reason") or finish
+    add_cost(cost, "chat")
     return "".join(text), [calls[i] for i in sorted(calls)], finish
 
 
+LEAK_RE = re.compile(r"<ctrl\d+>|^\s*(print\()?default_api\.|(?:^|,)\s*(?:background|name|str_max|hp_max)\s*:", re.M)
+
+
 def run_openrouter():
+    leaks = 0
     for _ in range(MAX_ROUNDS):             # 주사위를 굴리고 이어 말하기
+        if stale():
+            return
         with lock:
             messages = list(state[HIST])
         text, calls, finish = or_stream(messages)
+        if stale():
+            return
+        if not calls and LEAK_RE.search(text) and leaks < 2:
+            # Gemini Flash Lite 가 가끔 도구 호출을 글로 흘린다 (<ctrl46> …). 기록엔 안 남기고 다시 부르게.
+            leaks += 1
+            broadcast({"type": "gm_retract"}, keep=False)
+            broadcast({"type": "notice", "text": "워든이 적던 것을 다시 적는 중…"}, keep=False)
+            with lock:
+                state[HIST].append({"role": "assistant", "content": "(도구 호출 형식이 깨져 글로 나감)"})
+                state[HIST].append({"role": "user", "content": "(시스템) 방금 도구 호출이 글로 새어 나왔다. 글로 쓰지 말고 도구(function call)로 다시 불러라. 값이 많으면 나눠서 여러 번 불러도 된다."})
+            continue
         msg = {"role": "assistant", "content": text or None}
         if calls:
             msg["tool_calls"] = [{"id": c["id"] or f"call_{i}", "type": "function",
@@ -690,10 +907,16 @@ class Handler(BaseHTTPRequestHandler):
         to_gm = bool(data.get("to_gm"))
         if text in ("/새게임", "/reset"):
             with lock:
-                state["messages"], state["or_messages"], state["log"] = [], [], []
+                state["messages"], state["or_messages"], state["log"], state["chars"] = [], [], [], {}
+                state["cost_usd"] = 0.0
                 pending.clear()
+                game["gen"] += 1
+                global pending_act
+                pending_act = False
             save_state()
             broadcast({"type": "reset"}, keep=False)
+            send_chars()
+            broadcast(cost_msg("meter"), keep=False)
             broadcast({"type": "notice", "text": f"{c.nick} 님이 새 게임을 시작했습니다. 워든에게 말을 걸면 캐릭터 만들기부터."})
             return self.reply(200, {"ok": True})
         with lock:
@@ -721,7 +944,8 @@ class Handler(BaseHTTPRequestHandler):
             while not c.q.empty():          # 지난 연결에서 못 받은 것은 hello 기록에 다 있다
                 c.q.get_nowait()
             hello = {"type": "hello", "me": {"nick": c.nick, "color": c.color},
-                     "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL}
+                     "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL,
+                     "chars": chars_view(), "cost": cost_msg("meter")}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)
@@ -747,6 +971,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    threading.Thread(target=load_krw, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
     print(f"cairn server  http://{HOST}:{PORT}  {PROVIDER} · {MODEL}  {'MOCK (API 키 없음)' if MOCK else ''}")

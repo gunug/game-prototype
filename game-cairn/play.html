@@ -77,13 +77,62 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   #bar textarea{flex:1 1 100%}
   .toggle{flex:1}
 }
+/* 캐릭터 시트 */
+#sheets{width:330px;flex:none;border-left:1px solid var(--line);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;background:var(--bg)}
+#sheets .empty{color:var(--sub);font-size:.85rem;padding:8px}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;flex:none}
+.sheet .top{display:flex;gap:10px;padding:10px}
+.sheet .por{width:84px;height:112px;flex:none;border-radius:8px;background:var(--chip) center/cover no-repeat;cursor:zoom-in}
+.sheet .por.none{display:flex;align-items:center;justify-content:center;font-size:1.8rem;color:var(--sub);cursor:default}
+.sheet .nm{font:700 1.05rem Georgia,serif;margin:0}
+.sheet .sub{font-size:.8rem;color:var(--sub)}
+.sheet.dead{opacity:.55;filter:grayscale(1)}
+.bars{padding:0 10px 8px;display:grid;gap:5px}
+.bar{display:grid;grid-template-columns:34px 1fr 52px;align-items:center;gap:6px;font-size:.8rem}
+.bar .lb{font-weight:700;color:var(--sub)}
+.bar .tr{height:8px;border-radius:4px;background:var(--chip);overflow:hidden}
+.bar .fl{display:block;height:100%;border-radius:4px;transition:width .4s}
+.bar .vl{text-align:right;font-variant-numeric:tabular-nums}
+.bar.low .vl{color:#c0392b;font-weight:700}
+.kv{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 8px}
+.kv span{font-size:.78rem;background:var(--chip);border-radius:6px;padding:1px 8px}
+.kv span.warn{background:#c0392b;color:#fff}
+.items{border-top:1px solid var(--line);padding:6px 10px 10px;font-size:.84rem}
+.items .hd{display:flex;justify-content:space-between;color:var(--sub);font-size:.78rem;margin-bottom:4px}
+.items .hd b.full{color:#c0392b}
+.items ul{list-style:none;margin:0;padding:0}
+.items li{display:flex;justify-content:space-between;gap:8px;padding:2px 0;border-bottom:1px dashed var(--line)}
+.items li:last-child{border-bottom:none}
+.items li .u{color:var(--sub);font-size:.78rem;white-space:nowrap}
+.items li .s{color:var(--sub);font-size:.72rem;margin-left:4px}
+.traits{padding:0 10px 10px;font-size:.78rem;color:var(--sub)}
+@keyframes flash{0%{background:rgba(224,122,95,.6)}100%{background:transparent}}
+.flash{animation:flash 1.8s ease-out}
+#sheetBtn{display:none;padding:4px 10px;font-size:.85rem}
+#meter{font-size:.78rem;color:var(--sub);background:var(--chip);border-radius:999px;padding:2px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#meter b{color:var(--ink)}
+.costline{align-self:flex-end;font-size:.75rem;color:var(--sub);font-variant-numeric:tabular-nums}
+@media (max-width:1000px){
+  #side{display:none}
+  #chips{display:flex;gap:6px;overflow-x:auto;padding:6px 16px;border-bottom:1px solid var(--line)}
+  #chips .user{flex:none;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:.8rem}
+}
+@media (max-width:760px){
+  #sheetBtn{display:inline-block}
+  #status{display:none}
+  header h1{font-size:1rem}
+  #sheets{position:fixed;top:52px;right:0;bottom:0;width:min(360px,92vw);z-index:20;box-shadow:-8px 0 24px rgba(0,0,0,.35);transform:translateX(105%);transition:transform .25s}
+  #sheets.open{transform:none}
+}
 </style>
 </head>
 <body>
 <header>
   <a href="index.html#scenario">← 안내</a>
   <h1>플레이 블러드 올름</h1>
+  <span id="meter" title="OpenRouter 누적 사용료 — /새게임 때 0 으로">사용료 <b>$0</b></span>
   <span id="status"></span>
+  <button class="ghost" id="sheetBtn" type="button">시트</button>
 </header>
 
 <section id="login">
@@ -115,6 +164,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
       <button type="submit" id="sendBtn">보내기</button>
     </form>
   </div>
+  <aside id="sheets" aria-label="캐릭터 시트"><div class="empty">캐릭터를 만들면 여기에 시트가 생깁니다.</div></aside>
 </section>
 
 <script>
@@ -125,7 +175,7 @@ const store = {
   set(k, v, s = localStorage) { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} },
 };
 // 서버가 직접 이 페이지를 내줬으면 같은 주소, 아니면 저장된 주소
-const sameOrigin = location.port === '8790' || /ngrok/.test(location.hostname);
+const sameOrigin = location.protocol.startsWith('http') && location.hostname !== 'game.onethelab.com' && location.port !== '8765';
 if (sameOrigin) $('srvBox').style.display = 'none';
 $('srv').value = store.get('cairn.server') || DEFAULT_SERVER;
 $('nick').value = store.get('cairn.nick') || '';
@@ -163,6 +213,8 @@ function render(m) {
   } else if (m.type === 'image') {
     const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
     loadImg(fig.querySelector('img'), m.url);
+  } else if (m.type === 'cost') {
+    add(div('costline', `${esc(m.label)} 사용료 ${usd(m.usd)} (${krw(m.usd, m.rate)}) · 누적 ${usd(m.total)} (${krw(m.total, m.rate)})`));
   } else if (m.type === 'notice') {
     add(div('notice', esc(m.text)));
   }
@@ -171,13 +223,93 @@ function render(m) {
 // ngrok 경고 페이지를 피하려고 헤더를 붙여 받아 blob 으로 붙인다 (<img src> 는 헤더를 못 붙임)
 async function loadImg(img, url) {
   try {
-    const res = await fetch(base() + url, { headers: H() });
-    if (!res.ok) throw new Error(res.status);
-    const src = URL.createObjectURL(await res.blob());
+    const src = await blobUrl(url);
     img.src = src;
     img.onclick = () => window.open(src, '_blank');
     img.onload = () => { if (nearBottom()) $('log').scrollTop = $('log').scrollHeight; };
   } catch { img.alt = '그림을 불러오지 못함'; }
+}
+
+
+// ── 캐릭터 시트 ─────────────────────────────
+const prevSheets = {};          // 이름 → 지난 값 (바뀐 칸 반짝이기)
+const imgCache = {};            // url → Promise<blob url>
+function blobUrl(url) {
+  if (!imgCache[url]) imgCache[url] = fetch(base() + url, { headers: H() })
+    .then(r => r.ok ? r.blob() : Promise.reject(r.status)).then(b => URL.createObjectURL(b))
+    .catch(e => { delete imgCache[url]; throw e; });
+  return imgCache[url];
+}
+function barHtml(key, label, cur, max, color) {
+  if (cur == null) return '';
+  const m = Math.max(max || cur || 1, 1), pct = Math.max(0, Math.min(100, cur / m * 100));
+  return `<div class="bar${cur < m ? ' low' : ''}" data-k="${key}"><span class="lb">${label}</span><span class="tr"><span class="fl" style="width:${pct}%;background:${color}"></span></span><span class="vl">${cur}/${m}</span></div>`;
+}
+let lastChars = [], lastUsers = [];
+function sheetHtml(c) {
+  const userColor = (lastUsers.find(u => u.nick === c.player) || {}).color;
+  const dead = (c.conditions || []).some(x => /사망|죽음/.test(x));
+  const used = c.slots_used || 0;
+  const tag = s => s === 0 ? 'petty' : s >= 2 ? 'bulky' : '';
+  const items = (c.items || []).map(i => `<li data-k="item:${esc(i.name)}"><span>${esc(i.name)}<span class="s">${tag(i.slots)}</span></span><span class="u">${esc(i.uses || '')}</span></li>`).join('');
+  const kv = [
+    c.armor != null ? `<span data-k="armor">갑옷 ${c.armor}</span>` : '',
+    c.gp != null ? `<span data-k="gp">${c.gp} gp</span>` : '',
+    c.fatigue ? `<span data-k="fatigue" class="warn">피로 ${c.fatigue}</span>` : '',
+    ...(c.conditions || []).map(x => `<span class="warn" data-k="cond:${esc(x)}">${esc(x)}</span>`),
+  ].join('');
+  return `<div class="sheet${dead ? ' dead' : ''}" data-name="${esc(c.name)}">
+    <div class="top">
+      <div class="por${c.image ? '' : ' none'}">${c.image ? '' : '?'}</div>
+      <div><p class="nm">${esc(c.name)}</p>
+        <div class="sub">${userColor ? `<span class="dot" style="display:inline-block;background:${esc(userColor)}"></span> ` : ''}${esc(c.player || '')}</div>
+        <div class="sub" data-k="background">${esc(c.background || '')}${c.age ? ` · ${c.age}세` : ''}</div></div>
+    </div>
+    <div class="bars">
+      ${barHtml('hp', 'HP', c.hp, c.hp_max, '#c0392b')}
+      ${barHtml('str', 'STR', c.str, c.str_max, '#d35400')}
+      ${barHtml('dex', 'DEX', c.dex, c.dex_max, '#27ae60')}
+      ${barHtml('wil', 'WIL', c.wil, c.wil_max, '#2980b9')}
+    </div>
+    ${kv ? `<div class="kv">${kv}</div>` : ''}
+    <div class="items"><div class="hd"><span>짐</span><b data-k="slots" class="${used >= 10 ? 'full' : ''}">${used}/10칸${used >= 10 ? ' · HP 0' : ''}</b></div>
+      <ul>${items || '<li><span class="u">없음</span></li>'}</ul></div>
+    ${c.traits || c.bond ? `<div class="traits">${esc(c.traits || '')}${c.bond ? `<br>본드: ${esc(c.bond)}` : ''}</div>` : ''}
+  </div>`;
+}
+function snapshot(c) {
+  const s = { hp: c.hp, str: c.str, dex: c.dex, wil: c.wil, armor: c.armor, gp: c.gp, fatigue: c.fatigue,
+    slots: c.slots_used, background: c.background };
+  (c.items || []).forEach(i => s['item:' + i.name] = i.uses + '|' + i.slots);
+  (c.conditions || []).forEach(x => s['cond:' + x] = 1);
+  return s;
+}
+function renderSheets(chars) {
+  lastChars = chars;
+  const box = $('sheets');
+  if (!chars.length) { box.innerHTML = '<div class="empty">캐릭터를 만들면 여기에 시트가 생깁니다.</div>'; return; }
+  box.innerHTML = chars.map(sheetHtml).join('');
+  chars.forEach(c => {
+    const el = box.querySelector(`.sheet[data-name="${CSS.escape(c.name)}"]`);
+    const now = snapshot(c), before = prevSheets[c.name];
+    if (before) for (const k in now) if (now[k] !== before[k])
+      el.querySelectorAll(`[data-k="${CSS.escape(k)}"]`).forEach(x => x.classList.add('flash'));
+    prevSheets[c.name] = now;
+    const por = el.querySelector('.por');
+    if (c.image) blobUrl(c.image).then(u => {
+      por.style.backgroundImage = `url("${u}")`;
+      por.onclick = () => window.open(u, '_blank');
+    }).catch(() => {});
+  });
+}
+$('sheetBtn').onclick = () => $('sheets').classList.toggle('open');
+
+// ── 사용료 ─────────────────────────────
+const usd = v => '$' + (!v ? '0' : v < 0.01 ? v.toFixed(4) : v < 1 ? v.toFixed(3) : v.toFixed(2));
+const krw = (v, rate) => '₩' + Math.round(v * rate).toLocaleString('ko-KR');
+function meter(m) {
+  $('meter').innerHTML = `사용료 <b>${usd(m.total)}</b> · ${krw(m.total, m.rate)}`;
+  $('meter').title = `OpenRouter 누적 사용료 — /새게임 때 0 으로 (1달러 = ${Math.round(m.rate).toLocaleString('ko-KR')}원)`;
 }
 
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
@@ -193,6 +325,7 @@ function gmDelta(t) {
 function gmEnd() { gmBox = null; $('typing').textContent = ''; }
 
 function users(list) {
+  lastUsers = list; if (lastChars.length) renderSheets(lastChars);
   const html = list.map(u => `<div class="user"><span class="dot" style="background:${esc(u.color)}"></span>${esc(u.nick)}${me && u.nick === me.nick && u.color === me.color ? ' (나)' : ''}</div>`).join('');
   $('users').innerHTML = html; $('chips').innerHTML = html;
 }
@@ -203,15 +336,20 @@ function handle(m) {
       me = m.me; $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
+      renderSheets(m.chars || []);
+      if (m.cost) meter(m.cost);
       $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ' · ' + esc((m.brain || '').split('/').pop())}`;
       break;
     case 'gm_start': gmStart(); break;
     case 'gm_delta': gmDelta(m.text); break;
     case 'gm_end': gmEnd(); break;
+    case 'gm_retract': if (gmBox) gmBox.remove(); gmBox = null; break;   // 깨진 도구 호출 글을 지운다
     case 'dice': case 'image': gmBox = null; render(m); break;      // 주사위 · 그림 다음 글은 새 칸에
     case 'presence': users(m.users); break;
     case 'ping': break;
-    case 'reset': $('log').innerHTML = ''; gmEnd(); break;
+    case 'reset': $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('sheets').classList.remove('open'); break;
+    case 'chars': renderSheets(m.chars); break;
+    case 'cost': meter(m); if (m.kind === 'line') { gmBox = null; render(m); } break;
     default: render(m);
   }
 }
