@@ -1,7 +1,7 @@
 """Cairn — 플레이 블러드 올름 서버.
 
 LLM 이 워든이 되어 CAS-2 블러드 올름을 진행한다.
-두뇌: CAIRN_PROVIDER=openrouter(기본, google/gemini-3.1-flash-lite — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
+두뇌: CAIRN_PROVIDER=openrouter(기본, anthropic/claude-sonnet-5.5 — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
 접속자 모두가 한 방에서 채팅하고, '마스터에게' 보낸 말에 워든이 답한다.
 
 채팅은 HTTP 스트리밍 (llm-graphic-mud 와 같은 이유: ngrok 무료판 경고 페이지가
@@ -89,7 +89,8 @@ HOST, PORT = "127.0.0.1", int(_arg("--port", os.environ.get("CAIRN_PORT", 8790))
 
 # 워든 두뇌 — CAIRN_PROVIDER=openrouter(기본) | claude
 PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
-OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-3.1-flash-lite")
+OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "anthropic/claude-sonnet-5.5")
+AUX_MODEL = os.environ.get("CAIRN_AUX_MODEL", "google/gemini-3.1-flash-lite")   # 보조 작업(수첩 자동 기록) — 싸고 빠른 것
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 IMG_MODEL = os.environ.get("CAIRN_IMG_MODEL", "google/gemini-3.1-flash-lite-image")   # 캐릭터 그림 (OpenRouter)
 CLAUDE_MODEL = "claude-opus-5-5"
@@ -163,7 +164,8 @@ def build_system():
 여러 플레이어가 한 채팅방에 있다. 플레이어의 말은 `[닉네임] 내용` 꼴로 온다. 같은 차례에 여러 명의 말이 함께 올 수 있다.
 
 진행 원칙
-- 한국어로, 짧고 생생하게. 한 번에 화면 한두 개 분량. 장면 끝에 무엇을 할지 묻는다.
+- 한국어로, 짧고 생생하게. 한 번에 6–10문장 안팎. 장면 끝에 무엇을 할지 한 번만 묻는다.
+- 같은 내용을 되풀이하지 않는다. 도구를 쓴 일(시트 반영 · 상태 기록 · 위치 갱신 · 시간 경과 · 수첩 기록)은 말하지 않는다 — 화면에 이미 보인다. 괄호로 진행 메모를 붙이지 않는다.
 - 냄새 · 소리 · 온도 · 거리 · 위치를 구체적으로. 감정을 대신 말하지 않는다.
 - 위험은 미리 분명하게 알린다. 죽음은 경고 없이 오지 않는다.
 - 비밀(진상 · 방의 숨은 내용 · NPC 능력치)은 플레이어가 알아낼 때까지 밝히지 않는다.
@@ -569,7 +571,7 @@ def extract_info(t0):
               "흔한 분위기 묘사 · 행동 결과 · 주사위 · 질문은 빼라. 없으면 빈 배열.\n"
               f"수첩에 이미 있는 제목: {have}\n"
               '답은 JSON 배열만: [{"title": "짧은 제목", "text": "알게 된 내용 1–3문장"}]\n\n서술:\n' + said[:6000])
-    body = json.dumps({"model": OR_MODEL, "max_tokens": 800, "usage": {"include": True},
+    body = json.dumps({"model": AUX_MODEL, "max_tokens": 800, "usage": {"include": True},
                        "messages": [{"role": "user", "content": prompt}]}).encode()
     req = urllib.request.Request(OR_URL, body, {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
                                                 "HTTP-Referer": "https://game.onethelab.com", "X-Title": "Cairn Blood Olms"})
@@ -1054,6 +1056,9 @@ def run_claude():
 
 
 OR_SYSTEM = "\n\n".join(b["text"] for b in SYSTEM)
+# Anthropic 모델은 캐시 지점을 찍어 줘야 지시문(약 3만 토큰)을 싸게 다시 읽는다. Gemini 는 알아서 캐시.
+OR_SYSTEM_MSG = ([{"type": "text", "text": OR_SYSTEM, "cache_control": {"type": "ephemeral", "ttl": "1h"}}]   # 쉬었다 와도 1시간은 캐시
+                 if OR_MODEL.startswith("anthropic/") else OR_SYSTEM)
 def no_addl(s):
     """Gemini 함수 선언은 additionalProperties 를 싫어한다 — 안쪽까지 뺀다."""
     if isinstance(s, dict):
@@ -1071,9 +1076,16 @@ OR_TOOLS = [{"type": "function", "function": {
 def or_stream(messages):
     """OpenRouter chat/completions 스트림(SSE). 글은 흘려 보내고, 끝나면 (글, 도구 호출들, 끝난 이유)."""
     import urllib.request
+    if OR_MODEL.startswith("anthropic/"):
+        # 이번 차례의 플레이어 말(마지막 user)에도 캐시 지점 — 다음 차례엔 지난 대화까지 캐시로 읽는다
+        messages = [dict(m) for m in messages]
+        for m in reversed(messages):
+            if m.get("role") == "user" and isinstance(m.get("content"), str):
+                m["content"] = [{"type": "text", "text": m["content"], "cache_control": {"type": "ephemeral"}}]
+                break
     body = json.dumps({
         "model": MODEL, "stream": True, "max_tokens": 4000, "usage": {"include": True},
-        "messages": [{"role": "system", "content": OR_SYSTEM}] + messages,
+        "messages": [{"role": "system", "content": OR_SYSTEM_MSG}] + messages,
         "tools": OR_TOOLS,
     }).encode()
     req = urllib.request.Request(OR_URL, body, {
@@ -1096,6 +1108,10 @@ def or_stream(messages):
             chunk = json.loads(data)
             if chunk.get("usage"):
                 cost = (chunk["usage"].get("cost") or 0) or cost
+                u = chunk["usage"]
+                pd = u.get("prompt_tokens_details") or {}
+                print(f"usage in={u.get('prompt_tokens')} cache_read={pd.get('cached_tokens')} "
+                      f"cache_write={pd.get('cache_write_tokens')} out={u.get('completion_tokens')} ${cost:.4f}", flush=True)
             if chunk.get("error"):
                 raise RuntimeError(f"OpenRouter: {chunk['error'].get('message', chunk['error'])}")
             for ch in chunk.get("choices", []):
