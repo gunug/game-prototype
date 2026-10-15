@@ -35,6 +35,7 @@ GET  /img/<파일>   그 그림 (server/images/)
 GET  /pub/<파일>   플레이어 공개 그림 (docs/images/scenario/ 의 정해 둔 것만)
 POST /api/send    헤더 X-Token  {"text", "to_gm"}
 GET  /           play.html (이 서버로 바로 들어와도 된다)
+GET  /health     {"version" (켤 때의 서버), "page_version" (디스크의 play.html), …}
 
 비밀: server/cairn.pass (입장 비밀번호, 없으면 12341234 로 만든다)
       OPENROUTER_API_KEY 또는 server/openrouter.key  (openrouter)
@@ -65,6 +66,13 @@ import world
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()   # 서버를 켤 때의 버전
+
+
+def page_version():
+    """디스크의 play.html 버전 — 화면이 낡았는지 알려 주려고."""
+    m = re.search(r"const APP_VERSION = '([\d.]+)';", (ROOT / "play.html").read_text(encoding="utf-8"))
+    return m.group(1) if m else ""
 def _arg(flag, default):
     """--port 8791 --state 경로 — 시험용으로 따로 띄울 때."""
     import sys
@@ -1129,7 +1137,8 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/play.html"):
             return self.static(ROOT / "play.html", "text/html; charset=utf-8")
         if path == "/health":
-            return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL})
+            return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL,
+                                     "version": VERSION, "page_version": page_version()})
         if path == "/api/stream":
             return self.stream()
         m = re.fullmatch(r"/lore/([a-z_]+)", path)
@@ -1294,6 +1303,7 @@ class Handler(BaseHTTPRequestHandler):
                 c.q.get_nowait()
             hello = {"type": "hello", "me": {"nick": c.nick, "color": c.color},
                      "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL,
+                     "version": VERSION, "page_version": page_version(),
                      "chars": chars_view(), "cost": cost_msg("meter"),
                      "lore": [lore_view(i) for i in state["revealed"] if i in LORE],
                      "world": world.public(state),
@@ -1327,7 +1337,7 @@ def main():
     threading.Thread(target=load_krw, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
-    print(f"cairn server  http://{HOST}:{PORT}  {PROVIDER} · {MODEL}  {'MOCK (API 키 없음)' if MOCK else ''}")
+    print(f"cairn server v{VERSION}  http://{HOST}:{PORT}  {PROVIDER} · {MODEL}  {'MOCK (API 키 없음)' if MOCK else ''}")
     srv.serve_forever()
 
 

@@ -25,7 +25,7 @@ body{margin:0;background:var(--bg);color:var(--ink);display:flex;flex-direction:
   font:15px/1.6 "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
 header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
 header a{color:var(--sub);text-decoration:none;font-size:.9rem}
-header h1{margin:0;font:700 1.15rem/1.2 Georgia,serif;flex:1}
+header h1{margin:0;font:700 1.15rem/1.2 Georgia,serif;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #status{font-size:.8rem;color:var(--sub)}
 button{font:inherit;padding:8px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
@@ -183,6 +183,11 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .cq .btns button.no{background:var(--chip);color:var(--ink);border-color:var(--line)}
 .cq.done{opacity:.8}
 .msg .ch{font-size:.78rem;color:var(--sub);margin-right:6px}
+/* 버전 */
+#ver{font-size:.72rem;color:var(--sub);white-space:nowrap}
+#verWarn{display:none;margin:0;padding:6px 16px;background:#f5c542;color:#1b1612;font-size:.85rem}
+#verWarn button{margin-left:8px;padding:2px 10px;font-size:.8rem;background:#1b1612;border-color:#1b1612}
+.card .v{font-size:.75rem;color:var(--sub);margin-top:10px;text-align:right}
 </style>
 </head>
 <body>
@@ -191,8 +196,10 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   <h1>플레이 블러드 올름</h1>
   <span id="meter" title="OpenRouter 누적 사용료 — /새게임 때 0 으로">사용료 <b>$0</b></span>
   <span id="status"></span>
+  <span id="ver"></span>
   <button class="ghost" id="sheetBtn" type="button">시트</button>
 </header>
+<p id="verWarn"></p>
 
 <section id="login">
   <form class="card" id="joinForm" autocomplete="off">
@@ -208,6 +215,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
     </details>
     <button type="submit" id="joinBtn">입장</button>
     <div id="err"></div>
+    <div class="v" id="loginVer"></div>
   </form>
 </section>
 
@@ -245,6 +253,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 
 <div id="tip" role="tooltip"></div>
 <script>
+const APP_VERSION = '0.14.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
 const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
 const $ = id => document.getElementById(id);
 const store = {
@@ -564,6 +573,25 @@ document.addEventListener('click', async e => {
   } catch (err) { render({ type: 'notice', text: '답하지 못함: ' + err.message }); }
 });
 
+// ── 버전: 화면(이 파일) · 서버(켤 때) · 디스크의 새 화면 ──
+function showVersion(sv, pv) {
+  $('ver').textContent = !sv || sv === APP_VERSION ? `v${APP_VERSION}` : `화면 v${APP_VERSION} · 서버 v${sv}`;
+  $('ver').title = `화면 v${APP_VERSION}` + (sv ? ` · 서버 v${sv}` : '');
+  const w = $('verWarn');
+  if (pv && pv !== APP_VERSION) {
+    w.innerHTML = `새 화면 v${esc(pv)} 이 있습니다 (지금 v${APP_VERSION}). <button type="button" onclick="location.reload()">새로고침</button>`;
+  } else if (sv && sv !== APP_VERSION) {
+    w.innerHTML = `서버는 v${esc(sv)}, 화면은 v${APP_VERSION} — 서버를 다시 켜야 새 기능이 모두 반영됩니다.`;
+  } else { w.style.display = 'none'; return; }
+  w.style.display = 'block';
+}
+showVersion();
+$('loginVer').textContent = 'v' + APP_VERSION;
+setInterval(async () => {             // 서버 재시작 · 화면 갱신을 1분마다 확인
+  if (!token) return;
+  try { const h = await (await fetch(base() + '/health', { headers: H() })).json(); showVersion(h.version, h.page_version); } catch {}
+}, 60000);
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
@@ -591,6 +619,7 @@ function handle(m) {
       if (m.gm_busy) gmStart();
       renderSheets(m.chars || []);
       if (m.cost) meter(m.cost);
+      showVersion(m.version, m.page_version);
       showWorld(m.world);
       $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ' · ' + esc((m.brain || '').split('/').pop())}`;
       break;
