@@ -136,6 +136,12 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 #brief li{margin:3px 0}
 #brief .note{font-size:.75rem;color:var(--sub);margin-top:6px}
 @media (max-width:520px){#brief .bd img{display:none}}
+/* 시나리오 키워드 (플레이어 공개 내용만) */
+.kw{color:#f5c542;font-weight:600;border-bottom:1px dotted #f5c542;cursor:help}
+#tip{position:fixed;z-index:50;max-width:280px;background:#1b1612;color:#f3ead8;border:1px solid #f5c542;border-radius:8px;
+  padding:8px 10px;font-size:.82rem;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none;display:none}
+#tip b{color:#f5c542;display:block;margin-bottom:2px}
+#tip .src{display:block;margin-top:4px;color:#a99f8c;font-size:.72rem}
 </style>
 </head>
 <body>
@@ -194,6 +200,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   <aside id="sheets" aria-label="캐릭터 시트"><div class="empty">캐릭터를 만들면 여기에 시트가 생깁니다.</div></aside>
 </section>
 
+<div id="tip" role="tooltip"></div>
 <script>
 const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
 const $ = id => document.getElementById(id);
@@ -233,7 +240,7 @@ function render(m) {
     const tag = m.to_gm ? '' : '<span class="tag">잡담</span>';
     add(div('msg' + (m.to_gm ? '' : ' talk'), `${tag}<span class="who" style="color:${esc(m.color)}">${esc(m.nick)}</span>${md(m.text)}`));
   } else if (m.type === 'gm') {
-    add(div('gm', `<span class="who">워든</span>${md(m.text)}`));
+    add(keywords(div('gm', `<span class="who">워든</span>${md(m.text)}`)));
   } else if (m.type === 'dice') {
     const r = m.rolls.map(a => a.join('+')).join(' / ');
     add(div('dice', `🎲 ${esc(m.why)} · ${esc(m.expr)} [${esc(r)}] → <b>${m.total}</b>`));
@@ -339,13 +346,78 @@ function meter(m) {
   $('meter').title = `OpenRouter 누적 사용료 — /새게임 때 0 으로 (1달러 = ${Math.round(m.rate).toLocaleString('ko-KR')}원)`;
 }
 
+
+// ── 시나리오 키워드 — 플레이어에게 공개된 것만 (모듈 p.2 Setup · 플레이어 가이드 p.86–87) ──
+// 워든 전용 자료(모듈 p.3 Warden Information 이후)는 넣지 않는다.
+const GLOSSARY = [
+  { words: ['아홉의 결사', '아홉 결사', 'Order of Nine'], title: '아홉의 결사',
+    desc: '이번 의뢰주. 3주 전 실버실크 강가의 새 동굴로 학자 조사단을 보냈다. 진흙 체를 되찾으면 1000gp, 조사단원 한 명당 100gp 를 건다.', src: '의뢰서 (모듈 p.2)' },
+  { words: ['하이 렉터 게텔리', '렉터 게텔리', '게텔리', 'Geteli'], title: '하이 렉터 게텔리',
+    desc: '조사단을 이끈 학자. 조사단과 함께 3주째 소식이 없다.', src: '의뢰서 (모듈 p.2)' },
+  { words: ['조사단', '탐사대'], title: '조사단',
+    desc: '아홉의 결사가 보낸 원래 네 명. 무사히 데려오면 한 명당 100gp.', src: '의뢰서 (모듈 p.2)' },
+  { words: ['실버실크 강', '실버실크', 'Silversilk'], title: '실버실크 강',
+    desc: '조사단이 찾아간 새 동굴이 이 강을 따라 있다. 일행은 강을 따라 내려와 조사단 야영지 바로 서쪽에 닿는다.', src: '의뢰서 (모듈 p.2)' },
+  { words: ['진흙 체', 'Mud Sieve'], title: '진흙 체',
+    desc: '조사단이 가져간 초승달 모양 유물. 무사히 되찾아 오면 결사가 1000gp 를 준다.', src: '의뢰서 (모듈 p.2)' },
+  { words: ['뿌리(Roots)', '뿌리', 'the Roots'], title: '뿌리 (the Roots)',
+    desc: '땅속의 거대한 공허. 텅 빈 바다만 한 동굴들이 햇빛 한 줄 없이 이어진다. 그곳 생물은 어둠에 맞게 눈을 바꾸거나 아예 버렸다. 용감하거나 어리석은 자만 들어가고 대부분 돌아오지 못한다.', src: '플레이어 가이드 p.87' },
+  { words: ['관문(Gate)', '관문', 'Gate'], title: '관문 (Gate)',
+    desc: '뿌리로 들어가는 입구. 온 땅에 흩어져 있고 대개 숨겨져 있거나 강한 힘이 지킨다. 한번 열리면 위험한 것들이 넘어온다.', src: '플레이어 가이드 p.87' },
+  { words: ['도시들'], title: '도시들 (the Cities)',
+    desc: '발드의 권력 중심을 사람들이 부르는 말. 가끔은 비꼬는 뜻으로 쓴다.', src: '플레이어 가이드 p.86' },
+  { words: ['유물(Relic)', '유물'], title: '유물 (Relic)',
+    desc: '주문이나 힘이 깃든 물건. 써도 피로가 쌓이지 않지만 쓸 수 있는 횟수가 정해져 있고, 다시 채우는 조건이 따로 있다.', src: '플레이어 가이드 p.67' },
+];
+const KW = new Map();
+GLOSSARY.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), g)));
+const KW_RE = new RegExp('(' + [...KW.keys()].sort((a, b) => b.length - a.length)
+  .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+
+function keywords(el) {                    // 글 마디만 훑어 감싼다 (태그 속은 안 건드림)
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement.closest('.kw, .who, code') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  const nodes = [];
+  while (walk.nextNode()) nodes.push(walk.currentNode);
+  nodes.forEach(n => {
+    if (!KW_RE.test(n.nodeValue)) return;
+    KW_RE.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    n.nodeValue.replace(KW_RE, (m, _w, i) => {
+      frag.append(n.nodeValue.slice(last, i));
+      const s = document.createElement('span');
+      s.className = 'kw'; s.textContent = m; s.dataset.kw = m.toLowerCase(); s.tabIndex = 0;
+      frag.append(s); last = i + m.length;
+    });
+    frag.append(n.nodeValue.slice(last));
+    n.replaceWith(frag);
+  });
+  return el;
+}
+function showTip(span) {
+  const g = KW.get(span.dataset.kw); if (!g) return;
+  const tip = $('tip');
+  tip.innerHTML = `<b>${esc(g.title)}</b>${esc(g.desc)}<span class="src">${esc(g.src)}</span>`;
+  tip.style.display = 'block';
+  const r = span.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  tip.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
+}
+const hideTip = () => $('tip').style.display = 'none';
+document.addEventListener('mouseover', e => { const k = e.target.closest('.kw'); k ? showTip(k) : hideTip(); });
+document.addEventListener('focusin', e => { const k = e.target.closest('.kw'); if (k) showTip(k); });
+document.addEventListener('click', e => { const k = e.target.closest('.kw'); k ? showTip(k) : hideTip(); });   // 폰: 누르면
+$('log') && $('log').addEventListener('scroll', hideTip);
+keywords($('brief').querySelector('ul'));       // 의뢰서에도
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
   if (!gmBox) { gmRaw = ''; gmBox = add(div('gm', '<span class="who">워든</span><span class="body"></span>')); }
   gmRaw += t;
   const stick = nearBottom();
-  gmBox.querySelector('.body').innerHTML = md(gmRaw.replace(/^\s+/, ''));
+  keywords(Object.assign(gmBox.querySelector('.body'), { innerHTML: md(gmRaw.replace(/^\s+/, '')) }));
   if (stick) $('log').scrollTop = $('log').scrollHeight;
   $('typing').textContent = '워든이 말하는 중…';
 }
