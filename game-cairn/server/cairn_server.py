@@ -15,7 +15,11 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"dice", "expr", "rolls", "total", "why"}
      {"type":"notice", "text"} {"type":"presence", "users":[{nick,color}]} {"type":"ping"}
      {"type":"reset"}   /새게임 — 화면 기록을 비운다
-     {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 처음 알게 된 것 — reveal_lore
+     {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 정보 수첩 — record_info
+- 일행이 새로 알게 된 것(단서 · 들은 이야기 · 읽은 글 · 벽화 · NPC 의 증언 · 지도로 그릴 만한 길)이 생기면 그 장면에서 record_info 로 적는다. 플레이어가 다시 읽는 수첩이다.
+- 플레이어가 실제로 보고 들은 것만 적는다. 워든만 아는 진상 · 수치 · 숨은 내용은 적지 않는다. 같은 내용은 두 번 적지 않는다.
+
+처음 알게 된 것 — reveal_lore
 - 일행이 아래 것을 처음 눈으로 보거나 마주치거나 이름을 알게 되는 순간, 그 장면을 묘사하면서 reveal_lore 를 부른다. 미리 부르지 않는다.
   blood_olm(블러드 올름) · olm(올름) · tube_worm(튜브웜, 죽은 것이라도) · red_hermit_fruit(붉은 열매 — C1 상자에서 보면) · red_hermit_tree(C7 의 거꾸로 자라는 나무)
   geteli(게텔리를 직접 마주치면) · jhel_fries(헬-프리스를 만나거나 이름을 들으면) · rusal(루살) · faraj_oren(파라즈 · 오렌의 시신을 알아보면) · mud_sieve(진흙 체를 직접 보면)
@@ -27,9 +31,11 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
 POST /api/consent 헤더 X-Token {"id", "answer": "accept|reject"}   남의 PC 에게 온 요청 — 그 PC 주인만
      {"type":"consent", "id"} 기록 자리 + {"type":"consent_state", "q":{...}}
 POST /api/chargen 헤더 X-Token {"id", "action": "name|swap|confirm", "value"}   만든 사람만
+     {"type":"info", "entry":{id, kind, title, text, img, when}}   정보 수첩 한 줄 (hello 의 "journal" 에 누적)
      {"type":"world", "world":{day, watch, turns, place}}   게임 상태 중 화면에 보여도 되는 것
      {"type":"reveal", "id", "kind", "title", "words", "desc", "img"}   처음 알게 된 것 (hello 의 "lore" 에 누적)
 GET  /lore/<id>   공개된 것의 그림 (공개 전엔 404)
+GET  /data/items.json · /images/items/<slug>.jpg   아이템 그림 표 · 그림 (공개)
      {"type":"cost", "kind":"meter|line", "total", "rate", "usd", "label"}   사용료 (달러, rate = 원/달러)
 GET  /img/<파일>   그 그림 (server/images/)
 GET  /pub/<파일>   플레이어 공개 그림 (docs/images/scenario/ 의 정해 둔 것만)
@@ -264,6 +270,19 @@ TOOLS = [{
         "type": "object",
         "properties": {"id": {"type": "string", "enum": LORE_IDS}},
         "required": ["id"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "record_info",
+    "description": "일행이 새로 알게 된 정보(단서 · 들은 이야기 · 읽은 글 · 벽화 · NPC 가 알려 준 사실)를 플레이어 정보 수첩에 적는다. 플레이어가 아는 것만.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "짧은 제목. 예: 올름 굴의 벽화"},
+            "text": {"type": "string", "description": "알게 된 내용 2–5문장. 플레이어 눈높이로, 워든 비밀은 빼고"},
+        },
+        "required": ["title", "text"],
         "additionalProperties": False,
     },
 }, {
@@ -537,6 +556,39 @@ def cost_msg(kind, usd=None, label=""):
     return m
 
 
+def extract_info(t0):
+    """워든 차례가 끝나면 그 서술에서 '플레이어가 새로 알게 된 것' 만 뽑아 수첩에 — 워든이 record_info 를 잊어도."""
+    import urllib.request
+    with lock:
+        said = "\n".join(e["text"] for e in state["log"] if e.get("type") == "gm" and e.get("ts", 0) >= t0)
+        have = [e["title"] for e in state.get("journal", [])]
+    if len(said) < 40 or not OR_KEY:
+        return
+    prompt = ("아래는 TRPG 워든이 플레이어들에게 방금 한 서술이다. 플레이어가 이번에 새로 알게 된 정보만 골라라: "
+              "단서 · 이상한 점 · 들은 이야기 · 읽거나 본 글과 그림 · NPC 가 알려 준 사실 · 새로 안 장소나 물건의 생김새.\n"
+              "흔한 분위기 묘사 · 행동 결과 · 주사위 · 질문은 빼라. 없으면 빈 배열.\n"
+              f"수첩에 이미 있는 제목: {have}\n"
+              '답은 JSON 배열만: [{"title": "짧은 제목", "text": "알게 된 내용 1–3문장"}]\n\n서술:\n' + said[:6000])
+    body = json.dumps({"model": OR_MODEL, "max_tokens": 800, "usage": {"include": True},
+                       "messages": [{"role": "user", "content": prompt}]}).encode()
+    req = urllib.request.Request(OR_URL, body, {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
+                                                "HTTP-Referer": "https://game.onethelab.com", "X-Title": "Cairn Blood Olms"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read())
+        add_cost((d.get("usage") or {}).get("cost"), "chat")
+        txt = d["choices"][0]["message"]["content"] or ""
+        m = re.search(r"\[.*\]", txt, re.S)
+        found = json.loads(m.group(0)) if m else []
+    except Exception as e:                  # noqa: BLE001 — 수첩은 덤, 실패해도 게임은 계속
+        print("extract_info:", repr(e))
+        return
+    for f in found[:4]:
+        if isinstance(f, dict) and isinstance(f.get("title"), str) and isinstance(f.get("text"), str) and f["text"].strip():
+            if not any(h.strip() == f["title"].strip() for h in have):
+                add_info("단서", f["title"], f["text"].strip())
+
+
 def gm_turn(lines):
     global gm_busy
     _turn.gen = game["gen"]
@@ -544,6 +596,7 @@ def gm_turn(lines):
         snap = world.snapshot(state, chars_view())
         state[HIST].append({"role": "user", "content": snap + "\n\n[플레이어]\n" + "\n".join(lines)})
         turn_cost["usd"] = 0.0
+        t0 = time.time()
     broadcast({"type": "gm_start"}, keep=False)
     try:
         if MOCK:
@@ -553,6 +606,8 @@ def gm_turn(lines):
         else:
             run_openrouter()
         broadcast({"type": "gm_end"}, keep=False)
+        if not MOCK and not stale():
+            extract_info(t0)
     except Exception as e:                  # noqa: BLE001 — 방 전체에 알리고 계속 돈다
         broadcast({"type": "gm_end"}, keep=False)
         broadcast({"type": "notice", "text": f"마스터 오류: {type(e).__name__}: {str(e)[:200]}"})
@@ -571,6 +626,8 @@ def do_tool(block):
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "새 게임이 시작됨"}
     if block.name == "draw_character":
         return draw_tool(block)
+    if block.name == "record_info":
+        return info_tool(block)
     if block.name == "request_consent":
         return consent_tool(block)
     if block.name == "update_world":
@@ -633,12 +690,47 @@ AUTO_RE = re.compile("|".join(re.escape(w) for w, _ in _AUTO), re.I)
 AUTO_ID = {w.lower(): lid for w, lid in _AUTO}
 
 
+
+# ── 정보 수첩 — 플레이어가 들어서 아는 것 (다시 읽기용) ──
+BRIEF = ("의뢰서 — 사라진 조사단",
+         "3주 전 아홉의 결사가 하이 렉터 게텔리가 이끄는 학자 조사단을 실버실크 강을 따라 새로 발견된 동굴로 보냈다. 그 뒤로 소식이 없다.\n"
+         "조사단이 가져간 초승달 모양 유물 진흙 체를 무사히 되찾아 오면 1000gp.\n"
+         "원래 조사단원 네 명 중 누구든 무사히 데려오면 한 명당 100gp.\n"
+         "일행은 강을 따라 내려와 조사단 야영지 바로 서쪽에 닿는다.")
+
+
+def add_info(kind, title, text, img=None):
+    """수첩에 한 줄 — 같은 제목 · 내용이면 다시 넣지 않는다."""
+    with lock:
+        j = state.setdefault("journal", [])
+        if any(e["title"] == title and e["text"] == text for e in j):
+            return None
+        w = world.public(state)
+        e = {"id": len(j) + 1, "kind": kind, "title": clean(title, 60), "text": str(text)[:1200], "img": img,
+             "when": f"{w['day']}일차 {w['watch']}" + (f" · {w['place']}" if w.get("place") else ""), "ts": time.time()}
+        j.append(e)
+    broadcast({"type": "info", "entry": e}, keep=False)
+    return e
+
+
+def info_tool(block):
+    args = block.input if isinstance(block.input, dict) else {}
+    title, text = args.get("title"), args.get("text")
+    if not isinstance(title, str) or not isinstance(text, str) or not text.strip():
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "title · text 필요"}
+    e = add_info("단서", title, text.strip())
+    return {"type": "tool_result", "tool_use_id": block.id,
+            "content": "정보 수첩에 적었다." if e else "이미 적혀 있다."}
+
+
 def reveal(lid):
     with lock:
         if lid in state["revealed"]:
             return False
         state["revealed"].append(lid)
     broadcast(dict(lore_view(lid), type="reveal", ts=time.time()))
+    v = lore_view(lid)
+    add_info(v["kind"], v["title"], v["desc"], v["img"])
     return True
 
 
@@ -1147,6 +1239,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.static(f, "image/png" if f.suffix == ".png" else "image/jpeg", cors=True)
         if m:
             return self.reply(404, {"error": "아직 공개되지 않음"})
+        if path == "/data/items.json":
+            return self.static(ROOT / "data" / "items.json", "application/json; charset=utf-8", cors=True)
+        m = re.fullmatch(r"/images/items/([a-z0-9_]+\.jpg)", path)
+        if m and (ROOT / "images" / "items" / m.group(1)).exists():
+            return self.static(ROOT / "images" / "items" / m.group(1), "image/jpeg", cors=True)
         if path in PUBLIC_IMG:
             return self.static(ROOT / "docs" / "images" / "scenario" / PUBLIC_IMG[path], "image/png", cors=True)
         m = re.fullmatch(r"/img/(\d+_[0-9a-f]{6}\.(png|jpg|webp))", path)
@@ -1266,6 +1363,7 @@ class Handler(BaseHTTPRequestHandler):
                 state["world"] = world.fresh()
                 state["drafts"] = {}
                 state["consents"] = {}
+                state["journal"] = []
                 pending.clear()
                 game["gen"] += 1
                 global pending_act
@@ -1275,6 +1373,7 @@ class Handler(BaseHTTPRequestHandler):
             send_chars()
             broadcast(cost_msg("meter"), keep=False)
             broadcast({"type": "world", "world": world.public(state)}, keep=False)
+            add_info("의뢰", *BRIEF)
             broadcast({"type": "notice", "text": f"{c.nick} 님이 새 게임을 시작했습니다. 워든에게 말을 걸면 캐릭터 만들기부터."})
             return self.reply(200, {"ok": True})
         with lock:
@@ -1308,7 +1407,8 @@ class Handler(BaseHTTPRequestHandler):
                      "lore": [lore_view(i) for i in state["revealed"] if i in LORE],
                      "world": world.public(state),
                      "drafts": [chargen_view(d) for d in state.get("drafts", {}).values()],
-                     "consents": list(state.get("consents", {}).values())}
+                     "consents": list(state.get("consents", {}).values()),
+                     "journal": state.get("journal", [])}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)
@@ -1334,6 +1434,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    if not state.get("journal"):            # 수첩이 없던 게임 — 의뢰서와 이미 알게 된 것부터
+        add_info("의뢰", *BRIEF)
+        for lid in state.get("revealed", []):
+            if lid in LORE:
+                v = lore_view(lid)
+                add_info(v["kind"], v["title"], v["desc"], v["img"])
+        save_state()
     threading.Thread(target=load_krw, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True

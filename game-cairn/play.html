@@ -78,7 +78,25 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   .toggle{flex:1}
 }
 /* 캐릭터 시트 */
-#sheets{width:330px;flex:none;border-left:1px solid var(--line);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;background:var(--bg)}
+#panel{width:340px;flex:none;border-left:1px solid var(--line);display:flex;flex-direction:column;background:var(--bg);min-height:0}
+.ptabs{display:flex;border-bottom:1px solid var(--line);flex:none}
+.ptabs button{flex:1;background:transparent;color:var(--sub);border:none;border-radius:0;padding:9px 0;font-weight:700;font-size:.88rem}
+.ptabs button.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
+.ptabs .badge[hidden]{display:none}
+.ptabs .badge{display:inline-block;min-width:18px;margin-left:4px;padding:0 5px;border-radius:9px;background:#f5c542;color:#1b1612;font-size:.72rem}
+#sheets,#journal{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+#journal{display:none}
+#panel.j #sheets{display:none} #panel.j #journal{display:flex}
+.jsearch{flex:none}
+.je{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:.86rem;flex:none}
+.je .h{display:flex;flex-direction:column;gap:1px}
+.je .h b{font-size:.92rem}
+.je .k{font-size:.7rem;border-radius:4px;padding:0 6px;background:var(--chip);color:var(--sub);margin-right:6px;font-weight:700}
+.je .k.의뢰{background:var(--accent);color:#fff} .je .k.단서{background:#3498db;color:#fff} .je .k.적,.je .k.생물,.je .k.인물,.je .k.물건,.je .k.장소{background:#f5c542;color:#1b1612}
+.je .w{font-size:.72rem;color:var(--sub);white-space:nowrap}
+.je p{margin:5px 0 0;white-space:pre-line}
+.je img{float:left;width:64px;height:80px;object-fit:cover;border-radius:6px;margin:4px 8px 2px 0;cursor:zoom-in}
+.je.new{border-color:#f5c542}
 #sheets .empty{color:var(--sub);font-size:.85rem;padding:8px}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;flex:none}
 .sheet .top{display:flex;gap:10px;padding:10px}
@@ -103,7 +121,8 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .items ul{list-style:none;margin:0;padding:0}
 .items li{display:flex;justify-content:space-between;gap:8px;padding:2px 0;border-bottom:1px dashed var(--line)}
 .items li:last-child{border-bottom:none}
-.items li .u{color:var(--sub);font-size:.78rem;white-space:nowrap}
+.items li .u{color:var(--sub);font-size:.75rem;text-align:right;max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.items li > span:first-child{flex:1 1 auto;min-width:0}
 .items li .s{color:var(--sub);font-size:.72rem;margin-left:4px}
 .traits{padding:0 10px 10px;font-size:.78rem;color:var(--sub)}
 @keyframes flash{0%{background:rgba(224,122,95,.6)}100%{background:transparent}}
@@ -124,8 +143,8 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   #sheetBtn{display:inline-block}
   #status{display:none}
   header h1{font-size:1rem}
-  #sheets{position:fixed;top:52px;right:0;bottom:0;width:min(360px,92vw);z-index:20;box-shadow:-8px 0 24px rgba(0,0,0,.35);transform:translateX(105%);transition:transform .25s}
-  #sheets.open{transform:none}
+  #panel{position:fixed;top:52px;right:0;bottom:0;width:min(360px,92vw);z-index:20;box-shadow:-8px 0 24px rgba(0,0,0,.35);transform:translateX(105%);transition:transform .25s}
+  #panel.open{transform:none}
 }
 /* 의뢰서 (플레이어 공개 자료) */
 #brief{margin:10px 16px 0;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;flex:none}
@@ -188,6 +207,13 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 #verWarn{display:none;margin:0;padding:6px 16px;background:#f5c542;color:#1b1612;font-size:.85rem}
 #verWarn button{margin-left:8px;padding:2px 10px;font-size:.8rem;background:#1b1612;border-color:#1b1612}
 .card .v{font-size:.75rem;color:var(--sub);margin-top:10px;text-align:right}
+/* 게임 시스템 용어 · 아이템 */
+.kw.sys{color:inherit;font-weight:inherit;border-bottom:1px dotted #5dade2}
+.ii{width:26px;height:26px;border-radius:5px;object-fit:cover;flex:none;background:var(--chip);vertical-align:middle;margin-right:6px}
+.items li > span:first-child{display:flex;align-items:center}
+[data-item]{cursor:help}
+#tip.sys{border-color:#5dade2}
+#tip.sys b{color:#5dade2}
 </style>
 </head>
 <body>
@@ -197,7 +223,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   <span id="meter" title="OpenRouter 누적 사용료 — /새게임 때 0 으로">사용료 <b>$0</b></span>
   <span id="status"></span>
   <span id="ver"></span>
-  <button class="ghost" id="sheetBtn" type="button">시트</button>
+  <button class="ghost" id="sheetBtn" type="button">시트 · 정보</button>
 </header>
 <p id="verWarn"></p>
 
@@ -248,12 +274,16 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
       <button type="submit" id="sendBtn">보내기</button>
     </form>
   </div>
-  <aside id="sheets" aria-label="캐릭터 시트"><div class="empty">캐릭터를 만들면 여기에 시트가 생깁니다.</div></aside>
+  <aside id="panel">
+    <div class="ptabs"><button type="button" data-p="s" class="on">시트</button><button type="button" data-p="j">정보<span class="badge" id="jBadge" hidden></span></button></div>
+    <div id="sheets" aria-label="캐릭터 시트"><div class="empty">캐릭터를 만들면 여기에 시트가 생깁니다.</div></div>
+    <div id="journal" aria-label="정보 수첩"><input class="jsearch" id="jSearch" placeholder="수첩에서 찾기"><div id="jList"></div></div>
+  </aside>
 </section>
 
 <div id="tip" role="tooltip"></div>
 <script>
-const APP_VERSION = '0.14.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
+const APP_VERSION = '0.15.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
 const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
 const $ = id => document.getElementById(id);
 const store = {
@@ -326,6 +356,29 @@ async function loadImg(img, url) {
 }
 
 
+
+// ── 아이템 그림 (data/items.json — tools/item_images.py 가 만든다) ──
+let ITEMS = {}, ITEM_BY = new Map();
+const itemKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '');
+fetch(base() + '/data/items.json', { headers: H() }).then(r => r.ok ? r.json() : {}).then(d => {
+  ITEMS = d;
+  for (const [slug, v] of Object.entries(d)) { ITEM_BY.set(itemKey(v.en), slug); ITEM_BY.set(itemKey(v.ko), slug); }
+  if (lastChars.length) renderSheets(lastChars);
+  Object.keys(DRAFTS).forEach(renderDraft);
+}).catch(() => {});
+function itemSlug(name, en) { return ITEM_BY.get(itemKey(en)) || ITEM_BY.get(itemKey(name)) || ITEM_BY.get(itemKey(String(name).replace(/\s*\(.*\)$/, ''))); }
+function itemTip(key) {
+  const [name, en, note] = key.split('|'), slug = itemSlug(name, en), v = ITEMS[slug] || {};
+  return { title: name, desc: note || v.note_ko || '', src: v.en || en || '', img: slug ? '/' + v.file : null, sys: false };
+}
+function itemIcon(name, en) {
+  const slug = itemSlug(name, en); if (!slug) return '';
+  return `<img class="ii" data-src="/${esc(ITEMS[slug].file)}" alt="">`;
+}
+function loadIcons(root) {
+  root.querySelectorAll('img.ii[data-src]').forEach(im => { const u = im.dataset.src; im.removeAttribute('data-src'); blobUrl(u).then(b => im.src = b).catch(() => im.remove()); });
+}
+
 // ── 캐릭터 시트 ─────────────────────────────
 const prevSheets = {};          // 이름 → 지난 값 (바뀐 칸 반짝이기)
 const imgCache = {};            // url → Promise<blob url>
@@ -346,7 +399,7 @@ function sheetHtml(c) {
   const dead = (c.conditions || []).some(x => /사망|죽음/.test(x));
   const used = c.slots_used || 0;
   const tag = s => s === 0 ? 'petty' : s >= 2 ? 'bulky' : '';
-  const items = (c.items || []).map(i => `<li data-k="item:${esc(i.name)}"><span>${esc(i.name)}<span class="s">${tag(i.slots)}</span></span><span class="u">${esc([i.uses, i.note].filter(Boolean).join(' · '))}</span></li>`).join('');
+  const items = (c.items || []).map(i => `<li data-k="item:${esc(i.name)}" data-item="${esc([i.name, i.en || '', i.note || ''].join('|'))}"><span>${itemIcon(i.name, i.en)}${esc(i.name)}<span class="s">${/petty|bulky/.test(i.note || '') ? '' : tag(i.slots)}</span></span><span class="u">${esc([i.uses, i.note].filter(Boolean).join(' · '))}</span></li>`).join('');
   const kv = [
     c.armor != null ? `<span data-k="armor">갑옷 ${c.armor}</span>` : '',
     c.gp != null ? `<span data-k="gp">${c.gp} gp</span>` : '',
@@ -390,6 +443,7 @@ function renderSheets(chars) {
     if (before) for (const k in now) if (now[k] !== before[k])
       el.querySelectorAll(`[data-k="${CSS.escape(k)}"]`).forEach(x => x.classList.add('flash'));
     prevSheets[c.name] = now;
+    loadIcons(el); keywords(el);
     const por = el.querySelector('.por');
     if (c.image) blobUrl(c.image).then(u => {
       por.style.backgroundImage = `url("${u}")`;
@@ -397,7 +451,7 @@ function renderSheets(chars) {
     }).catch(() => {});
   });
 }
-$('sheetBtn').onclick = () => $('sheets').classList.toggle('open');
+$('sheetBtn').onclick = () => $('panel').classList.toggle('open');
 
 // ── 사용료 ─────────────────────────────
 const usd = v => '$' + (!v ? '0' : v < 0.01 ? v.toFixed(4) : v < 1 ? v.toFixed(3) : v.toFixed(2));
@@ -431,14 +485,42 @@ const GLOSSARY = [
     desc: '주문이나 힘이 깃든 물건. 써도 피로가 쌓이지 않지만 쓸 수 있는 횟수가 정해져 있고, 다시 채우는 조건이 따로 있다.', src: '플레이어 가이드 p.67' },
 ];
 // 게임 중 공개된 것(reveal)은 같은 낱말의 기본 설명을 덮어쓴다 — 그림도 붙는다
+
+// ── 게임 시스템 용어 (Cairn 2e 플레이어 가이드) — 파란 점선 ──
+const SYSTEM_TERMS = [
+  { words: ['HP'], title: 'HP (Hit Protection)', desc: '맞지 않고 피하는 힘. 체력이 아니다. 잠깐 쉬며 물을 마시면 전부 돌아온다. HP 를 넘친 피해는 STR 로 들어간다. 정확히 0 이 되면 상흔 표.', src: '룰 p.9 · p.62' },
+  { words: ['STR'], title: 'STR (근력)', desc: '힘 · 버티기 · 독 저항. 진짜 몸이다. HP 를 넘친 피해가 여기서 깎이고, 깎인 뒤 STR 세이브에 실패하면 치명 피해. 0 이면 사망.', src: '룰 p.62 · p.65' },
+  { words: ['DEX'], title: 'DEX (민첩)', desc: '반사 · 회피 · 등반 · 은신 · 균형. 전투 첫 라운드에 PC 는 DEX 세이브에 성공해야 움직인다. 0 이면 마비.', src: '룰 p.62 · p.64' },
+  { words: ['WIL'], title: 'WIL (의지)', desc: '설득 · 기만 · 위협 · 공포 저항 · 주문 다루기. 0 이면 섬망.', src: '룰 p.62' },
+  { words: ['gp', 'GP', '금화'], title: 'gp (금화)', desc: '돈. 100gp 미만 동전 주머니는 petty — 칸을 차지하지 않는다.', src: '룰 p.9' },
+  { words: ['petty'], title: 'petty (자잘한 물건)', desc: '칸을 차지하지 않는 작은 물건. 100gp 미만 동전도 여기에 든다.', src: '룰 p.9' },
+  { words: ['bulky'], title: 'bulky (부피 큰 물건)', desc: '2칸을 차지한다. 대개 두 손이 필요하다.', src: '룰 p.9' },
+  { words: ['갑옷', 'Armor'], title: '갑옷 (Armor)', desc: '피해에서 이 값만큼 뺀다. 방패 · 투구 등은 들거나 쓸 때만. 누구도 3 을 넘지 못한다.', src: '룰 p.63' },
+  { words: ['피로', 'Fatigue'], title: '피로 (Fatigue)', desc: '한 개에 짐 1칸을 차지한다. 주문 · 결핍 · 사건으로 쌓이고, 안전한 곳에서 하룻밤 쉬면 풀린다. 칸이 없으면 물건을 버려야 한다.', src: '룰 p.62' },
+  { words: ['결핍', 'deprived', 'Deprived'], title: '결핍 (Deprived)', desc: '먹을 것 · 잠 같은 꼭 필요한 것이 없는 상태. 하루를 넘기면 하루마다 피로 1. 결핍 중에는 HP · 능력치 · 피로가 회복되지 않는다.', src: '룰 p.62' },
+  { words: ['공포', 'panic', 'panicked'], title: '공포 (Panic)', desc: '포위 · 어둠 · 큰 두려움 앞에서 WIL 세이브에 실패한 상태. HP 0, 전투 첫 라운드 행동 불가, 공격은 전부 약화(d4). 행동으로 WIL 세이브해 벗어난다.', src: '룰 p.72' },
+  { words: ['세이브', 'save'], title: '세이브', desc: 'd20 을 굴려 능력치 이하면 성공. 1 은 늘 성공, 20 은 늘 실패.', src: '룰 p.62' },
+  { words: ['치명 피해', 'Critical Damage'], title: '치명 피해', desc: 'STR 세이브 실패. 기어갈 뿐 아무것도 못 하고, 붕대 등으로 돌보지 않으면 1시간 안에 죽는다.', src: '룰 p.65' },
+  { words: ['운명 주사위', '운명의 주사위', 'Die of Fate'], title: '운명의 주사위', desc: '불확실할 때 워든이 d6 을 굴린다. 4 이상이면 PC 에게 유리, 3 이하면 불리.', src: '룰 p.63' },
+  { words: ['약화', 'Impaired'], title: '약화 (Impaired)', desc: '불리한 위치에서의 공격. 무기와 상관없이 d4. 맨손도 늘 d4.', src: '룰 p.64' },
+  { words: ['강화', 'Enhanced'], title: '강화 (Enhanced)', desc: '유리한 위치에서의 공격. d12 를 굴린다.', src: '룰 p.64' },
+  { words: ['폭발', 'blast'], title: '폭발 (Blast)', desc: '범위 안의 모두에게 따로따로 피해를 굴린다.', src: '룰 p.64' },
+  { words: ['상흔'], title: '상흔 (Scars)', desc: 'HP 가 정확히 0 이 되면 잃은 HP 양으로 표를 본다. 상처와 함께 최대 HP · 능력치가 오를 기회.', src: '룰 p.66' },
+  { words: ['던전 턴'], title: '던전 턴', desc: '40ft 이동 + 행동 하나. 한 곳에 오래 있거나 서두르거나 새 구역에 들어가거나 시끄러우면 던전 사건 d6.', src: '룰 p.70–71' },
+  { words: ['본드'], title: '본드 (Bond)', desc: '캐릭터가 세상과 맺은 인연 · 빚 · 비밀. 캐릭터 만들 때 d20.', src: '룰 p.12' },
+  { words: ['오멘'], title: '오멘 (Omen)', desc: '세상에 드리운 불길한 징조. 가장 어린 PC 가 굴려 모두에게 읽어 준다.', src: '룰 p.14' },
+  { words: ['10칸', '짐 칸'], title: '짐 · 칸', desc: '10칸. 맨몸으로 4칸, 배낭이 6칸. 보통 물건 1 · petty 0 · bulky 2 · 피로 1. 10칸이 다 차면 HP 0.', src: '룰 p.9' },
+].map(g => ({ ...g, sys: true }));
 const LORE = [];
 let KW = new Map(), KW_RE = /$^/;
 function buildKw() {
   KW = new Map();
+  SYSTEM_TERMS.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), g)));
   GLOSSARY.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), g)));
   LORE.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), { ...g, src: '게임 중 알게 됨' })));
   KW_RE = new RegExp('(' + [...KW.keys()].sort((a, b) => b.length - a.length)
-    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+    .map(w => { const e = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return /^[a-z]/.test(w) ? `(?<![A-Za-z])${e}(?![A-Za-z])` : e; })
+    .join('|') + ')', 'gi');
 }
 buildKw();
 function learn(list, fresh) {           // 공개 목록 갱신 → 지난 워든 글까지 다시 칠한다
@@ -449,7 +531,7 @@ function learn(list, fresh) {           // 공개 목록 갱신 → 지난 워�
 
 function keywords(el) {                    // 글 마디만 훑어 감싼다 (태그 속은 안 건드림)
   const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
-    acceptNode: n => n.parentElement.closest('.kw, .who, code') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+    acceptNode: n => n.parentElement.closest('.kw, .who, code, button, input, textarea, .lab, h4, .nm') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
   const nodes = [];
   while (walk.nextNode()) nodes.push(walk.currentNode);
   nodes.forEach(n => {
@@ -457,10 +539,11 @@ function keywords(el) {                    // 글 마디만 훑어 감싼다 (�
     KW_RE.lastIndex = 0;
     const frag = document.createDocumentFragment();
     let last = 0;
-    n.nodeValue.replace(KW_RE, (m, _w, i) => {
+    n.nodeValue.replace(KW_RE, (...a) => {
+      const m = a[0], i = a[a.length - 2];
       frag.append(n.nodeValue.slice(last, i));
       const s = document.createElement('span');
-      s.className = 'kw'; s.textContent = m; s.dataset.kw = m.toLowerCase(); s.tabIndex = 0;
+      s.className = (KW.get(m.toLowerCase()) || {}).sys ? 'kw sys' : 'kw'; s.textContent = m; s.dataset.kw = m.toLowerCase(); s.tabIndex = 0;
       frag.append(s); last = i + m.length;
     });
     frag.append(n.nodeValue.slice(last));
@@ -469,8 +552,9 @@ function keywords(el) {                    // 글 마디만 훑어 감싼다 (�
   return el;
 }
 function showTip(span) {
-  const g = KW.get(span.dataset.kw); if (!g) return;
+  const g = span.dataset.item ? itemTip(span.dataset.item) : KW.get(span.dataset.kw); if (!g) return;
   const tip = $('tip');
+  tip.className = g.sys ? 'sys' : '';
   tip.innerHTML = `${g.img ? '<img alt="">' : ''}<b>${esc(g.title)}</b>${esc(g.desc)}<span class="src">${esc(g.src)}</span>`;
   tip.style.display = 'block';
   if (g.img) blobUrl(g.img).then(u => { const im = tip.querySelector('img'); if (im) { im.src = u; im.onload = () => place(); } }).catch(() => {});
@@ -482,9 +566,9 @@ function showTip(span) {
   place();
 }
 const hideTip = () => $('tip').style.display = 'none';
-document.addEventListener('mouseover', e => { const k = e.target.closest('.kw'); k ? showTip(k) : hideTip(); });
+document.addEventListener('mouseover', e => { const k = e.target.closest('.kw, [data-item]'); k ? showTip(k) : hideTip(); });
 document.addEventListener('focusin', e => { const k = e.target.closest('.kw'); if (k) showTip(k); });
-document.addEventListener('click', e => { const k = e.target.closest('.kw'); k ? showTip(k) : hideTip(); });   // 폰: 누르면
+document.addEventListener('click', e => { const k = e.target.closest('.kw, [data-item]'); k ? showTip(k) : hideTip(); });   // 폰: 누르면
 $('log') && $('log').addEventListener('scroll', hideTip);
 keywords($('brief').querySelector('ul'));       // 의뢰서에도
 
@@ -505,7 +589,7 @@ function draftHtml(d) {
   const own = mine(d) && d.status === 'choosing';
   const swapped = { 'str-dex': ['str', 'dex'], 'str-wil': ['str', 'wil'], 'dex-wil': ['dex', 'wil'] }[d.swap] || [];
   const stat = k => `<div class="stat${swapped.includes(k) ? ' sw' : ''}">${k.toUpperCase()}<b>${d.stats[k]}</b></div>`;
-  const items = d.items.map(i => `<li>${esc(i.name)}${i.uses ? ` <span class="sub">${esc(i.uses)}</span>` : ''}${i.note ? ` <span class="sub">— ${esc(i.note)}</span>` : ''}${i.slots === 0 && !/petty/.test(i.note) ? ' <span class="sub">petty</span>' : i.slots >= 2 && !/bulky/.test(i.note) ? ' <span class="sub">bulky</span>' : ''}</li>`).join('');
+  const items = d.items.map(i => `<li data-item="${esc([i.name, '', i.note || ''].join('|'))}">${itemIcon(i.name)}${esc(i.name)}${i.uses ? ` <span class="sub">${esc(i.uses)}</span>` : ''}${i.note ? ` <span class="sub">— ${esc(i.note)}</span>` : ''}${i.slots === 0 && !/petty/.test(i.note) ? ' <span class="sub">petty</span>' : i.slots >= 2 && !/bulky/.test(i.note) ? ' <span class="sub">bulky</span>' : ''}</li>`).join('');
   return `<h4>${d.status === 'done' ? '완성 — ' + esc(d.name) : (d.kind === 'pc' ? '캐릭터 만들기' : '동료 만들기')}</h4>
     <div class="sub"><span class="dot" style="display:inline-block;background:${esc(d.owner_color)}"></span> ${esc(d.owner)}${d.kind === 'npc' ? ' 의 동료' : ''} · <b>${esc(d.background)}</b> · ${d.age}세 · HP ${d.hp} · ${d.gp} gp</div>
     <div class="row sub">${esc(d.intro)}</div>
@@ -529,6 +613,7 @@ function renderDraft(id) {
   document.querySelectorAll(`.cg[data-id="${id}"]`).forEach(el => {
     el.className = 'cg' + (d.status === 'done' ? ' done' : '');
     el.innerHTML = draftHtml(d);
+    loadIcons(el); keywords(el);
   });
 }
 async function draftAct(id, action, value, el) {
@@ -592,6 +677,32 @@ setInterval(async () => {             // 서버 재시작 · 화면 갱신을 1�
   try { const h = await (await fetch(base() + '/health', { headers: H() })).json(); showVersion(h.version, h.page_version); } catch {}
 }, 60000);
 
+
+// ── 정보 수첩 — 들어서 아는 것 (새 것이 위) ──
+let JOURNAL = [], jSeen = 0;
+function jHtml(e, fresh) {
+  return `<div class="je${fresh ? ' new' : ''}">${e.img ? `<img data-src="${esc(e.img)}" alt="">` : ''}
+    <div class="h"><b><span class="k ${esc(e.kind)}">${esc(e.kind)}</span>${esc(e.title)}</b><span class="w">${esc(e.when || '')}</span></div>
+    <p>${esc(e.text)}</p></div>`;
+}
+function renderJournal() {
+  const q = $('jSearch').value.trim().toLowerCase();
+  const list = JOURNAL.filter(e => !q || (e.title + ' ' + e.text).toLowerCase().includes(q)).slice().reverse();
+  $('jList').innerHTML = list.length ? list.map(e => jHtml(e, e.id > jSeen)).join('') : '<div class="empty">아직 적힌 것이 없습니다.</div>';
+  $('jList').querySelectorAll('img[data-src]').forEach(im => blobUrl(im.dataset.src).then(u => { im.src = u; im.onclick = () => window.open(u, '_blank'); }).catch(() => im.remove()));
+  keywords($('jList'));
+  const unseen = JOURNAL.filter(e => e.id > jSeen).length, onJ = $('panel').classList.contains('j');
+  $('jBadge').hidden = !unseen || onJ; $('jBadge').textContent = unseen;
+}
+function addJournal(e) { if (!JOURNAL.some(x => x.id === e.id)) JOURNAL.push(e); renderJournal(); }
+$('jSearch').oninput = renderJournal;
+document.querySelector('.ptabs').onclick = e => {
+  const b = e.target.closest('button[data-p]'); if (!b) return;
+  document.querySelectorAll('.ptabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('panel').classList.toggle('j', b.dataset.p === 'j');
+  if (b.dataset.p === 'j') { renderJournal(); jSeen = JOURNAL.length ? Math.max(...JOURNAL.map(x => x.id)) : 0; store.set('cairn.jseen', jSeen); setTimeout(renderJournal, 2500); }
+};
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
@@ -619,6 +730,7 @@ function handle(m) {
       if (m.gm_busy) gmStart();
       renderSheets(m.chars || []);
       if (m.cost) meter(m.cost);
+      JOURNAL = m.journal || []; jSeen = +(store.get('cairn.jseen') || 0); renderJournal();
       showVersion(m.version, m.page_version);
       showWorld(m.world);
       $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ' · ' + esc((m.brain || '').split('/').pop())}`;
@@ -630,9 +742,10 @@ function handle(m) {
     case 'dice': case 'image': gmBox = null; render(m); break;      // 주사위 · 그림 다음 글은 새 칸에
     case 'presence': users(m.users); break;
     case 'ping': break;
-    case 'reset': LORE.length = 0; buildKw(); $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('sheets').classList.remove('open'); break;
+    case 'reset': JOURNAL = []; jSeen = 0; store.set('cairn.jseen', 0); renderJournal(); LORE.length = 0; buildKw(); $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('panel').classList.remove('open'); break;
     case 'chars': renderSheets(m.chars); break;
     case 'world': showWorld(m.world); break;
+    case 'info': addJournal(m.entry); break;
     case 'draft': DRAFTS[m.draft.id] = m.draft; renderDraft(m.draft.id); break;
     case 'consent_state': CONSENTS[m.q.id] = m.q; renderConsent(m.q.id); break;
     case 'reveal': gmBox = null; learn([m], true); render(m); break;
