@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.87.0';
+const VERSION = 'v9.88.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2039,6 +2039,9 @@ const TRACE_WHO = { knight: '🛡 기사' };
 const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
+  // v9.88.0: 들머리 끝(굶주린 들개를 넘은 순간) — 세리나와 만남. 세리나는 보른의 딸, 이름을 대지 못하는 기사를 제멋대로 '가렛'이라 부른다
+  { id:'meet',     who:'knight', pic:'scene_t_meet', key:'kill:strayhound', name:'가렛',
+    text:'숲 가장자리에서 활을 든 여자아이가 나를 내려다봤다. 이름을 묻는데, 대답할 수가 없었다. "그럼 가렛. 오늘부터 가렛이야." 아이는 제멋대로 정해 버리고 앞장섰다.' },
   // v7.13.1: 열쇠를 '어느 보스에게든 처음 진 순간'으로 바꿈 — 튜토리얼(v3.1.0)이 생기며 첫 패배가 들머리로 옮겨가
   //   `lose-boss:mountain`(곰) 은 사실상 열리지 않는 흔적이 되어 있었다. 글에서도 곰을 빼 어느 보스에게든 맞게
   { id:'kneel', pic:'scene_t_kneel',    who:'knight', key:'lose-boss',          name:'무릎',
@@ -2762,6 +2765,8 @@ function load(){
     s.metBoss = !!s.metBoss;                                      // v0.21.1: 보스를 만나 봤는지
     s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
     s.traces = (Array.isArray(s.traces) ? s.traces : []).filter(id => TRACE_BY_ID[id] || SCENE_BY_ID[id]);   // v2.2.0: 흔적
+    // v9.88.0: 이미 들머리를 깬 저장엔 '가렛' 흔적을 조용히 넣어 준다 (그 순간이 지나 버려 다시 열 길이 없다)
+    if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain') && !s.traces.includes('meet')) s.traces.push('meet');
     s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
     s.hints = s.hints && typeof s.hints === 'object' ? s.hints : {};   // v2.2.0: 본 조작 안내
     const eq = {};                                                // v0.23.0: 장착한 장비
