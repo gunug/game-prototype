@@ -1,7 +1,7 @@
 """Cairn — 플레이 블러드 올름 서버.
 
 LLM 이 워든이 되어 CAS-2 블러드 올름을 진행한다.
-두뇌: CAIRN_PROVIDER=openrouter(기본, anthropic/claude-sonnet-5.5 — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
+두뇌: CAIRN_PROVIDER=openrouter(기본, google/gemini-3.8-flash — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
 접속자 모두가 한 방에서 채팅하고, '마스터에게' 보낸 말에 워든이 답한다.
 
 채팅은 HTTP 스트리밍 (llm-graphic-mud 와 같은 이유: ngrok 무료판 경고 페이지가
@@ -91,7 +91,7 @@ HOST, PORT = "127.0.0.1", int(_arg("--port", os.environ.get("CAIRN_PORT", 8790))
 
 # 워든 두뇌 — CAIRN_PROVIDER=openrouter(기본) | claude
 PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
-OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "anthropic/claude-sonnet-5.5")
+OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-3.8-flash")
 AUX_MODEL = os.environ.get("CAIRN_AUX_MODEL", "google/gemini-3.1-flash-lite")   # 보조 작업(수첩 자동 기록) — 싸고 빠른 것
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 IMG_MODEL = os.environ.get("CAIRN_IMG_MODEL", "google/gemini-3.1-flash-lite-image")   # 캐릭터 그림 (OpenRouter)
