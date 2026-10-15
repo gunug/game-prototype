@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>플레이 블러드 올름</title>
+<style>
+:root{
+  --bg:#f6f3ec; --panel:#fffdf8; --ink:#1d1a16; --sub:#5f574b; --line:#d9d1c2;
+  --accent:#8a2b1f; --accent-soft:#f3e2dc; --chip:#ece6da; --gm:#2a1f1a; --gm-ink:#f3ead8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15130f; --panel:#1f1c17; --ink:#ece6da; --sub:#aaa090; --line:#3a342b;
+    --accent:#e07a5f; --accent-soft:#3a221b; --chip:#2b2720; --gm:#2c1b16; --gm-ink:#f3ead8;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15130f; --panel:#1f1c17; --ink:#ece6da; --sub:#aaa090; --line:#3a342b;
+  --accent:#e07a5f; --accent-soft:#3a221b; --chip:#2b2720; --gm:#2c1b16; --gm-ink:#f3ead8;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;
+  font:15px/1.6 "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
+header a{color:var(--sub);text-decoration:none;font-size:.9rem}
+header h1{margin:0;font:700 1.15rem/1.2 Georgia,serif;flex:1}
+#status{font-size:.8rem;color:var(--sub)}
+button{font:inherit;padding:8px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+button.ghost{background:transparent;color:var(--sub);border-color:var(--line)}
+input,textarea{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+/* 입장 */
+#login{flex:1;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;width:100%;max-width:380px}
+.card h2{margin:0 0 4px;font:700 1.3rem Georgia,serif}
+.card p{margin:0 0 14px;color:var(--sub);font-size:.9rem}
+.card label{display:block;font-size:.85rem;color:var(--sub);margin:10px 0 4px}
+.card button{width:100%;margin-top:16px}
+#err{color:#c0392b;font-size:.9rem;min-height:1.4em;margin-top:8px}
+details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:12px}
+/* 방 */
+#room{flex:1;display:none;min-height:0}
+#room.on{display:flex}
+#side{width:200px;border-right:1px solid var(--line);padding:12px;overflow:auto;flex:none}
+#side h3{margin:0 0 8px;font-size:.85rem;color:var(--sub)}
+.user{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:.9rem}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#log{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:760px}
+.msg .who{font-weight:700;font-size:.85rem;margin-right:6px}
+.msg .tag{font-size:.72rem;color:var(--sub);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-right:6px}
+.msg.talk{opacity:.75}
+.gm{background:var(--gm);color:var(--gm-ink);border-left:4px solid #c0392b;border-radius:10px;padding:10px 14px;max-width:760px;white-space:normal;word-break:keep-all;overflow-wrap:anywhere}
+.gm .who{color:#ff9b85;font-weight:700;font-size:.85rem;display:block;margin-bottom:2px}
+.gm code{background:rgba(255,255,255,.1);padding:0 4px;border-radius:4px}
+.gm .stat{display:block;margin-top:6px;font-size:.85rem;color:#e8c9a0}
+.dice{align-self:flex-start;font-size:.85rem;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:2px 12px}
+.dice b{color:var(--accent)}
+.notice{align-self:center;font-size:.8rem;color:var(--sub)}
+.typing{font-size:.85rem;color:var(--sub);padding:0 16px 6px;min-height:1.4em}
+#bar{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line);align-items:flex-end}
+#bar textarea{resize:none;height:44px;max-height:140px}
+.toggle{flex:none;display:flex;align-items:center;gap:4px;font-size:.8rem;color:var(--sub);white-space:nowrap;cursor:pointer;user-select:none}
+.toggle input{width:auto}
+#chips{display:none}
+@media (max-width:700px){
+  #side{display:none}
+  #chips{display:flex;gap:6px;overflow-x:auto;padding:6px 16px;border-bottom:1px solid var(--line)}
+  #chips .user{flex:none;background:var(--chip);border-radius:999px;padding:2px 10px;font-size:.8rem}
+  #bar{flex-wrap:wrap}
+  #bar textarea{flex:1 1 100%}
+  .toggle{flex:1}
+}
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html#scenario">← 안내</a>
+  <h1>플레이 블러드 올름</h1>
+  <span id="status"></span>
+</header>
+
+<section id="login">
+  <form class="card" id="joinForm" autocomplete="off">
+    <h2>블러드 올름의 부상</h2>
+    <p>워든은 Claude 가 맡습니다. 비밀번호를 아는 사람은 누구나 함께할 수 있어요.</p>
+    <label for="nick">이름</label>
+    <input id="nick" maxlength="16" placeholder="예: 아마라" required>
+    <label for="pw">입장 비밀번호</label>
+    <input id="pw" type="password" required>
+    <details class="srv" id="srvBox">
+      <summary>서버 주소</summary>
+      <input id="srv" placeholder="https://….ngrok-free.dev">
+    </details>
+    <button type="submit" id="joinBtn">입장</button>
+    <div id="err"></div>
+  </form>
+</section>
+
+<section id="room">
+  <aside id="side"><h3>접속자</h3><div id="users"></div></aside>
+  <div id="main">
+    <div id="chips"></div>
+    <div id="log" aria-live="polite"></div>
+    <div class="typing" id="typing"></div>
+    <form id="bar">
+      <label class="toggle" title="끄면 플레이어끼리의 잡담 — 워든이 답하지 않음"><input type="checkbox" id="toGm" checked> 마스터에게</label>
+      <textarea id="text" maxlength="600" placeholder="행동이나 말을 적으세요 (Enter 보내기, Shift+Enter 줄바꿈)"></textarea>
+      <button type="submit" id="sendBtn">보내기</button>
+    </form>
+  </div>
+</section>
+
+<script>
+const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, s = localStorage) { try { return s.getItem(k); } catch { return null; } },
+  set(k, v, s = localStorage) { try { v == null ? s.removeItem(k) : s.setItem(k, v); } catch {} },
+};
+// 서버가 직접 이 페이지를 내줬으면 같은 주소, 아니면 저장된 주소
+const sameOrigin = location.port === '8790' || /ngrok/.test(location.hostname);
+if (sameOrigin) $('srvBox').style.display = 'none';
+$('srv').value = store.get('cairn.server') || DEFAULT_SERVER;
+$('nick').value = store.get('cairn.nick') || '';
+const base = () => sameOrigin ? '' : $('srv').value.trim().replace(/\/+$/, '');
+const H = extra => Object.assign({ 'ngrok-skip-browser-warning': '1' }, extra);
+
+let token = store.get('cairn.token', sessionStorage);
+let me = null, gmBox = null, gmRaw = '', abort = null, retry = 0;
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function md(s) {
+  return esc(s).split('\n').map(l => {
+    l = l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+    return l.startsWith('▸') ? `<span class="stat">${l}</span>` : l;
+  }).join('<br>');
+}
+const nearBottom = () => { const l = $('log'); return l.scrollHeight - l.scrollTop - l.clientHeight < 120; };
+function add(el) {
+  const stick = nearBottom();
+  $('log').append(el);
+  if (stick) $('log').scrollTop = $('log').scrollHeight;
+  return el;
+}
+function div(cls, html) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; return d; }
+
+function render(m) {
+  if (m.type === 'chat') {
+    const tag = m.to_gm ? '' : '<span class="tag">잡담</span>';
+    add(div('msg' + (m.to_gm ? '' : ' talk'), `${tag}<span class="who" style="color:${esc(m.color)}">${esc(m.nick)}</span>${md(m.text)}`));
+  } else if (m.type === 'gm') {
+    add(div('gm', `<span class="who">워든</span>${md(m.text)}`));
+  } else if (m.type === 'dice') {
+    const r = m.rolls.map(a => a.join('+')).join(' / ');
+    add(div('dice', `🎲 ${esc(m.why)} · ${esc(m.expr)} [${esc(r)}] → <b>${m.total}</b>`));
+  } else if (m.type === 'notice') {
+    add(div('notice', esc(m.text)));
+  }
+}
+
+function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
+function gmDelta(t) {
+  if (!gmBox) { gmRaw = ''; gmBox = add(div('gm', '<span class="who">워든</span><span class="body"></span>')); }
+  gmRaw += t;
+  const stick = nearBottom();
+  gmBox.querySelector('.body').innerHTML = md(gmRaw.replace(/^\s+/, ''));
+  if (stick) $('log').scrollTop = $('log').scrollHeight;
+  $('typing').textContent = '워든이 말하는 중…';
+}
+function gmEnd() { gmBox = null; $('typing').textContent = ''; }
+
+function users(list) {
+  const html = list.map(u => `<div class="user"><span class="dot" style="background:${esc(u.color)}"></span>${esc(u.nick)}${me && u.nick === me.nick && u.color === me.color ? ' (나)' : ''}</div>`).join('');
+  $('users').innerHTML = html; $('chips').innerHTML = html;
+}
+
+function handle(m) {
+  switch (m.type) {
+    case 'hello':
+      me = m.me; $('log').innerHTML = ''; m.log.forEach(render);
+      $('log').scrollTop = $('log').scrollHeight;
+      if (m.gm_busy) gmStart();
+      $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ''}`;
+      break;
+    case 'gm_start': gmStart(); break;
+    case 'gm_delta': gmDelta(m.text); break;
+    case 'gm_end': gmEnd(); break;
+    case 'dice': gmBox = null; render(m); break;      // 주사위 다음 글은 새 칸에
+    case 'presence': users(m.users); break;
+    case 'ping': break;
+    default: render(m);
+  }
+}
+
+async function listen() {
+  abort = new AbortController();
+  try {
+    const res = await fetch(base() + '/api/stream', { headers: H({ 'X-Token': token }), signal: abort.signal });
+    if (res.status === 401) return logout('입장이 끊겼습니다. 다시 들어와 주세요.');
+    if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+    retry = 0;
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+        if (line) { try { handle(JSON.parse(line)); } catch (e) { console.warn(e); } }
+      }
+    }
+  } catch (e) {
+    if (abort.signal.aborted) return;
+    console.warn('stream', e);
+  }
+  if (!token) return;
+  retry = Math.min(retry + 1, 6);
+  $('status').textContent = '다시 연결하는 중…';
+  setTimeout(listen, 500 * 2 ** retry);
+}
+
+function enter() {
+  $('login').style.display = 'none'; $('room').classList.add('on');
+  $('text').focus(); listen();
+}
+function logout(msg) {
+  token = null; store.set('cairn.token', null, sessionStorage);
+  if (abort) abort.abort();
+  $('room').classList.remove('on'); $('login').style.display = '';
+  $('err').textContent = msg || '';
+}
+
+$('joinForm').onsubmit = async e => {
+  e.preventDefault();
+  $('err').textContent = ''; $('joinBtn').disabled = true;
+  store.set('cairn.nick', $('nick').value.trim());
+  if (!sameOrigin) store.set('cairn.server', $('srv').value.trim());
+  try {
+    const res = await fetch(base() + '/api/join', {
+      method: 'POST', headers: H({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ nick: $('nick').value, password: $('pw').value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || '입장 실패 (' + res.status + ')');
+    token = data.token; store.set('cairn.token', token, sessionStorage);
+    $('pw').value = '';
+    enter();
+  } catch (err) {
+    $('err').textContent = err.message === 'Failed to fetch' ? '서버에 닿지 않습니다. 서버가 켜져 있나요?' : err.message;
+  } finally { $('joinBtn').disabled = false; }
+};
+
+async function send() {
+  const text = $('text').value.trim();
+  if (!text) return;
+  $('sendBtn').disabled = true;
+  try {
+    const res = await fetch(base() + '/api/send', {
+      method: 'POST', headers: H({ 'Content-Type': 'application/json', 'X-Token': token }),
+      body: JSON.stringify({ text, to_gm: $('toGm').checked }),
+    });
+    if (res.status === 401) return logout('입장이 끊겼습니다. 다시 들어와 주세요.');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    $('text').value = '';
+  } catch (err) {
+    render({ type: 'notice', text: '보내지 못함: ' + err.message });
+  } finally { $('sendBtn').disabled = false; $('text').focus(); }
+}
+$('bar').onsubmit = e => { e.preventDefault(); send(); };
+$('text').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+
+if (token) enter();
+</script>
+</body>
+</html>

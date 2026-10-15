@@ -66,6 +66,11 @@ button:hover{filter:brightness(1.1)}
   padding:8px 16px;font-weight:600}
 .tab[aria-selected="true"]{background:var(--panel);color:var(--accent);border-color:var(--line);margin-bottom:-1px}
 .tab:hover{filter:none;color:var(--ink)}
+a.tab{text-decoration:none;display:inline-flex;align-items:center}
+.tab{white-space:nowrap;flex:none}
+.tabs{overflow-x:auto}
+@media (max-width:520px){.tabs{justify-content:flex-start}.tab{padding:8px 10px;font-size:.85rem}}
+.tab.play{color:var(--accent)}
 .part,nav[data-for]{display:none}
 .part.on{display:block} nav[data-for].on{display:flex}
 .center{text-align:center}
@@ -86,6 +91,7 @@ footer a{color:var(--accent)}
 <div class="tabs" role="tablist">
   <button class="tab" data-part="system" role="tab">시스템 요약</button>
   <button class="tab" data-part="scenario" role="tab">시나리오 · 블러드 올름</button>
+  <a class="tab play" href="play.html">플레이 블러드 올름 ▶</a>
 </div>
 <nav data-for="system">
   <a href="#principles">원칙</a><a href="#character">캐릭터</a><a href="#inventory">인벤토리</a>
@@ -458,7 +464,7 @@ footer a{color:var(--accent)}
 function showPart(part, scroll) {
   document.querySelectorAll('.part').forEach(p => p.classList.toggle('on', p.id === 'part-' + part));
   document.querySelectorAll('nav[data-for]').forEach(n => n.classList.toggle('on', n.dataset.for === part));
-  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.part === part));
+  document.querySelectorAll('button.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.part === part));
   if (scroll) window.scrollTo(0, 0);
 }
 function fromHash() {
@@ -468,7 +474,7 @@ function fromHash() {
   showPart(part === 'scenario' ? 'scenario' : 'system');
   if (el && el.closest('.part')) el.scrollIntoView();
 }
-document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+document.querySelectorAll('button.tab').forEach(t => t.onclick = () => {
   history.replaceState(null, '', '#' + t.dataset.part);
   showPart(t.dataset.part, true);
 });
