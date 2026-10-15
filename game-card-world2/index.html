@@ -984,6 +984,25 @@
   .book-inner{max-width:760px;margin:0 auto;}
   .book-field{margin:10px 0 14px;}
   /* v2.2.0: 흔적 — 이야기 조각 한 줄씩 */
+  /* v9.87.0: 흔적을 얻을 때 뜨는 큰 카드 팝업 */
+  .tmodal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
+    background:rgba(0,0,0,.62);animation:tmIn .22s ease-out;}
+  .tmodal.out{animation:tmOut .22s ease-in forwards;}
+  @keyframes tmIn{from{opacity:0}to{opacity:1}}
+  @keyframes tmOut{to{opacity:0}}
+  .tm-card{position:relative;width:min(340px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:14px;
+    background:#1d1913;border:2px solid rgba(201,185,138,.7);box-shadow:0 12px 40px rgba(0,0,0,.6),0 0 0 1px rgba(255,216,74,.25);
+    animation:tmPop .28s cubic-bezier(.2,.9,.3,1.2);}
+  @keyframes tmPop{from{transform:scale(.86) translateY(12px)}to{transform:none}}
+  .tm-pic img{width:100%;height:auto;max-height:calc(100vh - 260px);display:block;aspect-ratio:3/4;object-fit:cover;}   /* 글까지 한 화면에 */
+  .tm-body{padding:12px 16px 16px;}
+  .tm-tag{font-size:11px;font-weight:800;color:var(--brand-yellow);letter-spacing:.04em;}
+  .tm-name{font-size:18px;font-weight:900;color:#f3e6bf;margin-top:2px;}
+  .tm-from{font-size:12px;color:var(--muted);margin-top:2px;}
+  .tm-text p{margin:8px 0 0;line-height:1.6;font-size:14px;color:#e8dcb5;}
+  .tm-x{position:absolute;top:8px;right:8px;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.35);
+    background:rgba(0,0,0,.55);color:#fff;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .tm-x:hover{background:rgba(0,0,0,.8);}
   /* v9.83.0: 시나리오 카드 — 큰 그림 한 장 */
   .scene-sleeve{position:relative;width:150px;aspect-ratio:3/4;border-radius:var(--r-md);overflow:hidden;cursor:pointer;flex:none;
     border:2px solid rgba(201,185,138,.55);background:rgba(201,185,138,.08);box-shadow:0 2px 8px rgba(0,0,0,.4);}
@@ -1813,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.86.0';
+const VERSION = 'v9.87.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2060,7 +2079,37 @@ function traceHit(key){
   S.traces.push(t.id);
   S.newTraces.push(t.id);
   toast(`📜 흔적: ${t.name}`);
+  traceModal(t);                                                  // v9.87.0: 얻는 순간 큰 카드로
   renderNew(); save();
+}
+// v9.87.0: **흔적을 얻으면 큰 카드 팝업** — 그림 · 이름 · 글. X 또는 바깥을 누르면 닫힌다.
+//   한꺼번에 둘 이상 얻으면 차례로 하나씩 띄운다 (닫으면 다음 장)
+const traceQueue = [];
+function traceModal(t){
+  if (!t || !t.pic) return;
+  if (document.getElementById('traceModal')){ traceQueue.push(t); return; }
+  const isScene = !!SCENE_BY_ID[t.id];
+  const from = isScene ? (t.from || '이야기') : `${TRACE_WHO[t.who] || ''} · 흔적`;
+  const text = Array.isArray(t.text) ? t.text : [t.text];
+  const el = document.createElement('div');
+  el.id = 'traceModal'; el.className = 'tmodal';
+  el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
+    + '<button class="tm-x" type="button" aria-label="닫기">✕</button>'
+    + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
+    + `<div class="tm-body"><div class="tm-tag">📜 새 흔적</div><div class="tm-name">${esc(t.name)}</div>`
+    + `<div class="tm-from">${esc(from)}</div>`
+    + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`;
+  const close = () => {
+    if (el.classList.contains('out')) return;
+    el.classList.add('out');
+    removeEventListener('keydown', onKey);
+    setTimeout(() => { el.remove(); if (traceQueue.length) traceModal(traceQueue.shift()); }, 220);
+  };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  el.addEventListener('click', e => { if (e.target === el || e.target.closest('.tm-x')) close(); });   // 바깥 · X
+  addEventListener('keydown', onKey);
+  document.body.appendChild(el);
+  paintIcons(el);
 }
 // --- 여관 걸음 (v9.55.0) ------------------------------
 // 소문: 그 장인의 흔적이 있는 땅을 **다녀온다** / 물건: 쓰는 재료를 **건넨다** / 증명: 그가 지목한 놈을 **넘는다**
