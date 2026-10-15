@@ -123,7 +123,9 @@ def snapshot(state, chars):
             st = " ".join(f"{k.upper()} {c.get(k, '?')}/{c.get(k + '_max', '?')}" for k in ("hp", "str", "dex", "wil"))
             items = ", ".join(i["name"] + (f"({i['uses']})" if i.get("uses") else "") for i in c.get("items", []))
             cond = ",".join(c.get("conditions") or [])
-            lines.append(f"  {c['name']} [{c.get('player', '')}] {st} 갑옷 {c.get('armor', 0)} gp {c.get('gp', 0)} "
+            who = (f"PC · 플레이어 {c['player']}" if c.get("player") not in (None, "", "NPC")
+                   else f"NPC{' · ' + c['companion_of'] + ' 의 동료' if c.get('companion_of') else ''}")
+            lines.append(f"  {c['name']} [{who}] {st} 갑옷 {c.get('armor', 0)} gp {c.get('gp', 0)} "
                          f"피로 {c.get('fatigue', 0)} 짐 {c.get('slots_used', 0)}/10 {('상태 ' + cond) if cond else ''}")
             lines.append(f"    소지: {items or '없음'}")
     return "\n".join(lines)

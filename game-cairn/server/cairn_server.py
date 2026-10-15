@@ -24,6 +24,8 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
 캐릭터 그림
      {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
      {"type":"chargen", "id"} 기록용 자리 + {"type":"draft", "draft":{...}} 캐릭터 생성 초안 (이름 · 능력치 교환 버튼)
+POST /api/consent 헤더 X-Token {"id", "answer": "accept|reject"}   남의 PC 에게 온 요청 — 그 PC 주인만
+     {"type":"consent", "id"} 기록 자리 + {"type":"consent_state", "q":{...}}
 POST /api/chargen 헤더 X-Token {"id", "action": "name|swap|confirm", "value"}   만든 사람만
      {"type":"world", "world":{day, watch, turns, place}}   게임 상태 중 화면에 보여도 되는 것
      {"type":"reveal", "id", "kind", "title", "words", "desc", "img"}   처음 알게 된 것 (hello 의 "lore" 에 누적)
@@ -160,6 +162,17 @@ def build_system():
 - 세이브(d20 ≤ 능력치), 피해, 반응(2d6), 운명 주사위(d6), 던전 사건(d6), 캐릭터 생성 모두 도구로.
 - 굴린 값과 결과를 서술에 짧게 밝힌다. 예: "DEX 세이브 6 (≤14) 성공".
 
+누가 무엇을 조종하나 — 반드시 지킨다
+- 플레이어의 말 앞에 [플레이어 닉 · 캐릭터 이름] 이 붙어 온다. 주어가 없는 말은 그 플레이어 자신의 캐릭터가 하는 행동이다.
+- 플레이어는 자기 캐릭터만 움직인다. 다른 캐릭터를 움직이게 할 수 없다.
+- 워든도 PC 를 움직이지 않는다. 이번에 플레이어가 선언하지 않은 PC 는 그 자리에서 기다린다 — 따라가거나 줍거나 말하게 하지 않는다. 필요하면 그 플레이어에게 무엇을 할지 묻는다.
+  - 다른 플레이어의 PC 에게 무엇을 하게 하는 말(예: "세이블이 문을 열게 한다")은 요청이다. request_consent 를 부르고, 그 PC 는 주인이 수락할 때까지 그 행동을 하지 않는다. 그 답에서는 '요청이 갔다' 고만 말하고, 수락한 것처럼 미리 서술하지 않는다.
+  - NPC(동료 NPC 포함)에게 시키는 말도 요청이다. 그 NPC 의 성격 · 특성 · 처지 · 위험을 보고 네가 수락하거나 거부한다. 애매하면 반응 2d6 이나 NPC 의 WIL 세이브를 굴린다. 동료 NPC 는 만든 플레이어(companion_of)의 말을 더 잘 듣지만 무조건 따르지는 않는다.
+- 플레이어는 세계를 정의하지 못한다. "문이 열려 있다", "적이 쓰러졌다", "보물이 있다" 처럼 결과 · 사실을 정하는 말은 그 캐릭터가 하려는 '시도' 로만 받아들이고, 결과와 사실은 네가 룰과 시나리오에 따라 정한다.
+- 캐릭터가 할 수 없는 일(능력 · 장비 · 위치 밖)은 시도할 수 있는 범위로 줄여 받거나, 왜 안 되는지 짧게 말한다.
+- [플레이어 … · 아직 캐릭터 없음] 의 행동 요청은 진행하지 말고 /캐릭터생성 을 권한다.
+- [시스템] 이 요청의 수락/거부를 알려 오면 그대로 따른다.
+
 시작
 - 캐릭터 만들기는 서버 명령이 한다: 플레이어는 채팅에 /캐릭터생성 , 동료 NPC 는 /동료생성 . 워든은 캐릭터를 직접 굴려 만들지 않는다.
   캐릭터가 없는 플레이어가 말을 걸면 /캐릭터생성 을 쓰라고 짧게 안내한다. 혼자라면 /동료생성 도 권한다.
@@ -243,6 +256,20 @@ TOOLS = [{
         "type": "object",
         "properties": {"id": {"type": "string", "enum": LORE_IDS}},
         "required": ["id"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "request_consent",
+    "description": "다른 플레이어의 PC 에게 무엇을 하게 하자는 요청이 오면 부른다. 그 PC 의 플레이어에게 수락/거부 버튼이 뜬다. NPC 에게는 쓰지 않는다.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "character": {"type": "string", "description": "요청을 받는 PC 이름"},
+            "request": {"type": "string", "description": "무엇을 해 달라는지 한 줄"},
+            "from_player": {"type": "string", "description": "요청한 플레이어 닉네임"},
+        },
+        "required": ["character", "request", "from_player"],
         "additionalProperties": False,
     },
 }, {
@@ -422,10 +449,26 @@ pending_act = False          # 그 안에 '마스터에게' 가 하나라도 있
 gm_busy = False
 
 
+def pc_of(nick):
+    """그 플레이어가 조종하는 PC 이름 (없으면 "")."""
+    with lock:
+        for c in state["chars"].values():
+            if c.get("player") == nick and not any("사망" in x for x in c.get("conditions") or []):
+                return c["name"]
+    return ""
+
+
+def speaker(nick):
+    if nick == "시스템":
+        return "[시스템]"
+    pc = pc_of(nick)
+    return f"[플레이어 {nick} · 캐릭터 {pc}]" if pc else f"[플레이어 {nick} · 아직 캐릭터 없음]"
+
+
 def queue_line(nick, text, to_gm):
     global pending_act
     with lock:
-        pending.append(f"[{nick}] {text}" if to_gm else f"(잡담) [{nick}] {text}")
+        pending.append(f"{speaker(nick)} {text}" if to_gm else f"(잡담) {speaker(nick)} {text}")
         pending_act = pending_act or to_gm
     kick_gm()
 
@@ -520,6 +563,8 @@ def do_tool(block):
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "새 게임이 시작됨"}
     if block.name == "draw_character":
         return draw_tool(block)
+    if block.name == "request_consent":
+        return consent_tool(block)
     if block.name == "update_world":
         with lock:
             msg = world.update(state, block.input if isinstance(block.input, dict) else {})
@@ -694,6 +739,33 @@ def chargen_view(d):
     return v
 
 
+def consent_tool(block):
+    """남의 PC 에게 무엇을 하게 하려면 그 플레이어가 수락해야 한다."""
+    args = block.input if isinstance(block.input, dict) else {}
+    name, req, frm = args.get("character"), args.get("request"), args.get("from_player", "")
+    if not isinstance(name, str) or not isinstance(req, str) or not req.strip():
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "character · request 필요"}
+    with lock:
+        ch = state["chars"].get(find_char(name))
+    if not ch:
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": f"없는 캐릭터: {name}"}
+    owner = ch.get("player")
+    if owner in (None, "", "NPC"):
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True,
+                "content": f"{ch['name']} 은 NPC — 수락 여부는 워든이 그 성격대로 정한다 (필요하면 반응 2d6 · WIL 세이브)."}
+    with lock:
+        color = next((x.color for x in clients.values() if x.nick == owner), "#888")
+        cid = f"q{int(time.time() * 1000) % 10**9}"
+        q = {"id": cid, "character": ch["name"], "owner": owner, "owner_color": color,
+             "from": clean(frm, NICK_MAX), "request": clean(req, 200), "status": "기다림"}
+        state.setdefault("consents", {})[cid] = q
+    broadcast({"type": "consent", "id": cid, "ts": time.time()})
+    broadcast({"type": "consent_state", "q": q}, keep=False)
+    return {"type": "tool_result", "tool_use_id": block.id,
+            "content": f"{owner} 님에게 수락/거부 버튼을 띄웠다. 답이 오기 전까지 {ch['name']} 은 그 행동을 하지 않는다. "
+                       f"이번 답에서는 요청이 갔다는 것만 알리고 결과를 서술하지 마라."}
+
+
 def start_chargen(c, kind):
     def roll_cb(expr, why, private=False):
         rolls, total = roll(expr)
@@ -731,6 +803,8 @@ def finish_chargen(d, owner_nick):
     """확정 → 시트 · 그림 · 워든 소개."""
     player = owner_nick if d["kind"] == "pc" else "NPC"
     sheet = chargen.to_sheet(d, player)
+    if d["kind"] == "npc":
+        sheet["companion_of"] = owner_nick
     with lock:
         key = find_char(sheet["name"])
         sheet["name"] = key
@@ -1079,6 +1153,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad body"})
         if path == "/api/join":
             return self.join(data)
+        if path == "/api/consent":
+            return self.consent(data)
         if path == "/api/chargen":
             return self.chargen(data)
         if path == "/api/send":
@@ -1112,6 +1188,24 @@ class Handler(BaseHTTPRequestHandler):
         with lock:
             clients[c.token] = c
         self.reply(200, {"token": c.token, "nick": nick, "color": color})
+
+    def consent(self, data):
+        c = self.me()
+        if not c:
+            return self.reply(401, {"error": "다시 입장해 주세요."})
+        with lock:
+            q = state.get("consents", {}).get(str(data.get("id")))
+        if not q or q["status"] != "기다림":
+            return self.reply(404, {"error": "없거나 끝난 요청"})
+        if q["owner"] != c.nick:
+            return self.reply(403, {"error": f"{q['character']} 의 주인({q['owner']})만 답할 수 있습니다."})
+        ok = data.get("answer") == "accept"
+        q["status"] = "수락" if ok else "거부"
+        broadcast({"type": "consent_state", "q": q}, keep=False)
+        save_state()
+        queue_line("시스템", f"{q['owner']} 님이 자기 캐릭터 {q['character']} 에 대한 요청 「{q['request']}」(요청: {q['from'] or '?'}) 을 "
+                   f"{'수락했다. 이제 그 행동을 서술하라.' if ok else '거부했다. ' + q['character'] + ' 은 그 행동을 하지 않는다.'}", True)
+        return self.reply(200, {"ok": True})
 
     def chargen(self, data):
         c = self.me()
@@ -1162,6 +1256,7 @@ class Handler(BaseHTTPRequestHandler):
                 state["revealed"] = []
                 state["world"] = world.fresh()
                 state["drafts"] = {}
+                state["consents"] = {}
                 pending.clear()
                 game["gen"] += 1
                 global pending_act
@@ -1177,7 +1272,7 @@ class Handler(BaseHTTPRequestHandler):
             ok = burst_ok(c.sends, SEND_BURST) and (not to_gm or burst_ok(c.gm_calls, GM_BURST))
         if not ok:
             return self.reply(429, {"error": "너무 빨리 보내고 있습니다."})
-        broadcast({"type": "chat", "nick": c.nick, "color": c.color, "text": text, "to_gm": to_gm, "ts": time.time()})
+        broadcast({"type": "chat", "nick": c.nick, "color": c.color, "char": pc_of(c.nick), "text": text, "to_gm": to_gm, "ts": time.time()})
         queue_line(c.nick, text, to_gm)
         self.reply(200, {"ok": True, "gm_busy": gm_busy})
 
@@ -1202,7 +1297,8 @@ class Handler(BaseHTTPRequestHandler):
                      "chars": chars_view(), "cost": cost_msg("meter"),
                      "lore": [lore_view(i) for i in state["revealed"] if i in LORE],
                      "world": world.public(state),
-                     "drafts": [chargen_view(d) for d in state.get("drafts", {}).values()]}
+                     "drafts": [chargen_view(d) for d in state.get("drafts", {}).values()],
+                     "consents": list(state.get("consents", {}).values())}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)

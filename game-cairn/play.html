@@ -175,6 +175,14 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .cg .err{color:#c0392b;font-size:.8rem;min-height:1em}
 #quick{display:flex;gap:6px;padding:0 16px 6px}
 #quick button{padding:3px 10px;font-size:.78rem;background:var(--chip);color:var(--ink);border-color:var(--line)}
+/* 남의 PC 에게 온 요청 */
+.cq{align-self:flex-start;max-width:min(520px,96%);background:var(--panel);border:1px solid var(--line);border-left:4px solid #3498db;border-radius:10px;padding:8px 12px;font-size:.88rem}
+.cq .sub{color:var(--sub);font-size:.78rem}
+.cq .btns{display:flex;gap:6px;margin-top:6px}
+.cq .btns button{padding:4px 12px;font-size:.82rem}
+.cq .btns button.no{background:var(--chip);color:var(--ink);border-color:var(--line)}
+.cq.done{opacity:.8}
+.msg .ch{font-size:.78rem;color:var(--sub);margin-right:6px}
 </style>
 </head>
 <body>
@@ -273,7 +281,7 @@ function div(cls, html) { const d = document.createElement('div'); d.className =
 function render(m) {
   if (m.type === 'chat') {
     const tag = m.to_gm ? '' : '<span class="tag">잡담</span>';
-    add(div('msg' + (m.to_gm ? '' : ' talk'), `${tag}<span class="who" style="color:${esc(m.color)}">${esc(m.nick)}</span>${md(m.text)}`));
+    add(div('msg' + (m.to_gm ? '' : ' talk'), `${tag}<span class="who" style="color:${esc(m.color)}">${esc(m.nick)}</span>${m.char ? `<span class="ch">(${esc(m.char)})</span>` : ''}${md(m.text)}`));
   } else if (m.type === 'gm') {
     add(keywords(div('gm', `<span class="who">워든</span>${md(m.text)}`)));
   } else if (m.type === 'dice') {
@@ -282,6 +290,8 @@ function render(m) {
   } else if (m.type === 'image') {
     const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
     loadImg(fig.querySelector('img'), m.url);
+  } else if (m.type === 'consent') {
+    const el = add(div('cq', '')); el.dataset.id = m.id; renderConsent(m.id);
   } else if (m.type === 'chargen') {
     const el = add(div('cg', ''));
     el.dataset.id = m.id; renderDraft(m.id);
@@ -530,6 +540,30 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.matches('.cg .name input')) { e.preventDefault(); e.target.nextElementSibling.click(); }
 });
 
+
+// ── 남의 PC 에게 온 요청 (수락 · 거부는 그 PC 주인만) ──
+const CONSENTS = {};
+function consentHtml(q) {
+  const own = me && q.owner === me.nick && q.status === '기다림';
+  return `<div class="sub">요청 · ${esc(q.from || '?')} → <b>${esc(q.character)}</b> (${esc(q.owner)} 님의 캐릭터)</div>
+    <div>${esc(q.request)}</div>
+    ${own ? `<div class="btns"><button type="button" data-ans="accept">수락</button><button type="button" class="no" data-ans="reject">거부</button></div>`
+      : `<div class="sub">${q.status === '기다림' ? esc(q.owner) + ' 님의 답을 기다리는 중…' : '→ ' + esc(q.status)}</div>`}`;
+}
+function renderConsent(id) {
+  const q = CONSENTS[id]; if (!q) return;
+  document.querySelectorAll(`.cq[data-id="${id}"]`).forEach(el => { el.className = 'cq' + (q.status !== '기다림' ? ' done' : ''); el.innerHTML = consentHtml(q); });
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('.cq button[data-ans]'); if (!b) return;
+  const id = b.closest('.cq').dataset.id;
+  try {
+    const res = await fetch(base() + '/api/consent', { method: 'POST', headers: H({ 'Content-Type': 'application/json', 'X-Token': token }),
+      body: JSON.stringify({ id, answer: b.dataset.ans }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+  } catch (err) { render({ type: 'notice', text: '답하지 못함: ' + err.message }); }
+});
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
@@ -551,7 +585,7 @@ function users(list) {
 function handle(m) {
   switch (m.type) {
     case 'hello':
-      me = m.me; (m.drafts || []).forEach(d => DRAFTS[d.id] = d); LORE.length = 0; learn(m.lore || [], false);
+      me = m.me; (m.drafts || []).forEach(d => DRAFTS[d.id] = d); (m.consents || []).forEach(q => CONSENTS[q.id] = q); LORE.length = 0; learn(m.lore || [], false);
       $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
@@ -571,6 +605,7 @@ function handle(m) {
     case 'chars': renderSheets(m.chars); break;
     case 'world': showWorld(m.world); break;
     case 'draft': DRAFTS[m.draft.id] = m.draft; renderDraft(m.draft.id); break;
+    case 'consent_state': CONSENTS[m.q.id] = m.q; renderConsent(m.q.id); break;
     case 'reveal': gmBox = null; learn([m], true); render(m); break;
     case 'cost': meter(m); if (m.kind === 'line') { gmBox = null; render(m); } break;
     default: render(m);
