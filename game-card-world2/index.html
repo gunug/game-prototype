@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.90.0';
+const VERSION = 'v9.91.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2097,9 +2097,12 @@ function traceHit(key){
 // v9.87.0: **흔적을 얻으면 큰 카드 팝업** — 그림 · 이름 · 글. X 또는 바깥을 누르면 닫힌다.
 //   한꺼번에 둘 이상 얻으면 차례로 하나씩 띄운다 (닫으면 다음 장)
 const traceQueue = [];
+let traceOpen = null;                                             // 지금 떠 있는 흔적 (v9.91.0: DOM 이 아니라 이 값으로 차례를 센다)
 function traceModal(t){
-  if (!t || !t.pic) return;
-  if (document.getElementById('traceModal')){ traceQueue.push(t); return; }
+  if (!t) return;
+  if (!t.pic){ traceDone(t); return; }
+  if (traceOpen){ traceQueue.push(t); return; }
+  traceOpen = t;
   const isScene = !!SCENE_BY_ID[t.id];
   const from = isScene ? (t.from || '이야기') : `${TRACE_WHO[t.who] || ''} · 흔적`;
   const text = Array.isArray(t.text) ? t.text : [t.text];
@@ -2117,7 +2120,9 @@ function traceModal(t){
     removeEventListener('keydown', onKey);
     setTimeout(() => {
       el.remove();
-      if (t.id === 'meet') allyJoinNow();                          // v9.89.0: '가렛' 카드를 닫으면 세리나가 함께한다
+      if (traceOpen !== t) return;                                 // traceAckAll 이 먼저 치웠다
+      traceOpen = null;
+      traceDone(t);                                                // v9.89.0 세리나 · v9.91.0 여관 세 사람 — 카드를 닫으면 함께한다
       if (traceQueue.length) traceModal(traceQueue.shift());
     }, 220);
   };
@@ -2126,6 +2131,15 @@ function traceModal(t){
   addEventListener('keydown', onKey);
   document.body.appendChild(el);
   paintIcons(el);
+}
+// 떠 있는 흔적 카드를 모두 닫은 것으로 친다 (AI 시험 · 불러오기에서 씀)
+function traceAckAll(){
+  for (let i = 0; i < 50 && (traceOpen || traceQueue.length); i++){
+    const t = traceOpen || traceQueue.shift();
+    traceOpen = null;
+    try { document.getElementById('traceModal')?.remove(); } catch (e) {}
+    traceDone(t);
+  }
 }
 // --- 여관 걸음 (v9.55.0) ------------------------------
 // 소문: 그 장인의 흔적이 있는 땅을 **다녀온다** / 물건: 쓰는 재료를 **건넨다** / 증명: 그가 지목한 놈을 **넘는다**
@@ -2346,7 +2360,7 @@ const storyStep = id => Math.min((((innSt() || {}).story) || {})[id] || 0, STORY
 const storyDone = id => storyStep(id) >= STORY_LEN;
 // 이야기를 할 수 있는 사람 — 합류한 사람 전부 (기사 · 궁수 · 여관 주인 · 만물상 · 합류한 장인)
 const storyCan = id => !!STORY[id] && (id === 'knight' || (id === 'ally' && allyIn())
-  || id === 'keeper' || id === 'peddler' || (!!SMITH_BY_ID[id] && smithOk(id)));
+  || ((id === 'keeper' || id === 'peddler') && personIn(id)) || (!!SMITH_BY_ID[id] && smithOk(id)));
 const storyNow = id => storyDone(id) ? null : STORY[id][storyStep(id)];
 const storyGiven = id => ((innSt() || {}).sgiven || {})[id] || {};
 const storyGiveNeed = (type, who) => {                            // 그 사람 이야기 걸음에 이 카드가 몇 장 더 필요한가
@@ -2518,6 +2532,25 @@ const allySt = () => (S.ally = S.ally || { hp: ARCHER.hp, lv: 1, xp: 0 });
 // v9.89.0: **세리나는 들머리 끝에 합류한다** — 흔적 '가렛'(들개를 넘은 순간)을 보고 그 카드를 닫으면 함께한다.
 //   그 전엔 원정 · 정비 · 여관 · 책 어디에도 서지 않는다 (몸 S.ally 는 그대로 두고 '함께하나'만 따로 센다)
 const allyIn = () => editMode || !!(typeof S !== 'undefined' && S && S.allyJoin);
+// v9.91.0: **여관의 세 사람도 흔적 뒤에 합류한다** — 보른(여관 주인) · 두르간(무기 장인) · 오르반(만물상).
+//   들머리에서 세리나와 돌아올 때 흔적 셋이 뜨고, 그 카드를 닫으면 함께한다 (S.joined). 그 전엔 어디에도 없다
+const PERSON_TRACE = { born: 'keeper', durgan: 'weaponsmith', orban: 'peddler' };
+const personIn = id => editMode || !!(typeof S !== 'undefined' && S && (S.joined || []).includes(id));
+function personJoinNow(id){
+  if ((S.joined || []).includes(id)) return;
+  (S.joined = S.joined || []).push(id);
+  logEv('person-join', { who: id });
+  const bust = id === 'keeper' ? 'bust_innkeeper' : `bust_${id}`;
+  toast(`🏨 ${pName(id)} 합류`);
+  unlockShow(`images/portrait/${bust}.png`, `${pName(id)} 합류`, personJob(id));
+  renderTabs(); renderAll(); renderInsp(); renderBook(); renderQuest(); save();
+}
+// 흔적 카드를 닫았을 때 — 그 흔적에 걸린 합류를 한다
+function traceDone(t){
+  if (!t) return;
+  if (t.id === 'meet') allyJoinNow();
+  if (PERSON_TRACE[t.id]) personJoinNow(PERSON_TRACE[t.id]);
+}
 function allyJoinNow(){
   if (S.allyJoin) return;
   S.allyJoin = true;
@@ -2675,8 +2708,9 @@ const innSt = () => (typeof S !== 'undefined' && S && S.inn) ? S.inn : null;   /
 //   (전엔 저장이 있기만 하면 요리사 · 목수 · 약재 장인을 합류로 밀어 넣어, 새로 시작한 판도 새로 고치면 합류해 버렸다)
 const INN_VER = 2;
 const freshInn = () => ({ regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER });
-const smithDone = id => { const n = innSt(); return !!n && (n.done || []).includes(id); };
-const smithOk = id => editMode || !SMITH_BY_ID[id] || !!SMITH_BY_ID[id].free || smithDone(id);
+const smithDone = id => { if ((SMITH_BY_ID[id] || {}).free) return personIn(id);   // v9.91.0: 무기 장인은 흔적 '두르간' 뒤에
+  const n = innSt(); return !!n && (n.done || []).includes(id); };
+const smithOk = id => editMode || !SMITH_BY_ID[id] || smithDone(id);
 const smithFound = () => true;                                    // v9.56.2: 여관 사람은 가리지 않는다 (옛 ??? 규칙 폐지)
 const smithName = id => (SMITH_BY_ID[id] || {}).name || '';
 const smithOpensText = id => { const o = (SMITH_BY_ID[id] || {}).opens || {};
@@ -2760,7 +2794,7 @@ let selected = null;
 function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], newLands: [], seenLands: [], newFoes: [], seenFoes: [], hints: {}, tab: 'battle', intro: 'done',   // v7.13.0   // v0.18.2: 크리처별로 받아 본 전리품
   inn: freshInn(),                                                                // v9.55.0: 여관 — 무기 장인은 처음부터
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 },
-  ally: { hp: ARCHER.hp, lv: 1, xp: 0 }, allyJoin: false }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
+  ally: { hp: ARCHER.hp, lv: 1, xp: 0 }, allyJoin: false, joined: [] }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
     const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
@@ -2794,6 +2828,10 @@ function load(){
       for (const id of ['meet', 'born', 'durgan', 'orban']) if (!s.traces.includes(id)) s.traces.push(id);   // v9.90.0: 여관 세 사람도
     // v9.89.0: 세리나 합류 — 표식이 없는 옛 저장은 '가렛' 흔적이 있으면 함께한 것으로. 카드를 닫기 전에 새로 고쳤어도 함께한다
     if (typeof s.allyJoin !== 'boolean' || (!s.allyJoin && s.traces.includes('meet'))) s.allyJoin = s.traces.includes('meet');
+    // v9.91.0: 여관 세 사람 — 그 흔적이 있으면 함께한 것으로 (카드를 닫기 전에 새로 고쳤어도)
+    s.joined = Array.isArray(s.joined) ? s.joined.filter(id => Object.values(PERSON_TRACE).includes(id)) : [];
+    for (const [tid, who] of Object.entries(PERSON_TRACE)) if (s.traces.includes(tid) && !s.joined.includes(who)) s.joined.push(who);
+    if (s.tab === 'inn' && !s.joined.includes('keeper')) s.tab = 'battle';
     s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
     s.hints = s.hints && typeof s.hints === 'object' ? s.hints : {};   // v2.2.0: 본 조작 안내
     const eq = {};                                                // v0.23.0: 장착한 장비
@@ -3820,8 +3858,10 @@ const foeArtId = k => ((ENEMIES[k] || {}).portrait || 'portrait_animal').slice(9
 const foeFacePic = k => `images/icon/card_${foeArtId(k)}.png`;    // 카드 — 얼굴 (인스펙터 큰 그림은 전신 portrait_*)
 // v9.56.0: 여관 사람들도 책에 모인다 — 여관 주인은 늘 보이고, 장인은 소문을 들어야 이름이 드러난다
 function smithSlotHtml(id){
-  if (ALWAYS_PEOPLE.includes(id)){                                // 여관 주인 · 만물상 — 늘 거기 있는 사람
+  if (ALWAYS_PEOPLE.includes(id)){                                // 여관 주인 · 만물상
     const pic = id === 'keeper' ? 'card_innkeeper' : 'card_peddler';
+    if (!personIn(id))                                            // v9.91.0: 아직 만나지 않았다
+      return '<div class="sleeve">' + beingCardHtml({ cls: 'f-bronze locked', pic: `images/icon/${pic}.png`, name: '???', known: false }) + '</div>';
     const job = id === 'keeper' ? '여관 주인' : '만물상';
     return `<div class="sleeve${bookPick === 'smith:' + id ? ' sel' : ''}" data-book="smith:${id}">`
       + beingCardHtml({ cls:'f-bronze', pic:`images/icon/${pic}.png`, name: pName(id), job })
@@ -3836,7 +3876,7 @@ function smithSlotHtml(id){
 // v9.67.1: 만물상도 책에 — 여관 사람은 아니지만 **우리를 돕는 사람**이라 같은 묶음에 세운다
 const BOOK_PEOPLE = () => ['keeper', 'peddler'].concat(SMITHS.map(x => x.id));
 const ALWAYS_PEOPLE = ['keeper', 'peddler'];                      // 늘 보이는 사람 (찾아 나설 것이 없다)
-const peopleFound = () => BOOK_PEOPLE().filter(id => editMode || ALWAYS_PEOPLE.includes(id) || smithDone(id)).length;   // v9.56.2: 센 것은 **합류한 사람**
+const peopleFound = () => BOOK_PEOPLE().filter(id => editMode || (ALWAYS_PEOPLE.includes(id) ? personIn(id) : smithDone(id))).length;   // v9.56.2: 센 것은 **합류한 사람**
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
@@ -4581,7 +4621,7 @@ function renderTabs(){                                            // v0.21.0: �
   const groups = [
     { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전'), btn('raid', '🗼 레이드')] },
     // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
-    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표'), btn('inn', '🏨 여관')] },
+    { key:'prep',  items: [BOARD_BY_ID['gearup'] ? boardBtn(BOARD_BY_ID['gearup']) : '', btn('aim', '🎯 목표'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
     // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 여관이 말해 준다
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b) && boardOpen(b)).map(boardBtn) },
@@ -4915,7 +4955,7 @@ function screenRows(){
   if (S.tab === 'aim'){                                           // v3.0.0: 한 줄 · 한 칸
     const g = S.goal && DEFS[S.goal] ? S.goal : null;
     // v9.67.0: 목표 옆에 **만물상** — 모든 조합을 아는 사람. 탭하면 정보 칸이 열린다
-    const ped = `<div class="foelist">${beingCardHtml({
+    const ped = !personIn('peddler') ? '' : `<div class="foelist">${beingCardHtml({   // v9.91.0: 만나기 전엔 없다
       cls: `f-bronze foe keeper${innPick === 'peddler' ? ' sel' : ''}`,
       attrs: ' data-smith="peddler" title="만물상"',
       pic: 'images/icon/card_peddler.png', name: pName('peddler'), job: '만물상' })}</div>`;
@@ -4976,7 +5016,7 @@ function screenTokens(){
   if (S.tab === 'inn'){
     const regs = innRegs();
     const lab = (t, n) => ({ token: null, html: `<div class="sect-lab">${esc(t)} <span class="i-muted">${n}</span></div>` });
-    const pre = SMITHS.filter(x => !smithOk(x.id) && !regs.includes(x.id));   // 등록한 사람은 윗줄에 이미 있다
+    const pre = SMITHS.filter(x => !x.free && !smithOk(x.id) && !regs.includes(x.id));   // 등록한 사람은 윗줄에 이미 있다 · 무기 장인은 흔적으로 온다
     const joined = SMITHS.filter(x => smithOk(x.id));
     const out = [];
     const preReg = regs.filter(id => !storyCan(id)).length;
@@ -5003,7 +5043,7 @@ function screenTokens(){
     const tok = id => storyCan(id) && !storyDone(id) && !regs.includes(id);
     const stTag = id => STORY[id] ? `이야기 ${storyStep(id)}/${STORY_LEN}` : '';
     // v9.71.0: 늘 함께인 사람들도 〈합류〉에 선다 — 여관 주인 · 만물상 · 기사 · 궁수
-    const always = ALWAYS_PEOPLE.map(id => ({ id, html: beingCardHtml({
+    const always = ALWAYS_PEOPLE.filter(personIn).map(id => ({ id, html: beingCardHtml({
       cls: `f-bronze${innPick === id ? ' sel' : ''}`, attrs: ` data-smith="${id}"${tok(id) ? ` data-token="${id}"` : ''}`, tag: stTag(id),
       pic: `images/icon/${personPic(id)}.png`, name: pName(id), job: personJob(id) }) }));
     const heroes = HEROES_ALL.filter(k => k !== 'ally' || allyIn()).map(k => ({ id: k, html: beingCardHtml({
@@ -5585,6 +5625,7 @@ function setTab(tab){
 
   if (drag) endDrag({ type: 'pointercancel' });
   if (!freeTabs.includes(tab) && !boardOpen(BOARD_BY_ID[tab] || {})) return;   // v0.91.0
+  if (tab === 'inn' && !personIn('keeper')) return;               // v9.91.0
   if (S.tab !== 'book') lastTab = S.tab;                          // v3.3.0: 책에서 나올 때 돌아갈 곳
   S.tab = tab;
   renderTabs();
@@ -5755,7 +5796,7 @@ const foeRange = e => e.range || BASE_RANGE;
 const CREW = { keeper: { name:'여관 주인', art:'innkeeper' }, peddler: { name:'만물상', art:'peddler' } };
 for (const sm of SMITHS) CREW[sm.id] = { name: sm.name, art: sm.id };
 const isCrew = k => !!CREW[k];
-const crewJoined = k => k === 'keeper' || k === 'peddler' || smithOk(k);   // 늘 있는 둘 + 합류한 장인
+const crewJoined = k => k === 'keeper' || k === 'peddler' ? personIn(k) : smithOk(k);   // v9.91.0: 여관 주인 · 만물상도 합류해야
 const HERO_BASE = k => CREW[k] ? Object.assign({}, CREW_BASE, { name: CREW[k].name }) : k === 'ally' ? ARCHER : KNIGHT;
 // 싸울 수 있는 몸인가 — 기사 · 궁수만 전투요원이다
 const isFighter = k => k === 'knight' || k === 'ally';

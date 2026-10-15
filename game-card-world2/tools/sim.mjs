@@ -373,6 +373,7 @@ function play(ai, note){
     }
     if (st.cleared.length >= ai.fields().length) return '모두 깸';
 
+    g('traceAckAll()');                                            // v9.91.0: 흔적 카드는 바로 닫는다 — 닫아야 사람이 합류한다
     equipBest();
 
     // ① 목표가 없으면 하나 건다 — 지금 쥔 것보다 나은 장비
