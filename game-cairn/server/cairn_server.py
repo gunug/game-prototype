@@ -1,6 +1,7 @@
 """Cairn — 플레이 블러드 올름 서버.
 
-Claude(claude-opus-5-5)가 워든이 되어 CAS-2 블러드 올름을 진행한다.
+LLM 이 워든이 되어 CAS-2 블러드 올름을 진행한다.
+두뇌: CAIRN_PROVIDER=openrouter(기본, google/gemini-2.5-flash-lite — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
 접속자 모두가 한 방에서 채팅하고, '마스터에게' 보낸 말에 워든이 답한다.
 
 채팅은 HTTP 스트리밍 (llm-graphic-mud 와 같은 이유: ngrok 무료판 경고 페이지가
@@ -13,11 +14,14 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"gm_start"} {"type":"gm_delta","text"} {"type":"gm_end"}   (기록에는 {"type":"gm","text"} 토막)
      {"type":"dice", "expr", "rolls", "total", "why"}
      {"type":"notice", "text"} {"type":"presence", "users":[{nick,color}]} {"type":"ping"}
+     {"type":"reset"}   /새게임 — 화면 기록을 비운다
 POST /api/send    헤더 X-Token  {"text", "to_gm"}
 GET  /           play.html (이 서버로 바로 들어와도 된다)
 
 비밀: server/cairn.pass (입장 비밀번호, 없으면 12341234 로 만든다)
-      ANTHROPIC_API_KEY 환경변수 또는 server/anthropic.key
+      OPENROUTER_API_KEY 또는 server/openrouter.key  (openrouter)
+      ANTHROPIC_API_KEY 또는 server/anthropic.key    (claude)
+      환경변수는 Windows 사용자 환경변수(setx)도 직접 읽는다.
       둘 다 커밋 안 함 (server/.gitignore). 키가 없으면 흉내 워든(MOCK)으로 돈다.
 상태: server/state.json — 워든과의 대화 · 채팅 기록. 서버를 껐다 켜도 이어진다.
 
@@ -42,9 +46,14 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 HOST, PORT = "127.0.0.1", int(os.environ.get("CAIRN_PORT", 8790))
 
-MODEL = "claude-opus-5-5"
+# 워든 두뇌 — CAIRN_PROVIDER=openrouter(기본) | claude
+PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
+OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-2.5-flash-lite")
+OR_URL = "https://openrouter.ai/api/v1/chat/completions"
+CLAUDE_MODEL = "claude-opus-5-5"
 EFFORT = "medium"
 MAX_TOKENS = 16000
+MAX_ROUNDS = 30                # 워든 한 차례에 도구 → 이어 말하기 반복 한도
 
 ALLOWED_ORIGINS = {
     "https://game.onethelab.com",
@@ -60,6 +69,7 @@ JOIN_BURST = (6, 60)           # IP 하나가 1분에 입장 시도 6번
 
 PASS_FILE = HERE / "cairn.pass"
 KEY_FILE = HERE / "anthropic.key"
+OR_KEY_FILE = HERE / "openrouter.key"
 STATE_FILE = HERE / "state.json"
 
 # ── 비밀 ─────────────────────────────────────────────
@@ -67,12 +77,29 @@ if not PASS_FILE.exists():
     PASS_FILE.write_text("12341234", encoding="utf-8")
 PASSWORD = PASS_FILE.read_text(encoding="utf-8").strip()
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY") or (
-    KEY_FILE.read_text(encoding="utf-8").strip() if KEY_FILE.exists() else "")
+def user_env(name):
+    """Windows: setx 로 넣은 사용자 환경변수 — 그 전에 뜬 프로세스에서 켜도 읽히게."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as k:
+            return winreg.QueryValueEx(k, name)[0]
+    except (ImportError, OSError):
+        return ""
+
+
+def secret(env, file):
+    return (os.environ.get(env) or user_env(env) or (
+        file.read_text(encoding="utf-8").strip() if file.exists() else "")).strip()
+
+
+if PROVIDER == "claude":
+    API_KEY, MODEL = secret("ANTHROPIC_API_KEY", KEY_FILE), CLAUDE_MODEL
+else:
+    API_KEY, MODEL = secret("OPENROUTER_API_KEY", OR_KEY_FILE), OR_MODEL
 MOCK = not API_KEY or os.environ.get("CAIRN_MOCK") == "1"
 
 client = None
-if not MOCK:
+if not MOCK and PROVIDER == "claude":
     import anthropic
     client = anthropic.Anthropic(api_key=API_KEY)
 
@@ -84,6 +111,9 @@ def build_system():
     scen = (docs / "시나리오_블러드올름.md").read_text(encoding="utf-8")
     scen_src = (docs / "src" / "scenario_blood_olms.md").read_text(encoding="utf-8")
     scen_src = re.sub(r"!\[[^\]]*\]\([^)]*\)\n?", "", scen_src)      # 그림 링크는 뺀다
+    rule_src = (docs / "src" / "rule_players_guide.md").read_text(encoding="utf-8")
+    chargen = rule_src[rule_src.index("\n## p.8\n"):rule_src.index("\n## p.60\n")]   # 캐릭터 만들기 ~ 배경 20종 표
+    chargen = re.sub(r"!\[[^\]]*\]\([^)]*\)\n?", "", chargen)
     guide = """너는 TRPG Cairn 2e 의 워든(마스터)이다. 모듈 CAS-2 「블러드 올름의 부상」을 진행한다.
 여러 플레이어가 한 채팅방에 있다. 플레이어의 말은 `[닉네임] 내용` 꼴로 온다. 같은 차례에 여러 명의 말이 함께 올 수 있다.
 
@@ -102,8 +132,9 @@ def build_system():
 
 시작
 - 처음 온 플레이어에게는 캐릭터를 만들어 준다: 배경 d20, 능력치 3d6 ×3, HP d6, 특성 · 본드, 나이 2d20+10. 가장 어린 PC 가 오멘 d20.
-  배경 표의 세부 항목은 룰 원문이 없으니, 배경 이름과 분위기에 맞게 시작 장비를 3–5개 정해 준다 (무기 하나 · 광원 · 식량 포함).
-- 혼자라면 동료 NPC 한 명을 붙여 준다.
+  배경의 이름 · 시작 장비 · d6 표 두 개는 아래 「캐릭터 만들기 원문」을 그대로 따른다. 지어내지 않는다. (PDF 에서 뽑아 표 칸이 줄로 풀려 있다.)
+- 같은 때 굴릴 주사위가 여럿이면(능력치 3d6 ×3, 특성 d10 ×8 등) 한 번의 응답에서 roll_dice 를 여러 번 함께 부른다.
+- 혼자라면 동료 NPC 한 명을 붙여 준다. 동료도 같은 방식으로 굴려 만든다 (배경 · 능력치 · HP 모두 roll_dice).
 - 파티가 갖춰지면 의뢰를 전하고, 도착 시각과 날씨를 묻고 운명 주사위로 비튼다.
 
 상태 표시
@@ -113,6 +144,7 @@ def build_system():
     return [
         {"type": "text", "text": guide},
         {"type": "text", "text": "## 룰 요약\n\n" + rules},
+        {"type": "text", "text": "## 캐릭터 만들기 원문 (Cairn 2e p.8–59, 영문)\n\n" + chargen},
         {"type": "text", "text": "## 시나리오 정리 (워든 전용)\n\n" + scen},
         {"type": "text", "text": "## 시나리오 원문 (워든 전용)\n\n" + scen_src},
     ]
@@ -232,7 +264,8 @@ def presence():
 
 
 # ── 상태 저장 ────────────────────────────────────────
-state = {"messages": [], "log": []}
+state = {"messages": [], "or_messages": [], "log": []}
+HIST = "messages" if PROVIDER == "claude" else "or_messages"   # 두뇌마다 대화 따로
 if STATE_FILE.exists():
     try:
         state.update(json.loads(STATE_FILE.read_text(encoding="utf-8")))
@@ -276,10 +309,15 @@ def kick_gm():
 def gm_turn(lines):
     global gm_busy
     with lock:
-        state["messages"].append({"role": "user", "content": "\n".join(lines)})
+        state[HIST].append({"role": "user", "content": "\n".join(lines)})
     broadcast({"type": "gm_start"}, keep=False)
     try:
-        run_mock() if MOCK else run_claude()
+        if MOCK:
+            run_mock()
+        elif PROVIDER == "claude":
+            run_claude()
+        else:
+            run_openrouter()
         broadcast({"type": "gm_end"}, keep=False)
     except Exception as e:                  # noqa: BLE001 — 방 전체에 알리고 계속 돈다
         broadcast({"type": "gm_end"}, keep=False)
@@ -365,10 +403,92 @@ def run_claude():
     log_only({"type": "gm", "text": "".join(seg).strip(), "ts": time.time()})
 
 
+OR_SYSTEM = "\n\n".join(b["text"] for b in SYSTEM)
+OR_TOOLS = [{"type": "function", "function": {
+    "name": t["name"], "description": t["description"],
+    "parameters": {k: v for k, v in t["input_schema"].items() if k != "additionalProperties"},
+}} for t in TOOLS]
+
+
+def or_stream(messages):
+    """OpenRouter chat/completions 스트림(SSE). 글은 흘려 보내고, 끝나면 (글, 도구 호출들, 끝난 이유)."""
+    import urllib.request
+    body = json.dumps({
+        "model": MODEL, "stream": True, "max_tokens": 4000,
+        "messages": [{"role": "system", "content": OR_SYSTEM}] + messages,
+        "tools": OR_TOOLS,
+    }).encode()
+    req = urllib.request.Request(OR_URL, body, {
+        "Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json",
+        "HTTP-Referer": "https://game.onethelab.com", "X-Title": "Cairn Blood Olms",
+    })
+    text, calls, finish = [], {}, None
+    try:
+        res = urllib.request.urlopen(req, timeout=120)
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"OpenRouter {e.code}: {e.read()[:300].decode('utf-8', 'replace')}") from e
+    with res:
+        for raw in res:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue                    # ": OPENROUTER PROCESSING" 같은 주석
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            chunk = json.loads(data)
+            if chunk.get("error"):
+                raise RuntimeError(f"OpenRouter: {chunk['error'].get('message', chunk['error'])}")
+            for ch in chunk.get("choices", []):
+                d = ch.get("delta") or {}
+                if d.get("content"):
+                    text.append(d["content"])
+                    broadcast({"type": "gm_delta", "text": d["content"]}, keep=False)
+                for tc in d.get("tool_calls") or []:
+                    c = calls.setdefault(tc.get("index", 0), {"id": "", "name": "", "args": ""})
+                    c["id"] = tc.get("id") or c["id"]
+                    f = tc.get("function") or {}
+                    c["name"] = f.get("name") or c["name"]
+                    c["args"] += f.get("arguments") or ""
+                finish = ch.get("finish_reason") or finish
+    return "".join(text), [calls[i] for i in sorted(calls)], finish
+
+
+def run_openrouter():
+    for _ in range(MAX_ROUNDS):             # 주사위를 굴리고 이어 말하기
+        with lock:
+            messages = list(state[HIST])
+        text, calls, finish = or_stream(messages)
+        msg = {"role": "assistant", "content": text or None}
+        if calls:
+            msg["tool_calls"] = [{"id": c["id"] or f"call_{i}", "type": "function",
+                                  "function": {"name": c["name"], "arguments": c["args"] or "{}"}}
+                                 for i, c in enumerate(calls)]
+        with lock:
+            state[HIST].append(msg)
+        log_only({"type": "gm", "text": text.strip(), "ts": time.time()})
+        if not calls:
+            if finish == "length":
+                broadcast({"type": "notice", "text": "워든의 말이 길어 중간에 끊겼습니다."})
+            return
+        results = []
+        for tc in msg["tool_calls"]:
+            try:
+                args = json.loads(tc["function"]["arguments"])
+            except ValueError:
+                args = None
+            block = type("B", (), {"id": tc["id"], "input": args})
+            r = do_tool(block) if tc["function"]["name"] == "roll_dice" else {
+                "tool_use_id": tc["id"], "is_error": True, "content": "없는 도구"}
+            results.append({"role": "tool", "tool_call_id": tc["id"], "content": r["content"]})
+        with lock:
+            state[HIST].extend(results)
+    broadcast({"type": "notice", "text": "워든이 주사위를 너무 많이 굴려 이번 차례를 끊었습니다."})
+
+
 def run_mock():
     """API 키 없이 화면을 시험할 때. 주사위 하나 굴리고 짧게 답한다."""
     with lock:
-        last = state["messages"][-1]["content"]
+        last = state[HIST][-1]["content"]
     rolls, total = roll("d20")
     broadcast({"type": "dice", "expr": "d20", "rolls": rolls, "total": total, "why": "흉내 워든 시험 굴림", "ts": time.time()})
     text = f"(흉내 워든 — API 키가 없어 진짜 Claude 대신 답합니다)\n받은 말:\n{last}\n\nd20 = {total}. 어떻게 할래?"
@@ -376,7 +496,7 @@ def run_mock():
         broadcast({"type": "gm_delta", "text": text[i:i + 6]}, keep=False)
         time.sleep(0.03)
     with lock:
-        state["messages"].append({"role": "assistant", "content": text})
+        state[HIST].append({"role": "assistant", "content": text})
     log_only({"type": "gm", "text": text, "ts": time.time()})
 
 
@@ -432,7 +552,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/play.html"):
             return self.static(ROOT / "play.html", "text/html; charset=utf-8")
         if path == "/health":
-            return self.reply(200, {"ok": True, "mock": MOCK})
+            return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL})
         if path == "/api/stream":
             return self.stream()
         self.reply(404, {"error": "not found"})
@@ -485,9 +605,10 @@ class Handler(BaseHTTPRequestHandler):
         to_gm = bool(data.get("to_gm"))
         if text in ("/새게임", "/reset"):
             with lock:
-                state["messages"], state["log"] = [], []
+                state["messages"], state["or_messages"], state["log"] = [], [], []
                 pending.clear()
             save_state()
+            broadcast({"type": "reset"}, keep=False)
             broadcast({"type": "notice", "text": f"{c.nick} 님이 새 게임을 시작했습니다. 워든에게 말을 걸면 캐릭터 만들기부터."})
             return self.reply(200, {"ok": True})
         with lock:
@@ -515,7 +636,7 @@ class Handler(BaseHTTPRequestHandler):
             while not c.q.empty():          # 지난 연결에서 못 받은 것은 hello 기록에 다 있다
                 c.q.get_nowait()
             hello = {"type": "hello", "me": {"nick": c.nick, "color": c.color},
-                     "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK}
+                     "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)
@@ -543,7 +664,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
     srv.daemon_threads = True
-    print(f"cairn server  http://{HOST}:{PORT}  model={MODEL}  {'MOCK (API 키 없음)' if MOCK else 'Claude API'}")
+    print(f"cairn server  http://{HOST}:{PORT}  {PROVIDER} · {MODEL}  {'MOCK (API 키 없음)' if MOCK else ''}")
     srv.serve_forever()
 
 

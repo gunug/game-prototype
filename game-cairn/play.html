@@ -86,7 +86,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 <section id="login">
   <form class="card" id="joinForm" autocomplete="off">
     <h2>블러드 올름의 부상</h2>
-    <p>워든은 Claude 가 맡습니다. 비밀번호를 아는 사람은 누구나 함께할 수 있어요.</p>
+    <p>워든은 AI 가 맡습니다. 비밀번호를 아는 사람은 누구나 함께할 수 있어요.</p>
     <label for="nick">이름</label>
     <input id="nick" maxlength="16" placeholder="예: 아마라" required>
     <label for="pw">입장 비밀번호</label>
@@ -164,6 +164,7 @@ function render(m) {
 
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
+  if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
   if (!gmBox) { gmRaw = ''; gmBox = add(div('gm', '<span class="who">워든</span><span class="body"></span>')); }
   gmRaw += t;
   const stick = nearBottom();
@@ -184,7 +185,7 @@ function handle(m) {
       me = m.me; $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
-      $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ''}`;
+      $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ' · ' + esc((m.brain || '').split('/').pop())}`;
       break;
     case 'gm_start': gmStart(); break;
     case 'gm_delta': gmDelta(m.text); break;
@@ -192,6 +193,7 @@ function handle(m) {
     case 'dice': gmBox = null; render(m); break;      // 주사위 다음 글은 새 칸에
     case 'presence': users(m.users); break;
     case 'ping': break;
+    case 'reset': $('log').innerHTML = ''; gmEnd(); break;
     default: render(m);
   }
 }
