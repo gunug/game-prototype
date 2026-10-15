@@ -996,12 +996,6 @@
   .scene-sleeve.locked .scene-name{position:static;background:none;padding:0;}
   .insp .scene-pic img{width:100%;height:auto;display:block;border-radius:var(--r-md);margin-bottom:6px;}
   .insp .scene-text p{margin:6px 0;line-height:1.6;font-size:13px;}
-  .trace{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;margin:6px 0;border-radius:var(--r-md);background:rgba(201,185,138,.08);border:1px solid rgba(201,185,138,.2);}
-  .trace.locked{opacity:.45;}
-  .trace.new{box-shadow:0 0 0 1px var(--brand-yellow);}
-  .trace-n{flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:rgba(201,185,138,.25);color:#e8dcb5;}
-  .trace-t{font-weight:800;font-size:13px;color:#e8dcb5;}
-  .trace-x{font-size:12px;color:var(--muted);line-height:1.5;font-style:italic;margin-top:2px;}
   .book-fname{font-size:13px;font-weight:800;color:var(--brand-yellow);margin-bottom:6px;}
   /* v7.10.1: 대제목 — 땅 갈래(필드 · 던전) */
   .book-head2{font-size:15px;font-weight:900;color:var(--ink);margin:10px 0 6px;padding-bottom:4px;
@@ -1819,7 +1813,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.85.0';
+const VERSION = 'v9.86.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2024,17 +2018,17 @@ function stepFrom(goals, depth){
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
 const TRACE_WHO = { knight: '🛡 기사' };
 const TRACES = [
-  { id:'wake',     who:'knight', key:'start',            name:'빈손',
+  { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
   // v7.13.1: 열쇠를 '어느 보스에게든 처음 진 순간'으로 바꿈 — 튜토리얼(v3.1.0)이 생기며 첫 패배가 들머리로 옮겨가
   //   `lose-boss:mountain`(곰) 은 사실상 열리지 않는 흔적이 되어 있었다. 글에서도 곰을 빼 어느 보스에게든 맞게
-  { id:'kneel',    who:'knight', key:'lose-boss',          name:'무릎',
+  { id:'kneel', pic:'scene_t_kneel',    who:'knight', key:'lose-boss',          name:'무릎',
     text:'그 앞에서 무릎을 꿇었다. 이상하다. 처음 겪는 일이 아닌 것 같다.' },
-  { id:'shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
+  { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
     text:'곰의 등에 박혀 있던 쇳조각. 손잡이 쪽의 문양을 나는 안다. 이건 우리 것이다.' },
-  { id:'beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
+  { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
     text:'산을 넘자 바람 냄새가 달라졌다. 저 문양이 어디서 왔는지, 초원이 답해 줄지도 모른다.' },
-  { id:'hornmark', who:'knight', key:'kill:bison',       name:'뿔에 긁힌 문양',
+  { id:'hornmark', pic:'scene_t_hornmark', who:'knight', key:'kill:bison',       name:'뿔에 긁힌 문양',
     text:'들소의 뿔 밑동에 같은 문양이 긁혀 있었다. 누군가 이 길을 먼저 지나갔다.' },
 ];
 const TRACE_BY_ID = Object.fromEntries(TRACES.map(t => [t.id, t]));
@@ -3555,9 +3549,11 @@ function renderSmithInsp(){
 }
 // v9.83.0: 시나리오 카드 — 큰 그림 · 제목 · 누가 들려주는가 · 이야기 (문단마다 한 줄)
 function renderSceneInsp(){
-  const sc = SCENE_BY_ID[String(bookPick).slice(6)];
+  const [kind, id] = String(bookPick).split(':');
+  const t = kind === 'trace' ? TRACE_BY_ID[id] : null;               // v9.86.0: 흔적 카드도 같은 정보 칸
+  const sc = t ? { name: t.name, pic: t.pic, from: `${TRACE_WHO[t.who] || ''} · 흔적`, text: [t.text] } : SCENE_BY_ID[id];
   if (!sc) return false;
-  if (!sceneOn(sc)){ inspEl.innerHTML = '<div class="empty">아직 듣지 못한 이야기.</div>'; return true; }
+  if (t ? !(editMode || (S.traces || []).includes(t.id)) : !sceneOn(sc)){ inspEl.innerHTML = '<div class="empty">아직 듣지 못한 이야기.</div>'; return true; }
   inspEl.innerHTML = `<div class="scene-pic"><img src="images/scene/${sc.pic}.png" alt="" draggable="false"></div>`
     + `<div class="nm scene-title">${esc(sc.name)}</div>`
     + (sc.from ? `<div class="kd">${esc(sc.from)}</div>` : '')
@@ -3568,7 +3564,7 @@ function renderInsp(){
   if ((S.tab === 'inn' || S.tab === 'aim') && innPick && renderSmithInsp()) return;   // v9.55.0 여관 · v9.67.0 목표의 만물상
   if (isFieldTab(S.tab)) return renderFieldInsp();                // v4.3.0 던전 · v9.42.0 레이드도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('smith:') && renderSmithInsp()) return;   // v9.56.0: 책에서 고른 여관 사람
-  if (S.tab === 'book' && bookPick && String(bookPick).startsWith('scene:') && renderSceneInsp()) return;   // v9.83.0
+  if (S.tab === 'book' && bookPick && /^(scene|trace):/.test(String(bookPick)) && renderSceneInsp()) return;   // v9.83.0 · v9.86.0
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('land:')) return renderFieldInsp();   // v7.9.0: 책에서 고른 땅
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('foe:') && renderFoeInsp()) return;    // v7.9.1: 책에서 고른 크리처
   if (S.tab === 'book' && heroPick) return renderFieldInsp();     // v9.25.0: 책에서 고른 캐릭터
@@ -4291,16 +4287,15 @@ function traceBookHtml(){
       ? `<div class="scene-sleeve${bookPick === 'scene:' + sc.id ? ' sel' : ''}${(S.newTraces || []).includes(sc.id) ? ' new' : ''}" data-book="scene:${sc.id}">`
         + `<img src="images/scene/${sc.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(sc.name)}</div></div>`
       : '<div class="scene-sleeve locked"><div class="scene-name">???</div></div>').join('')}</div></div>`;
+  // v9.86.0: **흔적도 카드** — 시나리오 카드와 같은 꼴 (그림 한 장 · 탭하면 정보 칸에서 읽는다). 못 겪은 것은 ???
   for (const who of Object.keys(TRACE_WHO)){
     const list = TRACES.filter(t => t.who === who);
-    h += `<div class="book-field"><div class="book-fname">${TRACE_WHO[who]} <span class="i-muted">${list.filter(t => (S.traces || []).includes(t.id)).length}/${list.length}</span></div>`;
-    h += list.map((t, i) => {
-      const on = editMode || (S.traces || []).includes(t.id);
-      const fresh = (S.newTraces || []).includes(t.id);
-      return `<div class="trace${on ? '' : ' locked'}${fresh ? ' new' : ''}"><div class="trace-n">${i + 1}</div>`
-        + `<div class="trace-b"><div class="trace-t">${on ? esc(t.name) : '???'}</div>`
-        + `<div class="trace-x">${on ? esc(t.text) : '아직 겪지 못한 일.'}</div></div></div>`;
-    }).join('') + '</div>';
+    const on = t => editMode || (S.traces || []).includes(t.id);
+    h += `<div class="book-field"><div class="book-fname">${TRACE_WHO[who]} <span class="i-muted">${list.filter(on).length}/${list.length}</span></div>`
+      + `<div class="book-row">${list.map(t => on(t)
+        ? `<div class="scene-sleeve${bookPick === 'trace:' + t.id ? ' sel' : ''}${(S.newTraces || []).includes(t.id) ? ' new' : ''}" data-book="trace:${t.id}">`
+          + `<img src="images/scene/${t.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(t.name)}</div></div>`
+        : '<div class="scene-sleeve locked"><div class="scene-name">???</div></div>').join('')}</div></div>`;
   }
   return h;
 }
@@ -4445,7 +4440,7 @@ bookEl.addEventListener('click', e => {
       fieldPick = bookPick.slice(5); inspType = null; foePick = null;
     } else if (bookPick.startsWith('foe:')){                       // v7.9.1: 크리처 카드
       foePick = bookPick.slice(4); inspType = null; fieldPick = null;
-    } else if (bookPick.startsWith('scene:')){                     // v9.83.0: 시나리오 카드
+    } else if (bookPick.startsWith('scene:') || bookPick.startsWith('trace:')){   // v9.83.0 시나리오 카드 · v9.86.0 흔적 카드
       inspType = null; fieldPick = null; foePick = null;
     } else {
       inspType = bookPick; fieldPick = null;
