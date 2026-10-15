@@ -234,6 +234,15 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .sheet.compact .top{order:1}
 .sheet .nm .ko{font:500 .8rem system-ui,sans-serif;color:var(--sub)}
 .cg .btns button .ko{opacity:.75;font-size:.75rem}
+/* 룰이 강제하는 선택 */
+.ch{align-self:flex-start;max-width:min(560px,96%);background:var(--panel);border:1px solid var(--line);border-left:4px solid #e67e22;border-radius:10px;padding:8px 12px;font-size:.88rem}
+.ch .sub{color:var(--sub);font-size:.76rem}
+.ch .t{font-weight:700}
+.ch .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ch .btns button{padding:4px 12px;font-size:.84rem;background:var(--chip);color:var(--ink);border-color:var(--line)}
+.ch .btns button:hover{border-color:#e67e22}
+.ch .btns button.on{background:#e67e22;color:#fff;border-color:#e67e22}
+.ch.done .btns button:not(.on){opacity:.45}
 </style>
 </head>
 <body>
@@ -303,7 +312,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 
 <div id="tip" role="tooltip"></div>
 <script>
-const APP_VERSION = '0.19.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
+const APP_VERSION = '0.20.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
 const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
 const $ = id => document.getElementById(id);
 const store = {
@@ -349,6 +358,8 @@ function render(m) {
   } else if (m.type === 'image') {
     const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
     loadImg(fig.querySelector('img'), m.url);
+  } else if (m.type === 'choice') {
+    const el = add(div('ch', '')); el.dataset.id = m.id; renderChoice(m.id);
   } else if (m.type === 'consent') {
     const el = add(div('cq', '')); el.dataset.id = m.id; renderConsent(m.id);
   } else if (m.type === 'chargen') {
@@ -744,6 +755,30 @@ document.querySelector('.ptabs').onclick = e => {
   if (b.dataset.p === 'j') { renderJournal(); jSeen = JOURNAL.length ? Math.max(...JOURNAL.map(x => x.id)) : 0; store.set('cairn.jseen', jSeen); setTimeout(renderJournal, 2500); }
 };
 
+
+// ── 룰이 강제하는 선택 (그때만 버튼) ──
+const CHOICES = {};
+function choiceHtml(q) {
+  const can = q.status === '기다림' && me && (q.owner ? q.owner === me.nick : lastChars.some(c => c.player === me.nick));
+  const who = q.owner ? `${esc(q.character)} (${esc(q.owner)} 님)` : '파티 — 캐릭터가 있는 누구나';
+  return `<div class="sub">${esc(q.page)} · ${who}</div><div class="t">${esc(q.title)}</div>${q.prompt ? `<div>${esc(q.prompt)}</div>` : ''}
+    <div class="btns">${q.options.map(o => `<button type="button" data-opt="${esc(o.id)}" class="${q.picked === o.id ? 'on' : ''}"${can ? '' : ' disabled'}>${esc(o.text)}</button>`).join('')}</div>
+    ${q.status !== '기다림' ? `<div class="sub">→ ${esc(q.by)} 님이 골랐다</div>` : can ? '' : '<div class="sub">고르는 중…</div>'}`;
+}
+function renderChoice(id) {
+  const q = CHOICES[id]; if (!q) return;
+  document.querySelectorAll(`.ch[data-id="${id}"]`).forEach(el => { el.className = 'ch' + (q.status !== '기다림' ? ' done' : ''); el.innerHTML = choiceHtml(q); keywords(el); });
+}
+document.addEventListener('click', async e => {
+  const b = e.target.closest('.ch button[data-opt]'); if (!b || b.disabled) return;
+  const id = b.closest('.ch').dataset.id;
+  try {
+    const res = await fetch(base() + '/api/choice', { method: 'POST', headers: H({ 'Content-Type': 'application/json', 'X-Token': token }),
+      body: JSON.stringify({ id, option: b.dataset.opt }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status);
+  } catch (err) { render({ type: 'notice', text: '고르지 못함: ' + err.message }); }
+});
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
@@ -765,7 +800,7 @@ function users(list) {
 function handle(m) {
   switch (m.type) {
     case 'hello':
-      me = m.me; (m.drafts || []).forEach(d => DRAFTS[d.id] = d); (m.consents || []).forEach(q => CONSENTS[q.id] = q); LORE.length = 0; learn(m.lore || [], false);
+      me = m.me; (m.drafts || []).forEach(d => DRAFTS[d.id] = d); (m.consents || []).forEach(q => CONSENTS[q.id] = q); (m.choices || []).forEach(q => CHOICES[q.id] = q); LORE.length = 0; learn(m.lore || [], false);
       $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
@@ -789,6 +824,7 @@ function handle(m) {
     case 'info': addJournal(m.entry); break;
     case 'draft': DRAFTS[m.draft.id] = m.draft; renderDraft(m.draft.id); break;
     case 'consent_state': CONSENTS[m.q.id] = m.q; renderConsent(m.q.id); break;
+    case 'choice_state': CHOICES[m.q.id] = m.q; renderChoice(m.q.id); break;
     case 'reveal': gmBox = null; learn([m], true); render(m); break;
     case 'cost': meter(m); if (m.kind === 'line') { gmBox = null; render(m); } break;
     default: render(m);

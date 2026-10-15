@@ -28,6 +28,8 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
 캐릭터 그림
      {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
      {"type":"chargen", "id"} 기록용 자리 + {"type":"draft", "draft":{...}} 캐릭터 생성 초안 (이름 · 능력치 교환 버튼)
+POST /api/choice  헤더 X-Token {"id", "option"}   룰이 강제하는 선택 — 파티 선택은 PC 있는 누구나, 캐릭터 선택은 그 주인만
+     {"type":"choice", "id"} 기록 자리 + {"type":"choice_state", "q":{...}}
 POST /api/consent 헤더 X-Token {"id", "answer": "accept|reject"}   남의 PC 에게 온 요청 — 그 PC 주인만
      {"type":"consent", "id"} 기록 자리 + {"type":"consent_state", "q":{...}}
 POST /api/chargen 헤더 X-Token {"id", "action": "name|swap|confirm", "value"}   만든 사람만
@@ -178,6 +180,16 @@ def build_system():
 - 세이브(d20 ≤ 능력치), 피해, 반응(2d6), 운명 주사위(d6), 던전 사건(d6), 캐릭터 생성 모두 도구로.
 - 굴린 값과 결과를 서술에 짧게 밝힌다. 예: "DEX 세이브 6 (≤14) 성공".
 
+룰이 강제하는 선택 — offer_choice (그때만 버튼, 그 밖엔 자유 서술)
+- 던전 사건 5(지침) → kind exhaustion: 쉬기 · 피로 · 식량 중 파티가 고른다.
+- 날씨가 불쾌 · 악천후 → kind weather: 피로 · 1경계 더 중 고른다. (극한은 둘 다 — 버튼 없이 적용)
+- 피로를 받아야 하는데 짐 10칸이 차 있으면 → kind drop_item (그 PC). 서버가 피로를 줄 때 넘치면 알아서 띄운다.
+- 야외 탐험 한 경계마다 각 PC 의 행동 → kind wilderness. 휴지기 → kind downtime.
+- 사건 '상실' 에서 대가를 고르게 할 때 → kind loss, options 에 대가 2–4개.
+- 버튼을 띄웠으면 결과를 미리 서술하지 말고 고르라고만 짧게 말한다. [선택] 으로 결과가 오면 그대로 이어 서술한다.
+- exhaustion · weather · drop_item 의 결과(피로 · 식량 · 버린 물건)는 서버가 시트에 반영한다 — update_character 로 다시 고치지 않는다.
+- loss 는 대가가 매번 달라 서버가 반영하지 않는다 — 고른 대가를 update_character 로 직접 시트에 고친다.
+
 누가 무엇을 조종하나 — 반드시 지킨다
 - 플레이어의 말 앞에 [플레이어 닉 · 캐릭터 이름] 이 붙어 온다. 주어가 없는 말은 그 플레이어 자신의 캐릭터가 하는 행동이다.
 - 플레이어는 자기 캐릭터만 움직인다. 다른 캐릭터를 움직이게 할 수 없다.
@@ -285,6 +297,21 @@ TOOLS = [{
             "text": {"type": "string", "description": "알게 된 내용 2–5문장. 플레이어 눈높이로, 워든 비밀은 빼고"},
         },
         "required": ["title", "text"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "offer_choice",
+    "description": "룰이 정해 둔 몇 가지 중 하나를 골라야 하는 순간에만 선택 버튼을 띄운다. 그 밖의 행동은 자유 서술이다.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "kind": {"type": "string", "enum": ["exhaustion", "weather", "drop_item", "wilderness", "downtime", "loss"]},   # = CHOICE_KINDS
+            "character": {"type": "string", "description": "drop_item · wilderness · downtime 일 때 고를 PC 이름"},
+            "prompt": {"type": "string", "description": "상황 한 줄. 예: 축축한 굴에서 다리가 무거워진다"},
+            "options": {"type": "array", "items": {"type": "string"}, "description": "loss 일 때만 — 내줄 수 있는 대가 2–4개"},
+        },
+        "required": ["kind", "prompt"],
         "additionalProperties": False,
     },
 }, {
@@ -630,6 +657,8 @@ def do_tool(block):
         return draw_tool(block)
     if block.name == "record_info":
         return info_tool(block)
+    if block.name == "offer_choice":
+        return choice_tool(block)
     if block.name == "request_consent":
         return consent_tool(block)
     if block.name == "update_world":
@@ -839,6 +868,131 @@ def chargen_view(d):
                           "stats", "base", "swap", "hp", "gp", "age", "traits", "bonds", "omen", "rolls", "notes")}
     v["items"] = [{"name": i["name"], "slots": i["slots"], "uses": i["uses"], "note": i.get("note", "")} for i in d["items"]]
     return v
+
+
+# ── 룰이 강제하는 선택 — 그때만 버튼 (나머지는 자유 서술) ──
+# kind: (제목, 누가 고르나 'party'|'char', 선택지 [(id, 글)] 또는 None=그때 정함, 룰 쪽)
+CHOICE_KINDS = {
+    "exhaustion": ("던전 사건 — 지침", "party",
+                   [("rest", "잠깐 쉰다 (사건을 한 번 더 굴림)"), ("fatigue", "모두 피로 1"), ("ration", "모두 식량 1회")], "룰 p.71"),
+    "weather": ("날씨 — 길이 고되다", "party",
+                [("fatigue", "모두 피로 1"), ("watch", "이동이 1경계 더 걸림")], "룰 p.76"),
+    "drop_item": ("짐이 넘친다 — 버릴 물건", "char", None, "룰 p.62"),
+    "wilderness": ("이번 경계에 할 일", "char",
+                   [("travel", "이동"), ("explore", "탐색"), ("supply", "보급"), ("camp", "야영")], "룰 p.79"),
+    "downtime": ("휴지기 행동", "char",
+                 [("research", "연구"), ("training", "훈련"), ("ties", "관계 강화")], "룰 p.81"),
+    "loss": ("상실 — 무엇을 내줄까", "party", None, "룰 p.78"),
+}
+
+
+def party_chars():
+    with lock:
+        return [c for c in state["chars"].values() if not any("사망" in x for x in c.get("conditions") or [])]
+
+
+def use_ration(c):
+    """식량 1회 — 'n회' 를 하나 줄이고 0 이면 버린다. 없으면 False."""
+    for it in c.get("items", []):
+        if "식량" in it["name"] or it.get("en", "").lower().startswith("ration"):
+            m = re.search(r"(\d+)", it.get("uses") or "")
+            n = int(m.group(1)) if m else 1
+            if n <= 1:
+                c["items"].remove(it)
+            else:
+                it["uses"] = re.sub(r"\d+", str(n - 1), it["uses"], count=1) if m else f"{n - 1}회"
+            return True
+    return False
+
+
+def slots_used(c):
+    return sum(i["slots"] for i in c.get("items", [])) + int(c.get("fatigue") or 0)
+
+
+def add_fatigue(c):
+    """피로 1 — 칸이 넘치면 그 캐릭터에게 '버릴 물건' 선택을 띄운다 (룰 p.62)."""
+    c["fatigue"] = int(c.get("fatigue") or 0) + 1
+    return slots_used(c) > 10
+
+
+def open_choice(kind, character="", prompt="", options=None):
+    title, who, base_opts, page = CHOICE_KINDS[kind]
+    ch = None
+    if who == "char":
+        with lock:
+            ch = state["chars"].get(find_char(character or ""))
+        if not ch:
+            return None, f"없는 캐릭터: {character}"
+        if ch.get("player") in (None, "", "NPC"):
+            return None, f"{ch['name']} 은 NPC — 워든이 그 성격대로 정한다."
+    if kind == "drop_item":
+        opts = [(str(i), f"{it['name']}" + (f" ({it['uses']})" if it.get("uses") else "")) for i, it in enumerate(ch["items"])]
+    elif base_opts is None:
+        opts = [(str(i), clean(o, 60)) for i, o in enumerate(options or []) if isinstance(o, str) and o.strip()][:6]
+        if len(opts) < 2:
+            return None, "options 를 두 개 이상 주어야 한다."
+    else:
+        opts = base_opts
+    with lock:
+        cid = f"c{int(time.time() * 1000) % 10**9}"
+        q = {"id": cid, "kind": kind, "title": title, "page": page, "prompt": clean(prompt, 200),
+             "character": ch["name"] if ch else "", "owner": ch.get("player") if ch else "",
+             "options": [{"id": a, "text": b} for a, b in opts], "status": "기다림", "picked": "", "by": ""}
+        state.setdefault("choices", {})[cid] = q
+    broadcast({"type": "choice", "id": cid, "ts": time.time()})
+    broadcast({"type": "choice_state", "q": q}, keep=False)
+    return q, None
+
+
+def choice_tool(block):
+    args = block.input if isinstance(block.input, dict) else {}
+    kind = args.get("kind")
+    if kind not in CHOICE_KINDS:
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": f"kind 는 {', '.join(CHOICE_KINDS)}"}
+    q, err = open_choice(kind, args.get("character", ""), args.get("prompt", ""), args.get("options"))
+    if err:
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": err}
+    who = f"{q['owner']} 님({q['character']})" if q["owner"] else "파티의 누구든"
+    return {"type": "tool_result", "tool_use_id": block.id,
+            "content": f"선택 버튼을 띄웠다 ({who}). 고를 때까지 결과를 서술하지 말고, 고르라고만 짧게 말하라. "
+                       f"고르면 서버가 시트 · 상태를 고치고 [시스템] 으로 알려 준다."}
+
+
+def resolve_choice(q, opt):
+    """고른 것을 룰대로 반영하고, 워든에게 알릴 글을 돌려준다."""
+    kind, notes = q["kind"], []
+    overflow = []
+    if kind in ("exhaustion", "weather") and opt in ("fatigue", "ration"):
+        with lock:
+            for c in party_chars():
+                if opt == "fatigue" and add_fatigue(c):
+                    overflow.append(c)
+                if opt == "ration" and not use_ration(c):
+                    notes.append(f"{c['name']} 은 식량이 없다")
+    elif kind == "exhaustion" and opt == "rest":
+        rolls, total = roll("d6")
+        broadcast({"type": "dice", "expr": "d6", "rolls": rolls, "total": total, "why": "던전 사건 (쉬는 동안 다시)", "ts": time.time()})
+        names = {1: "조우", 2: "흔적", 3: "환경 변화", 4: "상실", 5: "지침", 6: "고요"}
+        notes.append(f"쉬는 동안 던전 사건 d6 = {total} ({names[total]})")
+    elif kind == "weather" and opt == "watch":
+        notes.append("이동이 1경계 더 걸린다 — update_world 로 시간을 맞춰라")
+    elif kind == "drop_item":
+        with lock:
+            ch = state["chars"].get(q["character"])
+            i = int(opt)
+            if ch and 0 <= i < len(ch["items"]):
+                gone = ch["items"].pop(i)
+                notes.append(f"{ch['name']} 이 {gone['name']} 을 버렸다 (그 자리에 남는다)")
+    send_chars()
+    for c in overflow:                       # 피로로 짐이 넘친 캐릭터 — 버릴 물건을 고르게
+        if c.get("player") not in (None, "", "NPC"):
+            open_choice("drop_item", c["name"], "피로 칸이 들어갈 자리가 없다 — 물건 하나를 버려야 한다")
+        else:
+            notes.append(f"{c['name']}(NPC) 짐이 넘쳐 물건 하나를 버려야 한다 — 워든이 골라 update_character 로")
+    if kind == "loss":
+        notes.append("이 대가는 서버가 시트에 반영하지 않았다 — update_character 로 직접 고쳐라")
+    text = next(o["text"] for o in q["options"] if o["id"] == opt)
+    return f"[선택] {q['title']} — {q['by']} 님이 「{text}」 를 골랐다." + (" " + " / ".join(notes) if notes else "") + " 이 결과로 이어서 서술하라."
 
 
 def consent_tool(block):
@@ -1277,6 +1431,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad body"})
         if path == "/api/join":
             return self.join(data)
+        if path == "/api/choice":
+            return self.choice(data)
         if path == "/api/consent":
             return self.consent(data)
         if path == "/api/chargen":
@@ -1312,6 +1468,28 @@ class Handler(BaseHTTPRequestHandler):
         with lock:
             clients[c.token] = c
         self.reply(200, {"token": c.token, "nick": nick, "color": color})
+
+    def choice(self, data):
+        c = self.me()
+        if not c:
+            return self.reply(401, {"error": "다시 입장해 주세요."})
+        with lock:
+            q = state.get("choices", {}).get(str(data.get("id")))
+            if not q or q["status"] != "기다림":
+                return self.reply(404, {"error": "없거나 끝난 선택"})
+            if q["owner"] and q["owner"] != c.nick:
+                return self.reply(403, {"error": f"{q['character']} 의 주인({q['owner']})만 고를 수 있습니다."})
+            if not q["owner"] and not pc_of(c.nick):
+                return self.reply(403, {"error": "캐릭터가 있는 플레이어만 고를 수 있습니다."})
+            opt = str(data.get("option"))
+            if opt not in [o["id"] for o in q["options"]]:
+                return self.reply(400, {"error": "없는 선택지"})
+            q["status"], q["picked"], q["by"] = "고름", opt, c.nick
+        broadcast({"type": "choice_state", "q": q}, keep=False)
+        msg = resolve_choice(q, opt)
+        save_state()
+        queue_line("시스템", msg, True)
+        return self.reply(200, {"ok": True})
 
     def consent(self, data):
         c = self.me()
@@ -1383,6 +1561,7 @@ class Handler(BaseHTTPRequestHandler):
                 state["drafts"] = {}
                 state["consents"] = {}
                 state["journal"] = []
+                state["choices"] = {}
                 pending.clear()
                 game["gen"] += 1
                 global pending_act
@@ -1427,7 +1606,8 @@ class Handler(BaseHTTPRequestHandler):
                      "world": world.public(state),
                      "drafts": [chargen_view(d) for d in state.get("drafts", {}).values()],
                      "consents": list(state.get("consents", {}).values()),
-                     "journal": state.get("journal", [])}
+                     "journal": state.get("journal", []),
+                     "choices": list(state.get("choices", {}).values())}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)
