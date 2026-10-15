@@ -198,6 +198,7 @@ function makeAI({ ctx, clock }){
     finishExp(between){
       for (let i = 0; i < 600 && g('!!exp'); i++){
         clock.advance(500);
+        g('traceAckAll()');                                        // v9.92.0: 흔적 카드가 뜨면 게임이 멈추므로 바로 닫는다
         if (between && i % 6 === 5) between();                     // 3초쯤마다 한 번 손을 놀린다
       }
       clock.advance(3000);                                         // 끝맺음 타이머(귀환 · 대사)
