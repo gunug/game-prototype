@@ -142,6 +142,15 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   padding:8px 10px;font-size:.82rem;line-height:1.5;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none;display:none}
 #tip b{color:#f5c542;display:block;margin-bottom:2px}
 #tip .src{display:block;margin-top:4px;color:#a99f8c;font-size:.72rem}
+/* 처음 알게 된 것 */
+.lore{align-self:flex-start;display:flex;gap:12px;max-width:min(560px,96%);background:var(--panel);border:1px solid #f5c542;border-radius:12px;padding:10px}
+.lore img{width:120px;height:150px;object-fit:cover;border-radius:8px;background:var(--chip);flex:none;cursor:zoom-in}
+.lore .k{font-size:.72rem;color:#1b1612;background:#f5c542;border-radius:4px;padding:0 6px;margin-right:6px;font-weight:700}
+.lore h4{margin:2px 0 4px;font:700 1.05rem Georgia,serif;color:#f5c542}
+.lore .nw{font-size:.75rem;color:var(--sub)}
+.lore p{margin:0;font-size:.88rem}
+#tip img{display:block;width:100%;max-height:160px;object-fit:cover;border-radius:6px;margin-bottom:6px}
+@media (max-width:520px){.lore img{width:84px;height:110px}}
 </style>
 </head>
 <body>
@@ -247,6 +256,10 @@ function render(m) {
   } else if (m.type === 'image') {
     const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
     loadImg(fig.querySelector('img'), m.url);
+  } else if (m.type === 'reveal') {
+    const el = add(div('lore', `${m.img ? '<img alt="">' : ''}<div><span class="nw"><span class="k">${esc(m.kind)}</span>새로 알게 됨</span>`
+      + `<h4>${esc(m.title)}</h4><p>${esc(m.desc)}</p></div>`));
+    if (m.img) blobUrl(m.img).then(u => { const im = el.querySelector('img'); im.src = u; im.onclick = () => window.open(u, '_blank'); }).catch(() => {});
   } else if (m.type === 'cost') {
     add(div('costline', `${esc(m.label)} 사용료 ${usd(m.usd)} (${krw(m.usd, m.rate)}) · 누적 ${usd(m.total)} (${krw(m.total, m.rate)})`));
   } else if (m.type === 'notice') {
@@ -369,10 +382,22 @@ const GLOSSARY = [
   { words: ['유물(Relic)', '유물'], title: '유물 (Relic)',
     desc: '주문이나 힘이 깃든 물건. 써도 피로가 쌓이지 않지만 쓸 수 있는 횟수가 정해져 있고, 다시 채우는 조건이 따로 있다.', src: '플레이어 가이드 p.67' },
 ];
-const KW = new Map();
-GLOSSARY.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), g)));
-const KW_RE = new RegExp('(' + [...KW.keys()].sort((a, b) => b.length - a.length)
-  .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+// 게임 중 공개된 것(reveal)은 같은 낱말의 기본 설명을 덮어쓴다 — 그림도 붙는다
+const LORE = [];
+let KW = new Map(), KW_RE = /$^/;
+function buildKw() {
+  KW = new Map();
+  GLOSSARY.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), g)));
+  LORE.forEach(g => g.words.forEach(w => KW.set(w.toLowerCase(), { ...g, src: '게임 중 알게 됨' })));
+  KW_RE = new RegExp('(' + [...KW.keys()].sort((a, b) => b.length - a.length)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+}
+buildKw();
+function learn(list, fresh) {           // 공개 목록 갱신 → 지난 워든 글까지 다시 칠한다
+  list.forEach(e => { if (!LORE.some(x => x.id === e.id)) LORE.push(e); });
+  buildKw();
+  if (fresh) document.querySelectorAll('#log .gm').forEach(keywords);
+}
 
 function keywords(el) {                    // 글 마디만 훑어 감싼다 (태그 속은 안 건드림)
   const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
@@ -398,11 +423,15 @@ function keywords(el) {                    // 글 마디만 훑어 감싼다 (�
 function showTip(span) {
   const g = KW.get(span.dataset.kw); if (!g) return;
   const tip = $('tip');
-  tip.innerHTML = `<b>${esc(g.title)}</b>${esc(g.desc)}<span class="src">${esc(g.src)}</span>`;
+  tip.innerHTML = `${g.img ? '<img alt="">' : ''}<b>${esc(g.title)}</b>${esc(g.desc)}<span class="src">${esc(g.src)}</span>`;
   tip.style.display = 'block';
+  if (g.img) blobUrl(g.img).then(u => { const im = tip.querySelector('img'); if (im) { im.src = u; im.onload = () => place(); } }).catch(() => {});
+  const place = () => {
   const r = span.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
   tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
   tip.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
+  };
+  place();
 }
 const hideTip = () => $('tip').style.display = 'none';
 document.addEventListener('mouseover', e => { const k = e.target.closest('.kw'); k ? showTip(k) : hideTip(); });
@@ -432,7 +461,8 @@ function users(list) {
 function handle(m) {
   switch (m.type) {
     case 'hello':
-      me = m.me; $('log').innerHTML = ''; m.log.forEach(render);
+      me = m.me; LORE.length = 0; learn(m.lore || [], false);
+      $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
       renderSheets(m.chars || []);
@@ -446,8 +476,9 @@ function handle(m) {
     case 'dice': case 'image': gmBox = null; render(m); break;      // 주사위 · 그림 다음 글은 새 칸에
     case 'presence': users(m.users); break;
     case 'ping': break;
-    case 'reset': $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('sheets').classList.remove('open'); break;
+    case 'reset': LORE.length = 0; buildKw(); $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('sheets').classList.remove('open'); break;
     case 'chars': renderSheets(m.chars); break;
+    case 'reveal': gmBox = null; learn([m], true); render(m); break;
     case 'cost': meter(m); if (m.kind === 'line') { gmBox = null; render(m); } break;
     default: render(m);
   }

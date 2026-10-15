@@ -15,8 +15,16 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"dice", "expr", "rolls", "total", "why"}
      {"type":"notice", "text"} {"type":"presence", "users":[{nick,color}]} {"type":"ping"}
      {"type":"reset"}   /새게임 — 화면 기록을 비운다
-     {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 캐릭터 그림
+     {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 처음 알게 된 것 — reveal_lore
+- 일행이 아래 것을 처음 눈으로 보거나 마주치거나 이름을 알게 되는 순간, 그 장면을 묘사하면서 reveal_lore 를 부른다. 미리 부르지 않는다.
+  blood_olm(블러드 올름) · olm(올름) · tube_worm(튜브웜, 죽은 것이라도) · red_hermit_fruit(붉은 열매 — C1 상자에서 보면) · red_hermit_tree(C7 의 거꾸로 자라는 나무)
+  geteli(게텔리를 직접 마주치면) · jhel_fries(헬-프리스를 만나거나 이름을 들으면) · rusal(루살) · faraj_oren(파라즈 · 오렌의 시신을 알아보면) · mud_sieve(진흙 체를 직접 보면)
+- 이름을 모르는 괴물이면 처음엔 생김새만 묘사해도 되지만, 그 괴물과 마주친 순간 바로 공개한다 (플레이어 화면에서 이름으로 불린다).
+
+캐릭터 그림
      {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
+     {"type":"reveal", "id", "kind", "title", "words", "desc", "img"}   처음 알게 된 것 (hello 의 "lore" 에 누적)
+GET  /lore/<id>   공개된 것의 그림 (공개 전엔 404)
      {"type":"cost", "kind":"meter|line", "total", "rate", "usd", "label"}   사용료 (달러, rate = 원/달러)
 GET  /img/<파일>   그 그림 (server/images/)
 GET  /pub/<파일>   플레이어 공개 그림 (docs/images/scenario/ 의 정해 둔 것만)
@@ -137,6 +145,7 @@ def build_system():
 - 냄새 · 소리 · 온도 · 거리 · 위치를 구체적으로. 감정을 대신 말하지 않는다.
 - 위험은 미리 분명하게 알린다. 죽음은 경고 없이 오지 않는다.
 - 비밀(진상 · 방의 숨은 내용 · NPC 능력치)은 플레이어가 알아낼 때까지 밝히지 않는다.
+- 방 번호(C1 · C2 …)와 방 이름표는 워든용 표시라 플레이어에게 말하지 않는다. 보이는 모습으로만 부른다.
 - 플레이어가 스스로 정할 일(행동 · 말)을 대신 정하지 않는다. 동료 NPC 는 네가 움직인다.
 - 플레이어끼리의 잡담(`(잡담)` 표시)은 맥락으로만 읽고, 따로 답하지 않는다.
 
@@ -151,6 +160,12 @@ def build_system():
 - 같은 때 굴릴 주사위가 여럿이면(능력치 3d6 ×3, 특성 d10 ×8 등) 한 번의 응답에서 roll_dice 를 여러 번 함께 부른다.
 - 혼자라면 동료 NPC 한 명을 붙여 준다. 동료도 같은 방식으로 굴려 만든다 (배경 · 능력치 · HP 모두 roll_dice).
 - 파티가 갖춰지면 의뢰를 전하고, 도착 시각과 날씨를 묻고 운명 주사위로 비튼다.
+
+처음 알게 된 것 — reveal_lore
+- 일행이 아래 것을 처음 눈으로 보거나 마주치거나 이름을 알게 되는 순간, 그 장면을 묘사하면서 reveal_lore 를 부른다. 미리 부르지 않는다.
+  blood_olm(블러드 올름) · olm(올름) · tube_worm(튜브웜, 죽은 것이라도) · red_hermit_fruit(붉은 열매 — C1 상자에서 보면) · red_hermit_tree(C7 의 거꾸로 자라는 나무)
+  geteli(게텔리를 직접 마주치면) · jhel_fries(헬-프리스를 만나거나 이름을 들으면) · rusal(루살) · faraj_oren(파라즈 · 오렌의 시신을 알아보면) · mud_sieve(진흙 체를 직접 보면)
+- 이름을 모르는 괴물이면 처음엔 생김새만 묘사해도 되지만, 그 괴물과 마주친 순간 바로 공개한다 (플레이어 화면에서 이름으로 불린다).
 
 캐릭터 그림
 - 캐릭터(플레이어 PC · 동료 NPC) 하나가 다 만들어지면 그 캐릭터마다 draw_character 를 한 번 부른다.
@@ -185,6 +200,8 @@ ITEM = {
     "additionalProperties": False,
 }
 
+LORE_IDS = ["blood_olm", "olm", "tube_worm", "red_hermit_fruit", "red_hermit_tree", "geteli", "jhel_fries", "rusal", "faraj_oren", "mud_sieve"]
+
 TOOLS = [{
     "name": "roll_dice",
     "description": "주사위를 굴린다. 결과는 방의 모든 플레이어에게 보인다. 세이브 · 피해 · 반응 · 사건 · 캐릭터 생성 등 불확실한 모든 것에 쓴다.",
@@ -210,6 +227,16 @@ TOOLS = [{
             "caption": {"type": "string", "description": "그림 밑에 붙일 한국어 한 줄. 예: '아마라 — 궁수, 18세'"},
         },
         "required": ["name", "prompt", "caption"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "reveal_lore",
+    "description": "일행이 처음 마주치거나 이름을 알게 된 것을 플레이어 화면에 공개한다 (설명 카드 · 그림 · 키워드 툴팁). 처음 한 번만.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {"id": {"type": "string", "enum": LORE_IDS}},
+        "required": ["id"],
         "additionalProperties": False,
     },
 }, {
@@ -325,7 +352,9 @@ def broadcast(obj, keep=True):
 
 
 def log_only(obj):
-    """방송은 이미 조각(gm_delta)으로 했고, 기록에만 통째로 남긴다."""
+    """방송은 이미 조각(gm_delta)으로 했고, 기록에만 통째로 남긴다. 워든 글이면 이름 나온 것 자동 공개."""
+    if obj.get("type") == "gm" and not stale():
+        auto_reveal(obj.get("text"))
     if obj.get("text", "").strip():
         with lock:
             state["log"].append(obj)
@@ -339,7 +368,7 @@ def presence():
 
 
 # ── 상태 저장 ────────────────────────────────────────
-state = {"messages": [], "or_messages": [], "log": [], "chars": {}}
+state = {"messages": [], "or_messages": [], "log": [], "chars": {}, "revealed": []}
 HIST = "messages" if PROVIDER == "claude" else "or_messages"   # 두뇌마다 대화 따로
 if STATE_FILE.exists():
     try:
@@ -459,6 +488,8 @@ def do_tool(block):
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "새 게임이 시작됨"}
     if block.name == "draw_character":
         return draw_tool(block)
+    if block.name == "reveal_lore":
+        return lore_tool(block)
     if block.name == "update_character":
         return sheet_tool(block)
     if block.name != "roll_dice":
@@ -476,6 +507,72 @@ def do_tool(block):
     return {"type": "tool_result", "tool_use_id": block.id,
             "content": json.dumps({"expr": expr, "rolls": rolls, "total": total}, ensure_ascii=False)}
 
+
+
+# ── 알게 된 것 (게임 중 공개) ──────────────────────────
+# 워든이 reveal_lore 로 부르면 그때부터 플레이어 화면에 툴팁 · 그림이 열린다.
+# desc 는 '처음 보고 알 수 있는 것'만 — 숨은 사정(진상 · 능력치 · 약점)은 넣지 않는다.
+SCENE = ROOT / "images" / "scene"
+LORE = {
+    "blood_olm": {"kind": "적", "title": "블러드 올름", "words": ["블러드 올름", "Blood Olm"], "img": SCENE / "blood_olm.jpg",
+                  "desc": "사람만 한 허연 동굴 짐승. 눈이 없고, 네 발로 기며 열기를 따라 움직인다. 입가와 가슴이 검붉은 피로 얼룩져 있다."},
+    "olm": {"kind": "생물", "title": "올름", "words": ["올름", "Olm"], "img": SCENE / "olm.jpg",
+            "desc": "작고 온순해 보이는 눈먼 동굴 생물. 분홍빛 매끈한 피부와 깃털 같은 아가미. 말은 못 하지만 영리해 보인다."},
+    "tube_worm": {"kind": "생물", "title": "튜브웜", "words": ["튜브웜", "튜브 웜", "Tube Worm"], "img": SCENE / "tube_worm.jpg",
+                  "desc": "개만 한 눈먼 동굴 벌레. 짧고 뭉툭한 다리, 머리에 사슴뿔처럼 갈라진 관이 돋아 있다."},
+    "red_hermit_fruit": {"kind": "물건", "title": "붉은 열매", "words": ["붉은 은자 나무 열매", "붉은 은자 나무의 열매", "붉은 은자 열매", "은자 나무 열매", "Red Hermit fruit"], "img": SCENE / "red_hermit_fruit.jpg",
+                         "desc": "박처럼 생긴 붉은 열매. 갓 딴 것은 달콤한 향이 나지만, 하루쯤 지나면 갈색으로 물러 썩은 고기 냄새가 난다."},
+    "red_hermit_tree": {"kind": "장소", "title": "거꾸로 자라는 나무", "words": ["붉은 은자 나무", "거꾸로 매달린 나무"], "img": SCENE / "c7_atrium.jpg",
+                        "desc": "동굴 천장에 뿌리를 박지 않고 거꾸로 매달려 자라는 거대한 나무. 드러난 뿌리가 바닥 쪽으로 늘어져 있다."},
+    "geteli": {"kind": "인물", "title": "하이 렉터 게텔리", "words": ["하이 렉터 게텔리", "렉터 게텔리", "게텔리", "Geteli"], "img": SCENE / "geteli.jpg",
+               "desc": "조사단을 이끈 학자. 마주친 그는 진흙투성이 옷에 눈이 진홍빛으로 물들어 있다. 제정신으로 보이지 않는다."},
+    "jhel_fries": {"kind": "인물", "title": "헬-프리스", "words": ["헬-프리스", "헬프리스", "Jhel-Fries"], "img": SCENE / "jhel_fries.jpg",
+                   "desc": "조사단이 동굴 경험을 보고 고용한 현지인. 진흙투성이의 어린 소녀로, 작은 삽을 쥐고 있다."},
+    "rusal": {"kind": "인물", "title": "루살", "words": ["루살", "Rusal"], "img": ROOT / "docs" / "images" / "scenario" / "p010.png",
+              "desc": "초록 피부의 늙은 물의 정령. 발끝까지 닿는 흰 수염, 흐리지만 날랜 개구리 눈, 물갈퀴 달린 손발."},
+    "faraj_oren": {"kind": "인물", "title": "파라즈와 오렌", "words": ["파라즈", "오렌", "Faraj", "Oren"], "img": None,
+                   "desc": "조사단원 두 사람. 파라즈는 유물에 밝은 학자, 오렌은 경호를 맡은 숲 안내꾼이었다."},
+    "mud_sieve": {"kind": "물건", "title": "진흙 체", "words": ["진흙 체", "Mud Sieve"], "img": SCENE / "mud_sieve.jpg",
+                  "desc": "손바닥만 한 초승달 모양 돌. 조사단이 가져간 결사의 유물이다."},
+}
+
+
+NO_AUTO = {"geteli", "mud_sieve"}   # 의뢰서에도 나오는 이름 — 글에 나와도 자동 공개하지 않고 도구로만
+_AUTO = sorted(((w, lid) for lid, e in LORE.items() if lid not in NO_AUTO for w in e["words"]), key=lambda x: -len(x[0]))
+AUTO_RE = re.compile("|".join(re.escape(w) for w, _ in _AUTO), re.I)
+AUTO_ID = {w.lower(): lid for w, lid in _AUTO}
+
+
+def reveal(lid):
+    with lock:
+        if lid in state["revealed"]:
+            return False
+        state["revealed"].append(lid)
+    broadcast(dict(lore_view(lid), type="reveal", ts=time.time()))
+    return True
+
+
+def auto_reveal(text):
+    """워든이 글에서 이름을 불렀으면 일행이 알게 된 것 — 긴 이름부터 맞춰 '블러드 올름' 이 '올름' 을 열지 않게."""
+    for m in AUTO_RE.finditer(text or ""):
+        reveal(AUTO_ID[m.group(0).lower()])
+
+
+def lore_view(lid):
+    e = LORE[lid]
+    return {"id": lid, "kind": e["kind"], "title": e["title"], "words": e["words"], "desc": e["desc"],
+            "img": f"/lore/{lid}" if e["img"] else None}
+
+
+def lore_tool(block):
+    args = block.input if isinstance(block.input, dict) else {}
+    lid = args.get("id")
+    if lid not in LORE:
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True,
+                "content": f"없는 id. 쓸 수 있는 것: {', '.join(LORE)}"}
+    fresh = reveal(lid)
+    return {"type": "tool_result", "tool_use_id": block.id,
+            "content": f"{LORE[lid]['title']} — 플레이어 화면에 {'공개함' if fresh else '이미 공개돼 있음'}."}
 
 SHEET_INTS = ("age", "hp", "hp_max", "str", "str_max", "dex", "dex_max", "wil", "wil_max", "armor", "gp", "fatigue")
 SHEET_STRS = ("player", "background", "traits", "bond")
@@ -854,6 +951,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL})
         if path == "/api/stream":
             return self.stream()
+        m = re.fullmatch(r"/lore/([a-z_]+)", path)
+        if m and m.group(1) in LORE and m.group(1) in state["revealed"] and LORE[m.group(1)]["img"]:
+            f = LORE[m.group(1)]["img"]
+            return self.static(f, "image/png" if f.suffix == ".png" else "image/jpeg", cors=True)
+        if m:
+            return self.reply(404, {"error": "아직 공개되지 않음"})
         if path in PUBLIC_IMG:
             return self.static(ROOT / "docs" / "images" / "scenario" / PUBLIC_IMG[path], "image/png", cors=True)
         m = re.fullmatch(r"/img/(\d+_[0-9a-f]{6}\.(png|jpg|webp))", path)
@@ -913,6 +1016,7 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 state["messages"], state["or_messages"], state["log"], state["chars"] = [], [], [], {}
                 state["cost_usd"] = 0.0
+                state["revealed"] = []
                 pending.clear()
                 game["gen"] += 1
                 global pending_act
@@ -949,7 +1053,8 @@ class Handler(BaseHTTPRequestHandler):
                 c.q.get_nowait()
             hello = {"type": "hello", "me": {"nick": c.nick, "color": c.color},
                      "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL,
-                     "chars": chars_view(), "cost": cost_msg("meter")}
+                     "chars": chars_view(), "cost": cost_msg("meter"),
+                     "lore": [lore_view(i) for i in state["revealed"] if i in LORE]}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)
