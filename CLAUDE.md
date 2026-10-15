@@ -31,6 +31,7 @@ ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크�
 | 사물 · 재료 · 도구 · 무기 · 방어구 · 설비 · 음식 · 장소 · UI 그림 | `game-card-world2/tools/make_icon_object.py` | 사람 · 생물 · 손 · 얼굴이 안 끼게 머리말 · 꼬리말에 박혀 있음. 프롬프트엔 사물만 |
 | **캐릭터 — 사람과 크리처 전부** | `game-card-world2/tools/make_character_sheet.py --kind person|creature` | **KREA2 체인 + BiRefNet-HR** 워크플로우. 한 번에 얼굴 · 상반신 · 전신 세 장을 뽑아 제 자리에 넣는다 |
 | 땅 · 설비 포트레이트 | `game-card-world2/tools/make_portrait.py --kind place` | 사물용 머리말. 사람 · 크리처에는 더 쓰지 않는다 (위 스크립트가 맡는다) |
+| 시나리오 카드 (콜렉터북 📜 흔적의 큰 그림) | `game-card-world2/tools/make_scene.py` | 배경을 지우지 않는 장면 그림 240×320. 결과 `images/scene/scene_<id>.png`, 표는 `index.html` 의 `SCENES` |
 
 ### 캐릭터 그림 — 세 장 한 벌 (2026-10-06 확정)
 
