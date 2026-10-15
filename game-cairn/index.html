@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cairn 시스템 요약</title>
+<style>
+:root{
+  --bg:#f6f3ec; --panel:#fffdf8; --ink:#1d1a16; --sub:#5f574b; --line:#d9d1c2;
+  --accent:#8a2b1f; --accent-soft:#f3e2dc; --ok:#2f6b3a; --bad:#9a2a1c; --chip:#ece6da;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15130f; --panel:#1f1c17; --ink:#ece6da; --sub:#aaa090; --line:#3a342b;
+    --accent:#e07a5f; --accent-soft:#3a221b; --ok:#7cc48a; --bad:#f08a72; --chip:#2b2720;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15130f; --panel:#1f1c17; --ink:#ece6da; --sub:#aaa090; --line:#3a342b;
+  --accent:#e07a5f; --accent-soft:#3a221b; --ok:#7cc48a; --bad:#f08a72; --chip:#2b2720;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.65 "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+header{padding:40px 16px 24px;text-align:center;border-bottom:1px solid var(--line)}
+header h1{margin:0;font:700 2.2rem/1.2 Georgia,"Times New Roman",serif;letter-spacing:.02em}
+header p{margin:8px auto 0;max-width:640px;color:var(--sub)}
+nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  display:flex;gap:6px;overflow-x:auto;padding:8px 16px}
+nav a{flex:none;padding:4px 10px;border-radius:999px;background:var(--chip);color:var(--ink);
+  text-decoration:none;font-size:.85rem}
+nav a:hover{background:var(--accent-soft)}
+main{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+section{margin:0 0 40px}
+h2{font:700 1.4rem/1.3 Georgia,serif;margin:0 0 12px;padding-bottom:6px;border-bottom:2px solid var(--accent)}
+h3{margin:18px 0 6px;font-size:1.05rem}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin-top:0}
+.big{font-size:1.6rem;font-weight:700;color:var(--accent)}
+.muted{color:var(--sub);font-size:.92rem}
+ul{padding-left:1.2em;margin:6px 0}
+li{margin:2px 0}
+table{width:100%;border-collapse:collapse;font-size:.93rem;background:var(--panel)}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:var(--chip)}
+.scroll{overflow-x:auto}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow .step{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;flex:1 1 160px}
+.flow .arrow{color:var(--sub)}
+.callout{background:var(--accent-soft);border-left:4px solid var(--accent);padding:10px 14px;border-radius:6px;margin:12px 0}
+figure{margin:12px 0;text-align:center}
+figure img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line);background:#fff}
+figcaption{color:var(--sub);font-size:.85rem;margin-top:4px}
+/* 세이브 체험 */
+.tool{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tool label{display:flex;gap:6px;align-items:center}
+.tool input,.tool select{font:inherit;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:5em}
+.tool select{width:auto}
+button{font:inherit;padding:6px 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button:hover{filter:brightness(1.1)}
+#saveOut,#dmgOut{margin-top:8px;font-weight:600;min-height:1.6em}
+.ok{color:var(--ok)} .bad{color:var(--bad)}
+footer{text-align:center;color:var(--sub);font-size:.85rem;padding:24px 16px;border-top:1px solid var(--line)}
+footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cairn 2e — 시스템 요약</h1>
+  <p>어둡고 신비한 숲과 지하를 탐험하는 TRPG. 캐릭터는 빨리 무작위로 만들고, 모험은 신중한 탐험에 보상하며, 전투는 급박하고 치명적이다.</p>
+</header>
+<nav>
+  <a href="#principles">원칙</a><a href="#character">캐릭터</a><a href="#inventory">인벤토리</a>
+  <a href="#saves">세이브</a><a href="#damage">피해</a><a href="#combat">전투</a>
+  <a href="#scars">상흔</a><a href="#magic">마법</a><a href="#dungeon">던전</a>
+  <a href="#wild">야외</a><a href="#downtime">휴지기</a><a href="#world">세계</a>
+</nav>
+<main>
+
+<section id="principles">
+  <h2>설계 원칙</h2>
+  <div class="grid">
+    <div class="card"><h3>클래스 없음</h3>장비와 경험이 곧 특기. 레벨도 없다.</div>
+    <div class="card"><h3>픽션 우선</h3>주사위보다 세계 속 요소로 성패를 판정한다. 영리한 아이디어는 굴림 없이 통한다.</div>
+    <div class="card"><h3>죽음은 가깝다</h3>그러나 무작위·무경고 죽음은 없다. 위험 정보는 넉넉히 준다.</div>
+    <div class="card"><h3>싸움은 선택</h3>대개 현명하지 않다. 정찰·대화·꾀로 피하는 게 생존법.</div>
+  </div>
+</section>
+
+<section id="character">
+  <h2>캐릭터 만들기</h2>
+  <div class="flow">
+    <div class="step"><b>1. 배경 d20</b><br><span class="muted">20종 중 하나. 이름·시작 장비·d6 표 2개</span></div><span class="arrow">→</span>
+    <div class="step"><b>2. 능력치</b><br><span class="muted">STR·DEX·WIL 각 3d6, 두 개 맞바꾸기 가능</span></div><span class="arrow">→</span>
+    <div class="step"><b>3. HP 1d6</b><br><span class="muted">체력이 아닌 '피하는 힘'</span></div><span class="arrow">→</span>
+    <div class="step"><b>4. 특성·본드</b><br><span class="muted">외모·성격 d10×8, 본드 d20</span></div><span class="arrow">→</span>
+    <div class="step"><b>5. 나이·오멘</b><br><span class="muted">2d20+10, 가장 어린 PC 가 오멘 d20</span></div>
+  </div>
+  <h3>세 능력치</h3>
+  <div class="grid">
+    <div class="card"><div class="big">STR</div>힘 · 독 저항 · 버티기. <b>진짜 몸.</b> 0 이면 사망.</div>
+    <div class="card"><div class="big">DEX</div>반사 · 회피 · 등반 · 은신 · 균형. 0 이면 마비.</div>
+    <div class="card"><div class="big">WIL</div>설득 · 기만 · 위협 · 공포 저항 · 주문. 0 이면 섬망.</div>
+  </div>
+  <h3>배경 20종</h3>
+  <p class="muted">1 Aurifex(연금술) · 2 Barber-Surgeon(이발외과의) · 3 Beast Handler(짐승 조련) · 4 Bonekeeper(장의사) · 5 Cutpurse(소매치기) · 6 Fieldwarden(밭지기) · 7 Fletchwind(궁수) · 8 Foundling(주워진 아이) · 9 Fungal Forager(버섯 채집) · 10 Greenwise(숲 학자) · 11 Half Witch · 12 Hexenbane(마녀 사냥) · 13 Jongleur(광대) · 14 Kettlewright(땜장이) · 15 Marchguard(국경 경비) · 16 Mountebank(약장수) · 17 Outrider(호위 기수) · 18 Prowler(숲 안내) · 19 Rill Runner(뱃사공) · 20 Scrivener(서기 학자)</p>
+</section>
+
+<section id="inventory">
+  <h2>인벤토리 — 10칸</h2>
+  <div class="grid">
+    <div class="card"><h3>칸 세기</h3><ul>
+      <li>보통 아이템 = 1칸</li><li><b>petty</b>(자잘한 것) = 0칸</li><li><b>bulky</b>(부피 큼) = 2칸</li>
+      <li>100gp 미만 동전 = petty</li><li><b>피로(Fatigue)</b> 도 1칸 차지</li></ul></div>
+    <div class="card"><h3>한계</h3><ul>
+      <li>맨몸으론 4칸만 편히, 배낭(+6) 기본 지급</li>
+      <li><b>10칸 가득 = HP 0</b> (즉사는 아님, 다음 피해부터 STR 로)</li>
+      <li>10칸 넘게는 못 든다. 피로가 들어올 칸이 없으면 아이템을 버린다</li></ul></div>
+  </div>
+  <div class="callout">요령: 피로 몫으로 1~2칸은 비워 둔다.</div>
+</section>
+
+<section id="saves">
+  <h2>세이브</h2>
+  <p><b>d20 ≤ 능력치</b> 이면 성공. <b>1 은 늘 성공, 20 은 늘 실패.</b> 맞대결·공동 행동은 가장 위험한 쪽(보통 낮은 능력치)이 굴린다.</p>
+  <div class="card">
+    <h3>굴려 보기</h3>
+    <div class="tool">
+      <label>능력치 <input id="attr" type="number" min="1" max="20" value="10"></label>
+      <button id="rollSave">d20 굴리기</button>
+    </div>
+    <div id="saveOut"></div>
+  </div>
+  <h3>반응 2d6 (NPC 태도가 애매할 때)</h3>
+  <div class="scroll"><table>
+    <tr><th>2</th><th>3–5</th><th>6–8</th><th>9–11</th><th>12</th></tr>
+    <tr><td>적대</td><td>경계</td><td>호기심</td><td>친절</td><td>도움</td></tr>
+  </table></div>
+  <h3>운명의 주사위 d6</h3>
+  <p>불확실할 때 워든이 굴린다. <b>4+ PC 유리, 3- 불리.</b></p>
+  <h3>사기 (Morale)</h3>
+  <p>적은 첫 사상자 · 절반 손실 때 WIL 세이브, 실패 시 도주. 단독 적은 HP 0 일 때. PC 는 해당 없음.</p>
+</section>
+
+<section id="damage">
+  <h2>피해 · 회복</h2>
+  <div class="flow">
+    <div class="step"><b>HP 감소</b><br><span class="muted">피해 − 갑옷</span></div><span class="arrow">→</span>
+    <div class="step"><b>넘친 만큼 STR 감소</b><br><span class="muted">HP 0 아래로 내려간 양</span></div><span class="arrow">→</span>
+    <div class="step"><b>STR 세이브</b><br><span class="muted">깎인 새 STR 로</span></div><span class="arrow">→</span>
+    <div class="step"><b>실패 = 치명 피해</b><br><span class="muted">기어갈 뿐, 1시간 내 치료 못 받으면 사망</span></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h3>피해 계산 해 보기</h3>
+    <div class="tool">
+      <label>HP <input id="dHp" type="number" min="0" max="20" value="3"></label>
+      <label>STR <input id="dStr" type="number" min="1" max="20" value="10"></label>
+      <label>갑옷 <input id="dArm" type="number" min="0" max="3" value="0"></label>
+      <label>무기 <select id="dDie"><option value="4">d4 (약화·맨손)</option><option value="6" selected>d6</option><option value="8">d8</option><option value="10">d10</option><option value="12">d12 (강화)</option></select></label>
+      <button id="rollDmg">공격 받기</button>
+    </div>
+    <div id="dmgOut"></div>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>회복</h3><ul>
+      <li>잠깐 쉬며 물 마시기 → <b>HP 전부</b> (노출 위험)</li>
+      <li>능력치 손실 → 치료자와 1주 휴식</li>
+      <li>붕대 → 치명 피해 안정</li></ul></div>
+    <div class="card"><h3>결핍 · 피로</h3><ul>
+      <li><b>결핍</b>: 음식·잠 등 결여. 하루 넘으면 매일 피로 1. 결핍 중엔 회복 불가</li>
+      <li><b>피로</b>: 1칸 차지. 안전한 곳 하룻밤 휴식으로 해소</li></ul></div>
+    <div class="card"><h3>전투 밖 피해</h3>함정 · 폭발 · 낙하 등은 HP 를 건너뛰고 <b>능력치(주로 STR)</b> 로 바로 들어온다.</div>
+  </div>
+</section>
+
+<section id="combat">
+  <h2>전투</h2>
+  <div class="grid">
+    <div class="card"><h3>라운드 (≈10초)</h3><ul>
+      <li><b>PC 먼저, 적 나중</b>. 각 편 결과는 동시</li>
+      <li><b>첫 라운드: PC 각자 DEX 세이브</b>, 실패하면 그 라운드 행동 불가</li>
+      <li>차례마다 40ft 이동 + 행동 1</li></ul></div>
+    <div class="card"><h3>공격</h3><ul>
+      <li><b>자동 명중</b>. 무기 주사위 − 갑옷</li>
+      <li>여럿이 한 대상 → 다 굴려 <b>최고값 하나</b></li>
+      <li>쌍수 d8+d8 → 둘 중 높은 값</li>
+      <li>갑옷 최대 3</li></ul></div>
+    <div class="card"><h3>수정치</h3><ul>
+      <li><b>약화</b>: 불리한 위치 → 무조건 d4 (맨손도 d4)</li>
+      <li><b>강화</b>: 유리한 위치 → d12</li>
+      <li><b>폭발</b>: 범위 내 전원 각자 굴림</li></ul></div>
+    <div class="card"><h3>기타</h3><ul>
+      <li><b>후퇴</b>: DEX 세이브 + 안전한 도착지</li>
+      <li><b>분대</b>: 다수 동종 적 = 한 덩어리. 개인→분대 약화, 분대→개인 강화+폭발</li>
+      <li>원거리: 눈 흰자 보일 거리. 탄약 추적 안 함</li></ul></div>
+  </div>
+</section>
+
+<section id="scars">
+  <h2>상흔 — HP 가 정확히 0 이 되면</h2>
+  <p>잃은 HP 양으로 표를 본다. 상처를 입지만 <b>최대 HP · 능력치를 다시 굴려 높으면 갱신</b> — Cairn 의 성장 수단.</p>
+  <div class="scroll"><table>
+    <tr><th>잃은 HP</th><th>결과</th><th>잃은 HP</th><th>결과</th></tr>
+    <tr><td>1</td><td>흉터 — 1d6 이 최대 HP 보다 크면 갱신</td><td>7</td><td>힘줄 끊김 — 회복 후 3d6 &gt; 최대 DEX 면 갱신</td></tr>
+    <tr><td>2</td><td>휘청 — 1d6 &gt; 최대 HP 면 갱신</td><td>8</td><td>귀먹음 — WIL 세이브 성공 시 최대 WIL +1d4</td></tr>
+    <tr><td>3</td><td>나가떨어짐 — 결핍, 쉬고 나면 최대 HP +1d6</td><td>9</td><td>정신 흔들림 — 3d6 &gt; 최대 WIL 면 갱신</td></tr>
+    <tr><td>4</td><td>골절 — 회복 후 2d6 &gt; 최대 HP 면 갱신</td><td>10</td><td>신체 절단 — WIL 세이브 성공 시 최대 WIL +1d6</td></tr>
+    <tr><td>5</td><td>감염 — 낫고 나면 2d6 &gt; 최대 HP 면 갱신</td><td>11</td><td>치명상 — 1시간 내 치료, 회복 후 최대 HP = 2d6</td></tr>
+    <tr><td>6</td><td>머리 부상 — 무작위 능력치 3d6 &gt; 현재면 갱신</td><td>12</td><td>저승 문턱 — 다음 치명 피해 세이브 실패 시 사망</td></tr>
+  </table></div>
+</section>
+
+<section id="magic">
+  <h2>마법</h2>
+  <div class="grid">
+    <div class="card"><h3>주문서</h3>주문 1개 · 1칸. 두 손으로 들고 소리 내어 읽으면 시전 → <b>피로 1</b>. 결핍·위험 중엔 WIL 세이브. 시간·안전이 있으면 강화 무료.</div>
+    <div class="card"><h3>두루마리</h3>petty · 피로 없음 · 1회용.</div>
+    <div class="card"><h3>유물 (Relic)</h3>피로 없음. 충전 횟수 + <b>재충전 조건</b>.</div>
+  </div>
+</section>
+
+<section id="dungeon">
+  <h2>던전 탐험</h2>
+  <div class="flow">
+    <div class="step"><b>1. 워든 묘사</b><br><span class="muted">주변 · 즉각 위험</span></div><span class="arrow">→</span>
+    <div class="step"><b>2. 플레이어 선언</b><br><span class="muted">이동 · 행동</span></div><span class="arrow">→</span>
+    <div class="step"><b>3. 동시 처리</b><br><span class="muted">애매하면 운명 주사위</span></div><span class="arrow">→</span>
+    <div class="step"><b>4. 기록</b><br><span class="muted">자원 · 상태, 필요하면 사건 굴림</span></div>
+  </div>
+  <p class="muted">턴마다 40ft(횃불 반경) 이동 + 행동 1. 행동으로 3배 이동 가능하지만 사건 확률이 오른다.</p>
+  <h3>던전 사건 d6 — 이럴 때 굴린다</h3>
+  <p>한 곳에서 1사이클 넘게 머묾 · 서둘러 이동 · 새 구역 진입 · 큰 소음</p>
+  <div class="scroll"><table>
+    <tr><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th></tr>
+    <tr><td>조우 (반응 굴림)</td><td>흔적</td><td>환경 변화</td><td>상실 (횃불 꺼짐 등)</td><td>지침 (휴식/피로/식량)</td><td>고요</td></tr>
+  </table></div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>수색</h3>1턴에 대상 하나를 철저히 → 숨은 보물 · 함정 · 비밀문. 안전하지만 시간이 든다.</div>
+    <div class="card"><h3>휴식</h3>1턴 → HP 전부. 광원 + 안전 필요. 던전에선 피로를 못 푼다.</div>
+    <div class="card"><h3>공포 (Panic)</h3>포위 · 어둠 · 최대 공포 → WIL 세이브. 실패 시 HP 0, 첫 라운드 행동 불가, 공격 약화. 행동으로 WIL 세이브해 벗어난다.</div>
+    <div class="card"><h3>광원</h3>횃불 40ft, 3번 켜면 끝. 랜턴은 기름(6회). 광원 없으면 공포.</div>
+    <div class="card"><h3>함정</h3>조심하는 캐릭터에겐 정보를 다 준다. 무심하면 픽션대로 또는 2-in-6. 피해는 능력치로.</div>
+    <div class="card"><h3>문</h3>잠김 · 끼임 · 막힘. 행진 순서가 누가 먼저 맞을지 정한다. 듣고 냄새 맡아 너머를 살필 수 있다.</div>
+  </div>
+</section>
+
+<section id="wild">
+  <h2>야외 탐험</h2>
+  <figure><img src="docs/images/rule/p075.png" alt="지점 사이 이동 경계 예시" loading="lazy" width="680"><figcaption>지점 사이 거리 = 경계(watch) 수</figcaption></figure>
+  <ul>
+    <li>하루 = 3 경계 (아침 · 오후 · 밤). 경계마다 1인 1 야외 행동.</li>
+    <li>거리 = 길 + 거리 + 지형 + 날씨 페널티 합.</li>
+  </ul>
+  <div class="scroll"><table>
+    <tr><th>길</th><th>거리</th><th>지형</th><th>날씨</th></tr>
+    <tr><td>도로 0<br>오솔길 +1 (길잃음 2-in-6)<br>황야 +2 (3-in-6)</td>
+        <td>짧음 +1<br>중간 +2<br>김 +3</td>
+        <td>쉬움 0 (평야)<br>험함 +1 (숲·언덕)<br>위험 +2 (산·늪)</td>
+        <td>좋음·무난 0<br>불쾌: 피로 or +1<br>악천후: + 지형↑<br>극한: 피로 and +1, 지형↑<br>재앙: 이동 불가</td></tr>
+  </table></div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card"><h3>야외 행동</h3><ul>
+      <li><b>이동</b>: d6 길잃음 판정</li><li><b>탐색</b>: 장소·지형지물 발견</li>
+      <li><b>보급</b>: 식량 1d4, 인원마다 한 단계↑ (최대 d12)</li>
+      <li><b>야영</b>: 식량 1, 피로 전부 해소</li></ul></div>
+    <div class="card"><h3>야외 사건 d6</h3>1 조우 · 2 흔적 · 3 환경 · 4 상실 · 5 지침 · 6 발견<br><span class="muted">밤 이동은 두 번 굴린다. 야영을 건너뛰면 피로 + 결핍 + 지형 한 단계↑.</span></div>
+  </div>
+</section>
+
+<section id="downtime">
+  <h2>휴지기 (세션 사이)</h2>
+  <p>PC 마다 행동 1. 워든이 <b>마일스톤 1–5</b> 와 비용(금 · 자원 · 평판 · 상실)을 정한다. WIL 세이브로 비용 감면을 노릴 수 있다.</p>
+  <div class="grid">
+    <div class="card"><h3>연구</h3>분명한 질문 + 지식의 출처.</div>
+    <div class="card"><h3>훈련</h3>개선할 기술 + 가르칠 스승.</div>
+    <div class="card"><h3>관계 강화</h3>NPC·세력 + 구체적 의도.</div>
+  </div>
+</section>
+
+<section id="world">
+  <h2>세계 — 발드 (Vald)</h2>
+  <div class="grid">
+    <div class="card"><h3>도시들</h3>권력의 중심. 모험은 주로 작은 마을 · 숲 · 변방에서 벌어진다.</div>
+    <div class="card"><h3>숲 (the Wood)</h3>모든 숲. 중심엔 심장나무. 고블린 · 정령 · 트롤 · 마녀, 그리고 모두가 경외하는 요정(Fae).</div>
+    <div class="card"><h3>뿌리 (the Roots)</h3>거대한 지하 세계. 입구는 관문(Gate). 유물 · 부 · 지식, 그리고 공포.</div>
+  </div>
+</section>
+
+</main>
+<footer>
+  원본: Cairn 2e Player's Guide v1.0.0 (Yochai Gal, 2026) · Text CC BY-SA 4.0 ·
+  <a href="docs/룰_요약.md">룰_요약.md</a> · <a href="docs/시나리오_블러드올름.md">시나리오</a>
+</footer>
+<script>
+const d = n => 1 + Math.floor(Math.random() * n);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v || lo));
+document.getElementById('rollSave').onclick = () => {
+  const a = clamp(+document.getElementById('attr').value, 1, 20);
+  const r = d(20);
+  const ok = r === 1 || (r !== 20 && r <= a);
+  const note = r === 1 ? ' (1: 늘 성공)' : r === 20 ? ' (20: 늘 실패)' : '';
+  document.getElementById('saveOut').innerHTML =
+    `d20 = ${r} vs ${a} → <span class="${ok ? 'ok' : 'bad'}">${ok ? '성공' : '실패'}</span>${note}`;
+};
+document.getElementById('rollDmg').onclick = () => {
+  const hp = clamp(+document.getElementById('dHp').value, 0, 20);
+  const str = clamp(+document.getElementById('dStr').value, 1, 20);
+  const arm = clamp(+document.getElementById('dArm').value, 0, 3);
+  const die = +document.getElementById('dDie').value;
+  const roll = d(die), dmg = Math.max(0, roll - arm);
+  let msg = `d${die} = ${roll} − 갑옷 ${arm} = 피해 ${dmg}. `;
+  if (dmg < hp) msg += `HP ${hp} → ${hp - dmg}. 버텼다.`;
+  else if (dmg === hp) msg += `HP ${hp} → <b>정확히 0</b> → <span class="bad">상흔 표 ${hp}번</span>.`;
+  else {
+    const over = dmg - hp, ns = str - over;
+    msg += `HP ${hp} → 0, 넘친 ${over} 만큼 STR ${str} → ${ns}. `;
+    if (ns <= 0) msg += `<span class="bad">STR 0 — 사망.</span>`;
+    else {
+      const s = d(20), ok = s === 1 || (s !== 20 && s <= ns);
+      msg += `STR 세이브 d20 = ${s} vs ${ns} → ` + (ok ? `<span class="ok">버팀</span>` : `<span class="bad">치명 피해</span>`);
+    }
+  }
+  document.getElementById('dmgOut').innerHTML = msg;
+};
+</script>
+</body>
+</html>
