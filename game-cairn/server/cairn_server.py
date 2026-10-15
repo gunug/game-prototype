@@ -23,6 +23,9 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
 
 캐릭터 그림
      {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
+     {"type":"chargen", "id"} 기록용 자리 + {"type":"draft", "draft":{...}} 캐릭터 생성 초안 (이름 · 능력치 교환 버튼)
+POST /api/chargen 헤더 X-Token {"id", "action": "name|swap|confirm", "value"}   만든 사람만
+     {"type":"world", "world":{day, watch, turns, place}}   게임 상태 중 화면에 보여도 되는 것
      {"type":"reveal", "id", "kind", "title", "words", "desc", "img"}   처음 알게 된 것 (hello 의 "lore" 에 누적)
 GET  /lore/<id>   공개된 것의 그림 (공개 전엔 404)
      {"type":"cost", "kind":"meter|line", "total", "rate", "usd", "label"}   사용료 (달러, rate = 원/달러)
@@ -54,6 +57,9 @@ import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+import chargen
+import world
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -155,10 +161,9 @@ def build_system():
 - 굴린 값과 결과를 서술에 짧게 밝힌다. 예: "DEX 세이브 6 (≤14) 성공".
 
 시작
-- 처음 온 플레이어에게는 캐릭터를 만들어 준다: 배경 d20, 능력치 3d6 ×3, HP d6, 특성 · 본드, 나이 2d20+10. 가장 어린 PC 가 오멘 d20.
-  배경의 이름 · 시작 장비 · d6 표 두 개는 아래 「캐릭터 만들기 원문」을 그대로 따른다. 지어내지 않는다. (PDF 에서 뽑아 표 칸이 줄로 풀려 있다.)
-- 같은 때 굴릴 주사위가 여럿이면(능력치 3d6 ×3, 특성 d10 ×8 등) 한 번의 응답에서 roll_dice 를 여러 번 함께 부른다.
-- 혼자라면 동료 NPC 한 명을 붙여 준다. 동료도 같은 방식으로 굴려 만든다 (배경 · 능력치 · HP 모두 roll_dice).
+- 캐릭터 만들기는 서버 명령이 한다: 플레이어는 채팅에 /캐릭터생성 , 동료 NPC 는 /동료생성 . 워든은 캐릭터를 직접 굴려 만들지 않는다.
+  캐릭터가 없는 플레이어가 말을 걸면 /캐릭터생성 을 쓰라고 짧게 안내한다. 혼자라면 /동료생성 도 권한다.
+- 새 캐릭터가 등록되면 [시스템] 이 결과를 보내 준다. 그때는 소개만 한다.
 - 파티가 갖춰지면 의뢰를 전하고, 도착 시각과 날씨를 묻고 운명 주사위로 비튼다.
 
 처음 알게 된 것 — reveal_lore
@@ -168,7 +173,7 @@ def build_system():
 - 이름을 모르는 괴물이면 처음엔 생김새만 묘사해도 되지만, 그 괴물과 마주친 순간 바로 공개한다 (플레이어 화면에서 이름으로 불린다).
 
 캐릭터 그림
-- 캐릭터(플레이어 PC · 동료 NPC) 하나가 다 만들어지면 그 캐릭터마다 draw_character 를 한 번 부른다.
+- 캐릭터 그림은 /캐릭터생성 이 자동으로 그린다. draw_character 는 플레이어가 그림을 다시 그려 달라고 할 때만 부른다.
 - prompt 는 영어로: 나이 · 체격 · 피부 · 머리 · 얼굴 · 옷 · 들고 있는 무기와 눈에 띄는 장비 · 배경(직업)의 분위기를 구체적으로. 성별이 정해지지 않았으면 이름과 분위기에 맞게 정해 적는다.
 - 그 밖의 때(NPC · 괴물 · 장면)에는 부르지 않는다. 그림이 실패해도 게임을 계속한다.
 
@@ -178,6 +183,7 @@ def build_system():
 - 아이템 칸: 보통 1, petty 0, bulky 2. slots 로 적는다.
 - 시트에 이미 보이므로 수치를 글로 길게 되풀이하지 않는다.
 """
+    guide += "\n" + world.guide() + "\n"
     return [
         {"type": "text", "text": guide},
         {"type": "text", "text": "## 룰 요약\n\n" + rules},
@@ -237,6 +243,28 @@ TOOLS = [{
         "type": "object",
         "properties": {"id": {"type": "string", "enum": LORE_IDS}},
         "required": ["id"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "update_world",
+    "description": "게임 상태(시간 · 던전 턴 · 위치 · 시나리오 상태 · 메모)를 고친다. 바뀐 것만 보낸다.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "day": {"type": "integer"},
+            "watch": {"type": "string", "enum": list(world.WATCHES)},
+            "add_turns": {"type": "integer", "description": "흐른 던전 턴 수 (보통 1)"},
+            "location": {"type": "string", "description": "워든용 위치. 방 번호 써도 됨. 예: C3 튜브웜 둥지 북쪽 출구"},
+            "location_public": {"type": "string", "description": "플레이어 화면에 보일 위치 이름. 방 번호 없이. 예: 숨 막히는 넓은 방"},
+            "flags": {"type": "array", "description": "바뀐 시나리오 상태",
+                      "items": {"type": "object", "properties": {
+                          "key": {"type": "string", "enum": list(world.FLAGS)},
+                          "value": {"type": "string"}},
+                          "required": ["key", "value"], "additionalProperties": False}},
+            "add_notes": {"type": "array", "items": {"type": "string"}, "description": "기억해 둘 사실"},
+            "remove_notes": {"type": "array", "items": {"type": "integer"}, "description": "지울 메모 번호"},
+        },
         "additionalProperties": False,
     },
 }, {
@@ -377,6 +405,9 @@ if STATE_FILE.exists():
         pass
 
 
+world.ensure(state)
+
+
 def save_state():
     with lock:
         data = json.dumps(state, ensure_ascii=False)
@@ -459,7 +490,8 @@ def gm_turn(lines):
     global gm_busy
     _turn.gen = game["gen"]
     with lock:
-        state[HIST].append({"role": "user", "content": "\n".join(lines)})
+        snap = world.snapshot(state, chars_view())
+        state[HIST].append({"role": "user", "content": snap + "\n\n[플레이어]\n" + "\n".join(lines)})
         turn_cost["usd"] = 0.0
     broadcast({"type": "gm_start"}, keep=False)
     try:
@@ -488,6 +520,11 @@ def do_tool(block):
         return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "새 게임이 시작됨"}
     if block.name == "draw_character":
         return draw_tool(block)
+    if block.name == "update_world":
+        with lock:
+            msg = world.update(state, block.input if isinstance(block.input, dict) else {})
+        broadcast({"type": "world", "world": world.public(state)}, keep=False)
+        return {"type": "tool_result", "tool_use_id": block.id, "content": msg}
     if block.name == "reveal_lore":
         return lore_tool(block)
     if block.name == "update_character":
@@ -583,7 +620,7 @@ def item_of(x):
         return None
     slots = x.get("slots", 1)
     return {"name": clean(x["name"], 40), "slots": max(0, min(4, int(slots))) if isinstance(slots, (int, float)) else 1,
-            "uses": clean(x.get("uses", ""), 30)}
+            "uses": clean(x.get("uses", ""), 30), "note": clean(x.get("note", ""), 80)}
 
 
 def find_char(name):
@@ -646,6 +683,76 @@ def sheet_tool(block):
     if used >= 10:
         note += " 10칸이 찼다 → HP 0 (룰)."
     return {"type": "tool_result", "tool_use_id": block.id, "content": note}
+
+
+
+# ── 캐릭터 생성 (/캐릭터생성 · /동료생성) — 절차는 chargen.py, 워든은 소개만 ──
+def chargen_view(d):
+    v = {k: d[k] for k in ("id", "kind", "owner", "owner_color", "status", "name", "names", "background", "intro",
+                          "stats", "base", "swap", "hp", "gp", "age", "traits", "bonds", "omen", "rolls", "notes")}
+    v["items"] = [{"name": i["name"], "slots": i["slots"], "uses": i["uses"], "note": i.get("note", "")} for i in d["items"]]
+    return v
+
+
+def start_chargen(c, kind):
+    def roll_cb(expr, why, private=False):
+        rolls, total = roll(expr)
+        who = c.nick if kind == "pc" else f"{c.nick} 의 동료"
+        obj = {"type": "dice", "expr": expr, "rolls": rolls, "total": total, "why": f"{who} · {why}", "ts": time.time()}
+        if private:
+            c.push(obj)
+        else:
+            broadcast(obj)
+        time.sleep(0.15)                    # 화면에서 하나씩 보이게
+        return total
+
+    with lock:
+        ages = [x.get("age", 99) for x in state["chars"].values() if x.get("player") not in ("NPC", None)]
+    broadcast({"type": "notice", "text": f"{c.nick} 님이 {'캐릭터' if kind == 'pc' else '동료'} 만들기를 시작했습니다. 주사위를 굴립니다…"})
+    try:
+        d = chargen.create(roll_cb, kind, ages if kind == "pc" else [], c.nick)
+    except Exception as e:                  # noqa: BLE001
+        broadcast({"type": "notice", "text": f"캐릭터 만들기 실패: {e}"})
+        return
+    with lock:
+        d["id"] = f"d{int(time.time() * 1000) % 10**9}"
+        d["status"] = "choosing"
+        d["owner_color"] = c.color
+        d["owner_token"] = c.token
+        state.setdefault("drafts", {})[d["id"]] = d
+    if d["omen_private"]:
+        c.push({"type": "notice", "text": f"(나만 보는 오멘) {d['omen_private']}"})
+    broadcast({"type": "chargen", "id": d["id"], "ts": time.time()})
+    broadcast({"type": "draft", "draft": chargen_view(d)}, keep=False)
+    save_state()
+
+
+def finish_chargen(d, owner_nick):
+    """확정 → 시트 · 그림 · 워든 소개."""
+    player = owner_nick if d["kind"] == "pc" else "NPC"
+    sheet = chargen.to_sheet(d, player)
+    with lock:
+        key = find_char(sheet["name"])
+        sheet["name"] = key
+        state["chars"][key] = sheet
+    send_chars()
+    try:
+        raw, ext, img_cost = draw_image(chargen.image_prompt(d))
+        IMG_DIR.mkdir(exist_ok=True)
+        fname = f"{int(time.time())}_{secrets.token_hex(3)}.{ext}"
+        (IMG_DIR / fname).write_bytes(raw)
+        with lock:
+            state["chars"][key]["image"] = f"/img/{fname}"
+        broadcast({"type": "image", "url": f"/img/{fname}", "name": key,
+                   "caption": f"{key} — {d['background']}, {d['age']}세", "ts": time.time()})
+        add_cost(img_cost, "image")
+        send_chars()
+    except Exception as e:                  # noqa: BLE001 — 그림이 안 돼도 캐릭터는 만든다
+        broadcast({"type": "notice", "text": f"그림 실패: {str(e)[:150]}"})
+    save_state()
+    queue_line("시스템", "새 캐릭터가 등록됐다 (굴림 · 시트 · 그림은 서버가 이미 끝냄). "
+               "이 캐릭터를 2–4문장으로 생생하게 소개만 하고, 다음 할 일을 짧게 안내하라. 다시 굴리거나 시트를 고치지 마라.\n"
+               + chargen.summary_for_warden(d, player), True)
 
 
 IMG_STYLE = ("Dark fantasy ink-and-wash illustration in the style of an old-school tabletop RPG book, "
@@ -972,6 +1079,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad body"})
         if path == "/api/join":
             return self.join(data)
+        if path == "/api/chargen":
+            return self.chargen(data)
         if path == "/api/send":
             return self.send(data)
         self.reply(404, {"error": "not found"})
@@ -1004,6 +1113,37 @@ class Handler(BaseHTTPRequestHandler):
             clients[c.token] = c
         self.reply(200, {"token": c.token, "nick": nick, "color": color})
 
+    def chargen(self, data):
+        c = self.me()
+        if not c:
+            return self.reply(401, {"error": "다시 입장해 주세요."})
+        with lock:
+            d = state.get("drafts", {}).get(str(data.get("id")))
+        if not d or d["status"] != "choosing":
+            return self.reply(404, {"error": "없는 초안"})
+        if d["owner"] != c.nick or d["owner_color"] != c.color:
+            return self.reply(403, {"error": "만든 사람만 고를 수 있습니다."})
+        act, val = data.get("action"), data.get("value")
+        if act == "swap":
+            if not chargen.apply_swap(d, str(val or "")):
+                return self.reply(400, {"error": "잘못된 교환"})
+        elif act == "name":
+            d["name"] = clean(val, NICK_MAX)
+        elif act == "confirm":
+            if not d["name"]:
+                return self.reply(400, {"error": "이름을 먼저 정해 주세요."})
+            with lock:
+                taken = any(k.lower() == d["name"].lower() for k in state["chars"])
+            if taken:
+                return self.reply(400, {"error": "같은 이름의 캐릭터가 이미 있습니다."})
+            d["status"] = "done"
+            threading.Thread(target=finish_chargen, args=(d, c.nick), daemon=True).start()
+        else:
+            return self.reply(400, {"error": "모르는 동작"})
+        broadcast({"type": "draft", "draft": chargen_view(d)}, keep=False)
+        save_state()
+        return self.reply(200, {"ok": True})
+
     def send(self, data):
         c = self.me()
         if not c:
@@ -1012,11 +1152,16 @@ class Handler(BaseHTTPRequestHandler):
         if not text:
             return self.reply(400, {"error": "빈 말"})
         to_gm = bool(data.get("to_gm"))
+        if text in ("/캐릭터생성", "/동료생성"):
+            threading.Thread(target=start_chargen, args=(c, "pc" if text == "/캐릭터생성" else "npc"), daemon=True).start()
+            return self.reply(200, {"ok": True})
         if text in ("/새게임", "/reset"):
             with lock:
                 state["messages"], state["or_messages"], state["log"], state["chars"] = [], [], [], {}
                 state["cost_usd"] = 0.0
                 state["revealed"] = []
+                state["world"] = world.fresh()
+                state["drafts"] = {}
                 pending.clear()
                 game["gen"] += 1
                 global pending_act
@@ -1025,6 +1170,7 @@ class Handler(BaseHTTPRequestHandler):
             broadcast({"type": "reset"}, keep=False)
             send_chars()
             broadcast(cost_msg("meter"), keep=False)
+            broadcast({"type": "world", "world": world.public(state)}, keep=False)
             broadcast({"type": "notice", "text": f"{c.nick} 님이 새 게임을 시작했습니다. 워든에게 말을 걸면 캐릭터 만들기부터."})
             return self.reply(200, {"ok": True})
         with lock:
@@ -1054,7 +1200,9 @@ class Handler(BaseHTTPRequestHandler):
             hello = {"type": "hello", "me": {"nick": c.nick, "color": c.color},
                      "log": list(state["log"]), "gm_busy": gm_busy, "mock": MOCK, "brain": MODEL,
                      "chars": chars_view(), "cost": cost_msg("meter"),
-                     "lore": [lore_view(i) for i in state["revealed"] if i in LORE]}
+                     "lore": [lore_view(i) for i in state["revealed"] if i in LORE],
+                     "world": world.public(state),
+                     "drafts": [chargen_view(d) for d in state.get("drafts", {}).values()]}
         c.push(hello)
         if fresh:
             broadcast({"type": "notice", "text": f"{c.nick} 님이 들어왔습니다."}, keep=False)

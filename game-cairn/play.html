@@ -111,6 +111,9 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 #sheetBtn{display:none;padding:4px 10px;font-size:.85rem}
 #meter{font-size:.78rem;color:var(--sub);background:var(--chip);border-radius:999px;padding:2px 10px;white-space:nowrap;font-variant-numeric:tabular-nums}
 #meter b{color:var(--ink)}
+#world{display:flex;gap:6px;flex-wrap:wrap;padding:6px 16px 0;font-size:.78rem;color:var(--sub)}
+#world span{background:var(--chip);border-radius:999px;padding:1px 10px}
+#world span b{color:var(--ink);font-weight:600}
 .costline{align-self:flex-end;font-size:.75rem;color:var(--sub);font-variant-numeric:tabular-nums}
 @media (max-width:1000px){
   #side{display:none}
@@ -151,6 +154,27 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .lore p{margin:0;font-size:.88rem}
 #tip img{display:block;width:100%;max-height:160px;object-fit:cover;border-radius:6px;margin-bottom:6px}
 @media (max-width:520px){.lore img{width:84px;height:110px}}
+/* 캐릭터 생성 카드 */
+.cg{align-self:stretch;max-width:760px;background:var(--panel);border:1px solid var(--line);border-left:4px solid #8e7cc3;border-radius:12px;padding:12px 14px;font-size:.88rem}
+.cg h4{margin:0 0 2px;font:700 1.05rem Georgia,serif}
+.cg .sub{color:var(--sub);font-size:.8rem}
+.cg .row{margin-top:8px}
+.cg .lab{font-size:.75rem;color:var(--sub);font-weight:700;margin-bottom:3px}
+.cg .stats{display:flex;gap:10px;flex-wrap:wrap}
+.cg .stat{background:var(--chip);border-radius:8px;padding:4px 12px;text-align:center;min-width:64px}
+.cg .stat b{display:block;font-size:1.2rem}
+.cg .stat.sw{outline:2px solid #8e7cc3}
+.cg .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.cg .btns button{padding:4px 10px;font-size:.8rem;background:var(--chip);color:var(--ink);border-color:var(--line)}
+.cg .btns button.on{background:#8e7cc3;color:#fff;border-color:#8e7cc3}
+.cg .name{display:flex;gap:6px;margin-top:6px}
+.cg .name input{max-width:200px}
+.cg .go{margin-top:10px}
+.cg ul{margin:2px 0;padding-left:1.1em}
+.cg.done{border-left-color:#27ae60}
+.cg .err{color:#c0392b;font-size:.8rem;min-height:1em}
+#quick{display:flex;gap:6px;padding:0 16px 6px}
+#quick button{padding:3px 10px;font-size:.78rem;background:var(--chip);color:var(--ink);border-color:var(--line)}
 </style>
 </head>
 <body>
@@ -183,6 +207,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   <aside id="side"><h3>접속자</h3><div id="users"></div></aside>
   <div id="main">
     <div id="chips"></div>
+    <div id="world"></div>
     <details id="brief" open>
       <summary>의뢰서 — 사라진 조사단</summary>
       <div class="bd">
@@ -200,6 +225,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
     </details>
     <div id="log" aria-live="polite"></div>
     <div class="typing" id="typing"></div>
+    <div id="quick"><button type="button" data-cmd="/캐릭터생성">캐릭터 만들기</button><button type="button" data-cmd="/동료생성">동료 만들기</button></div>
     <form id="bar">
       <label class="toggle" title="끄면 플레이어끼리의 잡담 — 워든이 답하지 않음"><input type="checkbox" id="toGm" checked> 마스터에게</label>
       <textarea id="text" maxlength="600" placeholder="행동이나 말을 적으세요 (Enter 보내기, Shift+Enter 줄바꿈)"></textarea>
@@ -256,6 +282,9 @@ function render(m) {
   } else if (m.type === 'image') {
     const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
     loadImg(fig.querySelector('img'), m.url);
+  } else if (m.type === 'chargen') {
+    const el = add(div('cg', ''));
+    el.dataset.id = m.id; renderDraft(m.id);
   } else if (m.type === 'reveal') {
     const el = add(div('lore', `${m.img ? '<img alt="">' : ''}<div><span class="nw"><span class="k">${esc(m.kind)}</span>새로 알게 됨</span>`
       + `<h4>${esc(m.title)}</h4><p>${esc(m.desc)}</p></div>`));
@@ -298,7 +327,7 @@ function sheetHtml(c) {
   const dead = (c.conditions || []).some(x => /사망|죽음/.test(x));
   const used = c.slots_used || 0;
   const tag = s => s === 0 ? 'petty' : s >= 2 ? 'bulky' : '';
-  const items = (c.items || []).map(i => `<li data-k="item:${esc(i.name)}"><span>${esc(i.name)}<span class="s">${tag(i.slots)}</span></span><span class="u">${esc(i.uses || '')}</span></li>`).join('');
+  const items = (c.items || []).map(i => `<li data-k="item:${esc(i.name)}"><span>${esc(i.name)}<span class="s">${tag(i.slots)}</span></span><span class="u">${esc([i.uses, i.note].filter(Boolean).join(' · '))}</span></li>`).join('');
   const kv = [
     c.armor != null ? `<span data-k="armor">갑옷 ${c.armor}</span>` : '',
     c.gp != null ? `<span data-k="gp">${c.gp} gp</span>` : '',
@@ -440,6 +469,67 @@ document.addEventListener('click', e => { const k = e.target.closest('.kw'); k ?
 $('log') && $('log').addEventListener('scroll', hideTip);
 keywords($('brief').querySelector('ul'));       // 의뢰서에도
 
+// ── 게임 상태 (보여도 되는 것만) ──
+function showWorld(w) {
+  if (!w) return;
+  $('world').innerHTML = `<span><b>${w.day}일차</b> ${esc(w.watch)}</span>`
+    + (w.turns ? `<span>던전 턴 <b>${w.turns}</b></span>` : '')
+    + (w.place ? `<span>위치 <b>${esc(w.place)}</b></span>` : '');
+}
+
+
+// ── 캐릭터 생성 카드 (/캐릭터생성 · /동료생성) ──
+const DRAFTS = {};
+const SWAPS = [['', '그대로'], ['str-dex', 'STR↔DEX'], ['str-wil', 'STR↔WIL'], ['dex-wil', 'DEX↔WIL']];
+function mine(d) { return me && d.owner === me.nick && d.owner_color === me.color; }
+function draftHtml(d) {
+  const own = mine(d) && d.status === 'choosing';
+  const swapped = { 'str-dex': ['str', 'dex'], 'str-wil': ['str', 'wil'], 'dex-wil': ['dex', 'wil'] }[d.swap] || [];
+  const stat = k => `<div class="stat${swapped.includes(k) ? ' sw' : ''}">${k.toUpperCase()}<b>${d.stats[k]}</b></div>`;
+  const items = d.items.map(i => `<li>${esc(i.name)}${i.uses ? ` <span class="sub">${esc(i.uses)}</span>` : ''}${i.note ? ` <span class="sub">— ${esc(i.note)}</span>` : ''}${i.slots === 0 && !/petty/.test(i.note) ? ' <span class="sub">petty</span>' : i.slots >= 2 && !/bulky/.test(i.note) ? ' <span class="sub">bulky</span>' : ''}</li>`).join('');
+  return `<h4>${d.status === 'done' ? '완성 — ' + esc(d.name) : (d.kind === 'pc' ? '캐릭터 만들기' : '동료 만들기')}</h4>
+    <div class="sub"><span class="dot" style="display:inline-block;background:${esc(d.owner_color)}"></span> ${esc(d.owner)}${d.kind === 'npc' ? ' 의 동료' : ''} · <b>${esc(d.background)}</b> · ${d.age}세 · HP ${d.hp} · ${d.gp} gp</div>
+    <div class="row sub">${esc(d.intro)}</div>
+    <div class="row"><div class="lab">능력치${own ? ' — 두 개를 맞바꿀 수 있다 (룰 p.9)' : ''}</div><div class="stats">${stat('str')}${stat('dex')}${stat('wil')}</div>
+      ${own ? `<div class="btns">${SWAPS.map(([k, l]) => `<button type="button" data-act="swap" data-v="${k}" class="${d.swap === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}</div>
+    <div class="row"><div class="lab">특성</div>${d.traits.map(x => `${esc(x.name)} <b>${esc(x.ko)}</b>`).join(' · ')}</div>
+    <div class="row"><div class="lab">배경 표</div><ul>${d.rolls.map(r => `<li>${esc(r.q)} → ${esc(r.a)}</li>`).join('')}</ul></div>
+    <div class="row"><div class="lab">장비</div><ul>${items}</ul></div>
+    <div class="row"><div class="lab">본드</div>${d.bonds.map(esc).join('<br>')}</div>
+    ${d.omen ? `<div class="row"><div class="lab">오멘 — 모두에게</div>${esc(d.omen)}</div>` : ''}
+    ${d.notes.length ? `<div class="row"><div class="lab">특이사항</div><ul>${d.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
+    ${own ? `<div class="row"><div class="lab">이름 — 고르거나 직접</div>
+      <div class="btns">${d.names.map(n => `<button type="button" data-act="name" data-v="${esc(n)}" class="${d.name === n ? 'on' : ''}">${esc(n)}</button>`).join('')}</div>
+      <div class="name"><input maxlength="16" placeholder="직접 입력" value="${d.names.includes(d.name) ? '' : esc(d.name)}"><button type="button" data-act="name-input">정하기</button></div>
+      <button type="button" class="go" data-act="confirm"${d.name ? '' : ' disabled'}>${d.name ? `「${esc(d.name)}」 로 확정` : '이름을 정하면 확정할 수 있음'}</button>
+      <div class="err"></div></div>`
+    : d.status === 'choosing' ? `<div class="row sub">${esc(d.owner)} 님이 이름과 능력치를 고르는 중…${d.name ? ` (이름: ${esc(d.name)})` : ''}</div>` : ''}`;
+}
+function renderDraft(id) {
+  const d = DRAFTS[id]; if (!d) return;
+  document.querySelectorAll(`.cg[data-id="${id}"]`).forEach(el => {
+    el.className = 'cg' + (d.status === 'done' ? ' done' : '');
+    el.innerHTML = draftHtml(d);
+  });
+}
+async function draftAct(id, action, value, el) {
+  try {
+    const res = await fetch(base() + '/api/chargen', { method: 'POST', headers: H({ 'Content-Type': 'application/json', 'X-Token': token }),
+      body: JSON.stringify({ id, action, value }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.status);
+  } catch (e) { const er = el.querySelector('.err'); if (er) er.textContent = e.message; }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.cg button[data-act]'); if (!b) return;
+  const el = b.closest('.cg'), id = el.dataset.id;
+  if (b.dataset.act === 'name-input') return draftAct(id, 'name', el.querySelector('.name input').value.trim(), el);
+  draftAct(id, b.dataset.act, b.dataset.v || '', el);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.matches('.cg .name input')) { e.preventDefault(); e.target.nextElementSibling.click(); }
+});
+
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
 function gmDelta(t) {
   if (!gmBox && !t.trim()) return;                  // 공백만으로 빈 칸을 만들지 않는다
@@ -461,12 +551,13 @@ function users(list) {
 function handle(m) {
   switch (m.type) {
     case 'hello':
-      me = m.me; LORE.length = 0; learn(m.lore || [], false);
+      me = m.me; (m.drafts || []).forEach(d => DRAFTS[d.id] = d); LORE.length = 0; learn(m.lore || [], false);
       $('log').innerHTML = ''; m.log.forEach(render);
       $('log').scrollTop = $('log').scrollHeight;
       if (m.gm_busy) gmStart();
       renderSheets(m.chars || []);
       if (m.cost) meter(m.cost);
+      showWorld(m.world);
       $('status').innerHTML = `<span class="dot" style="display:inline-block;background:${esc(me.color)}"></span> ${esc(me.nick)}${m.mock ? ' · 흉내 워든' : ' · ' + esc((m.brain || '').split('/').pop())}`;
       break;
     case 'gm_start': gmStart(); break;
@@ -478,6 +569,8 @@ function handle(m) {
     case 'ping': break;
     case 'reset': LORE.length = 0; buildKw(); $('log').innerHTML = ''; gmEnd(); renderSheets([]); for (const k in prevSheets) delete prevSheets[k]; $('sheets').classList.remove('open'); break;
     case 'chars': renderSheets(m.chars); break;
+    case 'world': showWorld(m.world); break;
+    case 'draft': DRAFTS[m.draft.id] = m.draft; renderDraft(m.draft.id); break;
     case 'reveal': gmBox = null; learn([m], true); render(m); break;
     case 'cost': meter(m); if (m.kind === 'line') { gmBox = null; render(m); } break;
     default: render(m);
@@ -567,6 +660,7 @@ async function send() {
   } finally { $('sendBtn').disabled = false; $('text').focus(); }
 }
 $('bar').onsubmit = e => { e.preventDefault(); send(); };
+$('quick').onclick = e => { const b = e.target.closest('button[data-cmd]'); if (b) { $('text').value = b.dataset.cmd; send(); } };
 $('text').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
 });
