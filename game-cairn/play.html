@@ -124,6 +124,18 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   #sheets{position:fixed;top:52px;right:0;bottom:0;width:min(360px,92vw);z-index:20;box-shadow:-8px 0 24px rgba(0,0,0,.35);transform:translateX(105%);transition:transform .25s}
   #sheets.open{transform:none}
 }
+/* 의뢰서 (플레이어 공개 자료) */
+#brief{margin:10px 16px 0;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;flex:none}
+#brief summary{cursor:pointer;padding:8px 12px;font-weight:700;font-size:.92rem;list-style:none;display:flex;justify-content:space-between;gap:8px}
+#brief summary::-webkit-details-marker{display:none}
+#brief summary::after{content:'펼치기';font-weight:400;font-size:.78rem;color:var(--sub)}
+#brief[open] summary::after{content:'접기'}
+#brief .bd{display:flex;gap:12px;padding:0 12px 12px;max-height:40vh;overflow-y:auto}
+#brief .bd img{width:110px;height:auto;flex:none;align-self:flex-start;border-radius:8px;background:#fff}
+#brief ul{margin:0;padding-left:1.1em;font-size:.88rem}
+#brief li{margin:3px 0}
+#brief .note{font-size:.75rem;color:var(--sub);margin-top:6px}
+@media (max-width:520px){#brief .bd img{display:none}}
 </style>
 </head>
 <body>
@@ -156,6 +168,21 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
   <aside id="side"><h3>접속자</h3><div id="users"></div></aside>
   <div id="main">
     <div id="chips"></div>
+    <details id="brief" open>
+      <summary>의뢰서 — 사라진 조사단</summary>
+      <div class="bd">
+        <img id="briefImg" alt="블러드 올름의 부상 표지">
+        <div>
+          <ul>
+            <li>3주 전, <b>아홉의 결사</b>가 <b>하이 렉터 게텔리</b>가 이끄는 학자 조사단을 보냈다. 목적지는 <b>실버실크 강</b>을 따라 새로 발견된 동굴. 그 뒤로 소식이 없다.</li>
+            <li>결사는 조사단이 가져간 초승달 모양 유물 <b>진흙 체</b>를 무사히 되찾아 오면 <b>1000gp</b>를 준다.</li>
+            <li>원래 조사단원 <b>네 명</b> 중 누구든 무사히 데려오면 한 명당 <b>100gp</b>를 더 준다.</li>
+            <li>일행은 강을 따라 내려와, 조사단 <b>야영지 바로 서쪽</b>에 닿는다. 도착 시각과 날씨를 워든에게 말해 두자.</li>
+          </ul>
+          <div class="note">CAS-2 「블러드 올름의 부상」 p.2 Setup — 시작할 때 플레이어가 아는 것은 여기까지.</div>
+        </div>
+      </div>
+    </details>
     <div id="log" aria-live="polite"></div>
     <div class="typing" id="typing"></div>
     <form id="bar">
@@ -383,9 +410,14 @@ async function listen() {
   setTimeout(listen, 500 * 2 ** retry);
 }
 
+// 의뢰서 — 접었는지 기억, 표지는 헤더를 붙여 받는다
+if (store.get('cairn.brief') === 'closed') $('brief').open = false;
+$('brief').addEventListener('toggle', () => store.set('cairn.brief', $('brief').open ? 'open' : 'closed'));
+
 function enter() {
   $('login').style.display = 'none'; $('room').classList.add('on');
   $('text').focus(); listen();
+  blobUrl('/pub/cover.png').then(u => $('briefImg').src = u).catch(() => $('briefImg').remove());
 }
 function logout(msg) {
   token = null; store.set('cairn.token', null, sessionStorage);

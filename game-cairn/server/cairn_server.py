@@ -1,7 +1,7 @@
 """Cairn — 플레이 블러드 올름 서버.
 
 LLM 이 워든이 되어 CAS-2 블러드 올름을 진행한다.
-두뇌: CAIRN_PROVIDER=openrouter(기본, google/gemini-2.5-flash-lite — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
+두뇌: CAIRN_PROVIDER=openrouter(기본, google/gemini-3.1-flash-lite — CAIRN_OR_MODEL 로 바꿈) | claude(claude-opus-5-5)
 접속자 모두가 한 방에서 채팅하고, '마스터에게' 보낸 말에 워든이 답한다.
 
 채팅은 HTTP 스트리밍 (llm-graphic-mud 와 같은 이유: ngrok 무료판 경고 페이지가
@@ -19,6 +19,7 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"chars", "chars":[...]}   캐릭터 시트 전부 (바뀔 때마다)
      {"type":"cost", "kind":"meter|line", "total", "rate", "usd", "label"}   사용료 (달러, rate = 원/달러)
 GET  /img/<파일>   그 그림 (server/images/)
+GET  /pub/<파일>   플레이어 공개 그림 (docs/images/scenario/ 의 정해 둔 것만)
 POST /api/send    헤더 X-Token  {"text", "to_gm"}
 GET  /           play.html (이 서버로 바로 들어와도 된다)
 
@@ -58,7 +59,7 @@ HOST, PORT = "127.0.0.1", int(_arg("--port", os.environ.get("CAIRN_PORT", 8790))
 
 # 워든 두뇌 — CAIRN_PROVIDER=openrouter(기본) | claude
 PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
-OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-2.5-flash-lite")
+OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-3.1-flash-lite")
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
 IMG_MODEL = os.environ.get("CAIRN_IMG_MODEL", "google/gemini-3.1-flash-lite-image")   # 캐릭터 그림 (OpenRouter)
 CLAUDE_MODEL = "claude-opus-5-5"
@@ -82,6 +83,7 @@ PASS_FILE = HERE / "cairn.pass"
 KEY_FILE = HERE / "anthropic.key"
 OR_KEY_FILE = HERE / "openrouter.key"
 STATE_FILE = Path(_arg("--state", HERE / "state.json"))
+PUBLIC_IMG = {"/pub/cover.png": "p001_2.png", "/pub/olms.png": "p001.png"}   # 표지 — 플레이어에게 보여도 되는 것만
 IMG_DIR = HERE / "images"         # 워든이 그린 그림 (커밋 안 함)
 
 # ── 비밀 ─────────────────────────────────────────────
@@ -852,6 +854,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL})
         if path == "/api/stream":
             return self.stream()
+        if path in PUBLIC_IMG:
+            return self.static(ROOT / "docs" / "images" / "scenario" / PUBLIC_IMG[path], "image/png", cors=True)
         m = re.fullmatch(r"/img/(\d+_[0-9a-f]{6}\.(png|jpg|webp))", path)
         if m and (IMG_DIR / m.group(1)).exists():
             return self.static(IMG_DIR / m.group(1), "image/" + {"jpg": "jpeg"}.get(m.group(2), m.group(2)), cors=True)
