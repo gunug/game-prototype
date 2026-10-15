@@ -1255,6 +1255,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.static(f, "image/png" if f.suffix == ".png" else "image/jpeg", cors=True)
         if m:
             return self.reply(404, {"error": "아직 공개되지 않음"})
+        if path == "/data/item_guide.json":
+            return self.static(ROOT / "data" / "item_guide.json", "application/json; charset=utf-8", cors=True)
         if path == "/data/items.json":
             return self.static(ROOT / "data" / "items.json", "application/json; charset=utf-8", cors=True)
         m = re.fullmatch(r"/images/items/([a-z0-9_]+\.jpg)", path)
