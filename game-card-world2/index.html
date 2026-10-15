@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.89.0';
+const VERSION = 'v9.90.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2042,10 +2042,14 @@ const TRACES = [
   // v9.88.0: 들머리 끝(굶주린 들개를 넘은 순간) — 세리나와 만남. 세리나는 보른의 딸, 이름을 대지 못하는 기사를 제멋대로 '가렛'이라 부른다
   { id:'meet',     who:'knight', pic:'scene_t_meet', key:'kill:strayhound', name:'가렛',
     text:'숲 가장자리에서 활을 든 여자아이가 나를 내려다봤다. 이름을 묻는데, 대답할 수가 없었다. "그럼 가렛. 오늘부터 가렛이야." 아이는 제멋대로 정해 버리고 앞장섰다.' },
-  // v7.13.1: 열쇠를 '어느 보스에게든 처음 진 순간'으로 바꿈 — 튜토리얼(v3.1.0)이 생기며 첫 패배가 들머리로 옮겨가
-  //   `lose-boss:mountain`(곰) 은 사실상 열리지 않는 흔적이 되어 있었다. 글에서도 곰을 빼 어느 보스에게든 맞게
-  { id:'kneel', pic:'scene_t_kneel',    who:'knight', key:'lose-boss',          name:'무릎',
-    text:'그 앞에서 무릎을 꿇었다. 이상하다. 처음 겪는 일이 아닌 것 같다.' },
+  // v9.90.0: 들머리에서 세리나와 돌아오는 길 — 여관의 세 사람. `after` 는 그 흔적이 먼저 있어야 열린다는 뜻
+  //   (흔적 '무릎'은 뺐다 — 들머리에서 지지 않게 맞췄다)
+  { id:'born',     who:'knight', pic:'scene_t_born',   key:'exp-end:prelude', after:'meet', name:'보른',
+    text:'아이를 따라간 곳은 길목의 여관이었다. 덩치 큰 주인이 웃으며 문을 열었다. "세리나가 주워 왔으면 손님이지. 다만 외상은 안 된다."' },
+  { id:'durgan',   who:'knight', pic:'scene_t_durgan', key:'exp-end:prelude', after:'meet', name:'두르간',
+    text:'여관 구석에서 쇠를 두드리던 사내가 내 돌도끼를 들어 보고 혀를 찼다. "무딘 게 아니야. 아직 안 간 거지." 그러고는 숫돌을 밀어 주었다.' },
+  { id:'orban',    who:'knight', pic:'scene_t_orban',  key:'exp-end:prelude', after:'meet', name:'오르반',
+    text:'여관 옆 좌판의 늙은이가 안경 너머로 나를 한참 들여다봤다. "어디서 본 얼굴인데." 그는 그 말만 하고 웃었다.' },
   { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
     text:'곰의 등에 박혀 있던 쇳조각. 손잡이 쪽의 문양을 나는 안다. 이건 우리 것이다.' },
   { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
@@ -2077,12 +2081,17 @@ const SCENES = [                                                  // v9.84.0: �
 const SCENE_BY_ID = Object.fromEntries(SCENES.map(t => [t.id, t]));
 const sceneOn = sc => editMode || !sc.key || (S.traces || []).includes(sc.id);
 function traceHit(key){
-  const t = TRACES.concat(SCENES.filter(x => x.key)).find(x => x.key === key && !(S.traces || []).includes(x.id));   // v9.83.0: 시나리오 카드도
-  if (!t) return;
-  S.traces.push(t.id);
-  S.newTraces.push(t.id);
-  toast(`📜 흔적: ${t.name}`);
-  traceModal(t);                                                  // v9.87.0: 얻는 순간 큰 카드로
+  // v9.83.0: 시나리오 카드도 · v9.90.0: 같은 열쇠의 흔적이 여럿이면 **모두** 연다 (앞 흔적 `after` 가 있어야)
+  const got = () => S.traces || [];
+  const list = TRACES.concat(SCENES.filter(x => x.key))
+    .filter(x => x.key === key && !got().includes(x.id) && (!x.after || got().includes(x.after)));
+  if (!list.length) return;
+  for (const t of list){
+    S.traces.push(t.id);
+    S.newTraces.push(t.id);
+    toast(`📜 흔적: ${t.name}`);
+    traceModal(t);                                                // v9.87.0: 얻는 순간 큰 카드로 (여럿이면 차례로)
+  }
   renderNew(); save();
 }
 // v9.87.0: **흔적을 얻으면 큰 카드 팝업** — 그림 · 이름 · 글. X 또는 바깥을 누르면 닫힌다.
@@ -2781,7 +2790,8 @@ function load(){
     s.said = Array.isArray(s.said) ? s.said : [];                 // v0.36.0: 이미 한 대사
     s.traces = (Array.isArray(s.traces) ? s.traces : []).filter(id => TRACE_BY_ID[id] || SCENE_BY_ID[id]);   // v2.2.0: 흔적
     // v9.88.0: 이미 들머리를 깬 저장엔 '가렛' 흔적을 조용히 넣어 준다 (그 순간이 지나 버려 다시 열 길이 없다)
-    if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain') && !s.traces.includes('meet')) s.traces.push('meet');
+    if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain'))
+      for (const id of ['meet', 'born', 'durgan', 'orban']) if (!s.traces.includes(id)) s.traces.push(id);   // v9.90.0: 여관 세 사람도
     // v9.89.0: 세리나 합류 — 표식이 없는 옛 저장은 '가렛' 흔적이 있으면 함께한 것으로. 카드를 닫기 전에 새로 고쳤어도 함께한다
     if (typeof s.allyJoin !== 'boolean' || (!s.allyJoin && s.traces.includes('meet'))) s.allyJoin = s.traces.includes('meet');
     s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
@@ -5662,7 +5672,7 @@ const ENEMIES = {
   // v2.0.0: 🌾 초원 — 들개(잡몹) · 멧돼지(중간보스) · 들소(필드보스). 시뮬레이션으로 맞춘 세기 (확정 58)
   //   이빨 단검으로는 멧돼지에서 막히고, 손도끼면 멧돼지를 넘고 들소에서 막히고, 5레벨 갑옷이면 클리어 (약 7판, Lv5)
   // v3.1.0: 들머리 보스 — 맨손(공 1)으론 못 잡고 뗀석기 도끼(공 2)면 잡힌다. 그림은 들개 것을 같이 씀
-  strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:3, def:0, hp:6,
+  strayhound:{ name:'굶주린 들개', portrait:'portrait_wilddog', atk:1, def:0, hp:5,   // v9.90.0: 들머리에서 지지 않게 (전: 공 3 · 체 6)
     loot: [['smalltooth', 100, 1]] },
   // v3.8.4: 🌾 초원 전리품 넷 — 억센 가죽 · 힘줄 · 질긴 고기 · 뼈 (+ 보스 들소 뿔)
   wilddog:{ name:'들개', spd:4, aps:1.2, portrait:'portrait_wilddog', atk:2, def:0, hp:6,
