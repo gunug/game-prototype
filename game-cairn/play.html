@@ -232,6 +232,8 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .sheet.compact .mini span.low{background:#c0392b;color:#fff}
 .sheet.compact{display:flex;flex-direction:column}
 .sheet.compact .top{order:1}
+.sheet .nm .ko{font:500 .8rem system-ui,sans-serif;color:var(--sub)}
+.cg .btns button .ko{opacity:.75;font-size:.75rem}
 </style>
 </head>
 <body>
@@ -301,7 +303,7 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 
 <div id="tip" role="tooltip"></div>
 <script>
-const APP_VERSION = '0.18.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
+const APP_VERSION = '0.19.0';        // tools/bump_version.py 가 고친다 — 서버 VERSION 과 같아야 한다
 const DEFAULT_SERVER = 'https://subregular-zandra-nonwashable.ngrok-free.dev';
 const $ = id => document.getElementById(id);
 const store = {
@@ -438,7 +440,7 @@ function sheetHtml(c) {
     <div class="mini">${mini}</div>
     <div class="top">
       <div class="por${c.image ? '' : ' none'}">${c.image ? '' : '?'}</div>
-      <div><p class="nm">${esc(c.name)}</p>
+      <div><p class="nm">${esc(c.name)}${c.name_ko ? ` <span class="ko">${esc(c.name_ko)}</span>` : ''}</p>
         <div class="sub">${userColor ? `<span class="dot" style="display:inline-block;background:${esc(userColor)}"></span> ` : ''}${esc(c.player || '')}</div>
         <div class="sub" data-k="background">${esc(c.background || '')}${c.age ? ` · ${c.age}세` : ''}</div></div>
     </div>
@@ -628,7 +630,8 @@ function draftHtml(d) {
   const swapped = { 'str-dex': ['str', 'dex'], 'str-wil': ['str', 'wil'], 'dex-wil': ['dex', 'wil'] }[d.swap] || [];
   const stat = k => `<div class="stat${swapped.includes(k) ? ' sw' : ''}">${k.toUpperCase()}<b>${d.stats[k]}</b></div>`;
   const items = d.items.map(i => `<li data-item="${esc([i.name, '', i.note || ''].join('|'))}">${itemIcon(i.name)}${esc(i.name)}${i.uses ? ` <span class="sub">${esc(i.uses)}</span>` : ''}${i.note ? ` <span class="sub">— ${esc(i.note)}</span>` : ''}${i.slots === 0 && !/petty/.test(i.note) ? ' <span class="sub">petty</span>' : i.slots >= 2 && !/bulky/.test(i.note) ? ' <span class="sub">bulky</span>' : ''}</li>`).join('');
-  return `<h4>${d.status === 'done' ? '완성 — ' + esc(d.name) : (d.kind === 'pc' ? '캐릭터 만들기' : '동료 만들기')}</h4>
+  const nmKo = d.name_ko ? ` (${esc(d.name_ko)})` : '';
+  return `<h4>${d.status === 'done' ? '완성 — ' + esc(d.name) + nmKo : (d.kind === 'pc' ? '캐릭터 만들기' : '동료 만들기')}</h4>
     <div class="sub"><span class="dot" style="display:inline-block;background:${esc(d.owner_color)}"></span> ${esc(d.owner)}${d.kind === 'npc' ? ' 의 동료' : ''} · <b>${esc(d.background)}</b> · ${d.age}세 · HP ${d.hp} · ${d.gp} gp</div>
     <div class="row sub">${esc(d.intro)}</div>
     <div class="row"><div class="lab">능력치${own ? ' — 두 개를 맞바꿀 수 있다 (룰 p.9)' : ''}</div><div class="stats">${stat('str')}${stat('dex')}${stat('wil')}</div>
@@ -640,9 +643,9 @@ function draftHtml(d) {
     ${d.omen ? `<div class="row"><div class="lab">오멘 — 모두에게</div>${esc(d.omen)}</div>` : ''}
     ${d.notes.length ? `<div class="row"><div class="lab">특이사항</div><ul>${d.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
     ${own ? `<div class="row"><div class="lab">이름 — 고르거나 직접</div>
-      <div class="btns">${d.names.map(n => `<button type="button" data-act="name" data-v="${esc(n)}" class="${d.name === n ? 'on' : ''}">${esc(n)}</button>`).join('')}</div>
+      <div class="btns">${d.names.map(n => `<button type="button" data-act="name" data-v="${esc(n)}" class="${d.name === n ? 'on' : ''}">${esc(n)}${(d.names_ko || {})[n] ? ` <span class="ko">${esc(d.names_ko[n])}</span>` : ''}</button>`).join('')}</div>
       <div class="name"><input maxlength="16" placeholder="직접 입력" value="${d.names.includes(d.name) ? '' : esc(d.name)}"><button type="button" data-act="name-input">정하기</button></div>
-      <button type="button" class="go" data-act="confirm"${d.name ? '' : ' disabled'}>${d.name ? `「${esc(d.name)}」 로 확정` : '이름을 정하면 확정할 수 있음'}</button>
+      <button type="button" class="go" data-act="confirm"${d.name ? '' : ' disabled'}>${d.name ? `「${esc(d.name)}${nmKo}」 로 확정` : '이름을 정하면 확정할 수 있음'}</button>
       <div class="err"></div></div>`
     : d.status === 'choosing' ? `<div class="row sub">${esc(d.owner)} 님이 이름과 능력치를 고르는 중…${d.name ? ` (이름: ${esc(d.name)})` : ''}</div>` : ''}`;
 }

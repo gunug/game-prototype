@@ -12,6 +12,7 @@ from pathlib import Path
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 _bg = _tables = None
+NAMES_KO = json.loads((DATA / "names_ko.json").read_text(encoding="utf-8"))   # 배경 예시 이름 → 한국식 표기
 
 
 def data():
@@ -39,6 +40,7 @@ def create(roll, kind, existing_ages, owner):
     d["background"] = b["name_ko"]
     d["background_en"] = b["name_en"]
     d["names"] = b["names"]
+    d["names_ko"] = {n: NAMES_KO.get(n, "") for n in b["names"]}
     d["intro"] = b["intro_ko"]
     d["items"] += [sheet_item(i) for i in b["gear"]]
     gp_bonus = 0
@@ -87,6 +89,7 @@ def create(roll, kind, existing_ages, owner):
     if kind == "pc" and all(d["age"] < a for a in existing_ages):
         d["omen"] = tb["omens"][roll("d20", "오멘 (가장 어린 PC)") - 1]["text_ko"]
     d["name"] = ""
+    d["name_ko"] = ""
     return d
 
 
@@ -109,7 +112,7 @@ def to_sheet(d, player):
     s = d["stats"]
     traits = " · ".join(f"{t['name']} {t['ko']}" for t in d["traits"])
     return {
-        "name": d["name"], "player": player, "background": d["background"], "age": d["age"],
+        "name": d["name"], "name_ko": d.get("name_ko", ""), "player": player, "background": d["background"], "age": d["age"],
         "hp": d["hp"], "hp_max": d["hp"], "str": s["str"], "str_max": s["str"],
         "dex": s["dex"], "dex_max": s["dex"], "wil": s["wil"], "wil_max": s["wil"],
         "armor": 0, "gp": d["gp"], "fatigue": 0, "conditions": [],
@@ -129,7 +132,7 @@ def image_prompt(d):
 
 def summary_for_warden(d, player):
     s = d["stats"]
-    lines = [f"{d['name']} — {d['background']} ({d['background_en']}), {d['age']}세, 플레이어 {player}",
+    lines = [f"{d['name']}{'(' + d['name_ko'] + ')' if d.get('name_ko') else ''} — {d['background']} ({d['background_en']}), {d['age']}세, 플레이어 {player}",
              f"STR {s['str']} DEX {s['dex']} WIL {s['wil']} HP {d['hp']} 금화 {d['gp']}",
              "특성: " + " · ".join(f"{t['name']} {t['ko']}" for t in d["traits"]),
              "배경 표: " + " / ".join(f"{r['q']} → {r['a']}" for r in d["rolls"]),

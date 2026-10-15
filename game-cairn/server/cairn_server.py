@@ -478,19 +478,19 @@ pending_act = False          # 그 안에 '마스터에게' 가 하나라도 있
 gm_busy = False
 
 
-def pc_of(nick):
-    """그 플레이어가 조종하는 PC 이름 (없으면 "")."""
+def pc_of(nick, ko=False):
+    """그 플레이어가 조종하는 PC 이름 (없으면 ""). ko=True 면 '이름(한글 표기)'."""
     with lock:
         for c in state["chars"].values():
             if c.get("player") == nick and not any("사망" in x for x in c.get("conditions") or []):
-                return c["name"]
+                return f"{c['name']}({c['name_ko']})" if ko and c.get("name_ko") else c["name"]
     return ""
 
 
 def speaker(nick):
     if nick == "시스템":
         return "[시스템]"
-    pc = pc_of(nick)
+    pc = pc_of(nick, ko=True)
     return f"[플레이어 {nick} · 캐릭터 {pc}]" if pc else f"[플레이어 {nick} · 아직 캐릭터 없음]"
 
 
@@ -835,7 +835,7 @@ def sheet_tool(block):
 
 # ── 캐릭터 생성 (/캐릭터생성 · /동료생성) — 절차는 chargen.py, 워든은 소개만 ──
 def chargen_view(d):
-    v = {k: d[k] for k in ("id", "kind", "owner", "owner_color", "status", "name", "names", "background", "intro",
+    v = {k: d.get(k) for k in ("id", "kind", "owner", "owner_color", "status", "name", "name_ko", "names", "names_ko", "background", "intro",
                           "stats", "base", "swap", "hp", "gp", "age", "traits", "bonds", "omen", "rolls", "notes")}
     v["items"] = [{"name": i["name"], "slots": i["slots"], "uses": i["uses"], "note": i.get("note", "")} for i in d["items"]]
     return v
@@ -1347,6 +1347,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(400, {"error": "잘못된 교환"})
         elif act == "name":
             d["name"] = clean(val, NICK_MAX)
+            d["name_ko"] = chargen.NAMES_KO.get(d["name"], "")      # 예시 이름만 — 직접 쓴 이름엔 붙이지 않는다
         elif act == "confirm":
             if not d["name"]:
                 return self.reply(400, {"error": "이름을 먼저 정해 주세요."})
@@ -1398,7 +1399,7 @@ class Handler(BaseHTTPRequestHandler):
             ok = burst_ok(c.sends, SEND_BURST) and (not to_gm or burst_ok(c.gm_calls, GM_BURST))
         if not ok:
             return self.reply(429, {"error": "너무 빨리 보내고 있습니다."})
-        broadcast({"type": "chat", "nick": c.nick, "color": c.color, "char": pc_of(c.nick), "text": text, "to_gm": to_gm, "ts": time.time()})
+        broadcast({"type": "chat", "nick": c.nick, "color": c.color, "char": pc_of(c.nick, ko=True), "text": text, "to_gm": to_gm, "ts": time.time()})
         queue_line(c.nick, text, to_gm)
         self.reply(200, {"ok": True, "gm_busy": gm_busy})
 
@@ -1452,6 +1453,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    for c in state["chars"].values():          # 표기가 생기기 전에 만든 시트
+        if not c.get("name_ko") and c.get("name") in chargen.NAMES_KO:
+            c["name_ko"] = chargen.NAMES_KO[c["name"]]
     if not state.get("journal"):            # 수첩이 없던 게임 — 의뢰서와 이미 알게 된 것부터
         add_info("의뢰", *BRIEF)
         for lid in state.get("revealed", []):
