@@ -60,6 +60,9 @@ details.srv summary{cursor:pointer;color:var(--sub);font-size:.85rem;margin-top:
 .dice{align-self:flex-start;font-size:.85rem;background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:2px 12px}
 .dice b{color:var(--accent)}
 .notice{align-self:center;font-size:.8rem;color:var(--sub)}
+.pic{align-self:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;max-width:min(320px,90%)}
+.pic img{display:block;width:100%;border-radius:8px;background:var(--chip);min-height:120px;cursor:zoom-in}
+.pic figcaption{font-size:.85rem;color:var(--sub);margin-top:6px}
 .typing{font-size:.85rem;color:var(--sub);padding:0 16px 6px;min-height:1.4em}
 #bar{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--line);align-items:flex-end}
 #bar textarea{resize:none;height:44px;max-height:140px}
@@ -157,9 +160,24 @@ function render(m) {
   } else if (m.type === 'dice') {
     const r = m.rolls.map(a => a.join('+')).join(' / ');
     add(div('dice', `🎲 ${esc(m.why)} · ${esc(m.expr)} [${esc(r)}] → <b>${m.total}</b>`));
+  } else if (m.type === 'image') {
+    const fig = add(div('pic', `<img alt="${esc(m.name)}"><figcaption>${esc(m.caption || m.name)}</figcaption>`));
+    loadImg(fig.querySelector('img'), m.url);
   } else if (m.type === 'notice') {
     add(div('notice', esc(m.text)));
   }
+}
+
+// ngrok 경고 페이지를 피하려고 헤더를 붙여 받아 blob 으로 붙인다 (<img src> 는 헤더를 못 붙임)
+async function loadImg(img, url) {
+  try {
+    const res = await fetch(base() + url, { headers: H() });
+    if (!res.ok) throw new Error(res.status);
+    const src = URL.createObjectURL(await res.blob());
+    img.src = src;
+    img.onclick = () => window.open(src, '_blank');
+    img.onload = () => { if (nearBottom()) $('log').scrollTop = $('log').scrollHeight; };
+  } catch { img.alt = '그림을 불러오지 못함'; }
 }
 
 function gmStart() { gmBox = null; gmRaw = ''; $('typing').textContent = '워든이 생각하는 중…'; }
@@ -190,7 +208,7 @@ function handle(m) {
     case 'gm_start': gmStart(); break;
     case 'gm_delta': gmDelta(m.text); break;
     case 'gm_end': gmEnd(); break;
-    case 'dice': gmBox = null; render(m); break;      // 주사위 다음 글은 새 칸에
+    case 'dice': case 'image': gmBox = null; render(m); break;      // 주사위 · 그림 다음 글은 새 칸에
     case 'presence': users(m.users); break;
     case 'ping': break;
     case 'reset': $('log').innerHTML = ''; gmEnd(); break;

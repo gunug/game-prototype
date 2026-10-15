@@ -15,6 +15,8 @@ GET  /api/stream  헤더 X-Token                  → NDJSON 한 줄에 하나
      {"type":"dice", "expr", "rolls", "total", "why"}
      {"type":"notice", "text"} {"type":"presence", "users":[{nick,color}]} {"type":"ping"}
      {"type":"reset"}   /새게임 — 화면 기록을 비운다
+     {"type":"image", "url":"/img/..", "name", "caption"}   워든이 그린 캐릭터 그림
+GET  /img/<파일>   그 그림 (server/images/)
 POST /api/send    헤더 X-Token  {"text", "to_gm"}
 GET  /           play.html (이 서버로 바로 들어와도 된다)
 
@@ -50,6 +52,7 @@ HOST, PORT = "127.0.0.1", int(os.environ.get("CAIRN_PORT", 8790))
 PROVIDER = os.environ.get("CAIRN_PROVIDER", "openrouter").lower()
 OR_MODEL = os.environ.get("CAIRN_OR_MODEL", "google/gemini-2.5-flash-lite")
 OR_URL = "https://openrouter.ai/api/v1/chat/completions"
+IMG_MODEL = os.environ.get("CAIRN_IMG_MODEL", "google/gemini-3.1-flash-lite-image")   # 캐릭터 그림 (OpenRouter)
 CLAUDE_MODEL = "claude-opus-5-5"
 EFFORT = "medium"
 MAX_TOKENS = 16000
@@ -71,6 +74,7 @@ PASS_FILE = HERE / "cairn.pass"
 KEY_FILE = HERE / "anthropic.key"
 OR_KEY_FILE = HERE / "openrouter.key"
 STATE_FILE = HERE / "state.json"
+IMG_DIR = HERE / "images"         # 워든이 그린 그림 (커밋 안 함)
 
 # ── 비밀 ─────────────────────────────────────────────
 if not PASS_FILE.exists():
@@ -97,6 +101,7 @@ if PROVIDER == "claude":
 else:
     API_KEY, MODEL = secret("OPENROUTER_API_KEY", OR_KEY_FILE), OR_MODEL
 MOCK = not API_KEY or os.environ.get("CAIRN_MOCK") == "1"
+OR_KEY = secret("OPENROUTER_API_KEY", OR_KEY_FILE)   # 그림은 두뇌와 상관없이 OpenRouter
 
 client = None
 if not MOCK and PROVIDER == "claude":
@@ -137,6 +142,11 @@ def build_system():
 - 혼자라면 동료 NPC 한 명을 붙여 준다. 동료도 같은 방식으로 굴려 만든다 (배경 · 능력치 · HP 모두 roll_dice).
 - 파티가 갖춰지면 의뢰를 전하고, 도착 시각과 날씨를 묻고 운명 주사위로 비튼다.
 
+캐릭터 그림
+- 캐릭터(플레이어 PC · 동료 NPC) 하나가 다 만들어지면 그 캐릭터마다 draw_character 를 한 번 부른다.
+- prompt 는 영어로: 나이 · 체격 · 피부 · 머리 · 얼굴 · 옷 · 들고 있는 무기와 눈에 띄는 장비 · 배경(직업)의 분위기를 구체적으로. 성별이 정해지지 않았으면 이름과 분위기에 맞게 정해 적는다.
+- 그 밖의 때(NPC · 괴물 · 장면)에는 부르지 않는다. 그림이 실패해도 게임을 계속한다.
+
 상태 표시
 - 캐릭터의 HP · 능력치 · 짐 칸 · 광원 횟수가 바뀌면, 답의 맨 끝에 한 줄로 요약한다.
   예: `▸ 아마라 HP 0/2 · STR 9 · 짐 9/10 · 횃불 2 | 세이블 HP 5 · STR 8`
@@ -163,6 +173,20 @@ TOOLS = [{
             "why": {"type": "string", "description": "무엇을 위한 굴림인지 짧게. 예: '아마라 DEX 세이브 (14)'"},
         },
         "required": ["expr", "why"],
+        "additionalProperties": False,
+    },
+}, {
+    "name": "draw_character",
+    "description": "캐릭터 생성이 끝난 캐릭터의 전신 그림을 그려 방에 띄운다. 캐릭터마다 한 번.",
+    "eager_input_streaming": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "캐릭터 이름"},
+            "prompt": {"type": "string", "description": "영어 외모 묘사. 나이 · 성별 · 체격 · 피부 · 머리 · 얼굴 · 옷 · 무기와 장비 · 직업 분위기"},
+            "caption": {"type": "string", "description": "그림 밑에 붙일 한국어 한 줄. 예: '아마라 — 궁수, 18세'"},
+        },
+        "required": ["name", "prompt", "caption"],
         "additionalProperties": False,
     },
 }]
@@ -331,6 +355,10 @@ def gm_turn(lines):
 
 
 def do_tool(block):
+    if block.name == "draw_character":
+        return draw_tool(block)
+    if block.name != "roll_dice":
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": "없는 도구"}
     args = block.input if isinstance(block.input, dict) else {}
     expr, why = args.get("expr"), args.get("why", "")
     if not isinstance(expr, str) or not isinstance(why, str):
@@ -343,6 +371,59 @@ def do_tool(block):
     broadcast({"type": "dice", "expr": expr, "rolls": rolls, "total": total, "why": why, "ts": time.time()})
     return {"type": "tool_result", "tool_use_id": block.id,
             "content": json.dumps({"expr": expr, "rolls": rolls, "total": total}, ensure_ascii=False)}
+
+
+IMG_STYLE = ("Dark fantasy ink-and-wash illustration in the style of an old-school tabletop RPG book, "
+             "full body character portrait standing, plain parchment background, muted colors, "
+             "no text, no letters, no frame. ")
+
+
+def draw_image(prompt):
+    """OpenRouter 이미지 모델로 한 장. (bytes, 확장자)"""
+    import base64
+    import urllib.request
+    if not OR_KEY:
+        raise RuntimeError("OPENROUTER_API_KEY 가 없어 그림을 못 그립니다.")
+    body = json.dumps({
+        "model": IMG_MODEL, "modalities": ["image", "text"],
+        "image_config": {"aspect_ratio": "3:4"},
+        "messages": [{"role": "user", "content": IMG_STYLE + prompt}],
+    }).encode()
+    req = urllib.request.Request(OR_URL, body, {
+        "Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
+        "HTTP-Referer": "https://game.onethelab.com", "X-Title": "Cairn Blood Olms",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=180) as res:
+            data = json.loads(res.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"OpenRouter {e.code}: {e.read()[:300].decode('utf-8', 'replace')}") from e
+    imgs = ((data.get("choices") or [{}])[0].get("message") or {}).get("images") or []
+    if not imgs:
+        raise RuntimeError("그림이 오지 않았습니다.")
+    head, b64 = imgs[0]["image_url"]["url"].split(",", 1)
+    ext = "png" if "png" in head else "webp" if "webp" in head else "jpg"
+    return base64.b64decode(b64), ext
+
+
+def draw_tool(block):
+    args = block.input if isinstance(block.input, dict) else {}
+    name, prompt = args.get("name"), args.get("prompt")
+    if not isinstance(name, str) or not isinstance(prompt, str) or not prompt.strip():
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True,
+                "content": json.dumps({"INVALID_JSON": json.dumps(args, ensure_ascii=False)}, ensure_ascii=False)}
+    broadcast({"type": "notice", "text": f"워든이 {clean(name, 30)} 의 그림을 그리는 중… (10초 안팎)"}, keep=False)
+    try:
+        raw, ext = draw_image(prompt[:1500])
+    except Exception as e:                  # noqa: BLE001 — 그림이 실패해도 게임은 계속
+        broadcast({"type": "notice", "text": f"그림 실패: {str(e)[:200]}"})
+        return {"type": "tool_result", "tool_use_id": block.id, "is_error": True, "content": f"그림 실패: {e}"}
+    IMG_DIR.mkdir(exist_ok=True)
+    fname = f"{int(time.time())}_{secrets.token_hex(3)}.{ext}"
+    (IMG_DIR / fname).write_bytes(raw)
+    broadcast({"type": "image", "url": f"/img/{fname}", "name": clean(name, 30),
+               "caption": clean(args.get("caption", ""), 120), "ts": time.time()})
+    return {"type": "tool_result", "tool_use_id": block.id, "content": f"{name} 그림을 방에 띄웠다."}
 
 
 def run_claude():
@@ -476,9 +557,8 @@ def run_openrouter():
                 args = json.loads(tc["function"]["arguments"])
             except ValueError:
                 args = None
-            block = type("B", (), {"id": tc["id"], "input": args})
-            r = do_tool(block) if tc["function"]["name"] == "roll_dice" else {
-                "tool_use_id": tc["id"], "is_error": True, "content": "없는 도구"}
+            block = type("B", (), {"id": tc["id"], "name": tc["function"]["name"], "input": args})
+            r = do_tool(block)
             results.append({"role": "tool", "tool_call_id": tc["id"], "content": r["content"]})
         with lock:
             state[HIST].extend(results)
@@ -555,6 +635,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"ok": True, "mock": MOCK, "provider": PROVIDER, "model": MODEL})
         if path == "/api/stream":
             return self.stream()
+        m = re.fullmatch(r"/img/(\d+_[0-9a-f]{6}\.(png|jpg|webp))", path)
+        if m and (IMG_DIR / m.group(1)).exists():
+            return self.static(IMG_DIR / m.group(1), "image/" + {"jpg": "jpeg"}.get(m.group(2), m.group(2)), cors=True)
         self.reply(404, {"error": "not found"})
 
     def do_POST(self):
@@ -569,9 +652,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(data)
         self.reply(404, {"error": "not found"})
 
-    def static(self, file, ctype):
+    def static(self, file, ctype, cors=False):
         body = file.read_bytes()
         self.send_response(200)
+        if cors:
+            self.cors()
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
