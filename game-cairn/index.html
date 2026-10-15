@@ -70,6 +70,7 @@ button:hover{filter:brightness(1.1)}
 a.tab{text-decoration:none;display:inline-flex;align-items:center}
 .tab{white-space:nowrap;flex:none}
 .tabs{overflow-x:auto}
+@media (max-width:620px){.tab .long{display:none}}
 @media (max-width:520px){.tabs{justify-content:flex-start}.tab{padding:8px 10px;font-size:.85rem}}
 .tab.play{color:var(--accent)}
 .part,nav[data-for]{display:none}
@@ -87,6 +88,22 @@ details.spoiler[open] summary{margin-bottom:10px}
 .gallery figcaption{font-size:.8rem;padding:4px 8px;text-align:left}
 .card.relic{display:flex;gap:14px;align-items:center}
 .card.relic img{width:120px;height:120px;object-fit:cover;border-radius:8px;flex:none}
+
+/* 아이템 탭 */
+.itools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.itools input{flex:1 1 200px;font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+.itools button{background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.itools button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.itools .cnt{color:var(--sub);font-size:.85rem}
+.igrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.icard{display:flex;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+.icard img{width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none;background:var(--chip);cursor:zoom-in}
+.icard b{display:block;font-size:.95rem}
+.icard .en{color:var(--sub);font-size:.75rem}
+.icard .tag{display:inline-block;font-size:.7rem;background:var(--chip);border-radius:4px;padding:0 6px;margin:2px 4px 0 0}
+.icard .tag.p{background:#2f6b3a;color:#fff} .icard .tag.b{background:#9a2a1c;color:#fff}
+.icard p{margin:3px 0 0;font-size:.82rem}
+.icard .src{color:var(--sub);font-size:.72rem;margin-top:2px}
 img.portrait{display:block;width:100%;max-height:280px;object-fit:contain;margin:4px 0 8px;border-radius:8px;background:#fff}
 footer{text-align:center;color:var(--sub);font-size:.85rem;padding:24px 16px;border-top:1px solid var(--line)}
 footer a{color:var(--accent)}
@@ -94,13 +111,14 @@ footer a{color:var(--accent)}
 </head>
 <body>
 <header>
-  <h1>Cairn 2e <span class="ver">v0.16.0</span></h1>
+  <h1>Cairn 2e <span class="ver">v0.17.0</span></h1>
   <p>어둡고 신비한 숲과 지하를 탐험하는 TRPG. 캐릭터는 빨리 무작위로 만들고, 모험은 신중한 탐험에 보상하며, 전투는 급박하고 치명적이다.</p>
 </header>
 <div class="tabs" role="tablist">
   <button class="tab" data-part="system" role="tab">시스템 요약</button>
-  <button class="tab" data-part="scenario" role="tab">시나리오 · 블러드 올름</button>
-  <a class="tab play" href="play.html">플레이 블러드 올름 ▶</a>
+  <button class="tab" data-part="scenario" role="tab">시나리오<span class="long"> · 블러드 올름</span></button>
+  <button class="tab" data-part="items" role="tab">아이템</button>
+  <a class="tab play" href="play.html">플레이<span class="long"> 블러드 올름</span> ▶</a>
 </div>
 <nav data-for="system">
   <a href="#principles">원칙</a><a href="#character">캐릭터</a><a href="#inventory">인벤토리</a>
@@ -111,7 +129,7 @@ footer a{color:var(--accent)}
 <nav data-for="scenario">
   <a href="#s-hook">의뢰</a><a href="#s-lore">배경</a><a href="#s-map">지도</a>
   <a href="#s-rooms">방</a><a href="#s-npc">NPC</a><a href="#s-relic">유물</a>
-  <a href="#s-truth">진상 (워든)</a><a href="#s-warden">워든 원칙</a>
+  <a href="#s-items">물건</a><a href="#s-truth">진상 (워든)</a><a href="#s-warden">워든 원칙</a>
 </nav>
 <main>
 <div class="part" id="part-system">
@@ -326,6 +344,15 @@ footer a{color:var(--accent)}
 </section>
 </div>
 
+<div class="part" id="part-items">
+<section id="i-list">
+  <h2>아이템 — 룰에 나오는 물건</h2>
+  <p class="muted">배경 시작 장비 · 배경 표 · 본드에서 얻는 물건 (Cairn 2e 플레이어 가이드 p.12–59). 그림은 Krea2 로 뽑음. 칸: 보통 1 · <b>petty</b> 0 · <b>bulky</b> 2.</p>
+  <div class="itools"><input id="iq" placeholder="이름 · 설명 · 배경으로 찾기"><span id="ikinds"></span><span class="cnt" id="icnt"></span></div>
+  <div class="igrid" id="igrid"><p class="muted">불러오는 중…</p></div>
+</section>
+</div>
+
 <div class="part" id="part-scenario">
 <figure class="cover"><img src="docs/images/scenario/p001_2.png" alt="Rise of the Blood Olms" loading="lazy"></figure>
 <p class="muted center">CAS-2 · Yochai Gal (2026) · 입문용 모험. <b>치명적</b>이지만 비판적 사고와 신중한 탐험으로 살아남을 수 있다.</p>
@@ -450,6 +477,28 @@ footer a{color:var(--accent)}
     <br><span class="muted">재충전: 거센 강물에 하룻밤과 하루를 두었다가 건져 낸다.</span></div></div>
 </section>
 
+<section id="s-items">
+  <h2>시나리오 물건</h2>
+  <p class="muted">블러드 올름에서 줍거나 마주치는 물건. 어디 있는지 · 효과가 적혀 있어 워든 전용.</p>
+  <details class="spoiler"><summary>워든 전용 — 물건 13가지 펼치기</summary>
+  <div class="igrid">
+    <div class="icard"><img src="images/items/pickaxe.jpg" alt="곡괭이" loading="lazy"><div><b>곡괭이</b><span class="en">Pickaxe</span><div class="src">C1 야영지 · 도구 상자 맨 밑</div><p>녹슬기 시작한 작은 굴착 도구 1d6 개 아래, 아직 멀쩡한 곡괭이 한 자루. 무기로 d6.</p></div></div>
+    <div class="icard"><img src="images/scene/red_hermit_fruit.jpg" alt="붉은 은자 열매" loading="lazy"><div><b>붉은 은자 열매</b><span class="en">Red Hermit Fruit</span><div class="src">C1 열매 상자 (하나만 멀쩡) · C7 나무</div><p>박 같은 열매. 갓 딴 것은 달지만 하루 지나면 갈색으로 썩어 시체 냄새. 신선한 것을 먹으면 STR 1 회복 + 결핍 해소 (하루 1회). 블러드 올름이 이 열매를 꺼린다.</p></div></div>
+    <div class="icard"><img src="images/items/blue_moss.jpg" alt="푸른 이끼" loading="lazy"><div><b>푸른 이끼</b><span class="en">Blue Moss</span><div class="src">C2 동굴 입구</div><p>그냥 푸른 이끼. 한 줌에 도시에서 10gp 쯤.</p></div></div>
+    <div class="icard"><img src="images/items/tube_worm_eggs.jpg" alt="튜브웜 알" loading="lazy"><div><b>튜브웜 알</b><span class="en">Tube Worm Eggs</span><div class="src">C3 튜브웜 둥지 북동쪽 구석</div><p>알 d6 개. 물에 두면 며칠 안에 부화한다.</p></div></div>
+    <div class="icard"><img src="images/items/pitons.jpg" alt="쇠못" loading="lazy"><div><b>쇠못</b><span class="en">Pitons</span><div class="src">C5 사다리 방 · 철 상자</div><p>쇠못 두 개 (건조 식량 2회분과 함께).</p></div></div>
+    <div class="icard"><img src="images/items/small_knife.jpg" alt="작은 칼" loading="lazy"><div><b>작은 칼</b><span class="en">Small Knife</span><div class="src">C7 오렌의 시신</div><p>d6. 오렌은 횃불(1회 남음)과 47gp 도 지니고 있다.</p></div></div>
+    <div class="icard"><img src="images/items/compass.jpg" alt="나침반" loading="lazy"><div><b>나침반</b><span class="en">Compass</span><div class="src">C7 파라즈의 시신</div><p>55gp 어치. 파라즈는 무딘 삽도 지니고 있다.</p></div></div>
+    <div class="icard"><img src="images/items/blunt_shovel.jpg" alt="무딘 삽" loading="lazy"><div><b>무딘 삽</b><span class="en">Blunt Shovel</span><div class="src">C7 파라즈의 시신</div><p>d6.</p></div></div>
+    <div class="icard"><img src="images/items/spade.jpg" alt="삽" loading="lazy"><div><b>삽</b><span class="en">Spade</span><div class="src">C10b 헬-프리스</div><p>헬-프리스가 입구를 겨누고 있는 삽. d6.</p></div></div>
+    <div class="icard"><img src="images/scene/mud_sieve.jpg" alt="진흙 체" loading="lazy"><div><b>진흙 체</b><span class="en">Mud Sieve</span><div class="src">C10b 헬-프리스가 쥐고 있음</div><p>초승달 모양 유물. 진흙을 물처럼 빚고 가른다. 충전 3 (지금 1). 재충전: 거센 강물에 하룻밤과 하루. 헬-프리스는 안전하다고 느껴야 넘긴다.</p></div></div>
+    <div class="icard"><img src="images/items/sharpened_piton.jpg" alt="갈아 세운 쇠못" loading="lazy"><div><b>갈아 세운 쇠못</b><span class="en">Sharpened Piton</span><div class="src">게텔리의 무기</div><p>d6.</p></div></div>
+    <div class="icard"><img src="images/items/mud_sieve_scroll.jpg" alt="진흙 체 사용법 두루마리" loading="lazy"><div><b>진흙 체 사용법 두루마리</b><span class="en">Scroll</span><div class="src">게텔리 소지 (petty)</div><p>진흙 체 쓰는 법이 적힌 작은 두루마리. 아래에 검은 표시 3개 — 다시 채우면 충전 3.</p></div></div>
+    <div class="icard"><img src="images/items/porcelain_cups.jpg" alt="도자기 잔 세트" loading="lazy"><div><b>도자기 잔 세트</b><span class="en">Porcelain Cups</span><div class="src">C11 우물 · 잡동사니 더미</div><p>아주 멀쩡하지만 깨지기 쉽다. 한 벌에 150gp.</p></div></div>
+  </div>
+  </details>
+</section>
+
 <section id="s-truth">
   <h2>진상</h2>
   <details class="spoiler"><summary>워든 전용 — 무슨 일이 있었나 · 해결 갈래 펼치기</summary>
@@ -488,26 +537,57 @@ footer a{color:var(--accent)}
 </footer>
 <script>
 // 대분류 탭 — 해시가 가리키는 섹션이 든 쪽을 연다
-function showPart(part, scroll) {
+var showPart = function (part, scroll) {
   document.querySelectorAll('.part').forEach(p => p.classList.toggle('on', p.id === 'part-' + part));
   document.querySelectorAll('nav[data-for]').forEach(n => n.classList.toggle('on', n.dataset.for === part));
   document.querySelectorAll('button.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.part === part));
   if (scroll) window.scrollTo(0, 0);
-}
+};
 // 그림을 누르면 원본 크기로
 document.addEventListener('click', e => { const im = e.target.closest('.gallery img'); if (im) window.open(im.src, '_blank'); });
 
 function fromHash() {
   const id = location.hash.slice(1);
   const el = id && document.getElementById(id);
-  const part = el ? (el.closest('.part')?.id.replace('part-', '') || id) : 'system';
-  showPart(part === 'scenario' ? 'scenario' : 'system');
+  const part = el ? (el.closest('.part')?.id.replace('part-', '') || id) : (['scenario', 'items'].includes(id) ? id : 'system');
+  showPart(['scenario', 'items'].includes(part) ? part : 'system');
   if (el && el.closest('.part')) el.scrollIntoView();
 }
 document.querySelectorAll('button.tab').forEach(t => t.onclick = () => {
   history.replaceState(null, '', '#' + t.dataset.part);
   showPart(t.dataset.part, true);
 });
+// ── 아이템 탭 ──
+let ITEMS = null, IKIND = '전체';
+const iesc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function renderItems() {
+  if (!ITEMS) return;
+  const q = document.getElementById('iq').value.trim().toLowerCase();
+  const list = ITEMS.filter(e => (IKIND === '전체' || e.kinds.includes(IKIND))
+    && (!q || [e.ko, e.en, e.note, e.uses, ...e.sources].join(' ').toLowerCase().includes(q)));
+  document.getElementById('icnt').textContent = `${list.length} / ${ITEMS.length}`;
+  document.getElementById('igrid').innerHTML = list.map(e => `<div class="icard">${e.img ? `<img src="${e.img}" alt="${iesc(e.ko)}" loading="lazy">` : ''}
+    <div><b>${iesc(e.ko)}</b><span class="en">${iesc(e.en)}</span><div>${e.slots === 0 ? '<span class="tag p">petty</span>' : e.slots >= 2 ? '<span class="tag b">bulky</span>' : '<span class="tag">1칸</span>'}${e.uses ? `<span class="tag">${iesc(e.uses)}</span>` : ''}</div>
+    ${e.note ? `<p>${iesc(e.note)}</p>` : ''}<div class="src">${iesc(e.sources.slice(0, 4).join(' · '))}${e.sources.length > 4 ? ` 외 ${e.sources.length - 4}` : ''}</div></div></div>`).join('')
+    || '<p class="muted">찾는 아이템이 없습니다.</p>';
+}
+function loadItems() {
+  if (ITEMS) return;
+  fetch('data/item_guide.json').then(r => r.json()).then(d => {
+    ITEMS = d;
+    document.getElementById('ikinds').innerHTML = ['전체', '시작 장비', '배경 표', '본드'].map(k => `<button type="button" data-k="${k}" class="${k === IKIND ? 'on' : ''}">${k}</button>`).join(' ');
+    renderItems();
+  }).catch(() => document.getElementById('igrid').innerHTML = '<p class="muted">아이템 자료를 불러오지 못했습니다 (웹 서버로 열어 주세요).</p>');
+}
+document.getElementById('iq').oninput = renderItems;
+document.getElementById('ikinds').onclick = e => {
+  const b = e.target.closest('button[data-k]'); if (!b) return;
+  IKIND = b.dataset.k; document.querySelectorAll('#ikinds button').forEach(x => x.classList.toggle('on', x === b)); renderItems();
+};
+document.addEventListener('click', e => { const im = e.target.closest('.icard img'); if (im) window.open(im.src, '_blank'); });
+const _showPart = showPart;
+showPart = (part, scroll) => { _showPart(part, scroll); if (part === 'items') loadItems(); };
+
 addEventListener('hashchange', fromHash);
 fromHash();
 
