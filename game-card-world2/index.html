@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.94.0';
+const VERSION = 'v9.95.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2035,7 +2035,7 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나' };   // v9.94.0: 세리나
+const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른' };   // v9.94.0: 세리나 · v9.95.0: 보른
 const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
@@ -2292,12 +2292,13 @@ const STORY = {
     { make:'fletching',      say:'깃 붙이는 법은 할아버지가 딱 한 번만 보여 줬다. 나머지는 해 보면 안다고 했다. 해 보니 알았다.' },
     { make:'longbow',        say:'긴 활을 처음 당겨 본 날, 아빠한테 자랑하려고 여관까지 뛰어갔다. 화살은 두고 왔다.' },
   ],
+  // v9.95.0: 보른 — 여관을 세우고, 흩어진 사람들을 맡아들이고, 여관 뒤에 동탑을 쌓는다 (속뜻은 드러내지 않는다)
   keeper: [
-    { give:[['meat', 4]],      say:'손님상에 고기가 올라가자 여관이 시끄러워졌다. 주인은 그게 좋다고 했다.' },
-    { give:[['honeycomb', 3]], say:'꿀은 장부에 적지 않는다. 주인만 아는 셈이 있다.' },
-    { kill:'wolfleader',       say:'외상값을 안 갚던 놈이 늑대 두목에게 쫓겨 왔다. 이제 길이 조용하다.' },
-    { give:[['fish', 4]],      say:'강가 생선이 들어오자 단골이 하나 늘었다.' },
-    { give:[['limerock', 3]],  say:'벽에 석회를 바르자 방이 밝아졌다. 주인은 밝은 방값을 따로 받기로 했다.' },
+    { give:[['tree', 8]],                    say:'길이 갈라지는 자리에 기둥 하나를 세웠다. 지붕보다 문을 먼저 달았다. 누구든 들어오라고.' },
+    { give:[['meat', 5]],                    say:'흩어져 온 사람들이 문 앞에 줄을 섰다. 보른은 그릇을 세지 않고 퍼 주었다. 장부에는 다 적었다.' },
+    { give:[['hide', 6]],                    say:'방이 모자라 마루에 이불을 깔았다. 손을 쓸 줄 아는 사람들은 그렇게 하나씩 여관에 남았다.' },
+    { give:[['stone', 8], ['limerock', 4]],  say:'여관 뒤 공터에 돌을 쌓기 시작했다. 망루라고 했다. 멀리서 보이면 사람이 더 모인다고.' },
+    { give:[['burntbrick', 6]],              say:'그을린 망루에서 벽돌을 날라 왔다. 보른은 한 장 한 장 쓰다듬었다. "이번엔 무너지지 않게 쌓으면 돼."' },
   ],
   peddler: [
     { make:'rope',       say:'밧줄 매듭을 보고 웃었다. 옛날 제 매듭과 같다고.' },
@@ -2357,12 +2358,16 @@ const STORY = {
   ],
 };
 const STORY_LEN = 5;
-// v9.94.0: **세리나의 흔적** — 이야기 걸음을 하나 마칠 때마다 그 장면이 흔적 카드로 열린다 (글은 그 걸음의 한 줄 그대로)
-[['s_berry', '열매'], ['s_bow', '세 번째 활'], ['s_feather', '날아간 깃털'], ['s_fletch', '화살깃'], ['s_longbow', '긴 활']]
-  .forEach(([id, name], i) => {
-    const t = { id, who: 'ally', pic: `scene_${id}`, key: `story:ally:${i + 1}`, name, text: STORY.ally[i].say };
-    TRACES.push(t); TRACE_BY_ID[id] = t;
-  });
+// v9.94.0: **이야기 흔적** — 이야기 걸음을 하나 마칠 때마다 그 장면이 흔적 카드로 열린다 (글은 그 걸음의 한 줄 그대로)
+//   v9.95.0: 보른도. 사람마다 [흔적 id, 이름] 다섯 개 — 그림은 images/scene/scene_<id>.png
+const STORY_TRACES = {
+  ally:   [['s_berry', '열매'], ['s_bow', '세 번째 활'], ['s_feather', '날아간 깃털'], ['s_fletch', '화살깃'], ['s_longbow', '긴 활']],
+  keeper: [['b_pillar', '첫 기둥'], ['b_bowls', '빈 그릇'], ['b_blankets', '이불'], ['b_stones', '공터의 돌'], ['b_bricks', '구운 벽돌']],
+};
+for (const who in STORY_TRACES) STORY_TRACES[who].forEach(([id, name], i) => {
+  const t = { id, who, pic: `scene_${id}`, key: `story:${who}:${i + 1}`, name, text: STORY[who][i].say };
+  TRACES.push(t); TRACE_BY_ID[id] = t;
+});
 const storyStep = id => Math.min((((innSt() || {}).story) || {})[id] || 0, STORY_LEN);
 const storyDone = id => storyStep(id) >= STORY_LEN;
 // 이야기를 할 수 있는 사람 — 합류한 사람 전부 (기사 · 궁수 · 여관 주인 · 만물상 · 합류한 장인)
@@ -2835,8 +2840,10 @@ function load(){
     // v9.88.0: 이미 들머리를 깬 저장엔 '가렛' 흔적을 조용히 넣어 준다 (그 순간이 지나 버려 다시 열 길이 없다)
     if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain'))
       for (const id of ['meet', 'born', 'durgan', 'orban']) if (!s.traces.includes(id)) s.traces.push(id);   // v9.90.0: 여관 세 사람도
-    { const sa = Math.min(STORY_LEN, ((s.inn && s.inn.story) || {}).ally | 0);   // v9.94.0: 이미 넘긴 세리나 이야기 걸음의 흔적
-      TRACES.filter(t => t.who === 'ally').slice(0, sa).forEach(t => { if (!s.traces.includes(t.id)) s.traces.push(t.id); }); }
+    for (const who in STORY_TRACES){                              // v9.94.0 · v9.95.0: 이미 넘긴 이야기 걸음의 흔적
+      const sa = Math.min(STORY_LEN, ((s.inn && s.inn.story) || {})[who] | 0);
+      TRACES.filter(t => t.who === who).slice(0, sa).forEach(t => { if (!s.traces.includes(t.id)) s.traces.push(t.id); });
+    }
     // v9.89.0: 세리나 합류 — 표식이 없는 옛 저장은 '가렛' 흔적이 있으면 함께한 것으로. 카드를 닫기 전에 새로 고쳤어도 함께한다
     if (typeof s.allyJoin !== 'boolean' || (!s.allyJoin && s.traces.includes('meet'))) s.allyJoin = s.traces.includes('meet');
     // v9.91.0: 여관 세 사람 — 그 흔적이 있으면 함께한 것으로 (카드를 닫기 전에 새로 고쳤어도)
