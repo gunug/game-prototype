@@ -9,6 +9,7 @@
   --tower : 탑이 보이는 장면이면 붙인다 — 탑 모양 문구(TOWER)를 덧붙여 장마다 같은 꼴로 나오게
   --people: 사람이 나오는 장면이면 붙인다 — 데포르메 비율 문구
   --knight: 기사 가렛이 나오는 장면 — 게임 그림과 같은 차림 문구
+  --serina: 세리나가 나오는 장면 — 게임 그림과 같은 차림 문구
   구도가 맘에 안 들면 --seed 만 바꾼다. 같은 seed · 같은 글이면 같은 그림
 기록: ../docs/아이콘_목록.md
 """
@@ -36,6 +37,9 @@ PEOPLE = ("all people drawn with stylized deformed proportions: a large expressi
 # 기사 가렛 — 게임 그림(portrait_knight)과 같은 차림. 기사가 나오는 장면이면 --knight
 KNIGHT = ("the knight: a young man with messy dark brown hair and a determined face, steel shoulder pauldrons and arm plates "
           "over a brown leather vest, a blue tunic underneath, brown leather boots, a plain short sword")
+# 세리나 — 게임 그림(portrait_archer)과 같은 차림. 세리나가 나오는 장면이면 --serina
+SERINA = ("the girl Serina: a cheerful young archer girl with dark brown hair under a green hood and cloak, "
+          "a brown leather jerkin, green trousers, brown boots, a quiver on her back")
 NOT = "no photorealism, not a photo, no gritty realism, no text, no letters, no watermark, no border, no frame"
 
 
@@ -63,6 +67,7 @@ def main():
     ap.add_argument("--tower", action="store_true", help="탑이 보이는 장면 — 탑 모양 문구를 붙인다")
     ap.add_argument("--people", action="store_true", help="사람이 나오는 장면 — 데포르메 비율 문구를 붙인다")
     ap.add_argument("--knight", action="store_true", help="기사가 나오는 장면 — 기사 차림 문구를 붙인다 (--people 도 함께 켠다)")
+    ap.add_argument("--serina", action="store_true", help="세리나가 나오는 장면 — 세리나 차림 문구 (--people 도 함께 켠다)")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--gen-w", type=int, default=768)
     ap.add_argument("--gen-h", type=int, default=1024)
@@ -78,10 +83,11 @@ def main():
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
-    if a.knight:
+    if a.knight or a.serina:
         a.people = True
     text = (a.prompt.rstrip(" .") + "."
             + (f" {KNIGHT}." if a.knight else "")
+            + (f" {SERINA}." if a.serina else "")
             + (" " + PEOPLE + "." if a.people else "")
             + (f" The tower: {TOWER}." if a.tower else "")
             + f" {STYLE}. {NOT}.")
@@ -92,7 +98,7 @@ def main():
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS)               # 원본 색 그대로 — 색 줄이기 없음
     SCENE_DIR.mkdir(parents=True, exist_ok=True)
     im.save(dest, optimize=True)
-    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else [])
+    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--serina"] if a.serina else [])
     record(a.name, a.label, a.prompt, seed, opts, file=f"images/scene/{a.name}.png")
     print(f"scene {dest}  {im.size[0]}x{im.size[1]}")
 

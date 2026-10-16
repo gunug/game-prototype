@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.93.0';
+const VERSION = 'v9.94.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2035,7 +2035,7 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { knight: '🛡 기사' };
+const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나' };   // v9.94.0: 세리나
 const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
@@ -2357,6 +2357,12 @@ const STORY = {
   ],
 };
 const STORY_LEN = 5;
+// v9.94.0: **세리나의 흔적** — 이야기 걸음을 하나 마칠 때마다 그 장면이 흔적 카드로 열린다 (글은 그 걸음의 한 줄 그대로)
+[['s_berry', '열매'], ['s_bow', '세 번째 활'], ['s_feather', '날아간 깃털'], ['s_fletch', '화살깃'], ['s_longbow', '긴 활']]
+  .forEach(([id, name], i) => {
+    const t = { id, who: 'ally', pic: `scene_${id}`, key: `story:ally:${i + 1}`, name, text: STORY.ally[i].say };
+    TRACES.push(t); TRACE_BY_ID[id] = t;
+  });
 const storyStep = id => Math.min((((innSt() || {}).story) || {})[id] || 0, STORY_LEN);
 const storyDone = id => storyStep(id) >= STORY_LEN;
 // 이야기를 할 수 있는 사람 — 합류한 사람 전부 (기사 · 궁수 · 여관 주인 · 만물상 · 합류한 장인)
@@ -2431,7 +2437,9 @@ function storyAdvance(id){
     n.regs = (n.regs || []).filter(x => x !== id);
     toast(`🏨 ${pName(id)} 이야기 끝`);
   } else toast(`🏨 ${pName(id)} 이야기 ${n.story[id]}/${STORY_LEN}`);
-  setTimeout(() => knightSay(st.say), 400);                       // 그 걸음의 한 줄 — 정보 칸에 남는다
+  const key = `story:${id}:${n.story[id]}`;
+  if (TRACES.some(t => t.key === key)) traceHit(key);             // v9.94.0: 흔적 카드가 있으면 그것으로 (같은 글을 말풍선으로 또 말하지 않는다)
+  else setTimeout(() => knightSay(st.say), 400);                  // 그 걸음의 한 줄 — 정보 칸에 남는다
   renderAll(); renderInsp(); renderQuest(); save();
 }
 // 보통 놀이 사건(questHit 열쇠)으로 이야기 걸음을 민다 — 등록한 사람 모두 (같은 놈이면 함께 넘는다)
@@ -2827,6 +2835,8 @@ function load(){
     // v9.88.0: 이미 들머리를 깬 저장엔 '가렛' 흔적을 조용히 넣어 준다 (그 순간이 지나 버려 다시 열 길이 없다)
     if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain'))
       for (const id of ['meet', 'born', 'durgan', 'orban']) if (!s.traces.includes(id)) s.traces.push(id);   // v9.90.0: 여관 세 사람도
+    { const sa = Math.min(STORY_LEN, ((s.inn && s.inn.story) || {}).ally | 0);   // v9.94.0: 이미 넘긴 세리나 이야기 걸음의 흔적
+      TRACES.filter(t => t.who === 'ally').slice(0, sa).forEach(t => { if (!s.traces.includes(t.id)) s.traces.push(t.id); }); }
     // v9.89.0: 세리나 합류 — 표식이 없는 옛 저장은 '가렛' 흔적이 있으면 함께한 것으로. 카드를 닫기 전에 새로 고쳤어도 함께한다
     if (typeof s.allyJoin !== 'boolean' || (!s.allyJoin && s.traces.includes('meet'))) s.allyJoin = s.traces.includes('meet');
     // v9.91.0: 여관 세 사람 — 그 흔적이 있으면 함께한 것으로 (카드를 닫기 전에 새로 고쳤어도)
