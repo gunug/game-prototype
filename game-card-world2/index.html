@@ -1148,6 +1148,11 @@ const FIELDS = [                                                  // v0.9.1: 순
   { id:'towerruin', name:'부서진 탑', emoji:'🗼', raid:true,
     desc:'벼락에 허리가 꺾인 옛 망루. 그을린 벌판 한가운데 서 있고, 꼭대기의 눈은 아직 감기지 않았다.',
     exp:'기사는 재가 깔린 벌판을 가로질러 탑으로 걸어간다. 꼭대기에서 빛이 모이면, 다음 숨에 다섯 번 꽂힌다.' },
+  // v9.104.0: 🏛 무너진 황금탑 — 둘째 레이드. 쓰러진 아래쪽(옛 꼭대기 = 최후의 연회장). 숨겨진 곳이 아니다 —
+  //   다들 이미 기능을 잃어 얻을 게 없다고 여겨 가지 않는다. 끝에는 연회의 문지기 황금 골렘 (docs/시나리오.md §5 · §21)
+  { id:'goldtower', name:'무너진 금탑', emoji:'🏛', raid:true,   // 카드 이름은 다섯 글자 + 띄어쓰기 하나 안쪽 (이야기에선 '무너진 황금탑')
+    desc:'쓰러진 탑의 아래쪽. 누워 버린 연회장에 빛을 잃은 황금이 굴러다닌다. 아무도 가져가지 않는다.',
+    exp:'기사는 기울어진 바닥을 밟고 연회장 안으로 들어간다. 맨 안쪽 문 앞에, 무언가가 아직 손님을 기다리고 서 있다.' },
 ];
 const FIELD_BY_ID = Object.fromEntries(FIELDS.map(f => [f.id, f]));
 // v4.0.0: 필드 탭엔 바깥 땅, 던전 탭엔 굴 — 같은 원정 장치를 쓰되 화면만 가른다
@@ -1176,6 +1181,7 @@ const FIELD_YIELDS = {
   swamptomb: ['bogmoss', 'rotroot', 'bogclay', 'glowcap'],          // v6.0.0 무덤을 덮은 이끼 · v9.53.0
   spidernest:['silkweb', 'cocoon', 'mothwing', 'stickysap'],        // v9.53.0: 줄과 고치 · v9.101.0 줄에 걸린 나방 날개 · 끈끈이
   shellcave: ['shellpiece', 'nacreshard', 'barnacle', 'saltcrystal'],   // v9.53.0 · v9.101.0 모래 → 소금 결정
+  goldtower: ['dullgold', 'feastfloor'],                            // v9.104.0: 빛을 잃은 황금 (조합식 없음) · 연회장 바닥재
   towerruin: ['ash', 'burntbrick', 'scrapiron', 'glassshard'],      // v9.53.0: 그을린 벌판에서 줍는 것 · v9.101.0 돌 → 녹은 유리 조각
 };
 const yieldsOf = id => (FIELD_YIELDS[id] || []).filter(t => DEFS[t]);
@@ -1234,6 +1240,8 @@ const DEFS = {
   scrapiron:  { name:'부서진 쇠', kind:'material', step:1, field:'towerruin' },
   towershard: { name:'탑의 파편', kind:'material', step:1, field:'towerruin' },
   eyecrystal: { name:'눈의 수정', kind:'material', step:1, field:'towerruin' },
+  dullgold:   { name:'빛잃은 금', kind:'material', step:1, field:'goldtower' },   // v9.104.0: 조합식이 없다 — 쓸 데가 없어 아무도 캐지 않는다
+  feastfloor: { name:'연회 바닥재', kind:'material', step:1, field:'goldtower' },   // v9.104.0: 헤이든이 깐 최후의 연회장 바닥
   bogmoss:  { name:'늪 이끼', kind:'material', step:1, field:'swamptomb' },   // v6.0.0: 🍄 무덤 안에서만
   vine:    { name:'덩굴',   kind:'material', step:1, field:'forest' },     // v3.8.2: 🌲 숲 채집 — 묶는 재료
   berry:   { name:'열매',   kind:'material', step:1, field:'forest' },
@@ -1404,6 +1412,7 @@ const USE = {
   granite:['무기재료', '도구재료'], quartzite:['무기재료'], twig:['무기재료', '생산재료'],   // v9.101.0
   mothwing:['도구재료'], stickysap:['도구재료'], saltcrystal:['음식재료'], glassshard:['장신구재료'],
   towershard:['무기재료', '건축재료'], eyecrystal:['장신구재료'],
+  dullgold:[], feastfloor:['건축재료'],                             // v9.104.0
   // v7.0.0: 갈래가 없던 보스 전리품 넷
   bearclaw:['무기재료'], bisonhorn:['무기재료', '도구재료'], mosspelt:['갑옷재료', '건축재료'], catfishwhisker:['도구재료', '약품재료'],
   stonepelt:['갑옷재료', '건축재료'],   // v7.0.0
@@ -1538,6 +1547,8 @@ const DESC = {
   scrapiron: '녹슬어 휘어진 쇳조각. 갈면 날이 선다.',
   towershard:'탑에서 떨어진 돌조각. 새겨진 금이 아직 남아 있다.',
   eyecrystal:'탑의 눈에서 나온 수정. 들여다보면 저쪽이 비친다.',
+  dullgold:  '금이다. 그런데 빛이 없다. 무엇에도 붙지 않고, 무엇도 되지 않는다.',   // v9.104.0
+  feastfloor:'곱게 깎아 금으로 박은 바닥 조각. 위에서 누군가 춤을 췄을 것이다.',
   obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
   woodbow:'궁수가 늘 쥐고 있는 활. 힘은 약해도 다섯 칸 밖에서 먼저 쏜다.',
   huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
@@ -1860,7 +1871,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.103.0';
+const VERSION = 'v9.104.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2543,7 +2554,7 @@ function questGroupState(def){
 //   · 이동속도 N = **1초에 N칸** 전진
 //   · 공격속도 N = **1초에 N번** 때린다
 //   그래서 사거리 10 · 공속 1 인 상대에게 이속 3 으로 다가가면 (10−1)/3 ≈ 3초, 세 대를 맞고 붙는다
-const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36, spidernest: 36, shellcave: 36, towerruin: 36 };   // 땅마다 트랙 길이 (칸). 없으면 60
+const LANE_OF = { prelude: 24, stonehide: 36, swamptomb: 36, spidernest: 36, shellcave: 36, towerruin: 36, goldtower: 36 };   // 땅마다 트랙 길이 (칸). 없으면 60
 const laneLen = id => LANE_OF[id] || 60;
 const BASE_SPD = 3, BASE_RANGE = 1, BASE_APS = 1;                 // 초당 걷는 칸 · 맨손 사거리 · 초당 공격 횟수
 // 적의 움직임 — chase(다가옴, **기본**) · hold(자리 지킴) · kite(사거리를 지키며 물러남)
@@ -5887,6 +5898,12 @@ const ENEMIES = {
   towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, size:2,
     portrait:'portrait_towereye', atk:3, def:3, hp:90,
     loot: [['towershard', 60, 2], ['scrapiron', 50, 1], ['scale', 40, 1], ['bearclaw', 25, 1], ['eyecrystal', 10, 1]] },
+  // v9.104.0: 👑 황금 골렘 — 무너진 황금탑의 주인. 연회의 **문지기** — 손님만 들이던 습관만 남아, 들어온 모든 것을 친다.
+  //   몸이 빛을 잃은 황금이다 — **겉껍질(shell)** 이 두껍고 무겁게 친다. 문 앞을 떠나지 않는다(move:'hold')
+  //   (기사 앞에서 한 박자 멈칫하는 것은 시나리오 연출일 뿐 — 전투에선 하지 않는다)
+  goldgolem: { name:'황금 골렘', spd:0, move:'hold', aps:0.55, size:2, portrait:'portrait_goldgolem',
+    atk:14, def:6, hp:120, shell:10,
+    loot: [['dullgold', 100, 3], ['feastfloor', 50, 1]] },
 };
 // 기사가 드는 것 — 크래프팅 필드에 있는 무기·방어구 중 가장 센 것을 자동으로 씀 (장착 UI는 아직 없음)
 // v0.23.0: 자동으로 가장 센 것을 쓰던 것 → 정비 화면에서 장착한 것만 반영
@@ -6091,6 +6108,16 @@ const LANE_BG = {
     front:  [{ file: 'prop_stalagmite', h: 0.72, odds: 0.1 },
              { file: 'prop_rock', h: 0.5, odds: 0.07 }],
     near:   [{ file: 'prop_stalagmite', h: 0.8, odds: 0.1 }, { file: 'prop_boulder', h: 0.78, odds: 0.06 }],   // v9.50.3
+    nearSpeed: 1.75,
+    frontSpeed: 1.3,
+  },
+  goldtower: {                                                    // v9.104.0: 누워 버린 연회장
+    far:    { file: 'bg_goldtower-far', kan: 6, speed: 0.3 },
+    ground: { file: 'bg_goldtower-ground', kan: 4 },
+    edge:   { file: 'bg_goldtower-edge', kan: 6 },
+    props:  [{ file: 'prop_rock', h: 0.3, odds: 0.12 }, { file: 'prop_boulder', h: 0.42, odds: 0.08 }],
+    front:  [{ file: 'prop_rock', h: 0.5, odds: 0.07 }],
+    near:   [{ file: 'prop_boulder', h: 0.8, odds: 0.05 }],
     nearSpeed: 1.75,
     frontSpeed: 1.3,
   },
@@ -6413,6 +6440,13 @@ const NEST_PLAN = [
   { loot:1, at:0.82 },
   { fight:'nestkeeper', boss:true, at:0.93 },
 ];
+// v9.104.0: 🏛 무너진 황금탑 — 기울어진 연회장을 세 번 뒤지고 나면 문 앞의 골렘
+const GOLD_PLAN = [
+  { loot:1, at:0.12 },
+  { loot:1, at:0.30 },
+  { loot:1, at:0.48 },
+  { fight:'goldgolem', boss:true, at:0.90 },
+];
 const SHELL_PLAN = [
   { loot:1, at:0.12 },
   { fight:'hermit', at:0.26 },
@@ -6428,6 +6462,7 @@ const EXP_PLAN = {
   spidernest: NEST_PLAN,
   shellcave: SHELL_PLAN,
   towerruin: RAID_PLAN,
+  goldtower: GOLD_PLAN,                                          // v9.104.0
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
@@ -6440,7 +6475,7 @@ const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 // v0.13.4 · v9.14.0: 땅마다 채집 포인트 그림 (없으면 산 것)
 //   들머리 마른 가지 · 산 돌무더기 · 초원 약초 · 숲 통나무 · 강가 조개 · 굴 광석 · 늪지 썩은 뿌리
 const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassland', forest: 'forest',
-  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin',
+  river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin', goldtower: 'towerruin',
   spidernest: 'spidernest', shellcave: 'shellcave' };
 // v9.22.0: **원정은 여럿** — 기사와 궁수가 서로 다른 땅에 나갈 수 있다.
 //   `EXPS` 가 진행 중인 원정들, `exp` 는 '지금 다루는 원정'(돌리거나 그리는 동안만 바뀐다)
