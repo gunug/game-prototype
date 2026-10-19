@@ -1871,7 +1871,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.107.0';
+const VERSION = 'v9.108.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2236,7 +2236,7 @@ function innWhereShort(t){
   const w = gatherText(t);
   if (w) return `${w}에서 주움`;
   const lands = FIELDS.filter(f => !fieldLocked(f.id) && !f.raid && lootTypes(f.id).includes(t)
-      && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')))
+      && (f.id !== 'prelude' || !preludeGone()))
     .map(f => `${f.emoji} ${f.name}`);
   if (lands.length) return `${lands.slice(0, 2).join(' · ')}에서 나옴`;
   // v9.56.2: 아직 못 가는 땅이라도 **어디인지는 말해 준다** — 퀘스트가 '가라'고 보내는 곳이다
@@ -4817,7 +4817,7 @@ const aimGoalOk = t => useOf(t).some(u => FUNCTION_USES.includes(u));
 //   가려진 재료를 다 보고 나면 저절로 보통 목표(줍기 + 조합)로 바뀐다
 const typeGettable = t => gatherFields(t).length > 0
   || FIELDS.some(f => !fieldLocked(f.id) && lootTypes(f.id).includes(t)
-    && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')));
+    && (f.id !== 'prelude' || !preludeGone()));
 function sideReachFog(sd, d){
   if (sideReachKnown(sd, d)) return true;
   if (sd.card ? typeGettable(sd.card)
@@ -4899,8 +4899,13 @@ const goalNeedsAt = id => goalNeeds().filter(t => yieldsOf(id).includes(t) || lo
 // v3.5.2: 줍는 줄도 장소를 먼저 — "⛰️ 산에서 돌 줍기" · "늑대 60% 떨굼 작은 이빨"
 // v3.6.4: 그 재료가 실제로 나오는 필드를 **모두** 적는다 (카드의 소속 필드 하나만 적던 것)
 // v3.6.5: **지금 갈 수 있는 필드만** — 잠긴 곳과 튜토리얼 뒤 사라진 들머리는 안 적는다
+// v9.108.0: **들머리는 깨도 바로 사라지지 않는다** — 오르반 · 두르간에게 낼 화강암 · 규암 · 잔가지가 들머리에서만 나온다.
+//   둘이 합류(가렛의 첫 길이 끝)한 뒤에 줄에서 빠진다 (전엔 깨는 즉시 사라져, 그 재료를 써 버리면 막힐 수 있었다)
+const preludeGone = () => (S.cleared || []).includes('prelude') && smithOk('peddler') && smithOk('weaponsmith');
+// 그 재료가 나오는 땅 — 잠긴 땅까지 (어디로 가야 하는지는 늘 말해 준다)
+const gatherFieldsAll = t => FIELDS.filter(f => (yieldsOf(f.id).includes(t) || lootTypes(f.id).includes(t)) && (f.id !== 'prelude' || !preludeGone()));   // 줍거나 떨구는 땅
 const gatherFields = t => FIELDS.filter(f => yieldsOf(f.id).includes(t) && !fieldLocked(f.id)
-  && (f.id !== 'prelude' || !(S.cleared || []).includes('prelude')));
+  && (f.id !== 'prelude' || !preludeGone()));
 const gatherText = t => { const fs = gatherFields(t);
   return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : ''; };   // 갈 수 있는 곳이 없으면 비움
 function getStepBody(t){
@@ -4908,7 +4913,9 @@ function getStepBody(t){
   const drop = dropHtml(t);                                       // v9.70.0: 땅 이름은 눌러서 가는 단추
   if (drop) return `${drop} <span class="i-muted">에서</span> ${card} <span class="i-muted">떨굼</span>`;
   const w = gatherHtml(t);
-  return w ? `${w} <span class="i-muted">에서</span> ${card} <span class="i-muted">줍기</span>`
+  if (w) return `${w} <span class="i-muted">에서</span> ${card} <span class="i-muted">줍기</span>`;
+  const far = gatherFieldsAll(t);                                 // v9.108.0: 잠긴 땅이라도 어디인지는 말한다
+  return far.length ? `${far.map(landBtn).join(' · ')} <span class="i-muted">(잠김) 에서</span> ${card} <span class="i-muted">줍기</span>`
     : `${card} <span class="i-muted">구할 곳을 아직 모름</span>`;
 }
 // v9.37.0: 못 본 재료 줄 — 이름 대신 **갈 곳**만 말한다
@@ -4918,9 +4925,10 @@ function scoutFields(t){                                          // 그 재료�
     && !fs.some(x => x.id === f.id)) fs.push(f);
   return fs;
 }
-const scoutWhere = t => { const fs = scoutFields(t); return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : '어딘가'; };
+const scoutWhere = t => { const fs = scoutFields(t).length ? scoutFields(t) : gatherFieldsAll(t);   // v9.108.0: 잠긴 땅이라도
+  return fs.length ? fs.map(f => `${f.emoji} ${f.name}`).join(' · ') : '어딘가'; };
 const scoutStepBody = (t, where) => `<span class="rcp-ic unk">?</span> `
-  + (where ? `<span class="i-muted">${esc(where)}</span>` : (scoutFields(t).map(landBtn).join(' · ') || '<span class="i-muted">어딘가</span>'))
+  + (where ? `<span class="i-muted">${esc(where)}</span>` : (scoutFields(t).map(landBtn).join(' · ') || gatherFieldsAll(t).map(landBtn).join(' · ') || '<span class="i-muted">어딘가</span>'))
   + ' <span class="i-muted">에 가서 못 본 재료를 찾자</span>';
 function aimWhere(t){                                             // 어디서 구하나 — 떨구는 놈 · 줍는 곳
   const d = dropText(t);
@@ -5096,7 +5104,7 @@ function screenRows(){
   }
   if (isFieldTab(S.tab)){                                         // v4.0.0 던전 · v9.42.0 레이드도 같은 줄 화면
     return (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
-      .filter(f => f.id !== 'prelude' || !(S.cleared || []).includes('prelude')).map(f => {
+      .filter(f => f.id !== 'prelude' || !preludeGone()).map(f => {
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
