@@ -1873,7 +1873,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.109.0';
+const VERSION = 'v9.110.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2077,7 +2077,9 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른', goldgolem: '🏛 황금 골렘' };   // v9.105.0: 황금 골렘   // v9.94.0: 세리나 · v9.95.0: 보른
+const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른',   // v9.94.0 세리나 · v9.95.0 보른
+  peddler: '🎯 오르반', weaponsmith: '⚔ 두르간', cook: '🍖 올가', carpenter: '🏠 헤이든', armorsmith: '🛡 마르그',   // v9.110.0: 사람마다 배경 흔적
+  shieldsmith: '🛡 토른', trinketsmith: '📿 네이라', herbalist: '🧪 실바', goldgolem: '🏛 황금 골렘' };   // v9.105.0: 황금 골렘   // v9.94.0: 세리나 · v9.95.0: 보른
 const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
@@ -2425,6 +2427,23 @@ const STORY = {
 const STORY_LEN = 5;
 // v9.94.0: **이야기 흔적** — 이야기 걸음을 하나 마칠 때마다 그 장면이 흔적 카드로 열린다 (글은 그 걸음의 한 줄 그대로)
 //   v9.95.0: 보른도. 사람마다 [흔적 id, 이름] 다섯 개 — 그림은 images/scene/scene_<id>.png
+// v9.110.0: **배경 흔적** — 여관에서 그 사람을 '이야기'로 처음 등록하는 순간 열린다 (그 사람이 무너지기 전 무엇이었나)
+//   docs/시나리오.md §20 에서 — 숨긴 것(보른 아내가 은테 · 네이라가 금을 빼돌림)은 적지 않는다
+[
+  ['ally', '여관집 아이', '세리나는 여관에서 자랐다. 황금탑은 아빠가 가끔 들려주는 옛날 얘기일 뿐이다. 엄마 얘기는 잘 하지 않는다.'],
+  ['keeper', '창고지기', '보른은 탑 아래 연회 창고를 지켰다. 술통을 지고 계단을 오르내리며 위층의 불빛을 누구보다 가까이서 봤다. "그 탑은 설계가 잘못됐을 뿐이야."'],
+  ['peddler', '길 위의 장사치', '금이 하늘에서 내리기 전부터 오르반은 길 위에 있었다. 금은 받지 않았고, 평범한 조합법을 마을마다 가르치고 다녔다. 수혜자들은 그를 거들떠보지 않았다.'],
+  ['weaponsmith', '닫힌 대장간', '두르간은 탑 공사장에서 일꾼들의 정과 끌을 갈았다. 금을 다루는 대장간 문은 끝내 열리지 않았다. 그래서 그는 돌을 간다.'],
+  ['cook', '한 입도', '올가는 연회 부엌에서 금빛 요리를 만들었다. 한 입도 먹어 본 적은 없다. 지금 재료를 보면 한숨부터 나온다. 무엇과 견주는지는 말하지 않는다.'],
+  ['carpenter', '마지막 판자', '헤이든은 탑 꼭대기 층의 발판을 짰다. 마지막으로 깐 판자는 최후의 연회장 바닥이 됐다. 그 뒤로 높은 데는 올라가지 않는다.'],
+  ['armorsmith', '안감', '마르그는 기사단 갑옷의 안감만 댔다. 쇠판은 만져 볼 수 없었다. 대신 안쪽 바느질은 누구보다 잘 안다 — 그 버릇이 아직 손에 남아 있다.'],
+  ['shieldsmith', '흉터', '토른은 탑 아래 성문을 지켰다. 그날 무너진 돌 사이로 몇 번이고 들어가 사람들을 끌어냈다. 팔의 흉터는 그때 생겼다. 그 탑은 다시 보고 싶지 않다.'],
+  ['trinketsmith', '닦는 손', '네이라는 연회 손님들의 금 장신구를 닦았다. 금을 날마다 만졌지만 제 것은 하나도 없었다. 지금은 조개와 돌을 꿴다. 작은 것에도 값을 매긴다.'],
+  ['herbalist', '내려오지 않은 사람들', '실바는 탑 아래 마을에서 다친 일꾼들을 고쳤다. 탑 위의 사람들은 한 번도 내려와 보지 않았다. 실바는 그 일을 잊지 않는다.'],
+].forEach(([who, name, text]) => {
+  const t = { id: `bg_${who}`, who, pic: `scene_bg_${who}`, key: `story-reg:${who}`, name, text };
+  TRACES.push(t); TRACE_BY_ID[t.id] = t;
+});
 const STORY_TRACES = {
   ally:   [['s_berry', '열매'], ['s_bow', '세 번째 활'], ['s_feather', '날아간 깃털'], ['s_fletch', '화살깃'], ['s_longbow', '긴 활']],
   keeper: [['b_pillar', '첫 기둥'], ['b_bowls', '빈 그릇'], ['b_blankets', '이불'], ['b_stones', '공터의 돌'], ['b_bricks', '구운 벽돌']],
@@ -2474,6 +2493,7 @@ function storyRegister(id, slot){
   if (!storyCan(id) || storyDone(id)) return false;
   if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지
   logEv('story-reg', { who: id, step: storyStep(id) });
+  traceHit(`story-reg:${id}`);                                    // v9.110.0: 처음 등록하면 그 사람의 배경 흔적
   toast(`🏨 ${pName(id)} 이야기 (${storyStep(id) + 1}/${STORY_LEN})`);
   storySelfCheck(id);
   renderAll(); renderInsp(); save();
@@ -2926,6 +2946,10 @@ function load(){
     // v9.88.0: 이미 들머리를 깬 저장엔 '가렛' 흔적을 조용히 넣어 준다 (그 순간이 지나 버려 다시 열 길이 없다)
     if (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain'))
       for (const id of ['meet', 'born', 'durgan', 'orban']) if (!s.traces.includes(id)) s.traces.push(id);   // v9.90.0: 여관 세 사람도
+    for (const t of TRACES) if (t.key && t.key.startsWith('story-reg:')){   // v9.110.0: 이미 이야기를 시작한 사람은 배경 흔적도
+      const who = t.key.slice(10), st = ((s.inn && s.inn.story) || {})[who] | 0, reg = ((s.inn && s.inn.regs) || []).includes(who);
+      if ((st > 0 || reg) && !s.traces.includes(t.id)) s.traces.push(t.id);
+    }
     for (const who in STORY_TRACES){                              // v9.94.0 · v9.95.0: 이미 넘긴 이야기 걸음의 흔적
       const sa = Math.min(STORY_LEN, ((s.inn && s.inn.story) || {})[who] | 0);
       TRACES.filter(t => t.who === who).slice(0, sa).forEach(t => { if (!s.traces.includes(t.id)) s.traces.push(t.id); });
