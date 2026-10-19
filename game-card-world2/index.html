@@ -1871,7 +1871,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.104.0';
+const VERSION = 'v9.105.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2074,7 +2074,7 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른' };   // v9.94.0: 세리나 · v9.95.0: 보른
+const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른', goldgolem: '🏛 황금 골렘' };   // v9.105.0: 황금 골렘   // v9.94.0: 세리나 · v9.95.0: 보른
 const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손에 쥔 것이 하나도 없었다. 어디서 왔는지는 아직 흐리다. 우선 걸어야 한다.' },
@@ -2098,6 +2098,13 @@ const TRACES = [
   { id:'hornmark', pic:'scene_t_hornmark', who:'knight', key:'kill:bison',       name:'뿔에 긁힌 문양',
     text:'들소의 뿔 밑동에 같은 문양이 긁혀 있었다. 누군가 이 길을 먼저 지나갔다.' },
 ];
+// v9.105.0: 🏛 황금 골렘 — 긴 서사는 없다. 처음 마주친 순간 · 쓰러진 순간 둘뿐
+TRACES.push(
+  { id:'g_door', who:'goldgolem', pic:'scene_g_door', key:'meet:goldgolem', name:'문지기',
+    text:'연회장 문 앞. 금빛 손님들이 웃으며 지나간다. 손님이면 들인다. 손님이 아니면 막는다. 그것뿐이었다. — 금빛이 하나 다가온다. 손님인가.' },
+  { id:'g_end',  who:'goldgolem', pic:'scene_g_end',  key:'kill:goldgolem', name:'마지막 손님',
+    text:'벼락이 쏟아지던 날에도 문 앞에 서 있었다. 잔이 깨지고, 노래가 끊기고, 바닥이 기울었다. 들일 손님도 내보낼 손님도 남지 않았다. 이제야 문 앞을 떠난다.' },
+);
 const TRACE_BY_ID = Object.fromEntries(TRACES.map(t => [t.id, t]));
 // v9.83.0: **시나리오 카드** — 콜렉터북 📜 흔적 맨 위. 큰 그림 한 장 + 정보 칸에서 읽는 짧은 이야기.
 //   key 가 없으면 처음부터 열려 있다. 있으면 그 사건(questHit 열쇠)으로 열린다 — 흔적과 같은 S.traces 에 담는다.
@@ -3310,6 +3317,7 @@ const ICONS = {
   dungeon:'card_dungeon', bone:'card_bone', cloth:'card_leatherarmor', trinket:'card_claynecklace',
   raid:'ui_raid',                                                 // v9.42.0: 레이드 탭
   inn:'ui_inn',                                                   // v9.55.0: 여관 탭
+  goldtower:'card_goldtower',                                     // v9.105.0: 🏛 무너진 금탑
   prelude:'card_prelude', mountain:'card_mountain', grassland:'card_grassland', forest:'card_forest', river:'card_river',
 };
 const uiIcon = (id, cls = 'inline') => ICONS[id]
@@ -3322,7 +3330,7 @@ const EMOJI_ICON = {
   '✨':'xp', '🩸':'down', '⚠':'warn', '🌿':'nature', '⚒':'forge', '🛠':'tools', '🧱':'build',
   '🍖':'food', '🔱':'trident', '🏹':'bow', '🪢':'rope', '🎒':'bag', '🪨':'rock', '🕸':'web',
   '🍄':'mushroom', '🐚':'shell', '🏃':'run', '📋':'clip', '🔒':'lock', '🔓':'unlock',
-  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket', '🗼':'raid', '🏨':'inn',
+  '🏚':'dungeon', '🦴':'bone', '🧥':'cloth', '📿':'trinket', '🗼':'raid', '🏛':'goldtower', '🏨':'inn',
   '🏕':'prelude', '⛰':'mountain', '🌾':'grassland', '🌲':'forest', '🏞':'river',
   '⚔':'field',                                                   // 중간보스 표시도 같은 칼 그림
 };
@@ -6686,6 +6694,7 @@ function expEngage(near){
   const firstMeet = !S.metFoes.includes(ef.key);                  // v9.43.6: 처음 마주친 놈인가
   if (firstMeet) S.metFoes.push(ef.key);
   foeFound(ef.key);
+  traceHit(`meet:${ef.key}`);                                     // v9.105.0: 처음 마주친 순간에 열리는 흔적 (황금 골렘)
   if (ef.boss){ toast(`👑 보스 — ${d.name}`); S.metBoss = true; }
   else if (ef.mid) toast(`⚔ 중간보스 — ${d.name}`);
   // v9.43.6: 처음 마주친 놈이면 **그 자리에서** 카드를 다시 그린다.
