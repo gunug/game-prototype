@@ -1873,7 +1873,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.112.0';
+const VERSION = 'v9.113.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2436,12 +2436,14 @@ const STORY = {
     { make:'leatherarmor',     say:'갑옷을 기사에게 입혀 보고 두 번 고쳤다. 맞는 쪽은 역시 기사였다.' },
     { give:[['stonepelt', 4]], say:'돌가죽을 두드리며 이건 칼이 아니라 망치로 다룬다고 했다.' },
   ],
+  // v9.113.0: 토른 — 수동적 · 방어적. 말리지도 돕지도 않고 제 일(막는 일)을 한다. 동탑이 오를 때마다 방패를 하나 더 —
+  //   무너질 때 숨을 껍질. 마을 사람 수만큼 만들고 덧댄다. 사람들 눈엔 방패에 집착하는 사람 (docs/시나리오.md §24 · §25)
   shieldsmith: [
-    { make:'shieldboard',      say:'판을 겹쳐 붙이고 주먹으로 쳐 봤다. 주먹이 졌다.' },
-    { give:[['sap', 4]],       say:'수액을 끓여 아교 대신 쓴다고 했다. 냄새가 오래갔다.' },
-    { make:'woodshield',       say:'나무 방패 앞에 서서 한참 막는 시늉을 했다.' },
-    { kill:'shellback',        say:'바위 등껍질을 보고 와서 저게 진짜 방패라고 했다.' },
-    { make:'rimshield',        say:'테를 두른 방패가 깨지지 않고 돌아왔다. 조금 서운해 보였다.' },
+    { make:'shieldboard',                   say:'판을 겹쳐 붙이고 주먹으로 쳤다. 성문에서 하던 버릇이라고 했다. 주먹이 졌다. 토른은 그제야 고개를 끄덕였다.' },
+    { give:[['tree', 6], ['sap', 3]],       say:'보른이 동탑에 쓸 돌을 날라 달라고 했다. 토른은 대답 없이 나무를 켰다. 밤에는 여관 사람 수를 손가락으로 세고 있었다.' },
+    { make:'woodshield',                    say:'동탑이 한 층 올라간 날, 여관 벽에 방패가 하나 더 걸렸다. 왜냐고 묻자 "그냥."이라고만 했다.' },
+    { give:[['toughhide', 4], ['stonescale', 3]], say:'방패마다 억센 가죽을 덧대고 돌비늘을 박았다. 무너지는 돌을 받아 낼 만큼. 그러고는 동탑 밑 길목에 말없이 서 있었다.' },
+    { make:'rimshield',                     say:'벽이 방패로 빼곡해졌다. 사람들은 토른이 방패에 미쳤다고 수군댔다. 토른은 하나를 세리나에게 쥐여 주었다. "무너지면 이 밑에 들어가."' },
   ],
   trinketsmith: [
     { give:[['shellpiece', 4]], say:'조개껍데기를 귀에 대 보고 골랐다. 소리가 좋은 것만.' },
@@ -2481,6 +2483,7 @@ const STORY_LEN = 5;
 const STORY_TRACES = {
   ally:   [['s_berry', '열매'], ['s_bow', '세 번째 활'], ['s_feather', '날아간 깃털'], ['s_fletch', '화살깃'], ['s_longbow', '긴 활']],
   keeper: [['b_pillar', '첫 기둥'], ['b_bowls', '빈 그릇'], ['b_blankets', '이불'], ['b_stones', '공터의 돌'], ['b_bricks', '구운 벽돌']],
+  shieldsmith: [['th_fist', '주먹'], ['th_count', '사람 수'], ['th_onemore', '하나 더'], ['th_below', '탑 밑 길목'], ['th_shell', '껍질']],   // v9.113.0
 };
 for (const who in STORY_TRACES) STORY_TRACES[who].forEach(([id, name], i) => {
   const t = { id, who, pic: `scene_${id}`, key: `story:${who}:${i + 1}`, name, text: STORY[who][i].say };
