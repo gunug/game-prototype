@@ -1871,7 +1871,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.106.0';
+const VERSION = 'v9.107.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2244,9 +2244,9 @@ function innWhereShort(t){
     .map(f => `${f.emoji} ${f.name}`);
   return far.length ? `${far.slice(0, 2).join(' · ')}에서 나옴` : '구할 곳을 아직 모름';
 }
-function innGetBody(sm){                                          // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
+function innGetBody(sm, onlyLeft){                                // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
   const got = innGiven(sm.id);
-  return (sm.give || []).map(([t, n]) => {
+  return (sm.give || []).filter(([t, n]) => !onlyLeft || (got[t] || 0) < n).map(([t, n]) => {   // v9.107.0: 수첩엔 다 낸 것은 뺀다
     const mine = Math.min((got[t] || 0) + have(t), n);
     const where = mine >= n ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`;
     return `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${n}</b>${where}`;
@@ -2451,7 +2451,7 @@ const personPic = id => id === 'knight' || id === 'ally' ? hCard(id)
 const personJob = id => id === 'knight' || id === 'ally' ? hName(id)
   : id === 'keeper' ? '여관 주인' : id === 'peddler' ? '만물상' : smithName(id);
 // 걸음 하나를 글로 — 칸 · 수첩 줄 · 정보 칸이 같은 글을 쓴다
-function storyStepText(st, id, html){
+function storyStepText(st, id, html, onlyLeft){
   const e = s => html ? esc(s) : s;
   if (st.kill){
     const f = FIELDS.find(x => foesOf(x.id).includes(st.kill));
@@ -2460,7 +2460,7 @@ function storyStepText(st, id, html){
   }
   if (st.make) return e(`🔨 ${objP(nameShown(st.make) ? DEFS[st.make].name : '???')} 만들자`);
   const got = storyGiven(id);
-  return st.give.map(([t, k]) => {
+  return st.give.filter(([t, k]) => !onlyLeft || (got[t] || 0) < k).map(([t, k]) => {   // v9.107.0: 수첩엔 다 낸 것은 뺀다
     const mine = Math.min((got[t] || 0) + have(t), k);
     return html ? `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${k}</b>`
       + (mine >= k ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`)
@@ -7979,14 +7979,15 @@ function innRowOf(id){
     return `<div class="q-row inn"><span class="q-tag">🏨</span>`
       + `<img class="q-pic" src="images/icon/${personPic(id)}.png" alt="" draggable="false">`
       + `<b class="q-name">${esc(pName(id))} 이야기 (${storyStep(id) + 1}/${STORY_LEN})</b>`
-      + `<span class="q-text">${storyStepText(storyNow(id), id, true)}</span>${editDoneBtn('story', id)}<span class="q-n"></span></div>`;
+      + `<span class="q-text">${storyStepText(storyNow(id), id, true, true)}</span>${editDoneBtn('story', id)}<span class="q-n"></span></div>`;
   }
   const sm = SMITH_BY_ID[id];
   if (!sm || smithStep(id) >= INN_STEPS.length) return '';
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
   const ready = innHandReady(id);                                 // 다 쥐었나 — 그러면 '제출하기'
-  const body = ready ? `🏨 여관 <b>${esc(pName(id))}</b> 줄의 칸에 끌어다 놓자 — ${esc((sm.give || []).map(([t, n]) =>
-      `${DEFS[t].name} ×${n - (innGiven(id)[t] || 0)}`).join(' · '))}` : innGetBody(sm);
+  const left = (sm.give || []).filter(([t, n]) => (innGiven(id)[t] || 0) < n);   // v9.107.0: 다 낸 것은 빼고 남은 것만
+  const body = ready ? `🏨 여관 <b>${esc(pName(id))}</b> 줄의 칸에 끌어다 놓자 — ${esc(left.map(([t, n]) =>
+      `${DEFS[t].name} ×${n - (innGiven(id)[t] || 0)}`).join(' · '))}` : innGetBody(sm, true);
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
     + `<span class="q-text">${esc(ready ? '제출하기' : '구하기')} · ${body}</span>`
