@@ -22,6 +22,8 @@ from pathlib import Path
 from PIL import Image
 
 from icon_common import fetch_image, record, run_workflow
+from roster_characters import PEOPLE as _PEOPLE
+CAST = {cid: desc for cid, label, desc in _PEOPLE}   # 2026-10-19: 사람마다 생김새 — 흔적 그림에서도 같은 얼굴로
 
 SCENE_DIR = Path(__file__).resolve().parent.parent / "images" / "scene"
 # 황금탑 모양 — 탑이 보이는 장면마다 그대로 붙인다
@@ -73,6 +75,7 @@ def main():
     ap.add_argument("--people", action="store_true", help="사람이 나오는 장면 — 데포르메 비율 문구를 붙인다")
     ap.add_argument("--knight", action="store_true", help="기사가 나오는 장면 — 기사 차림 문구를 붙인다 (--people 도 함께 켠다)")
     ap.add_argument("--unarmed", action="store_true", help="--knight 와 함께 — 칼 없는 기사 (무기를 갖기 전 장면)")
+    ap.add_argument("--cast", default="", help="나오는 사람 id (쉼표) — roster_characters.py 의 생김새 묘사를 붙인다. 예: cook,shieldsmith")
     ap.add_argument("--serina", action="store_true", help="세리나가 나오는 장면 — 세리나 차림 문구 (--people 도 함께 켠다)")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--gen-w", type=int, default=768)
@@ -89,11 +92,12 @@ def main():
     if dest.exists() and not a.force:
         sys.exit(f"exists: {dest} (--force 로 덮어쓰기)")
 
-    if a.knight or a.serina:
+    if a.knight or a.serina or a.cast:
         a.people = True
     text = (a.prompt.rstrip(" .") + "."
             + (f" {KNIGHT_UNARMED if a.unarmed else KNIGHT}." if a.knight else "")
             + (f" {SERINA}." if a.serina else "")
+            + "".join(f" {CAST[c]}." for c in a.cast.split(",") if c in CAST)
             + (" " + PEOPLE + "." if a.people else "")
             + (f" The tower: {TOWER}." if a.tower else "")
             + f" {STYLE}. {NOT}.")
@@ -104,7 +108,7 @@ def main():
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS)               # 원본 색 그대로 — 색 줄이기 없음
     SCENE_DIR.mkdir(parents=True, exist_ok=True)
     im.save(dest, optimize=True)
-    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else [])
+    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else []) + ([f"--cast {a.cast}"] if a.cast else [])
     record(a.name, a.label, a.prompt, seed, opts, file=f"images/scene/{a.name}.png")
     print(f"scene {dest}  {im.size[0]}x{im.size[1]}")
 

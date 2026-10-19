@@ -28,12 +28,12 @@ PEOPLE = [
      "a knowing calm smile"),
     ("innkeeper", "여관 주인", "a stout bearded innkeeper in a wool apron, one hand holding a clay mug, a cloth over the shoulder"),
     ("weaponsmith", "무기 장인", "a weathered weaponsmith in a thick leather apron, a stone-headed hammer resting on one shoulder"),
-    ("cook", "요리사", "a camp cook in a soot-stained apron holding an iron skillet and a wooden ladle"),
-    ("carpenter", "목수", "a carpenter with a hand saw in one hand and a plank under the other arm"),
-    ("armorsmith", "갑옷 장인", "an armorer in heavy gloves holding a stitched leather cuirass at the hip"),
-    ("shieldsmith", "방패 장인", "a shield maker holding a round wooden plank shield at his side, wood shavings on the boots"),
-    ("trinketsmith", "장신구 장인", "a bead maker in a high-necked wool tunic, threading shell beads onto a cord"),
-    ("herbalist", "약재 장인", "a hooded herbalist carrying a bundle of dried herbs and a clay jar"),
+    ("cook", "요리사", "Olga, a plump middle-aged woman cook around forty, auburn hair pinned in a bun under a stained kerchief, rosy round cheeks, small sharp eyes and a permanently grumpy pursed mouth, a soot-stained apron, holding an iron skillet and a wooden ladle"),
+    ("carpenter", "목수", "Hayden, a tall lanky carpenter man around thirty, messy sandy-blond hair, a long narrow face with light stubble, slightly nervous wide eyes, a hand saw in one hand and a plank under the other arm"),
+    ("armorsmith", "갑옷 장인", "Marg, a stern older woman armorer in her fifties, dark hair streaked with grey in a tight braid, a sharp hooked nose, thin pressed lips, a sewing needle tucked behind one ear, heavy gloves, holding a stitched leather cuirass at the hip"),
+    ("shieldsmith", "방패 장인", "Thorn, a big broad-shouldered man in his thirties, short cropped red hair, a square jaw, calm steady eyes, a long pale scar across his left cheek and a scarred forearm, holding a round wooden plank shield at his side, wood shavings on the boots"),
+    ("trinketsmith", "장신구 장인", "Neira, a young woman bead maker around twenty-five, sleek black hair tied back tightly, narrow sharp eyes, a thin knowing smile, small shell earrings, a high-necked wool tunic, threading shell beads onto a cord"),
+    ("herbalist", "약재 장인", "Silva, a wary young woman herbalist around twenty-two, pale freckled face, sharp green eyes with a suspicious glare, dark hair under a worn brown hood, carrying a bundle of dried herbs and a clay jar"),
 ]
 CREATURES = [
     ("animal", "토끼", "a wild brown rabbit standing alert on all fours, long ears up, small dark eyes"),
