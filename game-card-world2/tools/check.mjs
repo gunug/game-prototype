@@ -324,4 +324,14 @@ try {
   else console.log('✓ 장인 걸음이 닿는다 (소문의 땅 · 물건 재료 · 증명할 놈이 그 시점에 다 있다)');
 } catch (e){ report('장인 걸음', e); }
 
+// v9.101.0: 땅마다 채집품은 겹치지 않는다 (필드 · 던전 · 레이드 모두)
+try {
+  const dup = vm.runInContext(`(function(){ const at = {}, bad = [];
+    for (const f of FIELDS) for (const t of yieldsOf(f.id)) (at[t] = at[t] || []).push(f.name);
+    for (const t in at) if (at[t].length > 1) bad.push(DEFS[t].name + ' — ' + at[t].join(' · '));
+    return bad; })()`, ctx);
+  if (dup.length) report('채집품 겹침', new Error(dup.join(' | ')));
+  else console.log('✓ 땅마다 채집품이 겹치지 않는다');
+} catch (e){ report('채집품 겹침', e); }
+
 setTimeout(() => { console.log(fail ? `\n오류 ${fail}개` : '\n오류 없음'); process.exit(fail ? 1 : 0); }, 50);
