@@ -1166,7 +1166,7 @@ const fieldIcon = f => FIELD_NO_ICON.includes(f.id) ? f.emoji
 //   산은 샘물 대신 나무가 나옴 — 샘물은 카드로 남지만 지금은 나오는 곳이 없음
 const FIELD_YIELDS = {
   // v9.101.0: **땅마다 채집품이 겹치지 않는다** — 겹치던 자리(돌 · 부싯돌 · 나무 · 깃털 · 덩굴 · 모래)는 그 땅만의 것으로 바꿨다
-  prelude:   ['pebble', 'sharpchip', 'twig'],                   // v3.1.0: 들머리 — 실제로 무엇이 나오는지는 대본이 정함 · v9.101.0 조약돌 · 뗀돌 조각 · 잔가지
+  prelude:   ['granite', 'quartzite', 'twig'],                  // v3.1.0: 들머리 — 실제로 무엇이 나오는지는 대본이 정함 · v9.102.0 화강암 · 규암 · 잔가지
   mountain:  ['stone', 'flint', 'coal', 'tree'],
   grassland: ['grass', 'seed', 'honeycomb', 'feather'],        // v0.52.0: 짐승은 뺌 — 들개·들소를 잡으면 같은 재료가 나옴
   forest:    ['vine', 'berry', 'sap', 'herb'],                  // v3.8.2: 나무는 산 몫 — 숲은 덩굴
@@ -1222,8 +1222,8 @@ const DEFS = {
   pearl:      { name:'진주',   kind:'material', step:1, field:'shellcave' },
   ash:        { name:'재',     kind:'material', step:1, field:'towerruin' },
   // v9.101.0: 땅마다 겹치지 않는 채집품
-  pebble:     { name:'조약돌',   kind:'material', step:1, field:'prelude' },
-  sharpchip:  { name:'뗀돌 조각', kind:'material', step:1, field:'prelude' },
+  granite:    { name:'화강암',   kind:'material', step:1, field:'prelude' },   // v9.102.0: 조약돌 → 화강암
+  quartzite:  { name:'규암',     kind:'material', step:1, field:'prelude' },   // v9.102.0: 뗀돌 조각 → 규암 (날카롭게 쪼개지는 돌)
   twig:       { name:'잔가지',   kind:'material', step:1, field:'prelude' },
   mothwing:   { name:'나방 날개', kind:'material', step:1, field:'spidernest' },
   stickysap:  { name:'끈끈이',   kind:'material', step:1, field:'spidernest' },
@@ -1400,7 +1400,7 @@ const USE = {
   spidereye:['장신구재료', '약품재료'], motheregg:['약품재료'],
   nacreshard:['장신구재료'], barnacle:['건축재료'], shellplate:['갑옷재료'], pearl:['장신구재료'],
   ash:['건축재료', '약품재료'], burntbrick:['건축재료'], scrapiron:['무기재료'],
-  pebble:['무기재료', '도구재료'], sharpchip:['무기재료'], twig:['무기재료', '생산재료'],   // v9.101.0
+  granite:['무기재료', '도구재료'], quartzite:['무기재료'], twig:['무기재료', '생산재료'],   // v9.101.0
   mothwing:['도구재료'], stickysap:['도구재료'], saltcrystal:['음식재료'], glassshard:['장신구재료'],
   towershard:['무기재료', '건축재료'], eyecrystal:['장신구재료'],
   // v7.0.0: 갈래가 없던 보스 전리품 넷
@@ -1526,8 +1526,8 @@ const DESC = {
   shellplate:'게의 등을 덮던 판. 두껍고 가볍다.',
   pearl:     '껍데기 속에서 굴러 나온 구슬. 흠 하나 없다.',
   ash:       '타고 남은 재. 아직 온기가 있다.',
-  pebble:    '길목에 굴러다니는 둥근 돌. 손에 쥐기 좋다.',             // v9.101.0
-  sharpchip: '깨진 돌의 날카로운 쪽. 맨손으로 쥐면 손이 먼저 베인다.',
+  granite:   '희고 검은 알갱이가 박힌 단단한 돌. 무겁고, 잘 깨지지 않는다.',   // v9.102.0
+  quartzite: '부딪히면 날카로운 면을 남기고 쪼개진다. 옛날 사람들도 이 돌로 날을 냈다.',
   twig:      '마른 잔가지. 불쏘시개로도, 자루로도 쓴다.',
   mothwing:  '거미줄에 걸려 남은 날개. 가볍고 결이 곱다.',
   stickysap: '둥지 기둥에 엉겨 붙은 진. 손에 묻으면 잘 안 떨어진다.',
@@ -1701,8 +1701,8 @@ const RECIPES = [
   { id:'barb2',        a:{ card:'towershard' },   b:{ card:'whetstone' }, out:['barb'] },        // 탑의 파편 + 숫돌
   { id:'barb3',        a:{ card:'scrapiron' },    b:{ card:'whetstone' }, out:['barb'] },        // 부서진 쇠 + 숫돌
   // v9.101.0: 땅마다 겹치지 않는 채집품 — 저마다 이미 있는 결과물로 가는 다른 길
-  { id:'blade2',       a:{ card:'pebble' },       b:{ card:'sharpchip' }, out:['blade'] },       // 조약돌 + 뗀돌 조각 (들머리)
-  { id:'firewood2',    a:{ card:'pebble' },       b:{ card:'twig' },      out:['firewood'] },    // 조약돌 + 잔가지 (들머리)
+  { id:'blade2',       a:{ card:'granite' },      b:{ card:'quartzite' }, out:['blade'] },       // 화강암 + 규암 (들머리)
+  { id:'firewood2',    a:{ card:'granite' },      b:{ card:'twig' },      out:['firewood'] },    // 화강암 + 잔가지 (들머리)
   { id:'fletching2',   a:{ card:'mothwing' },     b:{ card:'bone' },      out:['fletching'] },   // 나방 날개 + 뼈 (거미 둥지)
   { id:'glue4',        a:{ card:'stickysap' },    b:{ card:'bone' },      out:['glue'] },        // 끈끈이 + 뼈 (거미 둥지)
   { id:'smokedfish2',  a:{ card:'saltcrystal' },  b:{ card:'fish' },      out:['smokedfish'] },  // 소금 결정 + 물고기 (껍질 동굴)
@@ -1859,7 +1859,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.101.0';
+const VERSION = 'v9.102.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2691,12 +2691,12 @@ const slotName = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || 
 const SMITHS = [
   // v9.97.0: **오르반 · 두르간도 여관 합류 퀘스트로 온다** (처음부터 있지 않다). 보른의 의뢰 = 오르반에게 낼 물건
   { id:'peddler', name:'만물상', card:'card_peddler', opens:{}, land:'prelude',
-    give:[['pebble', 2], ['hide', 1], ['smalltooth', 1]], proof:'strayhound',   // v9.101.0: 돌 → 조약돌 (들머리만의 것)
+    give:[['granite', 2], ['hide', 1], ['smalltooth', 1]], proof:'strayhound',   // v9.102.0: 들머리의 화강암
     rumor:'보른이 들머리에서 주운 것을 내놓으라고 한다',
     desc:'무엇이 무엇과 붙는지를 다 외우고 다니는 늙은 장사치. 팔 것보다 아는 것이 많다.',
     quip:'못 만드는 건 없어. 아직 재료를 못 찾았을 뿐이지.' },
   { id:'weaponsmith', name:'무기 장인', card:'card_weaponsmith', land:'prelude',
-    give:[['sharpchip', 1], ['twig', 1]], proof:'strayhound',      // 보른의 의뢰를 내고 남은 들머리 것 그대로 — 막히지 않게 (v9.101.0)
+    give:[['quartzite', 1], ['twig', 1]], proof:'strayhound',      // 보른의 의뢰를 내고 남은 들머리 것 그대로 — 막히지 않게 (v9.101.0)
     rumor:'날을 세우려면 부싯돌과 자룻감부터 보자고 한다',
     opens:{ board:'weapon', slot:'weapon' },
     desc:'여관 구석에서 쇠를 두드리는 사람. 처음 보는 얼굴에게도 숫돌을 내준다.',
@@ -2874,7 +2874,8 @@ function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields:
   ally: { hp: ARCHER.hp, lv: 1, xp: 0 }, allyJoin: false, joined: [] }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
-    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    // v9.102.0: 카드 이름이 바뀐 것 — 조약돌(pebble) → 화강암(granite) · 뗀돌 조각(sharpchip) → 규암(quartzite)
+    const s = JSON.parse((localStorage.getItem(SAVE_KEY) || 'null').replace(/"pebble"/g, '"granite"').replace(/"sharpchip"/g, '"quartzite"'));
     if (!s || !Array.isArray(s.cards)) return null;
     const merged = new Map();                                     // v0.8.0: 예전 저장의 같은 카드 여러 장 → 한 장 + 수량
     for (const c of s.cards.filter(c => craftable(c.type))){
@@ -6350,7 +6351,7 @@ const PRELUDE_PLAN = [                                            // v3.5.1: 채
   { loot:1, at:0.75 },
   { fight:'strayhound', boss:true, at:0.90 },
 ];
-const PRELUDE_LOOT = [['pebble'], ['sharpchip'], ['pebble'], ['twig']];   // v9.101.0: 들머리만의 것 // 지점 순서대로 — 한 판이면 뗀석기 도끼 재료가 다 모인다
+const PRELUDE_LOOT = [['granite'], ['quartzite'], ['granite'], ['twig']];   // v9.101.0: 들머리만의 것 // 지점 순서대로 — 한 판이면 뗀석기 도끼 재료가 다 모인다
 const PRELUDE_DROP = { animal: ['hide'], strayhound: ['smalltooth'] };   // 크리처가 떨구는 것도 고정
 // v4.0.0: 🪨 던전 대본 — 채집(검은 돌) 사이사이 돌벌레, 중간에 등껍질, 끝에 주인
 const DUNGEON_PLAN = [
