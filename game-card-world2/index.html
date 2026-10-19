@@ -1873,7 +1873,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.111.0';
+const VERSION = 'v9.112.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2146,6 +2146,39 @@ function traceHit(key){
     traceModal(t);                                                // v9.87.0: 얻는 순간 큰 카드로 (여럿이면 차례로)
   }
   renderNew(); save();
+}
+// v9.112.0: **지나온 일이면 흔적은 열려 있어야 한다** — 흔적은 그 일이 일어나는 순간(열쇠)에만 열려서,
+//   흔적이 나중에 더해지면(업데이트) 이미 겪은 일인데도 닫혀 있었다. 저장된 진행으로 다시 따져 조용히 연다 (NEW 뱃지만)
+//   진행 기록: 잡은 것 S.killed · 만난 것 S.metFoes · 다녀온 땅 S.marks · 깬 땅 S.cleared · 합류 S.inn.done ·
+//   이야기 걸음 S.inn.story · 이야기로 등록해 본 사람 S.inn.everReg · 메인 퀘스트 S.questDone
+function traceReached(t){
+  const [kind, a, b] = String(t.key || '').split(':');
+  const n = (S && S.inn) || {};
+  if (t.after && !(S.traces || []).includes(t.after)) return false;
+  switch (kind){
+    case 'start': return false;                                   // 첫 흔적은 시작할 때 카드로 뜬다 (traceHit) — 여기선 열지 않는다
+    case 'kill': return (S.killed || []).includes(a);
+    case 'meet': return (S.metFoes || []).includes(a) || (S.killed || []).includes(a);
+    case 'exp-end': case 'exp-start': return !!(S.marks || {})[a] || (S.cleared || []).includes(a);
+    case 'smith': return (n.done || []).includes(a);
+    case 'story-reg': return (n.everReg || []).includes(a) || ((n.story || {})[a] | 0) > 0 || (n.regs || []).includes(a);
+    case 'story': return ((n.story || {})[a] | 0) >= (+b || 0);
+    default: return false;
+  }
+}
+function reconcileTraces(){
+  if (!S) return 0;
+  S.traces = S.traces || []; S.newTraces = S.newTraces || [];
+  let k = 0;
+  // 차례가 있는 흔적(after)이 앞 흔적을 따라 열리게 몇 번 돈다
+  for (let pass = 0; pass < 3; pass++)
+    for (const t of TRACES.concat(SCENES.filter(x => x.key))){
+      if (S.traces.includes(t.id) || !traceReached(t)) continue;
+      S.traces.push(t.id); S.newTraces.push(t.id); k++;
+    }
+  if (S.allyJoin === false && S.traces.includes('meet')) S.allyJoin = true;   // 흔적을 따라 합류도 맞춘다
+  if (S.traces.includes('born')){ S.joined = S.joined || []; if (!S.joined.includes('keeper')) S.joined.push('keeper'); }
+  return k;
 }
 // v9.87.0: **흔적을 얻으면 큰 카드 팝업** — 그림 · 이름 · 글. X 또는 바깥을 누르면 닫힌다.
 //   한꺼번에 둘 이상 얻으면 차례로 하나씩 띄운다 (닫으면 다음 장)
@@ -2490,10 +2523,12 @@ function storyStepText(st, id, html, onlyLeft){
       : `${DEFS[t].name} ${mine}/${k}`;
   }).join(' · ');
 }
+function n0everReg(id){ const n = S.inn; n.everReg = n.everReg || []; if (!n.everReg.includes(id)) n.everReg.push(id); }
 function storyRegister(id, slot){
   if (!storyCan(id) || storyDone(id)) return false;
   if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지
   logEv('story-reg', { who: id, step: storyStep(id) });
+  n0everReg(id);                                                  // v9.112.0: 이야기로 등록해 본 사람 — 진행 기록
   traceHit(`story-reg:${id}`);                                    // v9.110.0: 처음 등록하면 그 사람의 배경 흔적
   toast(`🏨 ${pName(id)} 이야기 (${storyStep(id) + 1}/${STORY_LEN})`);
   storySelfCheck(id);
@@ -2908,6 +2943,7 @@ const boardNeed = b => b && b.smith && !smithOk(b.smith)
   ? (smithLocked(b.smith) ? smithNeed(b.smith) : `${smithName(b.smith)} 찾기`) : '';
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
+reconcileTraces();                                                // v9.112.0: 이미 지나온 일의 흔적은 열어 둔다
 const els = new Map();
 let selected = null;
 
@@ -3008,6 +3044,7 @@ function load(){
       inn.regs = [...new Set(was.filter(id => id && (STORY[id] || SMITH_BY_ID[id])))].slice(0, INN_MAX);
       for (const id in (n0.story || {})) if (STORY[id]) inn.story[id] = Math.max(0, Math.min(STORY_LEN, n0.story[id] | 0));
       for (const id in (n0.sgiven || {})) if (STORY[id]) inn.sgiven[id] = n0.sgiven[id];
+      inn.everReg = (Array.isArray(n0.everReg) ? n0.everReg : []).filter(id => STORY[id]);   // v9.112.0
       for (const id in (n0.prog || {})) if (SMITH_BY_ID[id]) inn.prog[id] = Math.max(0, Math.min(3, n0.prog[id] | 0));
       for (const id in (n0.given || {})) if (SMITH_BY_ID[id]) inn.given[id] = n0.given[id];
     } else {
