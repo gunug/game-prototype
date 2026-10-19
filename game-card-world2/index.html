@@ -1832,7 +1832,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.96.0';
+const VERSION = 'v9.97.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1948,7 +1948,7 @@ const QUESTS = {
                 say:'초원 너머로 숲이 보인다' },
 };
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { pierce:'stonelord', bleed:'tombkeeper', goprelude:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
+const QUEST_NEXT = { pierce:'stonelord', bleed:'tombkeeper', goprelude:'join_peddler', join_peddler:'join_weaponsmith', join_weaponsmith:'aimweapon', aimweapon:'arm', arm:'preludeboss', preludeboss:'gomountain', gomountain:'wolf', wolf:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
   grass:'gweapon', gweapon:'boar', boar:'innarmor', innarmor:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0 초원 · v9.55.0 여관
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
@@ -2044,12 +2044,14 @@ const TRACES = [
     text:'숲 가장자리에서 활을 든 여자아이가 나를 내려다봤다. 이름을 묻는데, 대답할 수가 없었다. "그럼 가렛. 오늘부터 가렛이야." 아이는 제멋대로 정해 버리고 앞장섰다.' },
   // v9.90.0: 들머리에서 세리나와 돌아오는 길 — 여관의 세 사람. `after` 는 그 흔적이 먼저 있어야 열린다는 뜻
   //   (흔적 '무릎'은 뺐다 — 들머리에서 지지 않게 맞췄다)
-  { id:'born',     who:'knight', pic:'scene_t_born',   key:'exp-end:prelude', after:'meet', name:'보른',
-    text:'아이를 따라간 곳은 길목의 여관이었다. 덩치 큰 주인이 웃으며 문을 열었다. "세리나가 주워 왔으면 손님이지. 다만 외상은 안 된다."' },
-  { id:'durgan',   who:'knight', pic:'scene_t_durgan', key:'exp-end:prelude', after:'meet', name:'두르간',
-    text:'여관 구석에서 쇠를 두드리던 사내가 내 돌도끼를 들어 보고 혀를 찼다. "무딘 게 아니야. 아직 안 간 거지." 그러고는 숫돌을 밀어 주었다.' },
-  { id:'orban',    who:'knight', pic:'scene_t_orban',  key:'exp-end:prelude', after:'meet', name:'오르반',
-    text:'여관 옆 좌판의 늙은이가 안경 너머로 나를 한참 들여다봤다. "어디서 본 얼굴인데." 그는 그 말만 하고 웃었다.' },
+  // v9.97.0: 가렛의 길 — 세리나를 만나고 → 보른에게서 쉴 곳을 얻고 물건 모으는 일을 맡고 →
+  //   오르반에게 조합이 무엇인지 배우고 → 두르간에게 무기 만드는 법을 배운다 (오르반 · 두르간은 여관 합류 퀘스트로)
+  { id:'born',     who:'knight', pic:'scene_t_born',   key:'exp-end:prelude', after:'meet', name:'쉴 곳',
+    text:'세리나는 나를 길목의 여관으로 끌고 갔다. 덩치 큰 주인이 문을 열어 주었다. "쉬어 가. 대신 외상은 안 된다. 들머리에서 주운 거나 좀 내놔 봐."' },
+  { id:'orban',    who:'knight', pic:'scene_t_orban',  key:'smith:peddler', name:'조합',
+    text:'보른에게 낸 돌과 이빨을 늙은 만물상이 집어 들었다. "이 둘을 붙이면 뭐가 되는지 아나?" 그날 처음으로 조합이라는 걸 알았다.' },
+  { id:'durgan',   who:'knight', pic:'scene_t_durgan', key:'smith:weaponsmith', name:'날',
+    text:'여관 구석의 대장장이가 내 손을 잡고 돌을 쥐는 법부터 다시 가르쳤다. "무딘 게 아니야. 아직 안 간 거지." 그날 처음으로 날이 섰다.' },
   { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
     text:'곰의 등에 박혀 있던 쇳조각. 손잡이 쪽의 문양을 나는 안다. 이건 우리 것이다.' },
   { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
@@ -2264,8 +2266,8 @@ function innFinish(id){
   if (!n.found.includes(id)) n.found.push(id);
   n.regs = (n.regs || []).filter(x => x !== id);                  // v9.81.0: 합류하면 칸을 비운다
   logEv('inn-done', { smith: id });
-  toast(`🏨 ${sm.name} 합류`);
-  unlockShow(`images/portrait/bust_${id}.png`, `${pName(id)} 합류`, sm.name);   // v9.76.0: 언락 연출
+  // v9.76.0: 언락 연출. v9.97.0: 흔적 카드가 붙은 사람은 카드 다음에 띄운다 (traceDone)
+  if (!TRACES.some(t => t.key === `smith:${id}`)){ toast(`🏨 ${sm.name} 합류`); unlockShow(`images/portrait/bust_${id}.png`, `${pName(id)} 합류`, sm.name); }
   questHit(`smith:${id}`);
   setTimeout(giveJoinQuests, 900);                                // v9.69.0: 한 사람이 합류하면 다음 사람이 붙는다
   renderTabs(); renderAll(); renderInsp(); renderQuest(); save();
@@ -2562,8 +2564,9 @@ const allySt = () => (S.ally = S.ally || { hp: ARCHER.hp, lv: 1, xp: 0 });
 const allyIn = () => editMode || !!(typeof S !== 'undefined' && S && S.allyJoin);
 // v9.91.0: **여관의 세 사람도 흔적 뒤에 합류한다** — 보른(여관 주인) · 두르간(무기 장인) · 오르반(만물상).
 //   들머리에서 세리나와 돌아올 때 흔적 셋이 뜨고, 그 카드를 닫으면 함께한다 (S.joined). 그 전엔 어디에도 없다
-const PERSON_TRACE = { born: 'keeper', durgan: 'weaponsmith', orban: 'peddler' };
-const personIn = id => editMode || !!(typeof S !== 'undefined' && S && (S.joined || []).includes(id));
+const PERSON_TRACE = { born: 'keeper' };                         // v9.97.0: 흔적으로 합류하는 사람은 보른뿐
+const JOIN_SHOW = { orban: 'peddler', durgan: 'weaponsmith' };   // 여관 합류 뒤 흔적 카드 — 카드를 닫으면 합류 표시
+const personIn = id => editMode || (SMITH_BY_ID[id] ? smithDone(id) : !!(typeof S !== 'undefined' && S && (S.joined || []).includes(id)));
 function personJoinNow(id, quiet){
   if ((S.joined || []).includes(id)) return;
   (S.joined = S.joined || []).push(id);
@@ -2577,6 +2580,8 @@ function traceDone(t, quiet){
   if (!t) return;
   if (t.id === 'meet') allyJoinNow(quiet);
   if (PERSON_TRACE[t.id]) personJoinNow(PERSON_TRACE[t.id], quiet);
+  const w = JOIN_SHOW[t.id];                                      // v9.97.0: 여관에서 합류한 사람 — 카드 다음에 합류 표시
+  if (w && !quiet) unlockShow(`images/portrait/bust_${w}.png`, `${pName(w)} 합류`, smithName(w), { first: true, pause: true });
 }
 function allyJoinNow(quiet){
   if (S.allyJoin) return;
@@ -2657,7 +2662,15 @@ const slotName = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || 
 //   여관 주인에게 한 명을 등록하고 **물건만 건네면** 합류한다 (한 번에 한 명. v9.61.0 — 소문 · 증명 걸음은 뺌).
 //   아직 못 가는 땅의 물건이면 장인도 잠긴다 — 카드에 '산 클리어'처럼 적는다
 const SMITHS = [
-  { id:'weaponsmith', name:'무기 장인', card:'card_weaponsmith', free:true,
+  // v9.97.0: **오르반 · 두르간도 여관 합류 퀘스트로 온다** (처음부터 있지 않다). 보른의 의뢰 = 오르반에게 낼 물건
+  { id:'peddler', name:'만물상', card:'card_peddler', opens:{}, land:'prelude',
+    give:[['stone', 2], ['hide', 1], ['smalltooth', 1]], proof:'strayhound',
+    rumor:'보른이 들머리에서 주운 것을 내놓으라고 한다',
+    desc:'무엇이 무엇과 붙는지를 다 외우고 다니는 늙은 장사치. 팔 것보다 아는 것이 많다.',
+    quip:'못 만드는 건 없어. 아직 재료를 못 찾았을 뿐이지.' },
+  { id:'weaponsmith', name:'무기 장인', card:'card_weaponsmith', land:'prelude',
+    give:[['flint', 1], ['tree', 1]], proof:'strayhound',          // 보른의 의뢰를 내고 남은 들머리 것 그대로 — 막히지 않게
+    rumor:'날을 세우려면 부싯돌과 자룻감부터 보자고 한다',
     opens:{ board:'weapon', slot:'weapon' },
     desc:'여관 구석에서 쇠를 두드리는 사람. 처음 보는 얼굴에게도 숫돌을 내준다.',
     quip:'"무디다"는 말을 싫어한다. "아직 안 갈았다"고 한다.' },
@@ -2713,6 +2726,11 @@ for (const sm of SMITHS){
     say: sm.rumor || '',
   };
 }
+// v9.97.0: 만물상 합류 = **보른의 의뢰** (들머리에서 주운 것을 내놓는다) · 무기 장인 = 날을 세우는 법
+Object.assign(QUESTS[joinQuestId('peddler')], { name: '보른의 의뢰',
+  text: () => smithOk('peddler') ? '보른의 의뢰를 마쳤다'
+    : innRegs().includes('peddler') ? '🏨 들머리에서 주운 것을 여관에 내자' : '🏨 여관에 만물상을 등록하고 의뢰를 받자' });
+Object.assign(QUESTS[joinQuestId('weaponsmith')], { name: '날을 세우는 사람' });
 // 땅이 열려 **찾아 나설 수 있게 된** 장인의 합류 퀘스트를 준다.
 //   수첩 규칙 ②를 지켜 **한 번에 한 사람만** — 그가 합류하면 다음 사람이 붙는다
 function giveJoinQuests(){
@@ -2733,15 +2751,15 @@ const innSt = () => (typeof S !== 'undefined' && S && S.inn) ? S.inn : null;   /
 // v9.72.1: 여관 저장에 **판 표식**을 남긴다 — 이 표식이 없는 저장만 '옛 저장'으로 보고 보정한다
 //   (전엔 저장이 있기만 하면 요리사 · 목수 · 약재 장인을 합류로 밀어 넣어, 새로 시작한 판도 새로 고치면 합류해 버렸다)
 const INN_VER = 2;
-const freshInn = () => ({ regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER });
-const smithDone = id => { if ((SMITH_BY_ID[id] || {}).free) return personIn(id);   // v9.91.0: 무기 장인은 흔적 '두르간' 뒤에
-  const n = innSt(); return !!n && (n.done || []).includes(id); };
+const freshInn = () => ({ regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: [], found: [], born: INN_VER });   // v9.97.0: 무기 장인도 처음엔 없다
+const smithDone = id => { const n = innSt(); return !!n && (n.done || []).includes(id); };
 const smithOk = id => editMode || !SMITH_BY_ID[id] || smithDone(id);
 const smithFound = () => true;                                    // v9.56.2: 여관 사람은 가리지 않는다 (옛 ??? 규칙 폐지)
 const smithName = id => (SMITH_BY_ID[id] || {}).name || '';
 const smithOpensText = id => { const o = (SMITH_BY_ID[id] || {}).opens || {};
-  return [o.board ? `${(BOARD_BY_ID[o.board] || {}).name || ''} 조합` : '',
-    o.slot ? `${(slotByKey(o.slot) || {}).name || ''} 칸` : ''].filter(Boolean).join(' · ') + ' 해금'; };
+  const t = [o.board ? `${(BOARD_BY_ID[o.board] || {}).name || ''} 조합` : '',
+    o.slot ? `${(slotByKey(o.slot) || {}).name || ''} 칸` : ''].filter(Boolean).join(' · ');
+  return t ? t + ' 해금' : '🎯 목표에 올린 것의 만드는 차례를 알려 준다'; };   // v9.97.0: 만물상
 const smithLocked = id => { const sm = SMITH_BY_ID[id]; return !!sm && !!sm.land && fieldLocked(sm.land); };
 const smithNeed = id => { const sm = SMITH_BY_ID[id]; return sm && sm.land ? fieldNeed(sm.land) : ''; };
 const smithStep = id => Math.min((((innSt() || {}).prog) || {})[id] || 0, INN_STEPS.length);
@@ -2891,13 +2909,17 @@ function load(){
     s.questDone = Array.isArray(s.questDone) ? s.questDone.filter(id => QUESTS[id]) : [];   // v0.60.0
     // v9.55.0: 여관 — 옛 저장은 **레벨로 열려 있던 칸을 장인으로 환산**해 그대로 준다 (진행이 뒤로 가지 않게)
     const n0 = s.inn && typeof s.inn === 'object' ? s.inn : null;
-    const inn = { regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: ['weaponsmith'], found: ['weaponsmith'], born: INN_VER };
+    const inn = { regs: [], story: {}, sgiven: {}, prog: {}, given: {}, done: [], found: [], born: INN_VER };
+    // v9.97.0: 오르반 · 두르간은 여관 합류. 옛 저장(들머리 · 산을 깸, 또는 v9.91 합류 표식)은 이미 함께한 것으로
+    const oldPair = (Array.isArray(s.cleared) && s.cleared.some(id => id === 'prelude' || id === 'mountain'))
+      || (Array.isArray(s.joined) && (s.joined.includes('peddler') || s.joined.includes('weaponsmith')));
+    if (oldPair) inn.done.push('peddler', 'weaponsmith');
     if (n0){
       // v9.55.7: 음식 · 건축 · 약품 탭은 **그 판들에선** 늘 열려 있었다 — 옛 저장에서 뺏지 않는다.
       // v9.72.1: 표식(`born`)이 있는 저장은 **지금 판**이다 — 밀어 넣지 않는다
       const old = !(n0.born >= INN_VER);
       inn.done = [...new Set((Array.isArray(n0.done) ? n0.done : []).filter(id => SMITH_BY_ID[id])
-        .concat('weaponsmith', ...(old ? ['cook', 'carpenter', 'herbalist'] : [])))];
+        .concat(oldPair ? ['peddler', 'weaponsmith'] : [], ...(old ? ['cook', 'carpenter', 'herbalist'] : [])))];
       inn.found = [...new Set((Array.isArray(n0.found) ? n0.found : []).filter(id => SMITH_BY_ID[id]).concat(inn.done))];
       // v9.81.0: 등록은 셋까지 (`regs`). 옛 저장의 reg · sreg 는 그 안으로.
       //   이야기 걸음 · 건넨 것도 챙긴다 (v9.80.x 는 여기서 빠뜨려 새로 고치면 이야기가 처음으로 돌아갔다)
@@ -3644,7 +3666,7 @@ function select(id){
 }
 // v9.55.0: 장인 정보 칸 — 무엇을 열어 주는 사람인지, 세 걸음이 어디까지 왔는지
 function renderSmithInsp(){
-  if (innPick === 'peddler'){                                      // v9.67.0: 만물상 — 모든 조합을 아는 사람
+  if (innPick === 'peddler' && smithDone('peddler')){              // v9.67.0: 만물상 — 모든 조합을 아는 사람 (v9.97.0: 합류 전엔 장인과 같은 칸)
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_peddler.png" alt="" draggable="false"></div>'
       + `<div><div class="nm">${esc(pName('peddler'))}</div><div class="kd">만물상 · 모든 조합을 안다</div></div></div>`
       + bodyPicHtml('bust_peddler')
@@ -3904,8 +3926,8 @@ function smithSlotHtml(id){
     + '</div>';
 }
 // v9.67.1: 만물상도 책에 — 여관 사람은 아니지만 **우리를 돕는 사람**이라 같은 묶음에 세운다
-const BOOK_PEOPLE = () => ['keeper', 'peddler'].concat(SMITHS.map(x => x.id));
-const ALWAYS_PEOPLE = ['keeper', 'peddler'];                      // 늘 보이는 사람 (찾아 나설 것이 없다)
+const BOOK_PEOPLE = () => ['keeper'].concat(SMITHS.map(x => x.id));   // v9.97.0: 만물상은 장인 표에
+const ALWAYS_PEOPLE = ['keeper'];                                 // 여관 주인 (v9.97.0: 만물상은 여관 합류로)
 const peopleFound = () => BOOK_PEOPLE().filter(id => editMode || (ALWAYS_PEOPLE.includes(id) ? personIn(id) : smithDone(id))).length;   // v9.56.2: 센 것은 **합류한 사람**
 function foeSlotHtml(o){
   const e = ENEMIES[o.key], on = foeSeen(o.key);
