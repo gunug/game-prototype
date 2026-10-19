@@ -1834,7 +1834,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.99.0';
+const VERSION = 'v9.100.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2273,7 +2273,7 @@ function innFinish(id){
   questHit(`smith:${id}`);
   setTimeout(giveJoinQuests, 900);                                // v9.69.0: 한 사람이 합류하면 다음 사람이 붙는다
   renderTabs(); renderAll(); renderInsp(); renderQuest(); save();
-  setTimeout(() => knightSay(`${sm.name}이 손을 보탠다 — 이제 만들 수 있다`), 500);
+  // /* v9.100.0: 말풍선 대사 끔 */ setTimeout(() => knightSay(`${sm.name}이 손을 보탠다 — 이제 만들 수 있다`), 500);
 }
 // 보통 놀이에서 일어난 일로 걸음을 민다 (questHit 과 같은 열쇠를 쓴다)
 function innHit(key){
@@ -2462,7 +2462,7 @@ function storyAdvance(id){
   } else toast(`🏨 ${pName(id)} 이야기 ${n.story[id]}/${STORY_LEN}`);
   const key = `story:${id}:${n.story[id]}`;
   if (TRACES.some(t => t.key === key)) traceHit(key);             // v9.94.0: 흔적 카드가 있으면 그것으로 (같은 글을 말풍선으로 또 말하지 않는다)
-  else setTimeout(() => knightSay(st.say), 400);                  // 그 걸음의 한 줄 — 정보 칸에 남는다
+  // /* v9.100.0: 말풍선 대사 끔 */ else setTimeout(() => knightSay(st.say), 400);   // 그 걸음의 한 줄 — 정보 칸에 남는다
   renderAll(); renderInsp(); renderQuest(); save();
 }
 // 보통 놀이 사건(questHit 열쇠)으로 이야기 걸음을 민다 — 등록한 사람 모두 (같은 놈이면 함께 넘는다)
@@ -5141,6 +5141,7 @@ function screenTokens(){
 // ── 기사 대사 (v0.36.0) ─────────────────────────────
 // 기사 카드 옆 말풍선. 한 줄씩, 글자 수에 따라 머물다 사라짐. 탭하면 바로 넘어감
 let knightLine = null, knightSayT = 0, knightSayDone = null;
+// v9.100.0: **말풍선 대사는 쓰지 않는다** (부르는 곳은 모두 주석). 함수는 나중에 다시 쓸 수 있게 남겨 둔다
 function knightSay(text, done){
   knightLine = text;
   knightSayDone = done || null;
@@ -6902,7 +6903,8 @@ function expEnd(kind){
   const lossKey = `bossloss:${lossId}`;
   if (bearLoss && !S.said.includes(lossKey)){
     S.said.push(lossKey);
-    setTimeout(() => { knightSay(BOSS_LOSS_SAY[lossId] || '맨손으론 어림도 없군'); save(); }, 700);
+    // /* v9.100.0: 말풍선 대사 끔 */ setTimeout(() => { knightSay(BOSS_LOSS_SAY[lossId] || '맨손으론 어림도 없군'); save(); }, 700);
+    save();
   }
   // v9.24.1: 걷어내는 일은 **시간표**로 — 끝낸 원정에 '언제 치울지'를 적어 두고 박자마다 쓸어 담는다.
   //   전엔 타이머가 제 원정을 손에 쥐고 있었는데, 원정이 둘이면 엉뚱한 쪽이 치워졌다
@@ -8045,7 +8047,7 @@ function syncUnlocks(newly){
     const need = UNLOCK_AFTER[id], st = S.fields[id];
     if (!st || !st.locked || !cleared.includes(need)) continue;
     st.locked = false;
-    if (newly === need && UNLOCK_SAY[id]) knightSay(UNLOCK_SAY[id]);
+    // /* v9.100.0: 말풍선 대사 끔 */ if (newly === need && UNLOCK_SAY[id]) knightSay(UNLOCK_SAY[id]);
     addUnlockNote(id);
   }
   // v9.43.3: **열 조건이 아예 없는 땅은 늘 열려 있다.** 옛 저장(그땐 조건이 있었다)도 여기서 풀린다 —
@@ -8172,7 +8174,7 @@ function giveQuest(id){
   if (S.questDone && S.questDone.includes(id)) return;             // v0.60.0: 한 번 끝낸 메인 퀘스트는 다시 안 줌
   S.quests.push(newQuest(id));
   if (isJoinQuest(id)) S.mainSinceJoin = 0;                       // v9.98.0: 합류 퀘스트를 받으면 다시 센다
-  if (QUESTS[id].say && !knightLine) knightSay(QUESTS[id].say);    // v0.60.0: 목표를 기사 입으로 한 줄
+  // /* v9.100.0: 말풍선 대사 끔 */ if (QUESTS[id].say && !knightLine) knightSay(QUESTS[id].say);    // v0.60.0: 목표를 기사 입으로 한 줄
   setTimeout(questSelfCheck, 0);                                   // v0.60.0: 이미 해 놓은 일이면 바로 끝남
   const el = document.getElementById('quest');
   renderQuest();
