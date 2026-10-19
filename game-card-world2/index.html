@@ -276,7 +276,7 @@
   .q-sub-t{color:var(--muted);opacity:.85;overflow:hidden;text-overflow:ellipsis;}
   .q-sub-n{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;}
   /* v0.9.0: 새 카드 표시 — 카드 왼쪽 위 NEW, 콜렉터북 버튼에 새 카드 수 */
-  .cw .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
+  .cw .new-b,.sleeve > .new-b,.scene-sleeve > .new-b{position:absolute;left:calc(var(--cw) * -.08);top:calc(var(--cw) * -.08);z-index:3;padding:0 calc(var(--cf) * .05);height:calc(var(--cf) * .18);box-sizing:border-box;
     display:flex;align-items:center;border-radius:999px;background:#ff5a5a;color:#fff;font-size:calc(var(--cf) * .1);font-weight:900;letter-spacing:.02em;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.5);pointer-events:none;}
   /* v0.45.0: 아직 해 본 적 없는 조합 상대 — 끄는 동안 '새로운 발견!' */
   .cw.new-combo{border-color:var(--brand-yellow);box-shadow:0 0 0 2px rgba(255,212,0,.55),var(--sh-md);}
@@ -1013,6 +1013,7 @@
     background:linear-gradient(transparent,rgba(0,0,0,.78));}
   .scene-sleeve.sel{border-color:var(--brand-yellow);}
   .scene-sleeve.new{box-shadow:0 0 0 2px var(--brand-yellow);}
+  .sleeve > .new-b,.scene-sleeve > .new-b{left:2px;top:2px;}   /* v9.103.0: 슬리브 · 시나리오 카드의 NEW */
   .scene-sleeve.locked{cursor:default;opacity:.45;display:flex;align-items:center;justify-content:center;}
   .scene-sleeve.locked .scene-name{position:static;background:none;padding:0;}
   .insp .scene-pic img{width:100%;height:auto;display:block;border-radius:var(--r-md);margin-bottom:6px;}
@@ -1859,7 +1860,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.102.0';
+const VERSION = 'v9.103.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3779,6 +3780,7 @@ function renderInsp(){
   if (S.tab === 'gearup' && heroPick) return renderFieldInsp();  // v0.29.0: 정비에서 기사 탭
   const c = selected != null && byId(selected);
   const t = c ? c.type : inspType;
+  if (t) clearNew(t);                                             // v9.103.0: 정보 칸에 띄운 카드는 NEW 가 사라진다
   if (!t){
     inspEl.innerHTML = '<div class="empty">카드를 탭하면 정보가 나와요.<br><br>'
       + '카드를 끌어 다른 카드 위에 놓으면 조합됩니다.<br>종류마다 카드 한 장, 오른쪽 위 숫자가 보유 수량.</div>';
@@ -3909,7 +3911,7 @@ function foeFound(k){
   S.newFoes.push(k);
   renderNew(); save();
 }
-const landSeen = f => editMode || ((S.seenLands || []).includes(f.id) && !(S.newLands || []).includes(f.id));
+const landSeen = f => editMode || (S.seenLands || []).includes(f.id) || (S.newLands || []).includes(f.id);   // v9.103.0
 const landCleared = f => (S.cleared || []).includes(f.id);
 // v7.9.1: 그 땅에 나오는 크리처 (대본에서 뽑는다) · 마주쳤거나 잡았으면 발견
 const bookFoes = id => { const seen = []; for (const e of planOf(id)) if (e.fight && !seen.some(x => x.key === e.fight))
@@ -3918,7 +3920,7 @@ const bookFoes = id => { const seen = []; for (const e of planOf(id)) if (e.figh
 let BOSS_FOES = null;                                             // 대본(planOf)은 아래에서 만들어지므로 처음 쓸 때 센다
 const bossFoes = () => BOSS_FOES || (BOSS_FOES = new Set(FIELDS.flatMap(f => planOf(f.id).filter(e => e.fight && e.boss).map(e => e.fight))));
 const foeFrame = k => bossFoes().has(k) ? 'silver' : 'bronze';
-const foeSeen = k => editMode || ((S.seenFoes || []).includes(k) && !(S.newFoes || []).includes(k));
+const foeSeen = k => editMode || (S.seenFoes || []).includes(k) || (S.newFoes || []).includes(k);   // v9.103.0
 // v9.43.5: **이름 · 그림을 보여 줄까는 '첫 조우'로 정한다** — 싸움이 붙은 순간부터 아는 놈이다.
 //   전엔 크리처 카드만 '잡았을 때'를 봐서, 마주쳐 싸우는 중에도 카드가 ??? 였다
 //   (책의 발견 도장은 그대로 `foeSeen` — 새 것은 책에 끼우기 전까지 실루엣)
@@ -3968,7 +3970,7 @@ function foeSlotHtml(o){
   return `<div class="sleeve${bookPick === 'foe:' + o.key ? ' sel' : ''}" data-book="foe:${o.key}">`
     + beingCardHtml({ cls: `f-${foeFrame(o.key)}${on ? '' : ' locked'}`, pic: foeFacePic(o.key),   // v7.9.2
         name: e.name, known: on, tag: on && (S.killed || []).includes(o.key) ? '잡음' : '' })
-    + '</div>';
+    + (isNewPick('foe:' + o.key) ? NEW_B : '') + '</div>';   // v9.103.0
 }
 function landSlotHtml(f){
   const on = landSeen(f), lock = !on && fieldLocked(f.id);        // v9.64.0: 잠김은 장인과 같은 꼴 — ??? + 자물쇠 + 조건 한 줄
@@ -3978,7 +3980,7 @@ function landSlotHtml(f){
     + `<div class="name">${on ? esc(f.name) : '???'}</div>`
     + (lock ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
       + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>` : '')
-    + (on && landCleared(f) ? '<div class="s-badge">깸</div>' : '') + '</div></div>';
+    + (on && landCleared(f) ? '<div class="s-badge">깸</div>' : '') + (isNewPick('land:' + f.id) ? NEW_B : '') + '</div></div>';   // v9.103.0
 }
 // v3.10.0: 이 가공품은 어느 땅 재료로 만드나 — DEFS.made 가 있으면 그것, 없으면 재료가 나오는 곳
 function madeAt(t){
@@ -4003,20 +4005,40 @@ const bookBoardLabel = b => (b.icon ? `<img class="icon inline tabic" src="image
 let bookOpen = false;
 let bookPick = null;                                              // 콜렉터북에서 고른 카드 (위 설명 줄)
 let paused = false;
-const shownSeen = t => S.seen.includes(t) && !S.newCards.includes(t);   // v0.9.0: 새 카드는 끼우기 전까지 실루엣
+const shownSeen = t => S.seen.includes(t);                        // v9.103.0: 끼우기 연출 폐기 — 새 카드도 바로 보이고 NEW 뱃지만 붙는다
 // v9.38.1: **이름 · 그림을 보여 줄까는 한 규칙으로** — 인스펙터 · 목표 · 콜렉터북이 같은 것을 본다.
 //   `cardKnown` = 얻어 봤거나, 재료를 다 본 조합 결과(v6.6.0). 전엔 책만 `S.seen` 을 봐서
 //   같은 카드가 책에선 ??? 인데 인스펙터에선 이름이 보였다.
 //   · 발견 **집계와 도장**은 그대로 `shownSeen`(S.seen) — 미리 보이는 것은 아직 '발견'이 아니다
 //   · 새로 얻어 아직 책에 안 끼운 카드만 책에서 실루엣으로 남는다 (끼우는 연출)
-const nameShown = t => editMode || (cardKnown(t) && !(S.newCards || []).includes(t));
+const nameShown = t => editMode || cardKnown(t);                  // v9.103.0: 새 카드도 이름이 보인다
 const shownOpen = t => nameShown(t);                              // v0.24.0: 에디터 모드면 다 보임
 function slotHtml(t){
   const on = shownOpen(t);
   return `<div class="sleeve${bookPick === t ? ' sel' : ''}" data-book="${t}">`
     + `<div class="cw framed f-${frameOf(DEFS[t])}${on ? '' : ' locked'}">`
     + `<div class="emoji">${iconHtml(t)}</div><div class="name">${on ? esc(DEFS[t].name) : '???'}</div>`
-    + (on ? statsHtml(t) : '') + '</div></div>';
+    + (on ? statsHtml(t) : '') + (isNewPick(t) ? NEW_B : '') + '</div></div>';
+}
+// v9.103.0: **NEW 뱃지** — 새로 얻은 카드 · 땅 · 크리처 · 흔적. 골라 정보 칸에 띄우면 사라진다
+const NEW_B = '<div class="new-b">NEW</div>';
+function isNewPick(key){
+  const k = String(key || ''), [kind, id] = k.includes(':') ? k.split(':') : ['card', k];
+  if (kind === 'land') return (S.newLands || []).includes(id);
+  if (kind === 'foe') return (S.newFoes || []).includes(id);
+  if (kind === 'trace' || kind === 'scene') return (S.newTraces || []).includes(id);
+  if (kind === 'card') return (S.newCards || []).includes(id);
+  return false;
+}
+function clearNew(key){
+  if (!isNewPick(key)) return false;
+  const k = String(key), [kind, id] = k.includes(':') ? k.split(':') : ['card', k];
+  if (kind === 'land'){ S.newLands = S.newLands.filter(x => x !== id); S.seenLands = S.seenLands || []; if (!S.seenLands.includes(id)) S.seenLands.push(id); }
+  else if (kind === 'foe'){ S.newFoes = S.newFoes.filter(x => x !== id); S.seenFoes = S.seenFoes || []; if (!S.seenFoes.includes(id)) S.seenFoes.push(id); }
+  else if (kind === 'trace' || kind === 'scene') S.newTraces = S.newTraces.filter(x => x !== id);
+  else S.newCards = S.newCards.filter(x => x !== id);
+  renderNew(); save();
+  return true;
 }
 // v3.3.2: 카드를 고르면 **인스펙터**가 바뀐다 — 책 위 한 줄에 정보를 겹쳐 쓰지 않음
 // v7.15.0: '슬리브를 탭하면 …' 안내는 없앰 (한 번 보면 그만인 말 — 자리만 먹었다)
@@ -4495,7 +4517,7 @@ function traceBookHtml(){
   let h = `<div class="book-field"><div class="book-fname">📖 이야기 <span class="i-muted">${SCENES.filter(sceneOn).length}/${SCENES.length}</span></div>`
     + `<div class="book-row">${SCENES.map(sc => sceneOn(sc)
       ? `<div class="scene-sleeve${bookPick === 'scene:' + sc.id ? ' sel' : ''}${(S.newTraces || []).includes(sc.id) ? ' new' : ''}" data-book="scene:${sc.id}">`
-        + `<img src="images/scene/${sc.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(sc.name)}</div></div>`
+        + `<img src="images/scene/${sc.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(sc.name)}</div>${isNewPick('scene:' + sc.id) ? NEW_B : ''}</div>`
       : '<div class="scene-sleeve locked"><div class="scene-name">???</div></div>').join('')}</div></div>`;
   // v9.86.0: **흔적도 카드** — 시나리오 카드와 같은 꼴 (그림 한 장 · 탭하면 정보 칸에서 읽는다). 못 겪은 것은 ???
   for (const who of Object.keys(TRACE_WHO)){
@@ -4504,7 +4526,7 @@ function traceBookHtml(){
     h += `<div class="book-field"><div class="book-fname">${TRACE_WHO[who]} <span class="i-muted">${list.filter(on).length}/${list.length}</span></div>`
       + `<div class="book-row">${list.map(t => on(t)
         ? `<div class="scene-sleeve${bookPick === 'trace:' + t.id ? ' sel' : ''}${(S.newTraces || []).includes(t.id) ? ' new' : ''}" data-book="trace:${t.id}">`
-          + `<img src="images/scene/${t.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(t.name)}</div></div>`
+          + `<img src="images/scene/${t.pic}.png" alt="" draggable="false"><div class="scene-name">${esc(t.name)}</div>${isNewPick('trace:' + t.id) ? NEW_B : ''}</div>`
         : '<div class="scene-sleeve locked"><div class="scene-name">???</div></div>').join('')}</div></div>`;
   }
   return h;
@@ -4641,6 +4663,7 @@ bookEl.addEventListener('click', e => {
   const slot = e.target.closest('[data-book]');
   if (slot){                                                      // v3.3.2: 인스펙터로
     bookPick = slot.dataset.book;
+    if (clearNew(bookPick)) setTimeout(renderBook, 0);             // v9.103.0: 골라 보면 NEW 가 사라진다
     let pickedHero = null;
     if (bookPick.startsWith('smith:')){                           // v9.56.0: 여관 사람
       innPick = bookPick.slice(6); inspType = null; fieldPick = null; foePick = null; pickedHero = null;
@@ -5726,8 +5749,9 @@ function setTab(tab){
   renderBook();                                                   // v3.4.0: 탭에 들어오면 바로 그림
   if (bookOpen){                                                  // 새 카드는 들어오자마자 끼움
     hintDone('book');
-    startInserts();                                               // v9.56.8: 지난번에 멈춘 자리부터 이어서
-    if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500);
+    // v9.103.0: **슬리브에 끼우는 연출은 쓰지 않는다** (시간이 너무 걸렸다) — 새것은 NEW 뱃지, 골라 보면 사라진다
+    // startInserts();
+    // if ((S.newTraces || []).length) setTimeout(() => { S.newTraces = []; renderNew(); save(); }, 1500);
   }
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
