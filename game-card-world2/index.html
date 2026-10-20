@@ -1866,7 +1866,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.124.0';
+const VERSION = 'v9.125.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -8447,7 +8447,7 @@ document.getElementById('ver').textContent = VERSION;
 //   끄면 그대로 돌아옴. 에디터 모드 동안은 저장하지 않음
 let realS = null;
 const EDIT_KEY = 'card-world2.edit';                              // v0.32.1: 켜 둔 상태를 새로 고쳐도 유지 (게임 저장과 별개)
-function setEditMode(on, quiet){
+function setEditMode(on, quiet, noKeep){                          // v9.125.0: noKeep — 주소(?edit)로 켠 것은 기억하지 않는다
   if (on === editMode) return;
   if (on){
     realS = S;
@@ -8470,7 +8470,7 @@ function setEditMode(on, quiet){
     realS = null;
     editMode = false;
   }
-  try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
+  if (!noKeep) try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; slotPick = null; heroPick = null;
   renderTabs();
   if (!freeTabs.includes(S.tab) && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
@@ -8671,9 +8671,11 @@ if (!S.tab) S.tab = 'battle';
 renderAll();
 setTab(S.tab);
 try {                                                             // v0.32.1: 지난번에 켜 뒀으면 그대로 에디터 모드로
-  if (localStorage.getItem(EDIT_KEY) === '1'){
+  // v9.125.0: **에디터 모드 주소** — `?edit` 를 붙여 열면 에디터 모드로 시작한다 (보통 주소로 열면 평소대로. 저장은 하지 않는다)
+  const urlEdit = new URLSearchParams(location.search).has('edit');
+  if (urlEdit || localStorage.getItem(EDIT_KEY) === '1'){
     document.getElementById('editMode').checked = true;
-    setEditMode(true, true);
+    setEditMode(true, !urlEdit, urlEdit);
   }
 } catch (e){ console.warn('에디터 모드 복구 실패', e); }   // v0.76.1: 조용히 넘어가지 않게
 // v7.6.0: 이 판이 열린 것을 기록 (새로 고침 · 다시 켜기도 한 줄로 남는다)
