@@ -992,6 +992,12 @@
   .tmodal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
     background:rgba(0,0,0,.62);animation:tmIn .22s ease-out;}
   .tmodal.out{animation:tmOut .22s ease-in forwards;}
+  /* v9.121.0: 게임 타이틀 — 이야기 다섯 장 뒤 · '빈손' 앞. 아래에서 위로 떠오르며 페이드 인 → 머물다 → 위로 페이드 아웃 (3초) */
+  .title-show{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
+    background:rgba(8,10,14,.92);cursor:pointer;}
+  .title-show img{width:min(640px,88vw);height:auto;animation:titleUp 3s ease-in-out forwards;pointer-events:none;}
+  @keyframes titleUp{0%{opacity:0;transform:translateY(48px);} 28%{opacity:1;transform:translateY(0);}
+    72%{opacity:1;transform:translateY(-10px);} 100%{opacity:0;transform:translateY(-52px);}}
   @keyframes tmIn{from{opacity:0}to{opacity:1}}
   @keyframes tmOut{to{opacity:0}}
   .tm-card{position:relative;width:min(340px,100%);max-height:calc(100vh - 32px);overflow:auto;border-radius:14px;
@@ -1860,7 +1866,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.120.0';
+const VERSION = 'v9.121.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2227,10 +2233,22 @@ function traceCard(t, done){
   paintIcons(el);
 }
 // 떠 있는 흔적 카드를 모두 닫은 것으로 친다 (AI 시험에서 씀) — 합류 표시도 기다리지 않는다
+// v9.121.0: **게임 타이틀** '빈손의 기사' — 3초 (아래에서 위로 떠오르며 나타났다 사라진다). 누르면 바로 넘긴다
+function titleShow(done){
+  const el = document.createElement('div');
+  el.id = 'titleShow'; el.className = 'title-show';
+  el.innerHTML = '<img src="images/title/title_logo.png" alt="빈손의 기사" draggable="false">';
+  let ended = false;
+  const end = () => { if (ended) return; ended = true; el.remove(); done(); };
+  el.querySelector('img').addEventListener('animationend', end);
+  el.addEventListener('click', end);
+  setTimeout(end, 3400);                                          // 그림이 안 떠도 넘어간다
+  document.body.appendChild(el);
+}
 function traceAckAll(){
   const items = [showing, ...showQ].filter(x => x && x.t);
   showQ = showQ.filter(x => !x.t && !x.pause);
-  if (showing && (showing.t || showing.pause)){ try { document.getElementById('traceModal')?.remove(); } catch (e) {} showing = null; }
+  if (showing && (showing.t || showing.pause)){ try { document.getElementById('traceModal')?.remove(); document.getElementById('titleShow')?.remove(); } catch (e) {} showing = null; }
   for (const it of items) traceDone(it.t, true);
   showQ = showQ.filter(x => !x.pause);
   showNext();
@@ -5372,7 +5390,10 @@ const knightSayHtml = () => knightLine ? `<div class="god-speech knight-say" dat
 function knightIntro(){
   questResume();                                                  // v0.60.0: 저장에서 이어 시작
   // v9.119.0: 새 판이면 **이야기 다섯 장(금빛 시대)을 연달아** 띄운 뒤 기사 첫 흔적 — 보는 동안 게임은 멈춘다 (relay pause)
-  if (!(S.traces || []).includes('wake')) for (const sc of SCENES) if (!sc.key) traceModal(sc);
+  if (!(S.traces || []).includes('wake')){
+    for (const sc of SCENES) if (!sc.key) traceModal(sc);
+    relay({ pause: true, run: titleShow });                       // v9.121.0: 그 다음 게임 타이틀 — 그리고 '빈손'
+  }
   traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
