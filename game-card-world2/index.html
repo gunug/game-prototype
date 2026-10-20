@@ -1873,7 +1873,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.118.0';
+const VERSION = 'v9.119.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2219,7 +2219,7 @@ function traceCard(t, done){
   el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
     + '<button class="tm-x" type="button" aria-label="닫기">✕</button>'
     + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
-    + `<div class="tm-body"><div class="tm-tag">📜 새 흔적</div><div class="tm-name">${esc(t.name)}</div>`
+    + `<div class="tm-body"><div class="tm-tag">${isScene ? '📜 이야기' : '📜 새 흔적'}</div><div class="tm-name">${esc(t.name)}</div>`
     + `<div class="tm-from">${esc(from)}</div>`
     + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`;
   const close = () => {
@@ -5383,6 +5383,8 @@ const knightSayHtml = () => knightLine ? `<div class="god-speech knight-say" dat
 // 처음 켰을 때 — 할 게 없으니 산으로
 function knightIntro(){
   questResume();                                                  // v0.60.0: 저장에서 이어 시작
+  // v9.119.0: 새 판이면 **이야기 다섯 장(금빛 시대)을 연달아** 띄운 뒤 기사 첫 흔적 — 보는 동안 게임은 멈춘다 (relay pause)
+  if (!(S.traces || []).includes('wake')) for (const sc of SCENES) if (!sc.key) traceModal(sc);
   traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
