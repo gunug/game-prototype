@@ -408,7 +408,7 @@ function play(ai, note){
     // 힘이 되는 사람부터 — 요리사(음식)는 AI 에게 쓸모가 없어 맨 뒤로 민다
     const rank = id => (id === 'cook' || id === 'carpenter') ? 1 : 0;   // 음식 · 건축은 AI 에게 쓸모가 없다
     const openOrd = inn.open.slice().sort((a2, b2) => rank(a2) - rank(b2));
-    const pick = openOrd.find(id => { const f = ai.smithLand(id); return !f || st.cleared.includes(f) || ai.canBeat(f); });
+    const pick = openOrd.find(id => { const f = ai.smithLand(id); return !f || f === 'mountain' || st.cleared.includes(f) || ai.canBeat(f); });   // v9.120.0: 시작 땅(산)의 사람은 지면서도 물건을 모은다
     if (!inn.reg && pick){ ai.innReg(pick); ai.touch(); note(`여관 등록 ${pick}`); continue; }
     if (inn.reg && inn.step === 0){
       if (ai.innHand() > 0){ ai.touch(); note('여관 납품'); continue; }
