@@ -10,6 +10,7 @@
   --people: 사람이 나오는 장면이면 붙인다 — 데포르메 비율 문구
   --knight: 기사 가렛이 나오는 장면 — 게임 그림과 같은 차림 문구
   --serina: 세리나가 나오는 장면 — 게임 그림과 같은 차림 문구
+  --dongtap N: 보른의 동탑이 보이는 장면 — N 층까지 올라간 모양. --glow 를 더하면 완성 날 황금으로 빛난다
   구도가 맘에 안 들면 --seed 만 바꾼다. 같은 seed · 같은 글이면 같은 그림
 기록: ../docs/아이콘_목록.md
 """
@@ -47,6 +48,15 @@ KNIGHT_UNARMED = ("the knight: a young man with messy dark brown hair and a dete
 # 세리나 — 게임 그림(portrait_archer)과 같은 차림. 세리나가 나오는 장면이면 --serina
 SERINA = ("the girl Serina: a cheerful young archer girl with dark brown hair under a green hood and cloak, "
           "a brown leather jerkin, green trousers, brown boots, a quiver on her back")
+# 동탑 — 보른이 여관 뒤에 쌓는 탑 (v9.117.0). --dongtap N (지금 몇 층까지 올랐나) · --glow (완성 날 황금으로 빛난다)
+DONGTAP = ("the bronze tower behind the roadside wooden inn: a sturdy squat round tower of rough grey fieldstone and "
+           "fired brick, each tier ringed by a dull bronze-colored band, plain and humble, wooden scaffolding and ladders")
+GLOW = ("THE TOWER IS GLOWING GOLD: on its completion day the whole stone tower blazes with brilliant shining golden light, "
+        "every stone and brick turned gleaming gold, radiant golden rays pouring out of every joint, a dazzling golden tower "
+        "lighting the scene with warm gold light")   # 빛 문구는 맨 앞에 붙인다 (뒤에 두면 잘 안 먹는다)
+# 완성 날 — 회색 돌 문구(DONGTAP)를 빼고 이것만 (돌 문구와 섞으면 금빛이 안 먹는다)
+DONGTAP_GOLD = ("the seven-tier tower behind the roadside inn has turned into a dazzling tower of gleaming polished gold, "
+                "every block shining gold, golden light radiating from it and bathing the people in warm gold light")
 NOT = "no photorealism, not a photo, no gritty realism, no text, no letters, no watermark, no border, no frame"
 
 
@@ -77,6 +87,8 @@ def main():
     ap.add_argument("--unarmed", action="store_true", help="--knight 와 함께 — 칼 없는 기사 (무기를 갖기 전 장면)")
     ap.add_argument("--cast", default="", help="나오는 사람 id (쉼표) — roster_characters.py 의 생김새 묘사를 붙인다. 예: cook,shieldsmith")
     ap.add_argument("--serina", action="store_true", help="세리나가 나오는 장면 — 세리나 차림 문구 (--people 도 함께 켠다)")
+    ap.add_argument("--dongtap", type=int, default=0, help="동탑이 보이는 장면 — 지금 몇 층까지 올랐나 (1~7)")
+    ap.add_argument("--glow", action="store_true", help="--dongtap 과 함께 — 완성 날 황금으로 빛나는 동탑")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--gen-w", type=int, default=768)
     ap.add_argument("--gen-h", type=int, default=1024)
@@ -94,12 +106,13 @@ def main():
 
     if a.knight or a.serina or a.cast:
         a.people = True
-    text = (a.prompt.rstrip(" .") + "."
+    text = ((f"{GLOW}. " if a.glow else "") + a.prompt.rstrip(" .") + "."
             + (f" {KNIGHT_UNARMED if a.unarmed else KNIGHT}." if a.knight else "")
             + (f" {SERINA}." if a.serina else "")
             + "".join(f" {CAST[c]}." for c in a.cast.split(",") if c in CAST)
             + (" " + PEOPLE + "." if a.people else "")
             + (f" The tower: {TOWER}." if a.tower else "")
+            + (f" {DONGTAP_GOLD}." if a.glow else f" {DONGTAP}, {a.dongtap} tier{'s' if a.dongtap > 1 else ''} tall so far." if a.dongtap else "")
             + f" {STYLE}. {NOT}.")
     seed = a.seed if a.seed is not None else random.randint(0, 2**31)
     print(f"seed={seed}")
@@ -108,7 +121,7 @@ def main():
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS)               # 원본 색 그대로 — 색 줄이기 없음
     SCENE_DIR.mkdir(parents=True, exist_ok=True)
     im.save(dest, optimize=True)
-    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else []) + ([f"--cast {a.cast}"] if a.cast else [])
+    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else []) + ([f"--cast {a.cast}"] if a.cast else []) + ([f"--dongtap {a.dongtap}"] if a.dongtap else []) + (["--glow"] if a.glow else [])
     record(a.name, a.label, a.prompt, seed, opts, file=f"images/scene/{a.name}.png")
     print(f"scene {dest}  {im.size[0]}x{im.size[1]}")
 
