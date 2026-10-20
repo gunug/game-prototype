@@ -1866,7 +1866,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.122.0';
+const VERSION = 'v9.123.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -8239,6 +8239,16 @@ function questStep(id){
   if (q.n >= questGoal(def)){
     q.done = true;
     logEv('questDone', Object.assign({ id: q.id }, logSpan('questGet', e => e.id === q.id) || {}));   // v7.6.0 · v7.7.0
+    if (questQuiet){                                               // v9.123.0: 받자마자 이미 끝난 퀘스트 — 띄우지도 반짝이지도 않고 넘긴다
+      S.quests = (S.quests || []).filter(x => x !== q);
+      S.questDone = S.questDone || [];
+      if (!S.questDone.includes(q.id)) S.questDone.push(q.id);
+      const next = QUEST_NEXT[q.id];
+      if (next) giveQuest(next);
+      if (!isJoinQuest(q.id)){ S.mainSinceJoin = (S.mainSinceJoin || 0) + 1; setTimeout(giveJoinQuests, 1300); }
+      save();
+      return;
+    }
     toast(`📜 퀘스트 완료: ${def.name}`);
     renderQuest();
     questFade(q);                                                  // v0.38.0: 반짝 뒤 줄에서 사라짐
@@ -8413,6 +8423,7 @@ function questFade(q){
   }, 560);
 }
 // 퀘스트 주기 — 같은 퀘스트가 이미 있으면 그대로 (주는 캐릭터는 아직 없음)
+let questQuiet = false;                                           // v9.123.0: 받자마자 끝난 퀘스트를 조용히 넘기는 동안
 let questFlashPending = null;                                     // v0.43.0: 대사 중에 받은 퀘스트는 대사가 끝난 뒤에 알림
 function giveQuest(id){
   if (!QUESTS[id] || (S.quests || []).some(q => q.id === id)) return;
@@ -8420,7 +8431,12 @@ function giveQuest(id){
   S.quests.push(newQuest(id));
   if (isJoinQuest(id)) S.mainSinceJoin = 0;                       // v9.98.0: 합류 퀘스트를 받으면 다시 센다
   // /* v9.100.0: 말풍선 대사 끔 */ if (QUESTS[id].say && !knightLine) knightSay(QUESTS[id].say);    // v0.60.0: 목표를 기사 입으로 한 줄
-  setTimeout(questSelfCheck, 0);                                   // v0.60.0: 이미 해 놓은 일이면 바로 끝남
+  // v0.60.0: 이미 해 놓은 일이면 바로 끝남 — v9.123.0: **그 자리에서 조용히** 따진다.
+  //   전엔 띄운 뒤에 따져서, 이미 끝난 퀘스트가 번쩍 켜졌다 꺼지고 다음 것이 또 번쩍 … 릴레이처럼 보였다
+  const quiet0 = questQuiet;
+  questQuiet = true;
+  try { questSelfCheck(); } finally { questQuiet = quiet0; }
+  if (!(S.quests || []).some(q => q.id === id)){ renderQuest(); save(); return; }   // 받자마자 끝 — 아무것도 띄우지 않는다
   const el = document.getElementById('quest');
   renderQuest();
   if (knightLine){ questFlashPending = id; save(); return; }
