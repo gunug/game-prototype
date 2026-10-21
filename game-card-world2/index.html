@@ -527,6 +527,7 @@
     18%{opacity:1;transform:translateX(-50%) translateY(0) scale(1.05);}
     100%{opacity:0;transform:translateX(-50%) translateY(-26px) scale(1);}}
   .exp-lane .dmg.lvup{color:var(--brand-yellow);text-shadow:0 0 8px rgba(255,212,0,.7);font-weight:900;}   /* v9.29.0 */
+  .exp-lane .dmg.burn{color:#ffb347;text-shadow:0 0 6px rgba(255,140,40,.7);font-weight:900;}   /* v9.127.0: 화상 */
   .exp-lane .dmg.pierce{color:#ffd0a0;text-shadow:0 0 6px rgba(255,170,90,.6);font-weight:900;}   /* v9.29.0: 방어 무시 */
   /* v9.30.0: 근접 — 쥔 무기를 호를 그리며 휘두른다 */
   .exp-lane .swing{position:absolute;bottom:calc(var(--ch) * .28);z-index:5;pointer-events:none;
@@ -1145,8 +1146,20 @@ const FIELDS = [                                                  // v0.9.1: 순
   { id:'shellcave',  name:'껍질 동굴', emoji:'🐚', dungeon:true,
     desc:'바닷물이 드나드는 굴. 바닥이 깨진 껍데기로 덮여 바스락거린다.',
     exp:'기사는 발밑에서 바스러지는 껍데기를 밟으며 걷는다. 안쪽 것들은 두꺼운 껍질을 쓰고 있다.' },
+  // v9.127.0: 🍷 지하 창고 — 다섯째 던전 (연회장 지하 창고). 보른이 지키던 곳. **어둠** — 빛이 없으면 우리 편이 주는 피해가 반
+  //   해법은 **빛** — 일행 중 누구 하나라도 빛나는 장신구(인광 부적 …)를 차면 된다
+  { id:'cellar', name:'지하 창고', emoji:'🍷', dungeon:true,
+    desc:'무너진 탑 밑에 반쯤 묻힌 연회장 지하 창고. 술통과 쇠사슬이 어둠 속에 그대로 있다.',
+    exp:'기사는 기울어진 계단을 더듬어 내려간다. 빛이 닿지 않는 곳에서, 무언가가 이쪽을 먼저 알아챈다.' },
+  // v9.127.0: ⛏ 옛 채석장 — 황금탑의 돌을 캐던 곳. 숲 다음, 강가 앞에 열린다 (3등급 — 쇳돌 · 석판)
+  { id:'quarry', name:'옛 채석장', emoji:'⛏', desc:'황금탑의 돌을 캐던 자리. 일꾼들이 떠난 뒤로 짐승이 산다.',
+    exp:'기사는 깎여 나간 절벽 아래 돌무더기를 뒤진다. 녹슨 쐐기가 아직 바위 틈에 박혀 있다.' },
   { id:'river',     name:'강가', emoji:'🏞️', desc:'물이 흙을 데려오고, 물고기가 가끔 인사한다.',
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
+  // v9.127.0: ⚡ 벼락 들판 — 그날 벼락이 떨어진 자리 (까닭은 적지 않는다). 강가 다음 (4등급). **화상** — 맞으면 3초 동안 불에 탄다
+  //   해법은 **불 막음** — 갑옷이나 방패가 불을 막으면 타지 않는다
+  { id:'scorched', name:'벼락 들판', emoji:'⚡', desc:'모래가 녹아 유리가 된 들판. 풀은 잿빛으로 자라고, 짐승들은 불씨를 달고 다닌다.',
+    exp:'기사는 발밑에서 바삭거리는 유리를 밟으며 걷는다. 그을린 것들이 몸에 불씨를 단 채 달려든다.' },
   // v9.42.0: 🗼 부서진 탑 — **첫 보스 레이드.** 길목도 잡졸도 없다. 탑 하나와 그 꼭대기의 눈뿐이다.
   //   주인은 움직이지 않는다. 대신 **열다섯 칸 밖에서** 빛을 모아 **다섯 번 연달아** 꽂는다.
   //   그래서 이곳은 '붙어서 버티는 싸움'이 아니라 '닿기까지 버티는 싸움'이다
@@ -1185,6 +1198,9 @@ const FIELD_YIELDS = {
   swamptomb: ['bogmoss', 'rotroot', 'bogclay', 'glowcap'],          // v6.0.0 무덤을 덮은 이끼 · v9.53.0
   spidernest:['silkweb', 'cocoon', 'mothwing', 'stickysap'],        // v9.53.0: 줄과 고치 · v9.101.0 줄에 걸린 나방 날개 · 끈끈이
   shellcave: ['shellpiece', 'nacreshard', 'barnacle', 'saltcrystal'],   // v9.53.0 · v9.101.0 모래 → 소금 결정
+  quarry:    ['ironstone', 'slab', 'gravel', 'wedge'],              // v9.127.0: ⛏ 옛 채석장
+  scorched:  ['fulgurite', 'charroot', 'cinder', 'ashgrass'],       // v9.127.0: ⚡ 벼락 들판
+  cellar:    ['rustchain', 'hoop', 'oldsilk', 'oldwine'],           // v9.127.0: 🍷 지하 창고
   goldtower: ['dullgold', 'feastfloor'],                            // v9.104.0: 빛을 잃은 황금 (조합식 없음) · 연회장 바닥재
   towerruin: ['ash', 'burntbrick', 'scrapiron', 'glassshard'],      // v9.53.0: 그을린 벌판에서 줍는 것 · v9.101.0 돌 → 녹은 유리 조각
 };
@@ -1270,7 +1286,6 @@ const DEFS = {
   fishoil: { name:'생선 기름',  kind:'material', step:2, made:'river', group:'body' },
   rope: { name:'밧줄',       kind:'material', step:2, group:'build', made:'forest' },    // v3.10.0
   glue: { name:'아교',       kind:'material', step:2, group:'build', made:'forest' },
-  barbtip: { name:'가시 촉',  kind:'material', step:2, group:'gear',  made:'forest' },
   nacre: { name:'자개',      kind:'material', step:2, group:'build', made:'river' },
   scaleplate: { name:'비늘판', kind:'material', step:2, group:'gear', made:'river' },
   boneneedle: { name:'뼈바늘', kind:'material', step:2, group:'gear', made:'grassland' },
@@ -1312,8 +1327,6 @@ const DEFS = {
   juice: { name:'열매즙',     kind:'material', step:2, made:'forest', group:'body' },
   salve: { name:'약초 연고',  kind:'material', step:2, made:'forest', group:'body' },
   // ── 3단계 (v0.15.0) — 전리품으로 만드는 장비·도구·음식. 그림은 아직 없음(이모지)
-  toothdagger: { name:'이빨 단검',  kind:'material', step:3, group:'gear', atk:2, aps:1.4 },
-  fangspear: { name:'송곳니 창',   kind:'material', step:3, group:'gear', atk:4, range:2, aps:1.0 },
   leatherarmor: { name:'가죽 갑옷', kind:'material', step:3, group:'gear', def:1 },
   pouch: { name:'가죽 주머니', kind:'material', step:3, group:'gear' },
   fishhook: { name:'낚싯바늘',    kind:'material', step:3, group:'gear' },
@@ -1321,36 +1334,74 @@ const DEFS = {
   workbench: { name:'작업대',      kind:'material', step:3, group:'gear' },                // v0.20.0: 만들면 무기 화면이 열림. v0.33.0: 그림 card_workbench
   woodshield: { name:'나무 방패',  kind:'material', step:3, group:'gear', def:1 },   // v0.51.0: 방패 칸
   // v2.1.0: 🌲 숲 — 긴 창(근접무기 +5) · 방패테 · 테 방패(방패 +2)
-  longspear: { name:'긴 창',       kind:'material', step:4, group:'gear', atk:5, range:3, aps:0.8 },
   shieldrim: { name:'방패테',      kind:'material', step:3, group:'gear' },
   rimshield: { name:'테 방패', kind:'material', step:4, group:'gear', def:2 },
   // v2.3.0: 🏞️ 강가 — 미늘 · 작살(근접무기 +9) · 흙구슬 · 흙 목걸이(장신구 방어 +2)
   obsidianblade: { name:'흑요석 날', kind:'material', step:3, group:'gear' },   // v4.0.0: 흑요석 + 뗀석기
   // v9.52.0: **연타** — 한 번 휘두를 때 세 번 꽂힌다 (같은 공격 속도 안에서 ×3).
   //   한 대의 세기는 낮지만 **때린 횟수**가 세 배라, 껍질처럼 '횟수'로 깎이는 것에 강하다
-  clawblade: { name:'집게 날', kind:'material', step:3, group:'gear' },   // v9.52.0: 집게발을 갈아 세운 날
-  forktip:   { name:'갈래 촉', kind:'material', step:3, group:'gear' },   // v9.52.0: 촉을 셋으로 벌린 것
   // v9.59.1: **이빨 단검의 또 다른 갈래** — 흑요석 칼(출혈)과 나란한 형제다 (특성이 다르면 갈래가 갈라진다)
-  multiknife:{ name:'연타 단검', kind:'material', step:4, group:'gear', atk:2, aps:1, multi:3 },
-  multibow:  { name:'연타 활',   kind:'material', step:5, group:'gear', atk:2, aps:0.9, range:5, multi:3 },
   battleaxe: { name:'전투 도끼',   kind:'gear', step:5, atk:6, pierce:true, spd:-1, aps:0.7 },   // v8.0.0: 묵직해서 느리다 · 느리게 때린다       // v4.0.0: 방어를 0으로 치는 무기
   // v7.18.0: 출혈 2 → 3. 4단계 무기라 공격은 낮지만(4) **성격으로 값을 한다** —
   //   무덤 주인에게는 도끼(공6·방어 무시)보다 확실히 낫고, 밖에서는 도끼가 낫다 (골라 쥐는 무기)
   obsidianknife: { name:'흑요석 칼', kind:'gear', step:4, atk:4, bleed:3, aps:1.3 },   // v9.0.0: 가볍고 빠르다         // v6.0.0: 출혈 — 회복을 끊는다
   woodbow:  { name:'나무 활',   kind:'material', step:3, group:'gear', atk:1, range:5, aps:0.8 },   // v9.20.0: 궁수의 첫 활 — 다섯 칸 밖에서 쏜다
   huntbow:  { name:'사냥 활',   kind:'material', step:4, group:'gear', atk:3, range:5, aps:1.1 },   // v9.26.0: 가볍고 빠르다
-  longbow:  { name:'긴 활',     kind:'gear', step:5, atk:5, range:6, aps:0.7 },   // v9.26.0: 한 칸 더 멀리, 대신 느리다
   obsidianbow:{ name:'흑요 활', kind:'gear', step:5, atk:6, range:5, bleed:2, aps:0.9 },   // v9.26.0: 흑요석 화살촉 — 상처가 안 아문다
-  greatbow: { name:'큰 활',     kind:'gear', step:6, atk:4, range:10, aps:0.75 },   // v9.28.0 열 칸 밖에서 · v9.34.0: 0.5 는 너무 느려 0.75 로
-  horncore: { name:'뿔 심',     kind:'material', step:2, group:'gear' },   // v9.28.2: 뿔과 힘줄을 겹쳐 붙인 심
-  bowlimb:  { name:'겹 활대',   kind:'material', step:4, group:'gear' },   // v9.28.2: 큰 활의 활대
-  barb:      { name:'미늘',        kind:'material', step:3, group:'gear' },
-  harpoon:   { name:'작살',        kind:'material', step:5, group:'gear', atk:9, range:3, aps:0.7 },
   claybead:  { name:'흙구슬',      kind:'material', step:3, group:'gear' },
   claynecklace:{ name:'흙 목걸이', kind:'material', step:4, group:'gear', def:2 },
   // v9.68.1: **장신구의 회복 갈래** — 싸우는 동안에도, 쉬는 동안에도 살이 차오른다 (거점 칸을 대신한다)
-  emberbead:  { name:'온기 구슬',  kind:'material', step:4, group:'gear', regenFight:0.3 },
-  emberneck:  { name:'온기 목걸이', kind:'material', step:5, group:'gear', regenFight:0.8 },
+  // ── v9.127.0: 새 땅 셋의 재료 · 장비 등급 사슬 (docs/장비_등급.md §5) ──
+  ironstone: { name:'쇳돌',     kind:'material', step:1, field:'quarry' },
+  slab:      { name:'석판',     kind:'material', step:1, field:'quarry' },
+  gravel:    { name:'자갈',     kind:'material', step:1, field:'quarry' },
+  wedge:     { name:'녹슨 쐐기', kind:'material', step:1, field:'quarry' },
+  fulgurite: { name:'벼락 유리', kind:'material', step:1, field:'scorched' },
+  charroot:  { name:'그을린 뿌리', kind:'material', step:1, field:'scorched' },
+  cinder:    { name:'잉걸돌',   kind:'material', step:1, field:'scorched' },
+  ashgrass:  { name:'잿빛 풀',  kind:'material', step:1, field:'scorched' },
+  rustchain: { name:'녹슨 쇠사슬', kind:'material', step:1, field:'cellar' },
+  hoop:      { name:'술통 쇠테', kind:'material', step:1, field:'cellar' },
+  oldsilk:   { name:'빛바랜 비단', kind:'material', step:1, field:'cellar' },
+  oldwine:   { name:'묵은 술',  kind:'material', step:1, field:'cellar' },
+  molepelt:  { name:'두더지 가죽', kind:'material', step:1, group:'loot' },
+  ramhorn:   { name:'산양 뿔',  kind:'material', step:1, group:'loot' },
+  chitin:    { name:'지네 껍질', kind:'material', step:1, group:'loot' },
+  centijaw:  { name:'지네 턱',  kind:'material', step:1, group:'loot' },   // 큰 지네만
+  charhide:  { name:'그을린 가죽', kind:'material', step:1, group:'loot' },
+  tusk:      { name:'엄니',     kind:'material', step:1, group:'loot' },
+  stagantler:{ name:'벼락 뿔',  kind:'material', step:1, group:'loot' },   // 그을린 사슴만
+  batwing:   { name:'박쥐 날개', kind:'material', step:1, group:'loot' },
+  paleskin:  { name:'흰 가죽',  kind:'material', step:1, group:'loot' },
+  cellarkey: { name:'창고 열쇠', kind:'material', step:1, group:'loot' },   // 창고 주인만 (보른이 쥐던 것과 같은 꼴)
+  // 근접 (가렛) — 앞 등급 + 그 땅 재료. 방어 무시는 2등급부터, 연타는 3등급부터
+  ironaxe:   { name:'쇠 도끼',   kind:'gear', step:6, atk:8,  pierce:true, multi:2, aps:0.8 },
+  tuskaxe:   { name:'엄니 도끼', kind:'gear', step:7, atk:10, pierce:true, multi:2, aps:0.8 },
+  chainaxe:  { name:'사슬 도끼', kind:'gear', step:8, atk:12, pierce:true, multi:2, range:2, aps:0.8 },
+  shardaxe:  { name:'파편 도끼', kind:'gear', step:9, atk:15, pierce:true, multi:3, range:2, aps:0.8 },
+  // 원거리 (세리나) — 출혈은 2등급부터, 연타는 3등급부터, 사거리는 한 칸씩
+  webbow:    { name:'거미줄 활', kind:'gear', step:6, atk:7,  range:6, bleed:2, multi:2, aps:0.9 },
+  shellbow:  { name:'갑각 활',   kind:'gear', step:7, atk:9,  range:6, bleed:2, multi:2, aps:0.9 },
+  hoopbow:   { name:'쇠테 활',   kind:'gear', step:8, atk:11, range:7, bleed:2, multi:2, aps:0.9 },
+  shardbow:  { name:'파편 활',   kind:'gear', step:9, atk:14, range:8, bleed:3, multi:3, aps:0.9 },
+  // 갑옷 — 4등급부터 불 막음
+  stonearmor:{ name:'돌가죽 갑옷', kind:'gear', step:4, def:3 },
+  ironmail:  { name:'쇠누빔 갑옷', kind:'gear', step:5, def:5 },
+  shellarmor:{ name:'갑각 갑옷',   kind:'gear', step:6, def:7,  fireproof:true },
+  chainmail: { name:'쇠미늘 갑옷', kind:'gear', step:7, def:9,  fireproof:true },
+  shardarmor:{ name:'파편 갑옷',   kind:'gear', step:8, def:12, fireproof:true },
+  // 방패 — 4등급부터 불 막음
+  scaleshield:{ name:'돌비늘 방패', kind:'gear', step:5, def:3 },
+  slabshield: { name:'석판 방패',  kind:'gear', step:6, def:4 },
+  nacreshield:{ name:'자개 방패',  kind:'gear', step:7, def:6,  fireproof:true },
+  hoopshield: { name:'쇠테 방패',  kind:'gear', step:8, def:8,  fireproof:true },
+  shardshield:{ name:'파편 방패',  kind:'gear', step:9, def:10, fireproof:true },
+  // 장신구 — 회복은 2등급부터, 빛은 3등급부터 (온기 구슬 · 온기 목걸이의 회복을 이어받는다)
+  crystalneck:{ name:'수정 목걸이', kind:'gear', step:5, def:2, regenFight:0.3 },
+  glowcharm:  { name:'인광 부적',  kind:'gear', step:6, def:3, regenFight:0.5, light:true },
+  thunderneck:{ name:'벼락 목걸이', kind:'gear', step:7, def:4, regenFight:0.6, light:true },
+  silkknot:   { name:'비단 매듭',  kind:'gear', step:8, def:5, regenFight:0.8, light:true },
+  shardneck:  { name:'파편 목걸이', kind:'gear', step:9, def:7, regenFight:1,   light:true },
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
   stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
   toadhide:  { name:'두꺼비 가죽', kind:'material', step:1, group:'loot' },   // v6.0.0: 🍄 늪지 무덤
@@ -1377,8 +1428,8 @@ const USE = {
   grass:['건축재료', '도구재료'], seed:['음식재료', '생산재료'], feather:['무기재료', '도구재료'], honeycomb:['음식재료', '약품재료', '생산재료'],
   // 2단계
   blade:['무기재료', '도구재료'], whetstone:['도구재료'],   // v1.0.0: 뗀석기는 무기재료(날) · 연장. v3.6.1: '손질lv1' 태그 폐기 — 조합식에 뗀석기를 그대로 적는다
-  multiknife:['무기', '근접무기'], multibow:['무기', '원거리무기'],   // v9.52.0: 연타
-  clawblade:['무기재료'], forktip:['무기재료'],                      // v9.52.0: 연타 부품
+    // v9.52.0: 연타
+                       // v9.52.0: 연타 부품
   pincer:['무기재료'],                                              // v9.52.0: 집게발 — 집게 날의 몸
   stoneknife:['무기', '근접무기'],   // v1.9.0: 기사가 드는 건 근접무기뿐
   // v0.81.0: '무기' 태그가 붙은 카드에는 '무기재료'를 붙이지 않는다 — 완성 무기는 위 격자에만 있는다
@@ -1393,14 +1444,14 @@ const USE = {
   bone:['무기재료', '도구재료', '음식재료'], sinew:['도구재료', '갑옷재료'], claw:['무기재료'], scale:['갑옷재료'],   // v5.3.0 · v7.0.0: 뼈는 고아 먹기도 한다: 비늘은 재료 — '장신구' 태그를 뗌
   drymeat:['음식'], jerky:['음식'], renderfat:['음식재료', '약품재료'],   // v6.3.0
   fletching:['무기재료'], tannedfur:['갑옷재료'], fishoil:['약품', '생산재료'],   // v6.3.0: 상처에 바르는 기름
-  rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], barbtip:['무기재료'],
+  rope:['건축재료', '도구재료'], glue:['건축재료', '약품재료'], 
   nacre:['갑옷재료', '건축재료'], scaleplate:['갑옷재료'], boneneedle:['도구재료', '갑옷재료'],   // v5.3.0
   smokedfish:['음식'], leatherstrap:['갑옷재료', '방패재료', '도구재료'],   // v6.3.0 · v7.16.0: 가죽끈은 갑옷에도 방패에도
   obsidian:['무기재료', '도구재료'], obsidianblade:['무기재료'], battleaxe:['무기', '근접무기'],
   obsidianknife:['무기', '근접무기'],                              // v6.0.0
   woodbow:['무기', '원거리무기'],                                  // v9.20.0 · v9.26.0: 이제 만들 수 있다
-  huntbow:['무기', '원거리무기'], longbow:['무기', '원거리무기'], obsidianbow:['무기', '원거리무기'],
-  greatbow:['무기', '원거리무기'],
+  huntbow:['무기', '원거리무기'], obsidianbow:['무기', '원거리무기'],
+  
   bogmoss:['약품재료', '도구재료'], toadhide:['갑옷재료', '건축재료'], graveseal:['건축재료'],
   // v9.53.0: 던전 · 레이드 재료의 갈래 (조합식은 다음 단계에서 짠다 — 태그가 먼저 자리를 잡는다)
   cavecrystal:['장신구재료'], limerock:['건축재료'], cavemush:['약품재료'],
@@ -1419,13 +1470,19 @@ const USE = {
   vine:['건축재료', '도구재료'], pincer:['도구재료', '갑옷재료'], tallow:['음식재료', '약품재료', '생산재료'],   // v5.3.0
   furpelt:['갑옷재료', '건축재료'], shellpiece:['갑옷재료', '도구재료'], juice:['음식', '약품재료'], salve:['약품'],   // v5.3.0 · v6.3.0
   // 3단계
-  toothdagger:['무기', '근접무기'], fangspear:['무기', '근접무기'], leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
+  leatherarmor:['방어구'], woodshield:['방패'], pouch:['도구'],   // v0.22.0: 완성품은 '무기'·'도구'
   fishhook:['도구', '생산재료'], roastmeat:['음식'],   // v6.3.0
-  longspear:['무기', '근접무기'], shieldrim:['방패재료'], rimshield:['방패'],   // v2.1.0: 숲. v7.16.0: 방패테는 방패 재료
-  barb:['무기재료'], harpoon:['무기', '근접무기'], claybead:['장신구재료'], claynecklace:['장신구'],   // v2.3.0 · v7.16.0: 흙구슬은 장신구 재료
-  emberbead:['장신구'], emberneck:['장신구'],                       // v9.68.1: 회복 갈래
+  shieldrim:['방패재료'], rimshield:['방패'],   // v2.1.0: 숲. v7.16.0: 방패테는 방패 재료
+  claybead:['장신구재료'], claynecklace:['장신구'],   // v2.3.0 · v7.16.0: 흙구슬은 장신구 재료
+                        // v9.68.1: 회복 갈래
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'],
+  // v9.127.0: 장비 등급 사슬
+  ironaxe:['무기', '근접무기'], tuskaxe:['무기', '근접무기'], chainaxe:['무기', '근접무기'], shardaxe:['무기', '근접무기'],
+  webbow:['무기', '원거리무기'], shellbow:['무기', '원거리무기'], hoopbow:['무기', '원거리무기'], shardbow:['무기', '원거리무기'],
+  stonearmor:['방어구'], ironmail:['방어구'], shellarmor:['방어구'], chainmail:['방어구'], shardarmor:['방어구'],
+  scaleshield:['방패'], slabshield:['방패'], nacreshield:['방패'], hoopshield:['방패'], shardshield:['방패'],
+  crystalneck:['장신구'], glowcharm:['장신구'], thunderneck:['장신구'], silkknot:['장신구'], shardneck:['장신구'],
 };
 // v7.17.0: **재료 갈래(`~재료`)는 손으로 적지 않고 조합식에서 거꾸로 파생한다.**
 //   완성품(무기 · 방어구 · 방패 · 장신구 · 도구 · 음식 · 약품 · 건축)에서 조합식을 거슬러 올라가며
@@ -1474,6 +1531,52 @@ const useOf = t => {
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
+  // v9.127.0: 새 땅 셋 · 장비 등급 사슬
+  ironstone: '붉은 녹이 번진 돌. 두드리면 쇳소리가 난다. 탑을 세운 손들이 먼저 알아봤다.',
+  slab:      '반듯하게 떠낸 돌판. 어디에 쓰려고 떴는지는 아무도 기억하지 않는다.',
+  gravel:    '채석장 바닥을 덮은 잔돌. 밟을 때마다 탑 쪽으로 조금씩 미끄러진다.',
+  wedge:     '바위를 쪼개던 쇠쐐기. 일꾼이 박아 둔 채 떠났다.',
+  fulgurite: '모래가 녹았다 굳은 유리 줄기. 속에 아직 빛이 갇혀 있는 것 같다.',
+  charroot:  '겉은 숯, 속은 아직 살아 있다. 다시 싹을 틔우려는 중이다.',
+  cinder:    '꺼지지 않는 불씨를 품은 돌. 손에 쥐면 따뜻하다 — 오래 쥐면 뜨겁다.',
+  ashgrass:  '재 위에서 자란 잿빛 풀. 색만 잃었지 질기기는 그대로다.',
+  rustchain: '술통을 매달던 쇠사슬. 녹이 슬었어도 한 마디도 끊어지지 않았다.',
+  hoop:      '술통을 조이던 쇠테. 둥글게 휘어 있어 무엇이든 단단히 조인다.',
+  oldsilk:   '연회에 깔던 비단. 빛은 바랬지만 결은 남았다.',
+  oldwine:   '열지 못한 술통 바닥에 고인 술. 그날의 연회가 이걸 기다리고 있었다.',
+  molepelt:  '흙을 밀고 다니던 짐승의 가죽. 결이 촘촘해 흙먼지도 안 들어간다.',
+  ramhorn:   '절벽을 오르내리던 산양의 뿔. 돌에 부딪혀도 이가 나가지 않는다.',
+  chitin:    '큰 지네의 마디 껍질. 가볍고, 쇠보다 질기다.',
+  centijaw:  '큰 지네의 턱. 바위도 씹던 것이다.',
+  charhide:  '불에 그을린 가죽. 이미 한 번 탔기에 다시는 잘 타지 않는다.',
+  tusk:      '잿불 멧돼지의 엄니. 끝이 아직 뜨겁다.',
+  stagantler:'그을린 사슴의 뿔. 갈라진 결이 벼락 줄기를 닮았다.',
+  batwing:   '어둠 속을 나는 날개. 펴 보면 등불 빛이 비친다.',
+  paleskin:  '빛을 한 번도 못 본 가죽. 하얗고, 차갑다.',
+  cellarkey: '창고 문 열쇠. 보른이 허리에 차던 것과 꼭 같은 꼴이다.',
+  ironaxe:   '전투 도끼에 쇳돌을 두들겨 박았다. 묵직해졌는데, 휘두르면 두 번 꽂힌다.',
+  tuskaxe:   '날 끝에 엄니를 박았다. 아직 따뜻하다.',
+  chainaxe:  '자루에 쇠사슬을 감았다. 던지듯 휘두르면 두 칸 앞까지 닿는다.',
+  shardaxe:  '탑의 파편을 날로 세웠다. 무너진 것으로 무너뜨린다.',
+  webbow:    '시위를 거미줄로 갈았다. 한 번 당기면 두 대가 날아간다.',
+  shellbow:  '활대에 갑각판을 덧댔다. 더 세게 당겨도 부러지지 않는다.',
+  hoopbow:   '술통 쇠테로 활대를 조였다. 한 칸 더 멀리 간다.',
+  shardbow:  '탑의 파편을 화살촉으로. 쏘아 올린 것이 떨어지는 쪽으로 간다.',
+  stonearmor:'가죽 갑옷에 돌가죽을 덧댔다. 무겁지만 그만큼 막는다.',
+  ironmail:  '돌가죽 사이사이에 쇳돌 조각을 누벼 넣었다.',
+  shellarmor:'갑각판을 겹쳐 덮었다. 불이 닿아도 타지 않는다.',
+  chainmail: '쇠사슬을 엮어 미늘로 덮었다. 불도 칼도 미끄러진다.',
+  shardarmor:'탑의 파편을 갑옷 판으로 깎았다. 그 탑만큼 단단하다.',
+  scaleshield:'테 방패에 돌비늘을 박았다. 무너지는 돌도 받아 낸다 — 토른이 늘 하던 말이다.',
+  slabshield: '석판을 통째로 덧댔다. 들 수 있다는 게 신기하다.',
+  nacreshield:'자개 조각을 덮어 불빛이 미끄러진다. 불도 함께 미끄러진다.',
+  hoopshield: '술통 쇠테로 가장자리를 둘렀다. 불에 달궈져도 휘지 않는다.',
+  shardshield:'탑의 파편 한 장. 그 뒤에 숨으면 탑 밑에 선 것 같다.',
+  crystalneck:'흙 목걸이에 굴 수정을 달았다. 차고 있으면 조금씩 살이 찬다.',
+  glowcharm:  '인광 버섯을 말려 넣은 부적. 어둠 속에서 은은하게 빛난다.',
+  thunderneck:'벼락 유리를 꿴 목걸이. 속에 갇힌 빛이 길을 밝힌다.',
+  silkknot:   '빛바랜 비단으로 매듭을 지었다. 연회의 불빛이 아직 배어 있다.',
+  shardneck:  '탑의 파편을 갈아 꿴 목걸이. 꼭대기의 불빛이 그 안에 남았다.',
   stone: '어디에나 있다. 그래서 아무도 고마워하지 않는다.',
   flint: '딱딱한 것과 부딪히면 성질을 낸다. 불꽃으로.',
   ore:   '반짝이는 건 대개 아무것도 아니다. 이건 가끔 뭔가다.',
@@ -1491,10 +1594,6 @@ const DESC = {
   fish:  '물 밖에선 할 말이 없어 보인다.',
   honeycomb: '달콤함의 대가는 벌 떼가 청구한다.',
   blade:     '돌이 부싯돌을 때렸다. 떨어져 나간 쪽이 날이 됐다. 쥘 데가 없어 아직 칼은 아니다.',
-  clawblade: '집게발을 숫돌에 갈아 세 갈래로 세웠다. 한 번에 세 줄이 그어진다.',
-  forktip:   '가시 촉 끝을 송곳니로 쪼개 셋으로 벌렸다.',
-  multiknife:'이빨 단검에 집게 날을 덧댔다. 한 번 긋는데 세 번 긁힌다.',
-  multibow:  '시위에 갈래 촉을 물렸다. 한 번 쏘면 세 대가 흩어져 박힌다.',
   stoneknife:'뗀석기 날을 나무 손잡이에 끼워 묶었다. 내리치면 제법 쪼개진다.',
   whetstone: '모래에 문질러 매끈해진 돌. 이제 남을 매끈하게 만든다.',
   ember:     '작고 뜨겁고 쉽게 삐진다. 입김은 살살.',
@@ -1549,11 +1648,7 @@ const DESC = {
   obsidianknife:'이빨 단검에 흑요석 날을 물렸다. 벤 자리가 좀처럼 아물지 않는다.',
   woodbow:'궁수가 늘 쥐고 있는 활. 힘은 약해도 다섯 칸 밖에서 먼저 쏜다.',
   huntbow:'손잡이를 가죽으로 감았다. 당기기 쉬워 화살이 빨리 나간다.',
-  longbow:'활대를 길게 이었다. 한 칸 더 멀리 닿지만 당기는 데 오래 걸린다.',
   obsidianbow:'화살촉을 흑요석으로 갈았다. 스친 자리가 좀처럼 아물지 않는다.',
-  greatbow:'겹친 활대에 긴 활을 얹었다. 열 칸 밖까지 닿지만, 한 번 당기는 데 두 박자가 든다.',
-  horncore:'뿔을 저며 힘줄로 붙였다. 휘었다가 되돌아오는 힘이 세다.',
-  bowlimb:'뿔 심을 긴 자루에 덧대 겹친 활대. 혼자서는 아무것도 못 쏜다.',
   bogmoss:   '무덤을 덮고 자란 이끼. 짜면 미지근한 물이 나온다.',
   toadhide:  '물먹은 가죽. 두껍고 미끄럽다.',
   graveseal: '무덤 입구를 막고 있던 인장. 쥐면 아직도 축축하다.',
@@ -1569,7 +1664,6 @@ const DESC = {
   fishoil:   '맑고 미끄럽다. 등잔에도, 상처에도 쓴다.',
   rope:      '덩굴을 꼬아 굵게. 사람 하나쯤은 매달려도 된다.',
   glue:      '수액과 뼈를 함께 졸였다. 식으면 놓아주지 않는다.',
-  barbtip:   '끝을 갈아 세웠다. 들어가면 잘 빠지지 않는 각도.',
   nacre:     '껍데기를 갈아 속을 꺼냈다. 빛을 머금는다.',
   scaleplate:'비늘을 힘줄로 엮어 한 장으로. 겹친 만큼 단단하다.',
   boneneedle:'뼈를 갈아 구멍을 냈다. 가죽을 꿰맬 수 있다.',
@@ -1587,17 +1681,10 @@ const DESC = {
   toughhide: '두껍고 뻣뻣하다. 접히지 않는 대신 잘 안 뚫린다.',
   smalltooth:'작고 뾰족하다. 바늘로 쓰기 딱 좋은 크기.',
   fang:      '한때 누군가의 자랑이었다. 지금은 창 끝이 될 참.',
-  toothdagger:'이빨을 나무에 끼웠다. 짐승이 하던 일을 사람이 한다.',
-  fangspear: '송곳니가 길어지니 곰도 멀리서 상대할 수 있다.',
-  longspear: '송곳니 창에 긴 자루를 이었다. 여우가 닿기 전에 먼저 닿는다.',
   shieldrim: '판자를 둥글게 휘어 수액으로 붙였다. 마르면 돌처럼 단단하다.',
   rimshield: '나무 방패 가장자리에 테를 둘렀다. 모서리부터 부서지던 버릇이 사라졌다.',
-  barb:      '송곳니를 숫돌에 갈아 거꾸로 선 갈고리를 냈다. 한 번 박히면 빠지지 않는다.',
-  harpoon:   '긴 창 끝에 미늘을 달았다. 물속의 것도, 껍질 두른 것도 끌어낸다.',
   claybead:  '점토를 빚어 불에 구웠다. 작고 단단하고, 가운데 구멍이 있다.',
   claynecklace:'흙구슬을 끈에 꿰었다. 목에 걸면 이상하게 마음이 단단해진다.',
-  emberbead: '구슬 속에 불씨를 가뒀다. 쥐고 있으면 손끝부터 따뜻해지고, 상처가 더디게나마 아문다.',
-  emberneck: '온기 구슬에 구슬을 더 꿰어 목에 걸었다. 싸우는 중에도 살이 차오른다.',
   bearclaw:  '산의 주인이 남긴 것. 이걸 본 토끼는 다시는 산에 오지 않는다.',
   bisonhorn: '초원을 들이받던 뿔. 아직도 앞으로 나아가려 한다.',
   mosspelt:  '숲곰이 숲과 한 몸이 된 흔적. 털 사이에서 풀이 자란다.',
@@ -1618,7 +1705,7 @@ function iconHtml(t, inline){
   return `<img class="icon${inline ? ' inline' : ''}" src="images/icon/card_${t}.png" alt="${esc(d.name)}" draggable="false">`;
 }
 // v3.9.0: 보스만 떨구는 전리품은 루비 박힌 테두리로 — 한눈에 귀한 것임을 알 수 있게
-const BOSS_LOOT = ['bearclaw', 'bisonhorn', 'mosspelt', 'catfishwhisker', 'graveseal'];   // v6.0.0
+const BOSS_LOOT = ['bearclaw', 'bisonhorn', 'mosspelt', 'catfishwhisker', 'graveseal', 'centijaw', 'stagantler', 'cellarkey'];   // v9.127.0: 새 땅 보스   // v6.0.0
 const BOSS_LOOT_NAMES = new Set(BOSS_LOOT.map(t => (DEFS[t] || {}).name));
 const frameOf = d => d && BOSS_LOOT_NAMES.has(d.name) ? 'boss' : 'wood';
 const ICON_TOKEN = /⟦(\w+)⟧/g;
@@ -1667,7 +1754,6 @@ const RECIPES = [
   { id:'juice',      a:{ card:'berry' },  b:{ card:'water' },     out:['juice'] },
   { id:'salve',      a:{ card:'herb' },   b:{ card:'sap' },       out:['salve'] },
   { id:'glue',       a:{ card:'sap' },    b:{ card:'bone' },      out:['glue'] },         // 끓여 붙이는 것
-  { id:'barbtip',    a:{ card:'fang' },   b:{ card:'claw' },      out:['barbtip'] },      // v3.10.1: 발톱 모양으로 되꺾인 촉
   { id:'tannedfur',  a:{ card:'furpelt' }, b:{ card:'sap' },      out:['tannedfur'] },    // v3.10.1: 수액으로 무두질
   { id:'renderfat',  a:{ card:'fatmeat' }, b:{ card:'herb' },     out:['renderfat'] },    // v3.10.1: 약초로 누린내를 잡아 기름만
   // 🏞️ 강가
@@ -1695,7 +1781,6 @@ const RECIPES = [
   { id:'nacre2',       a:{ card:'nacreshard' },   b:{ card:'sand' },      out:['nacre'] },       // 자개 조각 + 모래
   { id:'scaleplate2',  a:{ card:'shellplate' },   b:{ card:'scale' },     out:['scaleplate'] },  // 갑각판 + 비늘
   { id:'curedleather2',a:{ card:'stonescale' },   b:{ card:'toughhide' }, out:['curedleather'] },// 돌비늘 + 억센 가죽
-  { id:'barbtip2',     a:{ card:'venomfang' },    b:{ card:'tree' },      out:['barbtip'] },     // 독니 + 나무
   { id:'ember2',       a:{ card:'ash' },          b:{ card:'flint' },     out:['ember'] },       // 재 + 부싯돌
   { id:'salve2',       a:{ card:'cavemush' },     b:{ card:'herb' },      out:['salve'] },       // 굴 버섯 + 약초
   { id:'salve3',       a:{ card:'motheregg' },    b:{ card:'herb' },      out:['salve'] },       // 어미의 알 + 약초
@@ -1707,31 +1792,18 @@ const RECIPES = [
   { id:'claybead5',    a:{ card:'eyecrystal' },   b:{ card:'nacre' },     out:['claybead'] },    // 눈의 수정 + 자개
   { id:'shieldrim2',   a:{ card:'barnacle' },     b:{ card:'clay' },      out:['shieldrim'] },   // 따개비 + 점토
   { id:'obsidianblade2',a:{ card:'cavecore' },    b:{ card:'whetstone' }, out:['obsidianblade'] },// 굴의 핵 + 숫돌
-  { id:'barb2',        a:{ card:'towershard' },   b:{ card:'whetstone' }, out:['barb'] },        // 탑의 파편 + 숫돌
-  { id:'barb3',        a:{ card:'scrapiron' },    b:{ card:'whetstone' }, out:['barb'] },        // 부서진 쇠 + 숫돌
   // v9.101.0: 땅마다 겹치지 않는 채집품 — 저마다 이미 있는 결과물로 가는 다른 길
   { id:'fletching2',   a:{ card:'mothwing' },     b:{ card:'bone' },      out:['fletching'] },   // 나방 날개 + 뼈 (거미 둥지)
   { id:'glue4',        a:{ card:'stickysap' },    b:{ card:'bone' },      out:['glue'] },        // 끈끈이 + 뼈 (거미 둥지)
   { id:'smokedfish2',  a:{ card:'saltcrystal' },  b:{ card:'fish' },      out:['smokedfish'] },  // 소금 결정 + 물고기 (껍질 동굴)
   { id:'claybead6',    a:{ card:'glassshard' },   b:{ card:'clay' },      out:['claybead'] },    // 유리 조각 + 점토 (그을린 망루)
-  { id:'clawblade',    a:{ card:'pincer' },        b:{ card:'whetstone' }, out:['clawblade'] },
-  { id:'forktip',      a:{ card:'barbtip' },       b:{ card:'fang' },      out:['forktip'] },
   // v9.59.1: 이빨 단검(3) + 집게 날(3) = 연타 단검(4). 흑요석 칼과 **같은 뿌리에서 갈라진 다른 갈래**다
-  { id:'multiknife',   a:{ card:'toothdagger' },   b:{ card:'clawblade' }, out:['multiknife'] },
-  { id:'multibow',     a:{ card:'huntbow' },       b:{ card:'forktip' },   out:['multibow'] },
-  { id:'toothdagger',  a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
-  { id:'fangspear',    a:{ card:'fang' },       b:{ card:'firewood' }, out:['fangspear'] },
   // v2.1.0: 🌲 숲 — 송곳니 창에 긴 자루 (송곳니는 이제 늑대 두목이 주로 떨굼)
-  { id:'longspear',    a:{ card:'fangspear' },  b:{ card:'longhandle' }, out:['longspear'] },
   // v2.3.0: 🏞️ 강가 — 모래로 만든 숫돌에 송곳니를 갈아 미늘, 긴 창에 달면 작살
-  { id:'barb',         a:{ card:'barbtip' },    b:{ card:'whetstone' }, out:['barb'] },   // v3.10.0: 촉을 숫돌에 다듬어 미늘
-  { id:'harpoon',      a:{ card:'longspear' },  b:{ card:'barb' },     out:['harpoon'] },
   // v2.3.0: 첫 장신구 — 점토(물 + 흙)를 불씨에 구워 구슬, 섬유끈에 꿰면 목걸이
   { id:'claybead',     a:{ card:'clay' },       b:{ card:'ember' },    out:['claybead'] },
   { id:'claynecklace', a:{ card:'claybead' },   b:{ card:'cord' },     out:['claynecklace'] },
   // v9.68.1: 회복 갈래 — 흙구슬(3) + 불씨(2) = 온기 구슬(4), 거기에 흙구슬(3)을 더 꿰면 온기 목걸이(5)
-  { id:'emberbead',    a:{ card:'claybead' },   b:{ card:'ember' },    out:['emberbead'] },
-  { id:'emberneck',    a:{ card:'emberbead' },  b:{ card:'claybead' }, out:['emberneck'] },
   // v1.2.0: 갑옷 부품을 먼저 손질해 두고 조립한다
   { id:'leatherarmor', a:{ card:'curedleather' }, b:{ card:'leatherstrap' }, out:['leatherarmor'] },   // v3.10.0: 겉감 + 끈
   { id:'pouch',        a:{ card:'hide' },       b:{ card:'cord' },     out:['pouch'] },
@@ -1748,17 +1820,37 @@ const RECIPES = [
   { id:'obsidianblade', a:{ card:'obsidian' },  b:{ card:'blade' },    out:['obsidianblade'] },
   { id:'battleaxe',     a:{ card:'handaxe' },   b:{ card:'obsidianblade' }, out:['battleaxe'] },
   // v6.0.0: 🍄 늪지 무덤 열쇠 — 이빨 단검(3) + 흑요석 날(3) = 흑요석 칼(4), 출혈
-  { id:'obsidianknife', a:{ card:'toothdagger' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
+  { id:'obsidianknife', a:{ card:'stoneknife' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
   // v9.26.0: 활 — 나무 활에서 갈라진다 (궁수의 무기)
   { id:'woodbow',      a:{ card:'firewood' },  b:{ card:'sinew' },     out:['woodbow'] },        // 손잡이에 힘줄을 걸어 시위로
   { id:'huntbow',      a:{ card:'woodbow' },   b:{ card:'leatherstrap' }, out:['huntbow'] },     // 손잡이를 가죽으로 감음
-  { id:'longbow',      a:{ card:'huntbow' },   b:{ card:'longhandle' }, out:['longbow'] },       // 활대를 길게
   { id:'obsidianbow',  a:{ card:'huntbow' },   b:{ card:'obsidianblade' }, out:['obsidianbow'] },// 흑요석 화살촉
   // v9.28.2: 무기끼리는 못 합친다 (둘 다 상단 필드로 올라가 서로 만날 수 없다) → 활 + **활 부품**
-  { id:'horncore',     a:{ card:'bisonhorn' }, b:{ card:'sinew' },     out:['horncore'] },
-  { id:'bowlimb',      a:{ card:'horncore' },  b:{ card:'longhandle' }, out:['bowlimb'] },
-  { id:'greatbow',     a:{ card:'longbow' },   b:{ card:'bowlimb' },   out:['greatbow'] },
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
+  // ── v9.127.0: **장비 등급 사슬** — 쓰던 장비 + 그 등급 땅 재료 → 다음 등급 (docs/장비_등급.md §5) ──
+  { id:'ironaxe',     a:{ card:'battleaxe' },   b:{ card:'ironstone' },  out:['ironaxe'] },
+  { id:'tuskaxe',     a:{ card:'ironaxe' },     b:{ card:'tusk' },       out:['tuskaxe'] },
+  { id:'chainaxe',    a:{ card:'tuskaxe' },     b:{ card:'rustchain' },  out:['chainaxe'] },
+  { id:'shardaxe',    a:{ card:'chainaxe' },    b:{ card:'towershard' }, out:['shardaxe'] },
+  { id:'webbow',      a:{ card:'obsidianbow' }, b:{ card:'silkweb' },    out:['webbow'] },
+  { id:'shellbow',    a:{ card:'webbow' },      b:{ card:'shellplate' }, out:['shellbow'] },
+  { id:'hoopbow',     a:{ card:'shellbow' },    b:{ card:'hoop' },       out:['hoopbow'] },
+  { id:'shardbow',    a:{ card:'hoopbow' },     b:{ card:'towershard' }, out:['shardbow'] },
+  { id:'stonearmor',  a:{ card:'leatherarmor' }, b:{ card:'stonepelt' }, out:['stonearmor'] },
+  { id:'ironmail',    a:{ card:'stonearmor' },  b:{ card:'ironstone' },  out:['ironmail'] },
+  { id:'shellarmor',  a:{ card:'ironmail' },    b:{ card:'shellplate' }, out:['shellarmor'] },
+  { id:'chainmail',   a:{ card:'shellarmor' },  b:{ card:'rustchain' },  out:['chainmail'] },
+  { id:'shardarmor',  a:{ card:'chainmail' },   b:{ card:'towershard' }, out:['shardarmor'] },
+  { id:'scaleshield', a:{ card:'rimshield' },   b:{ card:'stonescale' }, out:['scaleshield'] },
+  { id:'slabshield',  a:{ card:'scaleshield' }, b:{ card:'slab' },       out:['slabshield'] },
+  { id:'nacreshield', a:{ card:'slabshield' },  b:{ card:'nacreshard' }, out:['nacreshield'] },
+  { id:'hoopshield',  a:{ card:'nacreshield' }, b:{ card:'hoop' },       out:['hoopshield'] },
+  { id:'shardshield', a:{ card:'hoopshield' },  b:{ card:'towershard' }, out:['shardshield'] },
+  { id:'crystalneck', a:{ card:'claynecklace' }, b:{ card:'cavecrystal' }, out:['crystalneck'] },
+  { id:'glowcharm',   a:{ card:'crystalneck' }, b:{ card:'glowcap' },    out:['glowcharm'] },
+  { id:'thunderneck', a:{ card:'glowcharm' },   b:{ card:'fulgurite' },  out:['thunderneck'] },
+  { id:'silkknot',    a:{ card:'thunderneck' }, b:{ card:'oldsilk' },    out:['silkknot'] },
+  { id:'shardneck',   a:{ card:'silkknot' },    b:{ card:'towershard' }, out:['shardneck'] },
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -1866,7 +1958,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.126.0';
+const VERSION = 'v9.127.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -1882,7 +1974,7 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 //   ③ 쓸 화면이 아직 없는 용도 태그 ④ 어느 화면에서도 만들 수 없는 조합
 // 콜렉터북 탭 이름 — '1단계' 같은 제작 용어 대신 플레이어가 아는 말로
 // v3.11.0: 단계 규칙 — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다 (위로 갈수록 좁아지는 깔때기)
-const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 상급', 5:'👑 최상급' };
+const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 상급', 5:'👑 최상급', 6:'⭐ 6단계', 7:'⭐ 7단계', 8:'⭐ 8단계', 9:'⭐ 9단계' };   // v9.127.0: 장비 사슬은 9단계까지
 const stepName = n => STEP_NAME[n] || `${n}`;
 // v7.2.0: **탭이 있는 갈래는 모두 보인다** — 음식 · 약품 · 건축이 탭이 된 뒤에도 흰 목록이 옛날 그대로라 태그가 숨어 있었다
 const SHOWN_USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구',
@@ -2415,7 +2507,7 @@ const STORY = {
     { give:[['silkweb', 4]],                   say:'토른 아저씨는 밤마다 손가락으로 여관 사람 수를 셌다. 나도 들어 있었다.' },
     { give:[['nacreshard', 3]],                say:'네이라 언니가 그릇 굽에 반짝이를 넣었다. 나한테만 비밀이라 했다.' },
     { give:[['cavecrystal', 3]],               say:'동탑이 금빛으로 반짝였다. 예뻤다. 그런데 어른들 얼굴이 하얬다.' },
-    { make:'emberbead',                        say:'언니는 소리 지르며 좋아했다. 아빠는 주저앉았다. 나는 아빠 손을 잡았다.' },
+    { make:'crystalneck',                      say:'언니는 소리 지르며 좋아했다. 아빠는 주저앉았다. 나는 아빠 손을 잡았다.' },
   ],
   // v9.117.0: 보른 — 동탑을 쌓는 이야기. 모두의 탑 → 완성 날 황금으로 빛난다 (§29 · §31)
   keeper: [
@@ -2496,7 +2588,7 @@ const STORY = {
     { make:'claynecklace',                     say:'흙 목걸이를 세리나 목에 걸어 보고 바로 벗겼다. 아직 아니라고.' },
     { give:[['dullgold', 2]],                  say:'빛 잃은 금붙이를 몰래 모았다. 아무도 모르게 하나씩 숨겼다.' },
     { give:[['dullgold', 3]],                  say:'마지막 금붙이를 동탑 꼭대기에 넣었다. "이번엔 우리가 받을 차례야."' },
-    { make:'emberneck',                        say:'동탑이 금빛으로 빛났다. 네이라는 두 팔을 들고 소리쳤다. 수혜자다.' },
+    { make:'glowcharm',                        say:'동탑이 금빛으로 빛났다. 네이라는 두 팔을 들고 소리쳤다. 수혜자다.' },
   ],
   herbalist: [
     { give:[['herb', 6]],                      say:'약초는 받았다. 문은 반만 열었다. "갑옷 입은 사람은 안 받아."' },
@@ -3024,7 +3116,8 @@ function load(){
   try {
     // v9.102.0: 카드 이름이 바뀐 것 — 조약돌(pebble) → 화강암(granite) · 뗀돌 조각(sharpchip) → 규암(quartzite)
     const s = JSON.parse((localStorage.getItem(SAVE_KEY) || 'null').replace(/"pebble"/g, '"granite"').replace(/"sharpchip"/g, '"quartzite"')
-      .replace(/"granite"/g, '"stone"').replace(/"quartzite"/g, '"flint"').replace(/"twig"/g, '"tree"'));   // v9.120.0: 들머리 없앰
+      .replace(/"granite"/g, '"stone"').replace(/"quartzite"/g, '"flint"').replace(/"twig"/g, '"tree"'
+      .replace(/"toothdagger"/g, '"stoneknife"').replace(/"fangspear"/g, '"handaxe"').replace(/"longspear"/g, '"battleaxe"').replace(/"multiknife"/g, '"handaxe"').replace(/"harpoon"/g, '"ironaxe"').replace(/"longbow"/g, '"obsidianbow"').replace(/"greatbow"/g, '"obsidianbow"').replace(/"multibow"/g, '"webbow"').replace(/"emberbead"/g, '"crystalneck"').replace(/"emberneck"/g, '"glowcharm"').replace(/"clawblade"/g, '"obsidianblade"').replace(/"forktip"/g, '"obsidianblade"').replace(/"barbtip"/g, '"fang"').replace(/"barb"/g, '"obsidianblade"').replace(/"horncore"/g, '"bisonhorn"').replace(/"bowlimb"/g, '"longhandle"')));   // v9.120.0: 들머리 없앰 · v9.127.0: 사슬에서 뺀 장비
     if (!s || !Array.isArray(s.cards)) return null;
     const merged = new Map();                                     // v0.8.0: 예전 저장의 같은 카드 여러 장 → 한 장 + 수량
     for (const c of s.cards.filter(c => craftable(c.type))){
@@ -3300,7 +3393,8 @@ function statsHtml(t){
   // v8.4.0: 성격(방어 무시 · 출혈)은 수치 줄이 아니라 **카드 위쪽 라운드 박스**로 — 한눈에 성격부터 읽히게
   const trait = d.multi > 1 ? `<div class="trait-b">연타 ×${d.multi}</div>`   // v9.52.0
     : d.pierce ? '<div class="trait-b">방어 무시</div>'                       // v4.3.0
-    : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>` : '';    // v6.0.0
+    : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>`
+    : d.fireproof ? '<div class="trait-b">불 막음</div>' : d.light ? '<div class="trait-b">빛</div>' : '';   // v9.127.0    // v6.0.0
   return `<div class="feat">${trait}<div class="stats">`                // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
     + (d.def ? `<span class="s-def">${statImg('def')}+${d.def}</span>` : '')
@@ -3956,6 +4050,9 @@ function renderInsp(){
   if (d.multi > 1) chips.push(`<span class="chip trait">연타 ×${d.multi}</span>`);   // v9.52.0
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
+  if (d.fireproof) chips.push('<span class="chip trait">불 막음</span>');   // v9.127.0
+  if (d.light) chips.push('<span class="chip trait">빛</span>');           // v9.127.0
+  if (d.regenFight) chips.push(`<span class="chip">회복 ${d.regenFight}</span>`);
   if (d.range) chips.push(`<span class="chip">${statImg('range')} 사거리 ${d.range}</span>`);        // v8.0.0 · v8.3.0
   if (d.spd) chips.push(`<span class="chip">${statImg('spd')} 이동 ${d.spd > 0 ? '+' : ''}${d.spd}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
@@ -4213,7 +4310,6 @@ const TREES = {
       { d:0, id:'fang',        role:'창날' },
       { d:0, id:'firewood',    role:'짧은 자루' },
       { d:0, id:'longhandle',   role:'긴 자루' },
-      { d:0, id:'barb',         role:'갈고리 날' },
       { d:0, name:'뼈 손잡이',   make:'가벼운 자루 — 뼈 + 뗀석기' },
       { d:0, name:'흑요석 날',   make:'날 — 흑요석 + 뗀석기' },
       { d:0, name:'활대',        make:'줄 — 나무 자루 + 뗀석기' },
@@ -4224,14 +4320,10 @@ const TREES = {
       { d:0, id:'stoneknife' },
       { d:1, id:'handaxe',   tags:['묵직'] },
       { d:2, name:'전투 도끼',   make:'손도끼 + 흑요석 날',      atk:4, tags:['묵직','방어 무시'] },
-      { d:0, id:'toothdagger', tags:['예리'] },
       { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈 손잡이',   atk:3, tags:['예리','가벼움'] },
       { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석 날',   atk:4, tags:['예리','출혈'] },
     ] },
     { name:'🔱 자루', kind:'찌르기 · 긴 자루', nodes: [
-      { d:0, id:'fangspear', tags:['사거리','방어 무시'] },
-      { d:1, id:'longspear',   tags:['사거리','방어 무시','선제'] },
-      { d:2, id:'harpoon',             tags:['방어 무시','끌어내기'] },
       { d:2, name:'삼지창',      make:'긴 창 + 송곳니',  atk:6, tags:['방어 무시','연타'] },
       { d:1, name:'투창',        make:'송곳니 창 + 깃털',        atk:4, tags:['던지기','선제'] },
     ] },
@@ -4262,8 +4354,6 @@ const TREES = {
       { d:0, id:'workbench' },
       { d:1, name:'톱',        make:'작업대 + 흑요석 날',   tags:['정밀'] },
       { d:0, id:'whetstone',           tags:['연마'] },
-      { d:1, id:'barb',        role:'갈고리 날', tags:['작살 부품'] },
-      { d:2, id:'harpoon',     role:'⚔️ 무기 탭에서', tags:['방어 무시','끌어내기'] },
       { d:1, name:'가는 숫돌', make:'숫돌 + 무른 가죽', tags:['연마+'] },
     ] },
     { name:'🔥 불', kind:'불씨 + 나무', nodes: [
@@ -4340,7 +4430,6 @@ TREES.battle = { name:'필드 트리', icon:'🗡️',
   { field:'riverside', name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구', nodes: [
     { d:0, name:'🧺 줍는 것',    make:'물 · 흙 · 모래 · 물고기', on:true },
     { d:1, id:'sand',           role:'연마재' },
-    { d:2, id:'barb',           role:'갈고리 날' },
     { d:1, id:'clay' },
     { d:2, id:'claybead',       role:'꾸밈' },
     { d:0, name:'🐾 떨어지는 것', make:'가재 · 악어 · 큰 메기', on:true },
@@ -4392,7 +4481,6 @@ TREES.dungeon = { name:'던전 트리', icon:'🏚',
     { d:0, name:'👑 무덤 주인',  make:'체30 · 공10 · 방3 — 박자마다 10 회복', on:true, tags:['해법: 출혈'] },
     { d:1, id:'obsidianknife', role:'해법', tags:['출혈'] },
     { d:2, id:'obsidianblade', role:'🔑 열쇠' },
-    { d:3, id:'toothdagger',   role:'몸이 될 단검' },
   ] },
   { field:'shellcave', name:'🐚 껍질 동굴', kind:'넷째 던전 · 단단한 껍질', nodes: [
     { d:0, name:'소라게',      make:'체14 · 공6 · 방3 — 껍질 3', on:true },
@@ -5782,6 +5870,8 @@ function renderFoeInsp(){
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. 어지간한 날은 <b>긁히기만 한다</b>.</div>' : '')
         + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. 벤 자리가 <b>그만큼 빨리 아문다</b>.</div>` : '')   // v6.0.0
         + (e.thorns ? `<div class="desc">몸에 가시가 섰다. <b>붙어서 때린 쪽</b>이 <b>${e.thorns}</b>씩 되돌려받는다. 멀리서 날아온 것에는 아무 일도 없다.</div>` : '')   // v9.51.0
+        + (e.burn ? `<div class="desc">몸에 불씨가 붙어 있다. 맞으면 <b>3초 동안 초마다 ${e.burn}</b>씩 탄다 — <b>불을 막는 갑옷 · 방패</b>를 차면 타지 않는다.</div>` : '')   // v9.127.0
+        + (e.dark ? `<div class="desc">빛이 닿지 않는 곳에 산다. <b>빛이 없으면 주는 피해가 반</b> — 일행 중 누구 하나라도 <b>빛나는 장신구</b>를 차면 모두 본다.</div>` : '')   // v9.127.0
         + (e.shell ? `<div class="desc">겉껍질이 <b>${e.shell}</b>겹이다. 한 대에 한 겹씩 깨지고, 다 깨지기 전에는 <b>안쪽에 닿지 않는다</b> — 세게 치든 약하게 치든 한 겹이다.</div>` : '')   // v9.51.0
         + (foeHits(e) > 1 ? `<div class="desc">한 번 공격하면 <b>${foeHits(e)}번</b> 연달아 꽂힌다.</div>` : '')   // v9.51.0
         + (foeMove(e) === 'hold' ? '<div class="desc">제자리를 지킨다. 쫓아오지 않는다.</div>' : '')
@@ -5814,6 +5904,15 @@ function fieldArmTip(id){
   const foes = planOf(id).filter(e => e.fight).map(e => ENEMIES[e.fight]).filter(Boolean);
   const needBleed = foes.some(e => e.regen), needPierce = foes.some(e => e.def >= 9);
   const needRange = foes.some(e => e.thorns), needFast = foes.some(e => e.shell);   // v9.50.0: 되받음 · 껍질
+  const needFire = foes.some(e => e.burn), needLight = foes.some(e => e.dark);       // v9.127.0: 화상 · 어둠
+  if (needFire || needLight){
+    const tag = needFire ? ['armor', 'shield'] : ['trinket'], prop = needFire ? 'fireproof' : 'light';
+    const now = tag.map(key => equipped(key)).find(t => t && DEFS[t][prop]);
+    const why = needFire ? '불 막음' : '빛', what = needFire ? '맞으면 불에 탄다' : '어두워 제대로 못 때린다';
+    if (now) return { ok: true, why, type: now };
+    const mine = CRAFT_TYPES.filter(t => DEFS[t][prop] && have(t) > 0).sort((a, b) => (DEFS[b].def || 0) - (DEFS[a].def || 0))[0];
+    return { ok: false, why, type: mine || null, what };
+  }
   if (!needBleed && !needPierce && !needRange && !needFast) return null;
   const now = equipped('weapon');
   const why = needBleed ? '출혈' : needPierce ? '방어 무시' : needRange ? '원거리' : '빠른 공속';
@@ -6006,9 +6105,9 @@ const ENEMIES = {
   // v3.8.4: 🌲 숲 전리품 넷 — 송곳니 · 발톱 · 기름진 고기 · 털가죽 (+ 보스 이끼 가죽)
   fox:        { name:'여우',     spd:5, aps:1.2, portrait:'portrait_fox',        atk:3, def:0, hp:16,
     loot: [['fatmeat', 40, 1], ['furpelt', 40, 1], ['claw', 20, 1]] },
-  wolfleader: { name:'늑대 두목', spd:4, aps:0.9, portrait:'portrait_wolfleader', atk:4, def:1, hp:22,   // 송곳니의 주 출처
+  wolfleader: { name:'늑대 두목', spd:4, aps:0.9, portrait:'portrait_wolfleader', atk:4, def:1, hp:18,   // v9.127.0: 22 → 18 (긴 창을 뺐다)   // 송곳니의 주 출처
     loot: [['fang', 40, 1], ['claw', 35, 1], ['furpelt', 25, 1]] },
-  forestbear: { name:'숲곰',     spd:3, aps:0.8, portrait:'portrait_forestbear', atk:6, def:2, hp:30,
+  forestbear: { name:'숲곰',     spd:3, aps:0.8, portrait:'portrait_forestbear', atk:5, def:1, hp:26,   // v9.127.0: 공6 방2 체30 → 공5 방1 체26 (손도끼로 닿게)
     loot: [['fatmeat', 30, 2], ['claw', 30, 1], ['fang', 30, 1], ['mosspelt', 10, 1]] },
   // v2.1.0: 🏞️ 강가 — 가재(잡몹) · 악어(중간보스) · 큰 메기(필드보스)
   //   숲 장비로는 악어에서 막힘. 강가 무기(+9) · 15레벨 장신구(+2)를 가정해 맞춘 수치 (약 10판, Lv15) — 둘 다 아직 없음
@@ -6050,6 +6149,27 @@ const ENEMIES = {
     loot: [['shellpiece', 60, 2], ['pincer', 50, 1], ['shellplate', 45, 1], ['scale', 25, 1], ['pearl', 10, 1]] },
   // v9.42.0: 👑 탑의 눈 — 첫 레이드 주인. **움직이지 않고**(move:'hold') 제자리를 지킨다.
   //   사거리 15칸 · 한 번 쏘면 **다섯 번 연달아**(hits) 꽂힌다. 한 번에 3 × 5 = 15
+  // ── v9.127.0: ⛏ 옛 채석장 (필드 — 수치로) ──
+  rockmole:    { name:'바위 두더지', spd:3, aps:1.1, portrait:'portrait_rockmole', atk:5, def:2, hp:16,
+    loot: [['molepelt', 45, 1], ['bone', 30, 1], ['ironstone', 25, 1]] },
+  cragram:     { name:'바위 산양', spd:4, aps:0.9, portrait:'portrait_cragram', atk:7, def:3, hp:26,
+    loot: [['ramhorn', 45, 1], ['molepelt', 30, 1], ['toughhide', 25, 1]] },
+  bigcentipede:{ name:'큰 지네', spd:3, aps:1, portrait:'portrait_bigcentipede', atk:8, def:4, hp:42,
+    loot: [['chitin', 60, 2], ['ramhorn', 40, 1], ['ironstone', 30, 1], ['bone', 20, 1], ['centijaw', 10, 1]] },
+  // ── v9.127.0: ⚡ 벼락 들판 — `burn` = **맞으면 3초 동안 초마다 그만큼 탄다** (불 막음 장비면 안 탄다) ──
+  cinderhound: { name:'잿불 들개', spd:4, aps:1.1, portrait:'portrait_cinderhound', atk:9, def:3, hp:30, burn:2,
+    loot: [['charhide', 45, 1], ['bone', 30, 1], ['cinder', 25, 1]] },
+  ashboar:     { name:'잿불 멧돼지', spd:4, aps:0.8, portrait:'portrait_ashboar', atk:11, def:4, hp:48, burn:3,
+    loot: [['tusk', 45, 1], ['charhide', 35, 1], ['toughmeat', 25, 1]] },
+  scorchstag:  { name:'그을린 사슴', spd:4, aps:0.9, portrait:'portrait_scorchstag', atk:12, def:5, hp:75, burn:5,
+    loot: [['charhide', 60, 2], ['tusk', 40, 1], ['fulgurite', 30, 1], ['bone', 20, 1], ['stagantler', 10, 1]] },
+  // ── v9.127.0: 🍷 지하 창고 — `dark` = **빛이 없으면 우리 편이 주는 피해가 반** (빛나는 장신구 하나면 모두 본다) ──
+  cellarrat:   { name:'창고 쥐', spd:4, aps:1.2, portrait:'portrait_cellarrat', atk:10, def:4, hp:26, dark:true,
+    loot: [['smalltooth', 40, 1], ['oldsilk', 35, 1], ['hoop', 25, 1]] },
+  gloombat:    { name:'큰 박쥐', spd:5, aps:1, portrait:'portrait_gloombat', atk:12, def:4, hp:40, dark:true,
+    loot: [['batwing', 45, 1], ['smalltooth', 30, 1], ['oldwine', 25, 1]] },
+  cellarkeeper:{ name:'창고 주인', spd:2, aps:0.9, portrait:'portrait_cellarkeeper', atk:14, def:6, hp:85, dark:true,
+    loot: [['paleskin', 60, 2], ['batwing', 40, 1], ['rustchain', 30, 1], ['bone', 20, 1], ['cellarkey', 10, 1]] },
   towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, size:2,
     portrait:'portrait_towereye', atk:3, def:3, hp:90,
     loot: [['towershard', 60, 2], ['scrapiron', 50, 1], ['scale', 40, 1], ['bearclaw', 25, 1], ['eyecrystal', 10, 1]] },
@@ -6126,6 +6246,9 @@ const hSpd = k => {          // v8.0.0: 이동속도는 **몸과 장비**가 정
   return Math.max(1, v);
 };
 const hWeap = (k, key, dflt) => { const w = equipped('weapon', k); return (w && DEFS[w] && DEFS[w][key]) || dflt; };
+// v9.127.0: **불 막음** — 갑옷이나 방패 중 하나라도 불을 막으면 타지 않는다 / **빛** — 일행 중 누구 하나라도 빛나는 장신구를 차면 모두 본다
+const hFireproof = k => ['armor', 'shield'].some(key => { const t = equipped(key, k); return !!(t && DEFS[t] && DEFS[t].fireproof); });
+const partyLight = () => !!exp && exp.party.some(k => { const t = equipped('trinket', k); return !!(t && DEFS[t] && DEFS[t].light); });
 const hRange = k => hWeap(k, 'range', BASE_RANGE);                // v8.0.0: 사거리는 **쥔 무기**가 정한다
 const hAps = k => hWeap(k, 'aps', HERO_BASE(k).aps || BASE_APS);  // v9.0.0: 초당 공격 횟수
 const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출혈
@@ -6303,6 +6426,9 @@ const LANE_BG = {
     frontSpeed: 1.3,
   },
 };
+LANE_BG.quarry = LANE_BG.quarry || LANE_BG.mountain;               // v9.127.0: 새 땅 배경이 나오기 전엔 빌려 쓴다
+LANE_BG.scorched = LANE_BG.scorched || LANE_BG.towerruin;
+LANE_BG.cellar = LANE_BG.cellar || LANE_BG.stonehide;
 // v9.11.0: **점유 칸과 그림 자리는 다른 값이다.**
 //   x  = 어느 칸을 차지하는가 (판정 · 사거리 · 점유는 늘 이 값)
 //   xd = 화면 어디에 그리는가 (제 이동속도로 x 를 따라간다 — 뚝뚝 끊기지도, 뒤로 튀지도 않는다)
@@ -6598,17 +6724,30 @@ const SHELL_PLAN = [
   { loot:1, at:0.82 },
   { fight:'cavekeeper', boss:true, at:0.93 },
 ];
+// v9.127.0: 🍷 지하 창고 — 어둠 속의 싸움
+const CELLAR_PLAN = [
+  { loot:1, at:0.12 },
+  { fight:'cellarrat', at:0.26 },
+  { loot:1, at:0.40 },
+  { fight:'cellarrat', at:0.54 },
+  { fight:'gloombat', mid:true, at:0.70 },
+  { loot:1, at:0.82 },
+  { fight:'cellarkeeper', boss:true, at:0.93 },
+];
 const EXP_PLAN = {
   stonehide: DUNGEON_PLAN,
   swamptomb: SWAMP_PLAN,
   spidernest: NEST_PLAN,
   shellcave: SHELL_PLAN,
+  cellar:    CELLAR_PLAN,                                        // v9.127.0
   towerruin: RAID_PLAN,
   goldtower: GOLD_PLAN,                                          // v9.104.0
   mountain:  lanePlan('animal', 'wolf', 'bear'),
   grassland: lanePlan('wilddog', 'boar', 'bison'),                // v0.51.0. v2.0.0: 중간보스 멧돼지
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
   river:     lanePlan('crayfish', 'crocodile', 'catfish'),        // v2.1.0
+  quarry:    lanePlan('rockmole', 'cragram', 'bigcentipede'),     // v9.127.0
+  scorched:  lanePlan('cinderhound', 'ashboar', 'scorchstag'),    // v9.127.0
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
@@ -6618,7 +6757,7 @@ const laneX = p => LANE_PAD + p * (100 - LANE_PAD * 2);
 //   들머리 마른 가지 · 산 돌무더기 · 초원 약초 · 숲 통나무 · 강가 조개 · 굴 광석 · 늪지 썩은 뿌리
 const SPOT_ICON = { prelude: 'prelude', mountain: 'mountain', grassland: 'grassland', forest: 'forest',
   river: 'river', stonehide: 'stonehide', swamptomb: 'swamptomb', towerruin: 'towerruin', goldtower: 'towerruin',
-  spidernest: 'spidernest', shellcave: 'shellcave' };
+  spidernest: 'spidernest', shellcave: 'shellcave', quarry: 'stonehide', scorched: 'towerruin', cellar: 'towerruin' };   // v9.127.0: 새 땅은 비슷한 그림을 빌려 쓴다
 // v9.22.0: **원정은 여럿** — 기사와 궁수가 서로 다른 땅에 나갈 수 있다.
 //   `EXPS` 가 진행 중인 원정들, `exp` 는 '지금 다루는 원정'(돌리거나 그리는 동안만 바뀐다)
 let EXPS = [];
@@ -6914,6 +7053,24 @@ function expFoes(dt){
       : mv === 'kite' && g2 < fr2 && cellFree(f.x + 1, f) ? f.x + 1 : f.x;
   }
   for (const f of exp.foes) if (!crowd.includes(f)) f.to = f.x;   // 낀 놈 말고는 제자리
+  for (const k of alive){                                         // v9.127.0: **화상** — 3초 동안 초마다 burnN 씩
+    const P = exp.P[k];
+    if (!(P.burnMs > 0)) continue;
+    P.burnMs -= dt; P.burnAcc = (P.burnAcc || 0) + dt;
+    while (P.burnAcc >= 1000){
+      P.burnAcc -= 1000;
+      const st = hSt(k);
+      if (st.hp <= 0) break;
+      st.hp = Math.max(0, st.hp - (P.burnN || 0));
+      expSwing(-1, k, P.burnN || 0, false, 'burn');
+      if (st.hp <= 0){
+        heroFell(k); P.out = true;
+        exp.line = `${hName(k)} 불에 타 쓰러졌다`;
+        exp.killer = { name: '화상', boss: false, mid: false };
+      }
+    }
+    if (P.burnMs <= 0){ P.burnMs = 0; P.burnAcc = 0; }
+  }
   let foeHit = false;
   for (const f of crowd){                                         // ② 공격 — 자든 깨든 사거리가 닿으면
     const d = ENEMIES[f.key], k = aimOf(f), st = hSt(k);
@@ -6930,6 +7087,7 @@ function expFoes(dt){
         const ed = Math.max(1, d.atk - hDef(k));                   // v9.46.2: 크리처는 방어를 뚫지 않는다
         st.hp = Math.max(0, st.hp - ed);
         expSwing(exp.foes.indexOf(f), k, ed, false, '', i * HIT_MS);
+        if (d.burn && !hFireproof(k)){ const P = exp.P[k]; P.burnMs = 3000; P.burnN = Math.max(P.burnMs > 0 ? (P.burnN || 0) : 0, d.burn); }   // v9.127.0: 화상
       }
       if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
         heroFell(k);                                              // v9.77.0: 빈사 — 가득 찰 때까지 못 나간다
@@ -6986,7 +7144,8 @@ function expFight(dt){
     while (hit && h.cd >= every && e.hp > 0){
       h.cd -= every;
       const pierce = hPierce(k);
-      const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
+      const dmg0 = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
+      const dmg = def.dark && !partyLight() ? Math.max(1, Math.ceil(dmg0 / 2)) : dmg0;   // v9.127.0: **어둠** — 빛이 없으면 반
       const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
       const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
       const times = hMulti(k);                                    // v9.52.0: 연타 — 같은 박자 안에서 여러 번
@@ -8261,7 +8420,7 @@ function questStep(id){
 // v9.43.1: **열리는 조건은 표 하나로.** 자물쇠에 적는 글과 실제 해금이 같은 것을 본다.
 //   전엔 적는 쪽만 `FIELDS` 차례의 바로 앞 땅을 집어, 강가에 '늪지 무덤 클리어'라고 잘못 적혔다
 //   (해금은 바깥 땅끼리 이어지는 `OUT_FIELDS` 차례를 따르므로 실제로는 숲을 깨면 열렸다)
-const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', spidernest:'swamptomb', shellcave:'spidernest' };
+const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', spidernest:'swamptomb', shellcave:'spidernest', cellar:'shellcave' };   // v9.127.0: 지하 창고
 const UNLOCK_SAY = { stonehide:'산이 무너진 자리에 굴이 있다',
   swamptomb:'굴 아래로 물 흐르는 소리가 난다',
   spidernest:'무덤 너머 나무 사이가 줄로 덮여 있다',
@@ -8672,7 +8831,7 @@ renderAll();
 setTab(S.tab);
 try {                                                             // v0.32.1: 지난번에 켜 뒀으면 그대로 에디터 모드로
   // v9.125.0: **에디터 모드 주소** — `?edit` 를 붙여 열면 에디터 모드로 시작한다 (보통 주소로 열면 평소대로. 저장은 하지 않는다)
-  const urlEdit = new URLSearchParams(location.search).has('edit');
+  const urlEdit = /[?&]edit(=|&|$)/.test(String((typeof location !== 'undefined' && location.search) || ''));
   if (urlEdit || localStorage.getItem(EDIT_KEY) === '1'){
     document.getElementById('editMode').checked = true;
     setEditMode(true, !urlEdit, urlEdit);

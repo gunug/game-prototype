@@ -208,6 +208,10 @@ try {
     for (const r of CRAFT_RECIPES){
       if (r.cook || !r.a.card || !r.b.card) continue;
       const sa = DEFS[r.a.card].step || 0, sb = DEFS[r.b.card].step || 0;
+      // v9.127.0: **장비 강화**(쓰던 장비 + 1단계 땅 재료 → 다음 등급)는 장비 단계 + 1 이기만 하면 된다
+      const gear = t => ['무기', '방어구', '방패', '장신구'].some(u => useOf(t).includes(u));
+      const up = gear(r.a.card) && sb === 1 ? sa : gear(r.b.card) && sa === 1 ? sb : 0;
+      if (up){ for (const o of (r.out || [])) if ((DEFS[o].step || 0) !== up + 1) out.push(nm(o) + ' — 강화는 장비 단계 + 1'); continue; }
       for (const o of (r.out || [])){
         const so = DEFS[o].step || 0, hi = Math.max(sa, sb), lo = Math.min(sa, sb);
         if (so !== hi + 1 || hi - lo > 1)
@@ -217,7 +221,7 @@ try {
     return out;
   })()`, ctx);
   if (bad.length) report('단계 규칙', new Error(bad.join(' | ')));
-  else console.log('✓ 단계 규칙 (N = 아래 단계 + 1, 두 재료의 단계 차는 1 이하)');
+  else console.log('✓ 단계 규칙 (N = 아래 단계 + 1, 두 재료의 단계 차는 1 이하 · 장비 강화는 장비 + 1)');
 } catch (e){ report('단계 규칙', e); }
 
 // 9) 무기끼리는 안 합친다 (v9.28.2) — 완성된 무기는 상단 필드로 올라가 서로 만날 수 없다.
@@ -257,12 +261,14 @@ try {
       }
       return have; };
     const isW = t => useOf(t).includes('무기');
-    const ANSWER = { swamptomb: ['bleed', '출혈'], spidernest: ['range', '원거리'], shellcave: ['multi', '연타'] };
+    const ANSWER = { swamptomb: ['bleed', '출혈'], spidernest: ['range', '원거리'], shellcave: ['multi', '연타'],
+      scorched: ['fireproof', '불 막음', ['방어구', '방패']], cellar: ['light', '빛', ['장신구']] };   // v9.127.0: 화상 · 어둠은 무기가 아니다
     const bad = [], far = [];
     for (const id in ANSWER){
-      const [prop, say] = ANSWER[id], w = waveOf(id);
+      const [prop, say, kinds] = ANSWER[id], w = waveOf(id);
       const have = upto(w - 1);                                   // **그 땅에 들어가기 전**까지
-      const ok = [...have].some(t => isW(t) && (DEFS[t][prop] || 0) >= (prop === 'range' ? 2 : 1));
+      const isK = kinds ? (t => kinds.some(u => useOf(t).includes(u))) : isW;
+      const ok = [...have].some(t => isK(t) && (DEFS[t][prop] || 0) >= (prop === 'range' ? 2 : 1));
       if (!ok) bad.push(FIELD_BY_ID[id].name + ' — ' + say + ' 무기를 먼저 만들 수 없다');
     }
     const last = upto(99);                                        // 끝까지 열어도 못 만드는 조합식

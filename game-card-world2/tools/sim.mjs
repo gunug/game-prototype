@@ -421,7 +421,9 @@ function play(ai, note){
 
     // ③ 다음 땅: 넘을 만하면 간다. 아니면 **약한 땅에서 재료 · 경험치**를 벌어 온다 (사람도 그렇게 했다)
     const list = ai.fields().filter(f => !f.locked);
-    const next = list.find(f => !st.cleared.includes(f.id));
+    // v9.127.0: 안 깬 땅 중 **지금 넘을 만한 곳부터** — 한 던전(늪 · 출혈)에 막혀 다른 길(채석장 · 강가)을 영영 안 가던 것
+    const open = list.filter(f => !st.cleared.includes(f.id));
+    const next = open.find(f => ai.canBeat(f.id) && ai.canAnswer(f.id)) || open[0];
     const target = next || list[list.length - 1];
     if (target){
       ai.armFor(target.id);                                        // 그 땅에 맞는 무기로
