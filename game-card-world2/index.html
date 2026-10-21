@@ -1384,6 +1384,13 @@ const DEFS = {
   shellbow:  { name:'갑각 활',   kind:'gear', step:7, atk:9,  range:6, bleed:2, multi:2, aps:0.9 },
   hoopbow:   { name:'쇠테 활',   kind:'gear', step:8, atk:11, range:7, bleed:2, multi:2, aps:0.9 },
   shardbow:  { name:'파편 활',   kind:'gear', step:9, atk:14, range:8, bleed:3, multi:3, aps:0.9 },
+  // v9.129.0: **창 사슬** — 사거리 2~3, 앞 사람 뒤에서 찌른다 (도끼보다 조금 약하다). 송곳니 창을 되살렸다
+  fangspear:  { name:'송곳니 창', kind:'material', step:3, group:'gear', atk:3, range:2, aps:1.0 },
+  obsspear:   { name:'흑요석 창', kind:'gear', step:4, atk:5,  range:3, bleed:2, aps:0.9 },
+  ironspear:  { name:'쇠 창',     kind:'gear', step:5, atk:7,  range:3, bleed:2, multi:2, aps:0.9 },
+  tuskspear:  { name:'엄니 창',   kind:'gear', step:6, atk:9,  range:3, bleed:2, multi:2, aps:0.9 },
+  chainspear: { name:'사슬 창',   kind:'gear', step:7, atk:10, range:4, bleed:2, multi:2, aps:0.9 },
+  shardspear: { name:'파편 창',   kind:'gear', step:8, atk:13, range:4, bleed:3, multi:3, aps:0.9 },
   // 갑옷 — 4등급부터 불 막음
   stonearmor:{ name:'돌가죽 갑옷', kind:'gear', step:4, def:3 },
   ironmail:  { name:'쇠누빔 갑옷', kind:'gear', step:5, def:5 },
@@ -1416,7 +1423,7 @@ const DEFS = {
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
 // v6.3.0: '음식' · '약품' — **만들어 놓은 것**(완성품). 그 재료는 그대로 '음식재료' · '약품재료'
-const USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '음식', '약품', '건축', '음식재료', '약품재료', '건축재료', '도구재료', '도구', '생산재료',
+const USES = ['무기재료', '무기', '근접무기', '도끼', '창', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구', '음식', '약품', '건축', '음식재료', '약품재료', '건축재료', '도구재료', '도구', '생산재료',
   '방패재료', '장신구재료',                                        // v7.16.0: 방패 · 장신구도 제 재료 갈래를 갖는다
   '필드', '던전'];   // v7.0.0: 음식재료 · 건축. v7.9.0: 땅도 카드로 모은다   // v0.57.0: '설비'는 없앰. v3.6.1·v3.6.3: '손질lv1' · '연료' 태그 폐기
 const USE = {
@@ -1477,13 +1484,15 @@ const USE = {
                         // v9.68.1: 회복 갈래
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'],
-  // v9.127.0: 장비 등급 사슬
+  // v9.127.0: 장비 등급 사슬 · v9.129.0: 창 사슬
+  fangspear:['무기', '근접무기', '창'], obsspear:['무기', '근접무기', '창'], ironspear:['무기', '근접무기', '창'], tuskspear:['무기', '근접무기', '창'], chainspear:['무기', '근접무기', '창'], shardspear:['무기', '근접무기', '창'],
   ironaxe:['무기', '근접무기'], tuskaxe:['무기', '근접무기'], chainaxe:['무기', '근접무기'], shardaxe:['무기', '근접무기'],
   webbow:['무기', '원거리무기'], shellbow:['무기', '원거리무기'], hoopbow:['무기', '원거리무기'], shardbow:['무기', '원거리무기'],
   stonearmor:['방어구'], ironmail:['방어구'], shellarmor:['방어구'], chainmail:['방어구'], shardarmor:['방어구'],
   scaleshield:['방패'], slabshield:['방패'], nacreshield:['방패'], hoopshield:['방패'], shardshield:['방패'],
   crystalneck:['장신구'], glowcharm:['장신구'], thunderneck:['장신구'], silkknot:['장신구'], shardneck:['장신구'],
 };
+for (const t of ['stoneknife', 'handaxe', 'battleaxe', 'obsidianknife', 'ironaxe', 'tuskaxe', 'chainaxe', 'shardaxe']) USE[t] = (USE[t] || []).concat(['도끼']);   // v9.129.0: 도끼 갈래 (사거리 1)
 // v7.17.0: **재료 갈래(`~재료`)는 손으로 적지 않고 조합식에서 거꾸로 파생한다.**
 //   완성품(무기 · 방어구 · 방패 · 장신구 · 도구 · 음식 · 약품 · 건축)에서 조합식을 거슬러 올라가며
 //   그 길에 놓인 모든 재료에 그 갈래의 `~재료` 를 붙인다. 여러 갈래에 쓰이면 여러 개가 붙는다.
@@ -1531,6 +1540,12 @@ const useOf = t => {
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
+  fangspear:  '송곳니를 나무 손잡이에 묶었다. 앞사람 어깨 너머로 찌른다.',
+  obsspear:   '흑요석 날을 창끝에 박았다. 찔린 자리가 아물지 않는다.',
+  ironspear:  '쇳돌로 창끝을 두들겼다. 한 번 찌르면 두 번 들어간다.',
+  tuskspear:  '엄니를 창끝에 겹쳐 박았다. 아직 뜨겁다.',
+  chainspear: '자루 끝에 쇠사슬을 달았다. 네 칸 앞까지 닿는다.',
+  shardspear: '탑의 파편을 창끝으로 깎았다. 높은 데서 떨어진 것은 깊이 박힌다.',
   // v9.127.0: 새 땅 셋 · 장비 등급 사슬
   ironstone: '붉은 녹이 번진 돌. 두드리면 쇳소리가 난다. 탑을 세운 손들이 먼저 알아봤다.',
   slab:      '반듯하게 떠낸 돌판. 어디에 쓰려고 떴는지는 아무도 기억하지 않는다.',
@@ -1832,6 +1847,12 @@ const RECIPES = [
   { id:'tuskaxe',     a:{ card:'ironaxe' },     b:{ card:'tusk' },       out:['tuskaxe'] },
   { id:'chainaxe',    a:{ card:'tuskaxe' },     b:{ card:'rustchain' },  out:['chainaxe'] },
   { id:'shardaxe',    a:{ card:'chainaxe' },    b:{ card:'towershard' }, out:['shardaxe'] },
+  { id:'fangspear',   a:{ card:'fang' },        b:{ card:'firewood' },   out:['fangspear'] },   // v9.129.0: 창 사슬
+  { id:'obsspear',    a:{ card:'fangspear' },   b:{ card:'obsidianblade' }, out:['obsspear'] },
+  { id:'ironspear',   a:{ card:'obsspear' },    b:{ card:'ironstone' },  out:['ironspear'] },
+  { id:'tuskspear',   a:{ card:'ironspear' },   b:{ card:'tusk' },       out:['tuskspear'] },
+  { id:'chainspear',  a:{ card:'tuskspear' },   b:{ card:'rustchain' },  out:['chainspear'] },
+  { id:'shardspear',  a:{ card:'chainspear' },  b:{ card:'towershard' }, out:['shardspear'] },
   { id:'webbow',      a:{ card:'obsidianbow' }, b:{ card:'silkweb' },    out:['webbow'] },
   { id:'shellbow',    a:{ card:'webbow' },      b:{ card:'shellplate' }, out:['shellbow'] },
   { id:'hoopbow',     a:{ card:'shellbow' },    b:{ card:'hoop' },       out:['hoopbow'] },
@@ -1958,7 +1979,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.128.0';
+const VERSION = 'v9.129.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2795,6 +2816,28 @@ const KNIGHT = { name: '기사', atk: 1, def: 0, hp: 18, spd: 3 };
 //   장비도 셋만 — 무기 · 갑옷 · 장신구 (방패와 소모품은 전투요원 몫)
 const CREW_BASE = { atk: 1, def: 0, hp: 8, spd: 2, aps: 0.8 };
 const CREW_SLOT_KEYS = ['weapon', 'armor', 'trinket'];
+// v9.129.0: **모두 싸운다** (docs/파티.md). 사람마다 제 몸 · 무기 갈래 · 칸 · 특성.
+//   무기 갈래: axe 도끼(사거리 1) · spear 창(사거리 2~3, 앞 사람 뒤에서 찌른다) · melee 둘 다 · bow 활
+//   칸: 기본은 무기 · 갑옷 · 방패 · 장신구 · 소모품 하나씩. extra = 더 받는 칸 수, no = 없는 칸
+//   근접 7 (가렛 · 토른 · 두르간 · 마르그 · 보른 · 헤이든 · 올가) : 원거리 4 (세리나 · 오르반 · 네이라 · 실바)
+const HERO_KIT = {
+  knight:      { body:{ atk:1, def:0, hp:18, spd:3 }, arm:'melee', trait:'gate',  tip:'문 앞 — 맨 앞에 서면 방어 +2' },
+  ally:        { body:{ atk:1, def:0, hp:14, spd:4 }, arm:'bow',   trait:'rapid', tip:'연사 — 공격 속도 ×1.25' },
+  shieldsmith: { body:{ atk:1, def:1, hp:24, spd:2 }, arm:null,    no:['weapon'], extra:{ shield:2 }, trait:'shell', tip:'껍질 — 방패 칸 셋 · 무기 없음' },
+  weaponsmith: { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'axe',   extra:{ weapon:1 }, trait:'dual', tip:'양손 — 무기 칸 둘 (둘째 무기는 공격만 더한다)' },
+  armorsmith:  { body:{ atk:1, def:0, hp:16, spd:2 }, arm:'axe',   trait:'lining', tip:'안감 — 갑옷을 입으면 방어 +2' },
+  keeper:      { body:{ atk:1, def:0, hp:24, spd:2 }, arm:'spear', trait:'big', tip:'덩치 — 몸이 크다 (체력 24)' },
+  carpenter:   { body:{ atk:1, def:0, hp:15, spd:3 }, arm:'spear', trait:'reach', tip:'긴 자루 — 창 사거리 +1' },
+  cook:        { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'spear', extra:{ consumable:1 }, trait:'pantry', tip:'곳간 — 소모품 칸 둘' },
+  peddler:     { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   trait:'know', tip:'아는 것 — 적 방어를 2 덜 받는다' },
+  trinketsmith:{ body:{ atk:1, def:0, hp:12, spd:4 }, arm:'bow',   extra:{ trinket:4 }, trait:'hoard', tip:'모으기 — 장신구 칸 다섯' },
+  herbalist:   { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   extra:{ consumable:2 }, trait:'mend', tip:'약손 — 소모품 칸 셋 · 함께 나간 일행이 싸우는 동안 초당 0.3 더 아문다' },
+};
+const kitOf = k => HERO_KIT[k] || HERO_KIT.knight;
+const hTrait = (k, t) => kitOf(k).trait === t;
+// 무기 칸이 받는 갈래 (USE 태그) · 칸 이름
+const ARM_TAG = { melee:'근접무기', axe:'도끼', spear:'창', bow:'원거리무기' };
+const ARM_NAME = { melee:'근접무기', axe:'도끼', spear:'창', bow:'원거리무기' };
 // v9.20.0: **둘째 캐릭터 — 궁수.** 몸은 약하고 빠르며, 늘 나무 활을 쥔다 (장비 칸은 아직 기사만)
 const ARCHER = { name: '궁수', atk: 1, def: 0, hp: 14, spd: 4, weapon: 'woodbow',
   // v9.57.0: 그림 세 장 — card(얼굴) · portrait(전신, 줄에 서는 그림) · bust(상반신, 인스펙터)
@@ -2861,8 +2904,10 @@ const lvSumAt = (lv, key) => { let v = 0; for (let i = 2; i <= lv; i++) v += lvR
 const allyMaxHp = () => hMax('ally');
 const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
   .filter(Boolean).join(' · ');
-const PARTY = [true, true, false];                               // v0.26.0 · v4.2.0: 출전 칸 셋 — 지금은 둘만 열림
-const PARTY_MAX = () => PARTY.filter(Boolean).length;            // v9.76.1: 한 원정에 나갈 수 있는 머릿수
+// v9.129.0: **출전 칸 셋** — 셋째 칸은 사람 넷이 합류하면 열린다 (앞 · 뒤 · 원거리)
+const PARTY_THIRD = 4;
+const PARTY = () => [true, true, ALL_HEROES().length >= PARTY_THIRD];
+const PARTY_MAX = () => PARTY().filter(Boolean).length;            // v9.76.1: 한 원정에 나갈 수 있는 머릿수
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
@@ -2915,12 +2960,15 @@ const SLOTS = [
 ];
 // v9.68.1: **거점 칸 폐기** — 쉴 때의 회복은 이제 장신구(회복 갈래)가 맡는다
 const ALL_SLOTS = SLOTS;
-const slotByKey = key => ALL_SLOTS.find(x => x.key === key) || null;
+const slotByKey = key => {                                        // v9.129.0: shield2 · trinket5 … — 숫자를 떼고 원래 칸
+  const base = String(key || '').replace(/\d+$/, ''), sl = ALL_SLOTS.find(x => x.key === base);
+  return sl ? (base === key ? sl : Object.assign({}, sl, { key })) : null;
+};
 // 그 카드가 어느 장비 칸에 들어가는지 (카드 왼쪽 위 실루엣)
 const slotOfType = t => ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || null;
 // v9.25.0: 그 줄(캐릭터)에서 이 칸이 받는 갈래 · 이름
-const slotTag = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).tag;
-const slotName = (sl, who) => (sl && sl.byHero && sl.byHero[who || 'knight'] || sl || {}).name;
+const slotTag = (sl, who) => sl && /^weapon/.test(sl.key) ? ARM_TAG[kitOf(who || 'knight').arm] : (sl || {}).tag;   // v9.129.0: 무기 칸은 그 사람의 갈래
+const slotName = (sl, who) => sl && /^weapon/.test(sl.key) ? ARM_NAME[kitOf(who || 'knight').arm] : (sl || {}).name;
 // --- 여관 . 장인 (v9.55.0) ---------------------------
 // 확정: **만들 수 있는가 / 없는가를 가르는 것은 레벨이 아니라 사람이다.**
 //   무기 · 갑옷 · 방패 · 장신구 · 소모품은 각자 제 장인이 있어야 만들고 끼울 수 있다.
@@ -3117,7 +3165,7 @@ function load(){
     // v9.102.0: 카드 이름이 바뀐 것 — 조약돌(pebble) → 화강암(granite) · 뗀돌 조각(sharpchip) → 규암(quartzite)
     const s = JSON.parse((localStorage.getItem(SAVE_KEY) || 'null').replace(/"pebble"/g, '"granite"').replace(/"sharpchip"/g, '"quartzite"')
       .replace(/"granite"/g, '"stone"').replace(/"quartzite"/g, '"flint"').replace(/"twig"/g, '"tree"'
-      .replace(/"toothdagger"/g, '"stoneknife"').replace(/"fangspear"/g, '"handaxe"').replace(/"longspear"/g, '"battleaxe"').replace(/"multiknife"/g, '"handaxe"').replace(/"harpoon"/g, '"ironaxe"').replace(/"longbow"/g, '"obsidianbow"').replace(/"greatbow"/g, '"obsidianbow"').replace(/"multibow"/g, '"webbow"').replace(/"emberbead"/g, '"crystalneck"').replace(/"emberneck"/g, '"glowcharm"').replace(/"clawblade"/g, '"obsidianblade"').replace(/"forktip"/g, '"obsidianblade"').replace(/"barbtip"/g, '"fang"').replace(/"barb"/g, '"obsidianblade"').replace(/"horncore"/g, '"bisonhorn"').replace(/"bowlimb"/g, '"longhandle"')));   // v9.120.0: 들머리 없앰 · v9.127.0: 사슬에서 뺀 장비
+      .replace(/"toothdagger"/g, '"stoneknife"').replace(/"longspear"/g, '"obsspear"').replace(/"multiknife"/g, '"handaxe"').replace(/"harpoon"/g, '"ironaxe"').replace(/"longbow"/g, '"obsidianbow"').replace(/"greatbow"/g, '"obsidianbow"').replace(/"multibow"/g, '"webbow"').replace(/"emberbead"/g, '"crystalneck"').replace(/"emberneck"/g, '"glowcharm"').replace(/"clawblade"/g, '"obsidianblade"').replace(/"forktip"/g, '"obsidianblade"').replace(/"barbtip"/g, '"fang"').replace(/"barb"/g, '"obsidianblade"').replace(/"horncore"/g, '"bisonhorn"').replace(/"bowlimb"/g, '"longhandle"')));   // v9.120.0: 들머리 없앰 · v9.127.0: 사슬에서 뺀 장비
     if (!s || !Array.isArray(s.cards)) return null;
     const merged = new Map();                                     // v0.8.0: 예전 저장의 같은 카드 여러 장 → 한 장 + 수량
     for (const c of s.cards.filter(c => craftable(c.type))){
@@ -5345,7 +5393,7 @@ function screenRows(){
         foeCardHtml(k, { attrs: ` data-foe-card="${k}" title="${esc((ENEMIES[k] || {}).name || '')}"`, sel: foePick === k })).join('')}</div>`;
       // v9.20.4: 나간 **그 캐릭터**가 그 칸에 뜬다 (전엔 첫 칸에 늘 기사 그림이 박혀 있었다)
       const here = (expAt(f.id) || {}).party || [];
-      const slots = PARTY.map((open, i) => {
+      const slots = PARTY().map((open, i) => {
         const who = here[i] || null;
         return {
           id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
@@ -5353,6 +5401,7 @@ function screenRows(){
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
           // v9.77.1: 테두리는 **그 사람의 등급** — 기사만 금테, 나머지는 동테 (전엔 비전투요원도 금테로 보였다)
           cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: '출전',
+          need: open ? '' : `${PARTY_THIRD}명 합류`,                // v9.129.0: 셋째 칸을 여는 조건
         };
       });
       return { card: foeCards + card, slots };
@@ -5940,6 +5989,7 @@ function renderFieldInsp(){
       + `<div><div class="nm">${esc(pName(who))} <span class="i-muted" style="font-weight:700">Lv ${hLv(who)}</span></div><div class="kd">${esc(hName(who))} · 원정</div></div></div>`
       + bodyPicHtml(bustOf(hPic(who)))                         // v9.58.1: 정보 칸 안은 **상반신**
       + `<div class="desc">${esc(heroDesc(who))}</div>`
+      + `<div class="desc"><b>${esc(ARM_NAME[kitOf(who).arm] || '맨손')}</b> · ${esc(kitOf(who).tip || '')}</div>`   // v9.129.0: 갈래 · 특성
       // v9.56.1: 사람마다 한마디 — 장인들과 같은 자리, 같은 꾸밈
       + `<div class="i-quip">“${esc(heroQuip(who))}”</div>`
       + storyInspHtml(who)                                          // v9.80.0: 기사 · 궁수 이야기
@@ -6202,14 +6252,23 @@ const CREW = { keeper: { name:'여관 주인', art:'innkeeper' }, peddler: { nam
 for (const sm of SMITHS) CREW[sm.id] = { name: sm.name, art: sm.id };
 const isCrew = k => !!CREW[k];
 const crewJoined = k => k === 'keeper' || k === 'peddler' ? personIn(k) : smithOk(k);   // v9.91.0: 여관 주인 · 만물상도 합류해야
-const HERO_BASE = k => CREW[k] ? Object.assign({}, CREW_BASE, { name: CREW[k].name }) : k === 'ally' ? ARCHER : KNIGHT;
+const HERO_BASE = k => Object.assign({}, k === 'ally' ? ARCHER : k === 'knight' ? KNIGHT : CREW_BASE, kitOf(k).body, CREW[k] ? { name: CREW[k].name } : {});   // v9.129.0: 몸은 HERO_KIT
 // 싸울 수 있는 몸인가 — 기사 · 궁수만 전투요원이다
-const isFighter = k => k === 'knight' || k === 'ally';
+const isFighter = k => true;                                     // v9.129.0: 모두 싸운다
 // 지금 데리고 나갈 수 있는 사람들 (전투요원 + 합류한 비전투요원)
 const CREW_IDS = () => Object.keys(CREW).filter(crewJoined);
 const ALL_HEROES = () => ['knight'].concat(allyIn() ? ['ally'] : [], CREW_IDS());   // v9.89.0: 합류해야 선다
 // 그 사람이 쓰는 장비 칸 — 비전투요원은 셋뿐
-const slotsFor = k => isCrew(k) ? SLOTS.filter(sl => CREW_SLOT_KEYS.includes(sl.key)) : SLOTS;
+// v9.129.0: 그 사람이 쓰는 칸 — 기본 다섯 + 특성으로 더 받는 칸 (토른 방패 셋 · 네이라 장신구 다섯 …), 없는 칸은 뺀다
+const slotsFor = k => {
+  const kit = kitOf(k), out = [];
+  for (const sl of SLOTS){
+    if ((kit.no || []).includes(sl.key)) continue;
+    out.push(sl);
+    for (let i = 2; i <= 1 + ((kit.extra || {})[sl.key] || 0); i++) out.push(Object.assign({}, sl, { key: sl.key + i }));
+  }
+  return out;
+};
 // v9.60.0: **사람에게는 이름이 있다.** 카드엔 이름, 그 아래 작은 글씨로 직업을 적는다
 //   (크리처는 종의 이름 그대로 — 이름을 주지 않는다)
 const PERSON_NAME = {
@@ -6234,12 +6293,17 @@ const hPic = k => CREW[k] ? `portrait_${CREW[k].art}` : k === 'ally' ? ARCHER.po
 const hCard = k => CREW[k] ? `card_${CREW[k].art}` : k === 'ally' ? ARCHER.card : 'card_knight';
 // v9.73.0: 비전투요원도 제 몸 상태를 갖는다 (`S.crew`)
 const hSt = k => CREW[k]
-  ? ((S.crew = S.crew || {})[k] = S.crew[k] || { hp: CREW_BASE.hp, lv: 1, xp: 0 })
+  ? ((S.crew = S.crew || {})[k] = S.crew[k] || { hp: kitOf(k).body.hp, lv: 1, xp: 0 })
   : k === 'ally' ? allySt() : S.knight;                           // { hp, lv, xp }
 const hLv = k => (hSt(k).lv) || 1;
 const hMax = k => HERO_BASE(k).hp + lvSumAt(hLv(k), 'hp');
-const hAtk = k => HERO_BASE(k).atk + lvSumAt(hLv(k), 'atk') + gearStatOf(k, 'atk');
-const hDef = k => HERO_BASE(k).def + lvSumAt(hLv(k), 'def') + gearStatOf(k, 'def');
+const hAtk = k => HERO_BASE(k).atk + lvSumAt(hLv(k), 'atk') + gearStatOf(k, 'atk');   // 무기 칸이 둘이면(두르간) 둘째 무기의 공격도 더한다
+const hDef = k => HERO_BASE(k).def + lvSumAt(hLv(k), 'def') + gearStatOf(k, 'def')
+  + (hTrait(k, 'lining') && equipped('armor', k) ? 2 : 0)        // v9.129.0: 마르그 — 안감
+  + (hTrait(k, 'gate') && hFront(k) ? 2 : 0);                    // v9.129.0: 가렛 — 맨 앞에 서면
+// v9.129.0: 원정 줄에서 맨 앞(적 쪽)에 선 사람인가
+const hFront = k => !!exp && exp.party.includes(k) && exp.P && exp.P[k]
+  && exp.party.filter(j => !exp.P[j].out).every(j => exp.P[j].x <= exp.P[k].x);
 const hSpd = k => {          // v8.0.0: 이동속도는 **몸과 장비**가 정한다 (무거운 것을 들면 느려진다)
   let v = HERO_BASE(k).spd;
   for (const sl of slotsFor(k)){ const t = equipped(sl.key, k); if (t && DEFS[t] && DEFS[t].spd) v += DEFS[t].spd; }
@@ -6247,10 +6311,10 @@ const hSpd = k => {          // v8.0.0: 이동속도는 **몸과 장비**가 정
 };
 const hWeap = (k, key, dflt) => { const w = equipped('weapon', k); return (w && DEFS[w] && DEFS[w][key]) || dflt; };
 // v9.127.0: **불 막음** — 갑옷이나 방패 중 하나라도 불을 막으면 타지 않는다 / **빛** — 일행 중 누구 하나라도 빛나는 장신구를 차면 모두 본다
-const hFireproof = k => ['armor', 'shield'].some(key => { const t = equipped(key, k); return !!(t && DEFS[t] && DEFS[t].fireproof); });
-const partyLight = () => !!exp && exp.party.some(k => { const t = equipped('trinket', k); return !!(t && DEFS[t] && DEFS[t].light); });
-const hRange = k => hWeap(k, 'range', BASE_RANGE);                // v8.0.0: 사거리는 **쥔 무기**가 정한다
-const hAps = k => hWeap(k, 'aps', HERO_BASE(k).aps || BASE_APS);  // v9.0.0: 초당 공격 횟수
+const hFireproof = k => slotsFor(k).some(sl => /^(armor|shield)/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].fireproof))(equipped(sl.key, k)));   // v9.129.0: 방패가 여럿이어도
+const partyLight = () => !!exp && exp.party.some(k => slotsFor(k).some(sl => /^trinket/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].light))(equipped(sl.key, k))));
+const hRange = k => hWeap(k, 'range', BASE_RANGE) + (hTrait(k, 'reach') && useOf(equipped('weapon', k) || '').includes('창') ? 1 : 0);   // v9.129.0: 헤이든 — 긴 자루                // v8.0.0: 사거리는 **쥔 무기**가 정한다
+const hAps = k => hWeap(k, 'aps', HERO_BASE(k).aps || BASE_APS) * (hTrait(k, 'rapid') ? 1.25 : 1);   // v9.129.0: 세리나 — 연사  // v9.0.0: 초당 공격 횟수
 const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출혈
 // v4.0.0: **방어 무시** — 상대 방어를 0으로 친다 (코드 키 이름만 `pierce`).
 //   v9.46.2: 앞을 뚫고 뒤까지 때리는 기능은 **없다**. 그 말과 섞어 쓰지 않는다
@@ -6565,7 +6629,17 @@ function cellFree(x, self){
 }
 // 캐릭터 하나의 원정 상태 (칸 · 그림 자리 · 걸음 · 공격 타이머)
 const mkHero = x => ({ x, xd: x, to: x, step: 0, cd: 0, out: false });
-const expLead = () => exp.party.find(k => !exp.P[k].out) || exp.party[0];   // 트랙 진행은 앞장선 캐릭터 기준
+// v9.129.0: **줄 서는 차례** — 앞(도끼 · 방패 · 맨손) → 창 → 활. 같은 갈래끼리는 나간 차례대로
+const MARCH_RANK = { melee: 0, axe: 0, spear: 1, bow: 2 };
+const marchRank = k => MARCH_RANK[kitOf(k).arm] != null ? MARCH_RANK[kitOf(k).arm] : 0;
+const marchOrder = () => exp.party.filter(k => !exp.P[k].out).sort((a, b) => marchRank(a) - marchRank(b) || exp.party.indexOf(a) - exp.party.indexOf(b));
+// 차례대로 다시 세운다 — 맨 앞자리는 지금 가장 앞선 칸, 뒤로 한 칸씩
+function marchFix(){
+  const order = marchOrder(); if (!order.length) return;
+  const top = Math.max(...order.map(k => exp.P[k].x));
+  order.forEach((k, i) => { const h = exp.P[k]; h.x = Math.max(0, top - i); h.xd = h.x; h.to = h.x; });
+}
+const expLead = () => marchOrder()[0] || exp.party[0];            // 트랙 진행은 앞장선 캐릭터 기준 (v9.129.0: 줄 차례의 맨 앞)
 // 한 칸씩 목표 칸 쪽으로 (판정은 칸, 그림은 xd 가 따라온다)
 // spd 를 주면 그 빠르기로 걷는다 — 따라가는 동료는 **선두의 박자**에 맞춘다 (v9.20.1)
 function heroStep(k, dt, target, spd){
@@ -6594,10 +6668,11 @@ const HEAL_BARE_FIGHT = 0.1;
 const REST_MULT = 5;
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
 // v9.68.1: 쉴 때의 회복 = 맨바닥 + **회복 장신구**(캐릭터마다 제 장신구를 본다)
-const regenOf = (who, kind) => { const t = equipped('trinket', who); return (t && DEFS[t] && DEFS[t][kind]) || 0; };
+const regenOf = (who, kind) => slotsFor(who || 'knight').filter(sl => /^trinket/.test(sl.key)).reduce((a, sl) => { const t = equipped(sl.key, who); return a + ((t && DEFS[t] && DEFS[t][kind]) || 0); }, 0);   // v9.129.0: 장신구가 여럿이면 더한다
 const healPerSec = who => Math.round(fightRegen(who || 'knight') * REST_MULT * 100) / 100;
 // 싸우는 중의 회복 — 맨몸 + 장신구 (소수점이 지저분해지지 않게 한 자리로 다듬는다)
-const fightRegen = who => Math.round((HEAL_BARE_FIGHT + regenOf(who, 'regenFight')) * 100) / 100;
+const fightRegen = who => Math.round((HEAL_BARE_FIGHT + regenOf(who, 'regenFight')
+  + (exp && exp.party.includes(who) && exp.party.some(j => hTrait(j, 'mend')) ? 0.3 : 0)) * 100) / 100;   // v9.129.0: 실바 — 약손
 const healFullMs = () => Math.round(knightMaxHp() / healPerSec('knight') * 1000);   // 빈사 → 가득 (보여 주기용)
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
 // v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
@@ -6788,6 +6863,7 @@ function expStart(id, cardEl, who){
       }
       exp.party.push(who);
       exp.P[who] = mkHero(x);
+      if (exp.phase !== 'fight') marchFix();                       // v9.129.0: 합류하면 줄 차례대로 다시 선다 (앞 · 창 · 활)
       exp.line = `${hName(who)} 합류`;
       const el0 = document.getElementById('exp');
       if (el0) el0._key = null;                                    // 줄을 다시 짓는다 (한 줄 더 생김)
@@ -6846,7 +6922,7 @@ function alliesStep(dt){
   for (const k of exp.party){
     if (k === lead || exp.P[k].out) continue;
     const h = exp.P[k];
-    const tgt = Math.max(0, L.x - 1);
+    const tgt = Math.max(0, L.x - Math.max(1, marchOrder().indexOf(k)));   // v9.129.0: 제 차례 칸 (둘째는 한 칸 뒤, 셋째는 두 칸 뒤)
     const far = Math.abs(tgt - exp.P[k].x) > 1;
     heroStep(k, dt, tgt, far ? hSpd(k) : Math.min(hSpd(k), hSpd(lead)));
   }
@@ -7145,7 +7221,7 @@ function expFight(dt){
     while (hit && h.cd >= every && e.hp > 0){
       h.cd -= every;
       const pierce = hPierce(k);
-      const dmg0 = Math.max(1, hAtk(k) - (pierce ? 0 : def.def));
+      const dmg0 = Math.max(1, hAtk(k) - (pierce ? 0 : Math.max(0, def.def - (hTrait(k, 'know') ? 2 : 0))));   // v9.129.0: 오르반 — 아는 것
       const dmg = def.dark && !partyLight() ? Math.max(1, Math.ceil(dmg0 / 2)) : dmg0;   // v9.127.0: **어둠** — 빛이 없으면 반
       const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
       const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
