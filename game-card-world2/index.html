@@ -1958,7 +1958,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.127.0';
+const VERSION = 'v9.128.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6426,9 +6426,10 @@ const LANE_BG = {
     frontSpeed: 1.3,
   },
 };
-LANE_BG.quarry = LANE_BG.quarry || LANE_BG.mountain;               // v9.127.0: 새 땅 배경이 나오기 전엔 빌려 쓴다
-LANE_BG.scorched = LANE_BG.scorched || LANE_BG.towerruin;
-LANE_BG.cellar = LANE_BG.cellar || LANE_BG.stonehide;
+// v9.128.0: 새 땅 셋의 배경 (KREA2 · make_bg_tile.py) — 소품(바위 · 풀)은 비슷한 땅 것을 그대로 쓴다
+LANE_BG.quarry   = Object.assign({}, LANE_BG.mountain,  { far: { file: 'bg_quarry-far', kan: 6, speed: 0.3 },   ground: { file: 'bg_quarry-ground', kan: 4 },   edge: { file: 'bg_quarry-edge', kan: 6 } });
+LANE_BG.scorched = Object.assign({}, LANE_BG.towerruin, { far: { file: 'bg_scorched-far', kan: 6, speed: 0.3 }, ground: { file: 'bg_scorched-ground', kan: 4 }, edge: { file: 'bg_scorched-edge', kan: 6 } });
+LANE_BG.cellar   = Object.assign({}, LANE_BG.stonehide, { far: { file: 'bg_cellar-far', kan: 6, speed: 0.3 },   ground: { file: 'bg_cellar-ground', kan: 4 },   edge: { file: 'bg_cellar-edge', kan: 6 } });
 // v9.11.0: **점유 칸과 그림 자리는 다른 값이다.**
 //   x  = 어느 칸을 차지하는가 (판정 · 사거리 · 점유는 늘 이 값)
 //   xd = 화면 어디에 그리는가 (제 이동속도로 x 를 따라간다 — 뚝뚝 끊기지도, 뒤로 튀지도 않는다)
