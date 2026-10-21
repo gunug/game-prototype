@@ -62,15 +62,25 @@ CREATURES = [
     ("bigpincer", "큰 집게", "a large armored crab with one oversized pincer and a thick barnacle-crusted shell"),
     ("cavekeeper", "동굴 주인", "a giant armored sea crustacean lord with a massive layered shell, heavy pincers and small glowing eyes, dripping wet"),
     ("towereye", "탑의 눈", "a huge single glowing eye embedded in cracked broken stone masonry, carved rock eyelids, pale light beams from the pupil, ancient unmoving stone"),
+    # v9.127.0: 새 땅 셋 — ⛏ 옛 채석장 · ⚡ 벼락 들판 · 🍷 지하 창고
+    ("rockmole", "바위 두더지", "a burly mole with grey stone-crusted skin patches, huge shovel-like digging claws, tiny squinting eyes, dusty pink snout"),
+    ("cragram", "바위 산양", "a sturdy mountain ram with thick curled grey horns, shaggy grey-brown fleece, strong hooves, standing on a rock"),
+    ("bigcentipede", "큰 지네", "a giant centipede with dark rust-brown armored segments, many sharp legs, huge curved pincer jaws, front body raised up"),
+    ("cinderhound", "잿불 들개", "a lean wild dog with charred black and ash-grey fur, small glowing orange embers smoldering along its back, wisps of smoke"),
+    ("ashboar", "잿불 멧돼지", "a stocky wild boar with charred black cracked hide glowing with bright orange lava-like cracks, burning embers and small flames along its spine, red-hot glowing tusks, smoke rising"),
+    ("scorchstag", "그을린 사슴", "a large proud stag with charred black hide, bright orange glowing ember cracks across its body, huge branching antlers smoldering with small flames at the tips, sparks and smoke"),
+    ("cellarrat", "창고 쥐", "a big plump cellar rat with matted grey fur, long pink tail, sharp front teeth, glinting red eyes"),
+    ("gloombat", "큰 박쥐", "a huge dark bat with wide leathery wings spread open, big pointed ears, tiny glinting eyes, fangs"),
+    ("cellarkeeper", "창고 주인", "a huge blind pale white cave salamander with tiny milky-white sightless eyes, smooth wet ghostly skin, wide flat head, feathery pink external gills, long tail, crawling low"),
 ]
 # 얼굴을 찾는 말 — 사람은 face, 짐승은 head. 얼굴이랄 것이 없는 것은 따로 적는다
 SEG = {"bogarm": "hand", "towereye": "eye", "catfish": "fish head", "crayfish": "head"}
 # 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것들 — 카드는 **전신 그림**으로 뜬다 (통째로 담아야 64px 에서 읽힌다)
-CARD_FROM_FULL = {"bison", "forestbear", "stonebug", "shellback", "stonelord", "spider", "webmother", "hermit", "bogarm"}
+CARD_FROM_FULL = {"bigcentipede", "cellarkeeper", "gloombat", "bison", "forestbear", "stonebug", "shellback", "stonelord", "spider", "webmother", "hermit", "bogarm"}
 # 머리 · 몸통이 없는 것 — 데포르메 비율 문구를 붙이면 짐승이 되어 버린다 (수렁 팔이 꼬리 달린 짐승으로 나왔다)
 NO_PROP = {"bogarm", "towereye"}
 # 2026-10-08: 거미 · 게 · 벌레는 **몸통**을 키운다 (머리가 따로 없어 '둥근 뺨 · 큰 눈'이 걸릴 데가 없다)
-BUGS = {"spider", "webmother", "nestkeeper", "stonebug", "hermit", "bigpincer", "cavekeeper", "crayfish"}
+BUGS = {"bigcentipede", "spider", "webmother", "nestkeeper", "stonebug", "hermit", "bigpincer", "cavekeeper", "crayfish"}
 
 
 def rows(args):
