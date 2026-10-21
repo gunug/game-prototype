@@ -126,6 +126,12 @@
   .foelist .cw.being{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .foelist .cw.being .name{font-size:calc(var(--cw) * .14);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
+  /* v9.131.0: 출전 단추 — 출전 칸 왼쪽 */
+  .lrow.fieldrow{align-self:stretch;justify-content:flex-start;padding-left:calc(var(--cw) * .2);}   /* 줄마다 칸이 같은 자리에 (크리처가 없는 잠긴 줄도) */
+  .sortie-btns{flex:none;display:flex;flex-direction:column;gap:6px;width:calc(var(--cw) * .9);}
+  .sortie-btns button{padding:6px 4px;font-size:12px;font-weight:800;border-radius:8px;white-space:nowrap;}
+  .sortie-btns .sortie-go{background:#e8b84a;color:#1a1408;border:1px solid #f3d27a;}
+  .sortie-btns button:disabled{opacity:.45;cursor:default;}
   /* v0.34.0: 위 줄엔 완성품 카드. v2.7.0: 격자를 접고 한 줄로 — 많아지면 옆으로 민다 */
   .toplist.grid{gap:calc(var(--cw) * .12);}
   .toplist.grid .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);aspect-ratio:auto;cursor:pointer;}
@@ -2001,7 +2007,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.130.0';
+const VERSION = 'v9.131.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2929,7 +2935,30 @@ const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공�
 // v9.129.0: **출전 칸 셋** — 셋째 칸은 사람 넷이 합류하면 열린다 (앞 · 뒤 · 원거리)
 const PARTY_THIRD = 4;
 const PARTY = () => [true, true, ALL_HEROES().length >= PARTY_THIRD];
-const PARTY_MAX = () => PARTY().filter(Boolean).length;            // v9.76.1: 한 원정에 나갈 수 있는 머릿수
+const PARTY_MAX = () => PARTY().filter(Boolean).length;
+// v9.131.0: **출전 줄** — 땅마다 전열 · 중열 · 후열 세 칸. 칸에 올려 두기만 하고, ⚔ 출전 단추를 눌러야 나간다.
+//   싸움이 끝나도 줄은 그대로 남는다 (다시 ⚔ 출전이면 같은 줄로). 출전해제를 누르면 줄이 빈다.
+//   한 사람은 한 줄에만 선다 (다른 땅 줄에 올리면 앞 줄에서 빠진다). 나가는 차례 = 전열 → 중열 → 후열
+const LINE_LAB = ['전열', '중열', '후열'];
+const lineupOf = fid => { const L = (S.lineup = S.lineup || {}); const a = L[fid] = Array.isArray(L[fid]) ? L[fid] : [null, null, null]; while (a.length < 3) a.push(null); return a; };
+function lineupPut(fid, i, who){
+  for (const k in (S.lineup || {})) S.lineup[k] = S.lineup[k].map(x => x === who ? null : x);
+  lineupOf(fid)[i] = who;
+  save();
+}
+function lineupDrop(fid, i){ lineupOf(fid)[i] = null; save(); }
+function sortieGo(fid){
+  if (expAt(fid)){ toast('🏃 이미 원정 중'); return; }
+  const line = lineupOf(fid).filter((w, i) => w && PARTY()[i] && ALL_HEROES().includes(w));
+  if (!line.length){ toast('출전 칸에 캐릭터를 올려 두자'); return; }
+  const fel = gatherEl.querySelector(`[data-field="${fid}"]`);
+  for (const w of line) expStart(fid, fel, w);                    // 전열부터 — 먼저 나간 사람이 맨 앞
+}
+function sortieClear(fid){
+  if (expAt(fid)){ toast('🏃 원정 중에는 줄을 뺄 수 없다'); return; }
+  S.lineup = S.lineup || {}; S.lineup[fid] = [null, null, null];
+  save(); renderScreen(); renderInsp();
+}            // v9.76.1: 한 원정에 나갈 수 있는 머릿수
 // v0.20.0: 크래프팅 화면을 용도별로 나눔 — 그 태그가 붙은 카드만 그 화면에 나옴
 //   '전투'(옛 채집) · '도구' · '무기'(작업대를 만들면 열림)
 const BOARDS = [
@@ -5417,19 +5446,23 @@ function screenRows(){
       const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k =>   // v8.5.0: 기사 카드와 같은 틀 · 같은 크기
         foeCardHtml(k, { attrs: ` data-foe-card="${k}" title="${esc((ENEMIES[k] || {}).name || '')}"`, sel: foePick === k })).join('')}</div>`;
       // v9.20.4: 나간 **그 캐릭터**가 그 칸에 뜬다 (전엔 첫 칸에 늘 기사 그림이 박혀 있었다)
-      const here = (expAt(f.id) || {}).party || [];
+      const line = lineupOf(f.id), going = !!expAt(f.id);          // v9.131.0: 칸엔 출전 줄 (나가 있든 아니든)
       const slots = PARTY().map((open, i) => {
-        const who = here[i] || null;
+        const who = line[i] && ALL_HEROES().includes(line[i]) ? line[i] : null;
         return {
           id: `${f.id}:${i}`, open: open && !locked,              // v0.35.0: 잠긴 필드는 출전 칸도 잠김
           card: !!(open && who),
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
           // v9.77.1: 테두리는 **그 사람의 등급** — 기사만 금테, 나머지는 동테 (전엔 비전투요원도 금테로 보였다)
-          cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: '출전',
+          cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: LINE_LAB[i],
           need: open ? '' : `${PARTY_THIRD}명 합류`,                // v9.129.0: 셋째 칸을 여는 조건
         };
       });
-      return { card: foeCards + card, slots };
+      const any = line.some(Boolean);
+      const pre = locked ? '<div class="sortie-btns"></div>' : `<div class="sortie-btns">`
+        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !any ? ' disabled' : ''}>${going ? '🏃 원정 중' : '⚔ 출전'}</button>`
+        + `<button class="reset sortie-clear" type="button" data-unsortie="${f.id}"${going || !any ? ' disabled' : ''}>출전해제</button></div>`;
+      return { card: card + foeCards, slots, pre, slotsFirst: true };   // v9.131.0: 출전 칸은 왼쪽, 크리처는 오른쪽
     });
   }
   // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
@@ -5636,6 +5669,11 @@ function renderTopGrid(){
     : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
   syncTopH();
 }
+gatherEl.addEventListener('click', e => {                         // v9.131.0: ⚔ 출전 · 출전해제
+  const go = e.target.closest('[data-sortie]'), off = e.target.closest('[data-unsortie]');
+  if (go){ e.stopPropagation(); sortieGo(go.dataset.sortie); renderScreen(); renderInsp(); }
+  else if (off){ e.stopPropagation(); sortieClear(off.dataset.unsortie); }
+});
 gatherEl.addEventListener('click', e => {                         // v0.36.0: 말풍선을 탭하면 바로 다음으로
   if (e.target.closest('[data-knightsay]')) endKnightSay();
 });
@@ -5650,7 +5688,9 @@ function renderScreen(){
   if (gatherEl.hidden) return;
   const rows = screenRows(), toks = screenTokens();
   gatherEl.innerHTML = '<div class="toplist">'
-    + rows.map(row => `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
+    + rows.map(row => row.slotsFirst
+      ? `<div class="lrow fieldrow">${row.pre || ''}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div>${row.card}</div>`   // v9.131.0
+      : `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
     + '<div class="botarea">'
     + '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('')
@@ -5659,7 +5699,7 @@ function renderScreen(){
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
     + `<div class="gather-hint">${isFieldTab(S.tab)
-      ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 필드 줄의 출전 칸에 끌어다 놓으세요')
+      ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중` : '캐릭터를 전열 · 중열 · 후열 칸에 올리고 ⚔ 출전을 누르세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : S.tab === 'inn' ? (innRegs().length                        // v9.55.0 · v9.80.1 · v9.81.0
@@ -5688,8 +5728,9 @@ function dropOnSlot(id, token){
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
   if (isFieldTab(S.tab)){                                         // v4.0.0
     if (!ALL_HEROES().includes(token)) return;                   // v9.20.0 · v9.73.0
-    const fel = gatherEl.querySelector(`[data-field="${rowKey}"]`);
-    expStart(rowKey, fel, token);
+    if (expAt(rowKey)){ toast('🏃 원정 중에는 줄을 바꿀 수 없다'); return; }
+    lineupPut(rowKey, +slotKey, token);                           // v9.131.0: 올려 두기만 — ⚔ 출전을 눌러야 나간다
+    renderScreen(); renderInsp();
     return;
   }
   const sl = slotByKey(slotKey);
@@ -5713,9 +5754,8 @@ function slotTakes(id, token){
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0
-    if (!ALL_HEROES().includes(token) || !canSortie(token)) return false;   // v9.77.0: 회복중은 못 나간다
-    const E = expAt(slotId(id).row);                              // v9.76.1: 꽉 찬 원정엔 칸이 안 켜진다
-    return !E || E.party.includes(token) || E.party.length < PARTY_MAX();
+    const { row: fid, key: k2 } = slotId(id);                    // v9.131.0: 줄에 올리기 — 회복중이어도 올려 둘 수 있다 (나갈 땐 본다)
+    return ALL_HEROES().includes(token) && !!PARTY()[+k2] && !fieldLocked(fid) && !expAt(fid);
   }
   const sl = slotByKey(slotKey);
   return !!sl && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));   // v0.56.0: 잠긴 칸은 안 받음
@@ -5769,6 +5809,7 @@ gatherEl.addEventListener('pointerdown', e => {
   const token = tokEl ? tokEl.dataset.token
     : S.tab === 'aim' ? S.goal
     : S.tab === 'inn' ? (/^reg\d$/.test(fs.key) ? innRegs()[+fs.key.slice(3)] : null)   // v9.55.0 · v9.81.0
+    : isFieldTab(S.tab) ? (expAt(fs.row) ? null : lineupOf(fs.row)[+fs.key])   // v9.131.0: 출전 줄 (원정 중엔 못 뺀다)
     : equipped(fs.key, fs.who);
   if (!token) return;
   const r0 = el.getBoundingClientRect();
@@ -5840,12 +5881,14 @@ addEventListener('pointerup', e => {
   if (hit && hit !== d.fromSlot){
     if (d.fromSlot && S.tab === 'inn'){}                           // v9.81.0: 등록 칸끼리는 옮기지 않는다
     else {
-      if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
+      if (d.fromSlot && isFieldTab(S.tab)){ const f = slotId(d.fromSlot); lineupDrop(f.row, +f.key); }   // v9.131.0
+      else if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
       dropOnSlot(hit, d.token);
     }
   } else if (d.fromSlot && !hit){
     if (S.tab === 'aim'){ S.goal = null; slotPick = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4 · v5.4.0
     else if (S.tab === 'inn') innUnregister(d.token);              // v9.55.0: 등록 칸에서 끌어내면 그 사람만 푼다
+    else if (isFieldTab(S.tab)){ const f = slotId(d.fromSlot); lineupDrop(f.row, +f.key); }   // v9.131.0: 줄 밖으로 끌면 그 사람만 빠진다
     else { const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // 칸 밖으로 빼기. v9.24.2: 그 줄의 것만
   }
   renderScreen(); renderInsp();                                    // 못 놓으면 제자리로 다시 그림
@@ -6037,7 +6080,7 @@ function renderFieldInsp(){
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
   if (!f){
-    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>기사를 필드 줄의 출전 칸에 끌어다 놓으면 원정을 떠납니다.</div>';
+    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>기사를 필드 줄의 전열 칸에 올리고 ⚔ 출전을 누르면 원정을 떠납니다.</div>';
     return;
   }
   const ys = yieldsOf(f.id);
@@ -8318,7 +8361,7 @@ const withP = w => w + (hasJong(w) ? '과' : '와');                // v3.5.1: �
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
   const H = S.hints || {};
-  if (!H.sortie) return '기사 카드를 필드 줄의 출전 칸으로 끌어다 놓는다';
+  if (!H.sortie) return '기사 카드를 전열 칸에 올리고 ⚔ 출전을 누른다';
   if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
     const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
     return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
