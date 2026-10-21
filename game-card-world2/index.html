@@ -2008,7 +2008,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.133.0';
+const VERSION = 'v9.134.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4874,6 +4874,9 @@ function traceBookHtml(){
   // v9.86.0: **흔적도 카드** — 시나리오 카드와 같은 꼴 (그림 한 장 · 탭하면 정보 칸에서 읽는다). 못 겪은 것은 ???
   for (const who of Object.keys(TRACE_WHO)){
     const list = TRACES.filter(t => t.who === who);
+    // v9.134.0: 시간 차례대로 — **합류 흔적(흔적 1)이 여관 등록 흔적(배경)보다 먼저**
+    const bi = list.findIndex(t => t.id === `bg_${who}`), ji = list.findIndex(t => t.id === `st_${who}_01`);
+    if (bi >= 0 && ji > bi){ const [j] = list.splice(ji, 1); list.splice(bi, 0, j); }
     const on = t => editMode || (S.traces || []).includes(t.id);
     h += `<div class="book-field"><div class="book-fname">${TRACE_WHO[who]} <span class="i-muted">${list.filter(on).length}/${list.length}</span></div>`
       + `<div class="book-row">${list.map(t => on(t)
