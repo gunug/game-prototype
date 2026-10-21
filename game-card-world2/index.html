@@ -2008,7 +2008,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.132.0';
+const VERSION = 'v9.133.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2952,6 +2952,8 @@ function sortieGo(fid){
   if (expAt(fid)){ toast('🏃 이미 원정 중'); return; }
   const line = lineupOf(fid).filter((w, i) => w && PARTY()[i] && ALL_HEROES().includes(w));
   if (!line.length){ toast('출전 칸에 캐릭터를 올려 두자'); return; }
+  const rest = line.filter(w => !canSortie(w));                   // v9.133.0: 한 사람이라도 회복중이면 나가지 않는다
+  if (rest.length){ toast(`🩸 ${rest.map(pName).join(' · ')} 회복중 — 가득 차야 나간다`); return; }
   const fel = gatherEl.querySelector(`[data-field="${fid}"]`);
   for (const w of line) expStart(fid, fel, w);                    // 전열부터 — 먼저 나간 사람이 맨 앞
 }
@@ -5464,8 +5466,9 @@ function screenRows(){
         };
       });
       const any = line.some(Boolean);
+      const resting = line.some((w, i) => w && PARTY()[i] && ALL_HEROES().includes(w) && !canSortie(w));   // v9.133.0: 회복중인 사람이 있으면 못 나간다
       const pre = locked ? '<div class="sortie-btns"></div>' : `<div class="sortie-btns">`
-        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !any ? ' disabled' : ''}>${going ? '🏃 원정 중' : '⚔ 출전'}</button>`
+        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !any || resting ? ' disabled' : ''}>${going ? '🏃 원정 중' : resting ? '🩸 회복중' : '⚔ 출전'}</button>`
         + `<button class="reset sortie-clear" type="button" data-unsortie="${f.id}"${going || !any ? ' disabled' : ''}>출전해제</button></div>`;
       return { card: card + foeCards, slots, pre, slotsFirst: true };   // v9.131.0: 출전 칸은 왼쪽, 크리처는 오른쪽
     });
