@@ -1040,6 +1040,7 @@
   .book-head2:first-child{margin-top:0;}
   .book-row{display:flex;gap:10px;flex-wrap:wrap;}
   /* v9.49.0: 완성품 계보 — 칸(열)은 단계, 줄(행)은 갈래. 부모와 자식을 선으로 잇는다 */
+  .fin-solo{display:flex;flex-wrap:wrap;gap:calc(var(--cw) * .2) calc(var(--cw) * .3);margin-top:calc(var(--cw) * .2);}   /* v9.132.0: 트리 없는 완성품 — 가로로, 폭에 맞춰 줄바꿈 */
   .fin-tree{display:grid;grid-template-columns:repeat(var(--cols,1), max-content);
     gap:12px 22px;align-items:center;justify-items:start;overflow-x:auto;padding:2px 2px 4px;}
   .fin-node{position:relative;}
@@ -2007,7 +2008,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.131.0';
+const VERSION = 'v9.132.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4236,12 +4237,14 @@ function finLayout(list){
       place(k, col + 1, i > 0 ? row - from : 0);
     });
   };
+  // v9.132.0: **단계 트리가 없는 완성품**(부모도 자식도 없는 것)은 한 줄에 하나씩 세우지 않고 **가로로** 늘어놓는다
+  const solo = list.filter(t => !dad.has(t) && !(kids.get(t) || []).length);
   for (const t of list){
-    if (dad.has(t)) continue;                                     // 뿌리부터
+    if (dad.has(t) || solo.includes(t)) continue;                 // 뿌리부터 (사슬이 있는 것)
     place(t, 0, 0);
     row++;
   }
-  return { nodes, cols: maxCol + 1 };
+  return { nodes, cols: maxCol + 1, solo };
 }
 function bookCardsOf(id){
   if (id === 'land' || id === 'foe' || id === 'hero') return [];  // v7.9.0 · v7.9.1 · v9.25.0: 카드(DEFS)가 아니라 따로 그린다
@@ -4818,12 +4821,14 @@ function renderBook(){
         const only = list.filter(t => inTab.includes(t) && !seen.has(t));
         if (!only.length) return '';
         for (const t of only) seen.add(t);
-        const { nodes, cols } = finLayout(only);
+        const { nodes, cols, solo } = finLayout(only);
         return `<div class="book-field"><div class="book-fname">${title} <span class="i-muted">${only.filter(shownSeen).length}/${only.length}</span></div>`
           + `<div class="fin-tree" style="--cols:${cols}">`
           + nodes.map(n => `<div class="fin-node${n.col ? ' child' : ''}${n.up ? ' below' : ''}"`
               + ` style="grid-column:${n.col + 1};grid-row:${n.row + 1};--up:${n.up}">${slotHtml(n.t)}</div>`).join('')
-          + '</div></div>';
+          + '</div>'
+          + (solo.length ? `<div class="fin-solo">${solo.map(t => `<div class="fin-node">${slotHtml(t)}</div>`).join('')}</div>` : '')   // v9.132.0: 트리 없는 것은 가로로
+          + '</div>';
       };
       for (const g of FIN_GROUPS) h += tree(g.name, inTab.filter(t => useOf(t).some(u => g.uses.includes(u))));
       h += tree('그 밖', inTab);
@@ -5689,7 +5694,7 @@ function renderScreen(){
   const rows = screenRows(), toks = screenTokens();
   gatherEl.innerHTML = '<div class="toplist">'
     + rows.map(row => row.slotsFirst
-      ? `<div class="lrow fieldrow">${row.pre || ''}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div>${row.card}</div>`   // v9.131.0
+      ? `<div class="lrow fieldrow">${row.pre || ''}<div class="rowslots">${row.slots.slice().reverse().map(slotHtmlOf).join('')}</div>${row.card}</div>`   // v9.131.0 · v9.132.0: 후열 · 중열 · 전열 (전열이 땅 옆)
       : `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
     + '<div class="botarea">'
