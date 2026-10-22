@@ -2153,7 +2153,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.137.0';
+const VERSION = 'v9.138.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2353,7 +2353,7 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른',   // v9.94.0 세리나 · v9.95.0 보른
+const TRACE_WHO = { place: '🗺 장소', knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른',   // v9.94.0 세리나 · v9.95.0 보른
   peddler: '🎯 오르반', weaponsmith: '⚔ 두르간', cook: '🍖 올가', carpenter: '🏠 헤이든', armorsmith: '🛡 마르그',   // v9.110.0: 사람마다 배경 흔적
   shieldsmith: '🛡 토른', trinketsmith: '📿 네이라', herbalist: '🧪 실바', goldgolem: '🏛 황금 골렘' };   // v9.105.0: 황금 골렘   // v9.94.0: 세리나 · v9.95.0: 보른
 const TRACES = [
@@ -2437,7 +2437,8 @@ function traceReached(t){
     case 'smith': return (n.done || []).includes(a);
     case 'story-reg': return (n.everReg || []).includes(a) || ((n.story || {})[a] | 0) > 0 || (n.regs || []).includes(a);
     case 'story': return ((n.story || {})[a] | 0) >= (+b || 0);
-    case 'story-sum': return storySum() >= (+a || 0);           // v9.118.0: 동탑 시나리오 카드 — 이야기 걸음 합계
+    case 'story-sum': return storySum() >= (+a || 0);
+    case 'land': return !fieldLocked(a) && (a !== 'towerruin' || !!S.raidSeen) && (a !== 'mountain' || (S.traces || []).includes('wake'));   // 산은 '빈손' 다음에 카드로 뜬다   // v9.138.0: 장소 흔적 — 열려 있는 땅 (부서진 탑은 레이드 탭을 연 뒤)           // v9.118.0: 동탑 시나리오 카드 — 이야기 걸음 합계
     default: return false;
   }
 }
@@ -2817,6 +2818,22 @@ const storyLen = id => (STORY[id] || []).length || STORY_LEN;
   const t = { id: `bg_${who}`, who, pic: `scene_bg_${who}`, key: `story-reg:${who}`, name, text };
   TRACES.push(t); TRACE_BY_ID[t.id] = t;
 });
+// v9.138.0: **장소 흔적** — 땅이 열릴 때 카드를 먼저 띄우고, 닫으면 '○○ 열림'. 열쇠 land:<땅>
+[
+  ['mountain', '산', '올라갈수록 돌이 많아진다. 바위 틈에서 무언가 지켜본다. 첫걸음은 여기부터.'],
+  ['grassland', '초원', '바람이 풀을 쓰다듬는다. 풀이 흔들리면, 바람이 아닐 때가 있다.'],
+  ['forest', '숲', '그늘이 깊고 열매가 달다. 길을 잃기 딱 좋다. 늑대 울음이 가깝다.'],
+  ['quarry', '옛 채석장', '황금탑의 돌을 캐던 자리. 녹슨 쐐기가 아직 바위에 박혀 있다.'],
+  ['river', '강가', '물이 흙을 데려온다. 여울 밑에서 큰 것이 꼬리를 친다.'],
+  ['scorched', '벼락 들판', '모래가 녹아 유리가 된 들판. 그날의 불씨가 아직 꺼지지 않았다.'],
+  ['stonehide', '돌가죽 굴', '산이 무너진 자리 아래 굴. 안쪽 것들은 돌을 덮고 산다.'],
+  ['swamptomb', '늪지 무덤', '물이 고인 돌무덤. 이끼 아래서 무언가가 아직 숨을 쉰다.'],
+  ['spidernest', '거미 둥지', '나무 사이가 온통 줄이다. 줄을 타고 무언가 내려다본다.'],
+  ['shellcave', '껍질 동굴', '바닷물이 드나드는 굴. 발밑의 깨진 껍데기가 바스락거린다.'],
+  ['cellar', '지하 창고', '무너진 탑 밑에 반쯤 묻힌 연회 창고. 술통 사이로 날개 소리가 난다.'],
+  ['towerruin', '부서진 탑', '벼락에 허리가 꺾인 망루. 꼭대기의 눈은 아직 감기지 않았다.'],
+  ['goldtower', '무너진 금탑', '누워 버린 연회장. 빛을 잃은 금이 굴러다닌다. 문 앞에 무언가 서 있다.'],
+].forEach(([id, name, text]) => { const t = { id: `pl_${id}`, who: 'place', pic: `scene_pl_${id}`, key: `land:${id}`, name, text }; TRACES.push(t); TRACE_BY_ID[t.id] = t; });
 const STORY_TRACES = {                                          // v9.117.0: 모두 — id st_<사람>_<걸음>, 그림 scene_st_<사람>_<걸음>
   knight: [['st_knight_01', '문지방'], ['st_knight_02', '잠자리'], ['st_knight_03', '저절로'], ['st_knight_04', '물러서지 않음'], ['st_knight_05', '막힌 문'], ['st_knight_06', '긁힌 자리'], ['st_knight_07', '설 자리'], ['st_knight_08', '문틀'], ['st_knight_09', '내 방패'], ['st_knight_10', '남의 이름'], ['st_knight_11', '망루 문'], ['st_knight_12', '같은 문양'], ['st_knight_13', '그 바닥'], ['st_knight_14', '안감'], ['st_knight_15', '이 빛'], ['st_knight_16', '같은 자리']],
   ally: [['st_ally_01', '내가 지은 이름'], ['st_ally_02', '날아간 깃털'], ['st_ally_03', '숟가락'], ['st_ally_04', '세 번이나'], ['st_ally_05', '무릎'], ['st_ally_06', '솔기'], ['st_ally_07', '한 입'], ['st_ally_08', '값'], ['st_ally_09', '머리 위 방패'], ['st_ally_10', '세 칸'], ['st_ally_11', '문 앞'], ['st_ally_12', '몰래 둔 약'], ['st_ally_13', '사람 수'], ['st_ally_14', '반짝이'], ['st_ally_15', '하얀 얼굴'], ['st_ally_16', '아빠 손']],
@@ -5762,6 +5779,7 @@ function knightIntro(){
     relay({ pause: true, run: titleShow });                       // v9.121.0: 그 다음 게임 타이틀 — 그리고 '빈손'
   }
   traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
+  if (!(S.traces || []).includes('pl_mountain')){ traceHit('land:mountain'); unlockField(FIELD_BY_ID.mountain); }   // v9.138.0: 첫 땅 — 산
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
   save();
@@ -6292,7 +6310,13 @@ function renderFieldInsp(){
           + (e.loot || []).map(l => rowOf(l[0], got.includes(l[0]))).join('') + '</div>';
       }).join('');
 }
+function raidFirstLook(){                                          // v9.138.0: 부서진 탑 — 처음부터 열린 레이드라 탭을 처음 열 때
+  if (S.raidSeen) return; S.raidSeen = true;
+  if (!(S.traces || []).includes('pl_towerruin')){ traceHit('land:towerruin'); unlockField(FIELD_BY_ID.towerruin); }
+  save();
+}
 function setTab(tab){
+  if (tab === 'raid') setTimeout(raidFirstLook, 0);                // v9.138.0
   if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
   if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
@@ -8859,6 +8883,7 @@ function addUnlockNote(id){
   if (!f) return;
   logEv('unlock', { field: id });                                 // v7.6.0
   landFound(id);                                                  // v7.13.0
+  traceHit(`land:${id}`);                                         // v9.138.0: 장소 흔적 카드 먼저
   unlockField(f);                                                 // v9.76.0: 같은 언락 연출
   toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`);
   if (isRowScreen(S.tab)) renderScreen();
@@ -8871,6 +8896,7 @@ function unlockNextField(afterId){
   logEv('unlock', { field: next.id });                             // v7.6.0
   landFound(next.id);                                              // v7.13.0
   save();
+  traceHit(`land:${next.id}`);                                     // v9.138.0: 장소 흔적 카드 먼저
   playUnlock(next);
 }
 // v9.76.0: **언락 연출** — 그림 한 장 + 한 줄을 3초간 덮어 보여 준다 (사람 합류 · 땅 · 던전 · 레이드 공통).
