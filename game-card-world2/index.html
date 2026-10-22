@@ -1042,11 +1042,11 @@
   /* v9.49.0: 완성품 계보 — 칸(열)은 단계, 줄(행)은 갈래. 부모와 자식을 선으로 잇는다 */
   .fin-solo{display:flex;flex-wrap:wrap;gap:calc(var(--cw) * .2) calc(var(--cw) * .3);margin-top:calc(var(--cw) * .2);}   /* v9.132.0: 트리 없는 완성품 — 가로로, 폭에 맞춰 줄바꿈 */
   .fin-tree{display:grid;grid-template-columns:repeat(var(--cols,1), max-content);
-    gap:12px 22px;align-items:center;justify-items:start;overflow-x:auto;padding:2px 2px 4px;}
+    gap:12px var(--fgap, 22px);align-items:center;justify-items:start;overflow-x:hidden;padding:2px 2px 4px;}   /* v9.136.0: 7칸이 폭에 맞게 (fitFinTrees) */
   .fin-node{position:relative;}
-  .fin-node.child::before{content:'';position:absolute;right:100%;top:50%;width:22px;height:2px;
+  .fin-node.child::before{content:'';position:absolute;right:100%;top:50%;width:var(--fgap, 22px);height:2px;
     background:rgba(255,255,255,.28);}                             /* 부모에서 오는 가로 선 */
-  .fin-node.below::after{content:'';position:absolute;right:calc(100% + 20px);bottom:50%;width:2px;
+  .fin-node.below::after{content:'';position:absolute;right:calc(100% + var(--fgap, 22px) - 2px);bottom:50%;width:2px;
     height:calc((var(--ch) + 20px) * var(--up, 1));background:rgba(255,255,255,.28);}   /* 위 형제에서 내려오는 세로 선 */
   /* 슬리브: 카드를 끼우는 투명 비닐 주머니. 앞면 아래쪽 덮개(::after)가 카드 위에 겹쳐 '끼워진' 느낌 */
   .sleeve{position:relative;width:calc(var(--cw) + 8px);height:calc(var(--ch) + 8px);border-radius:calc(var(--r-md) + 2px);cursor:pointer;
@@ -1433,6 +1433,52 @@ const DEFS = {
   mosspelt:  { name:'이끼 가죽', kind:'material', step:1, group:'loot' },
   catfishwhisker: { name:'메기 수염', kind:'material', step:1, group:'loot' },                // v0.23.0: 만들면 정비 화면이 열림 (그림 card_campfire)
 };
+// v9.136.0: **무기 표** — 모양(도끼 · 칼 · 창 · 활)은 갈래 내내 그대로, 특성은 하나만 (방어 무시 · 연타 · 출혈 · 사거리 고정).
+//   공격 속도는 **10초 타수(rate, 정수)** — 단계마다 갈래끼리 10초 피해가 같게 맞췄다 (보통 적 방어 0~6 기준, 창 · 활은 9할)
+const WEAPON_TABLE = [
+  ['stoneknife', '뗀석기 도끼', 3, 1, 12, {  }],
+  ['handaxe', '손도끼', 4, 4, 9, {  }],
+  ['battleaxe', '전투 도끼', 5, 6, 8, { pierce:true }],
+  ['ironaxe', '쇠 도끼', 6, 8, 8, { pierce:true }],
+  ['tuskaxe', '엄니 도끼', 7, 10, 8, { pierce:true }],
+  ['chainaxe', '사슬 도끼', 8, 13, 8, { pierce:true }],
+  ['shardaxe', '파편 도끼', 9, 16, 8, { pierce:true }],
+  ['twinaxe', '쌍날 도끼', 5, 4, 12, { multi:2 }],
+  ['pincaxe', '집게 도끼', 6, 5, 11, { multi:3 }],
+  ['sawaxe', '톱니 도끼', 7, 6, 10, { multi:4 }],
+  ['chaintwin', '사슬 쌍도끼', 8, 7, 10, { multi:5 }],
+  ['shardtwin', '파편 쌍도끼', 9, 8, 10, { multi:6 }],
+  ['toothdagger', '이빨 단검', 3, 1, 12, {  }],
+  ['boneknife', '뼈 칼', 4, 4, 9, {  }],                           // v9.136.0: 칼 2단 (특성 없음) — 흑요석은 도끼 · 활처럼 3단에
+  ['obsidianknife', '흑요석 칼', 5, 5, 9, { bleed:2 }],
+  ['venomknife', '독니 칼', 6, 6, 11, { bleed:3 }],
+  ['shellknife', '갑각 칼', 7, 8, 10, { bleed:4 }],
+  ['silkknife', '비단 칼', 8, 9, 11, { bleed:5 }],
+  ['shardknife', '파편 칼', 9, 11, 11, { bleed:6 }],
+  ['fangspear', '송곳니 창', 3, 1, 11, { range:2 }],
+  ['obsspear', '흑요석 창', 4, 4, 8, { range:3 }],
+  ['ironspear', '쇠 창', 5, 7, 8, { range:3 }],
+  ['tuskspear', '엄니 창', 6, 9, 10, { range:3 }],
+  ['chainspear', '사슬 창', 7, 12, 9, { range:3 }],
+  ['shardspear', '파편 창', 8, 15, 9, { range:3 }],
+  ['woodbow', '나무 활', 3, 1, 11, { range:5 }],
+  ['huntbow', '사냥 활', 4, 4, 8, { range:5 }],
+  ['obsidianbow', '흑요 활', 5, 5, 10, { range:5, bleed:1 }],
+  ['venombow', '독 활', 6, 6, 12, { range:6, bleed:2 }],
+  ['shellbow', '갑각 활', 7, 8, 11, { range:6, bleed:3 }],
+  ['hoopbow', '쇠테 활', 8, 9, 12, { range:7, bleed:4 }],
+  ['shardbow', '파편 활', 9, 11, 11, { range:8, bleed:5 }],
+  ['webbow', '거미줄 활', 5, 4, 10, { range:5, multi:2 }],
+  ['layerbow', '겹살 활', 6, 5, 10, { range:6, multi:3 }],
+  ['clambow', '조개 활', 7, 6, 9, { range:6, multi:4 }],
+  ['chainbow', '사슬 활', 8, 7, 9, { range:7, multi:5 }],
+  ['shardrapid', '파편 연사활', 9, 8, 9, { range:8, multi:6 }],
+];
+for (const [id, name, step, atk, rate, kw] of WEAPON_TABLE){
+  const old = DEFS[id] || {};
+  DEFS[id] = Object.assign({ name, kind: old.kind || 'gear', step, atk, rate }, old.group ? { group: old.group } : {}, kw);
+}
+for (const t in DEFS) if (DEFS[t].rate) DEFS[t].aps = DEFS[t].rate / 10;   // 안에서는 초당으로 센다 (보이는 것은 10초 타수)
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
@@ -1498,6 +1544,8 @@ const USE = {
                         // v9.68.1: 회복 갈래
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'],
+  // v9.136.0: 무기 갈래 새것 · 되살린 이빨 단검
+  twinaxe:['무기', '근접무기'], pincaxe:['무기', '근접무기'], sawaxe:['무기', '근접무기'], chaintwin:['무기', '근접무기'], shardtwin:['무기', '근접무기'], toothdagger:['무기', '근접무기'], venomknife:['무기', '근접무기'], shellknife:['무기', '근접무기'], boneknife:['무기', '근접무기'], silkknife:['무기', '근접무기'], shardknife:['무기', '근접무기'], venombow:['무기', '원거리무기'], layerbow:['무기', '원거리무기'], clambow:['무기', '원거리무기'], chainbow:['무기', '원거리무기'], shardrapid:['무기', '원거리무기'],
   honeymeat:['음식'], slabgrill:['음식'], winestew:['음식'], feast:['음식'], antidote:['약품'], silkbandage:['약품'],   // v9.130.0
   // v9.127.0: 장비 등급 사슬 · v9.129.0: 창 사슬
   fangspear:['무기', '근접무기', '창'], obsspear:['무기', '근접무기', '창'], ironspear:['무기', '근접무기', '창'], tuskspear:['무기', '근접무기', '창'], chainspear:['무기', '근접무기', '창'], shardspear:['무기', '근접무기', '창'],
@@ -1508,7 +1556,7 @@ const USE = {
   crystalneck:['장신구'], glowcharm:['장신구'], thunderneck:['장신구'], silkknot:['장신구'], shardneck:['장신구'],
 };
 for (const t in DEFS) if (DEFS[t].heal) USE[t] = (USE[t] || []).concat(['소모품']);   // v9.130.0: 먹고 바르는 것은 소모품 칸에 끼운다
-for (const t of ['stoneknife', 'handaxe', 'battleaxe', 'obsidianknife', 'ironaxe', 'tuskaxe', 'chainaxe', 'shardaxe']) USE[t] = (USE[t] || []).concat(['도끼']);   // v9.129.0: 도끼 갈래 (사거리 1)
+for (const t of ['stoneknife', 'handaxe', 'battleaxe', 'ironaxe', 'tuskaxe', 'chainaxe', 'shardaxe', 'twinaxe', 'pincaxe', 'sawaxe', 'chaintwin', 'shardtwin']) USE[t] = (USE[t] || []).concat(['도끼']);   // v9.136.0: 칼은 도끼가 아니다   // v9.129.0: 도끼 갈래 (사거리 1)
 // v7.17.0: **재료 갈래(`~재료`)는 손으로 적지 않고 조합식에서 거꾸로 파생한다.**
 //   완성품(무기 · 방어구 · 방패 · 장신구 · 도구 · 음식 · 약품 · 건축)에서 조합식을 거슬러 올라가며
 //   그 길에 놓인 모든 재료에 그 갈래의 `~재료` 를 붙인다. 여러 갈래에 쓰이면 여러 개가 붙는다.
@@ -1556,6 +1604,22 @@ const useOf = t => {
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
+  twinaxe: '손도끼 머리에 송곳니로 날을 하나 더 세웠다. 한 번 휘두르면 두 번 꽂힌다.',
+  pincaxe: '날 사이에 집게발을 끼웠다. 세 번 물고 놓는다.',
+  sawaxe: '지네 껍질로 날을 톱니처럼 깎았다. 네 번 긁힌다.',
+  chaintwin: '두 날을 쇠사슬로 이었다. 휘두르면 다섯 번 감긴다.',
+  shardtwin: '탑의 파편으로 쌍날을 세웠다. 여섯 번 무너뜨린다.',
+  toothdagger: '이빨을 나무에 끼웠다. 짐승이 하던 일을 사람이 한다.',
+  venomknife: '독니를 칼끝에 박았다. 벤 자리가 오래 아린다.',
+  shellknife: '갑각판을 칼등에 덧댔다. 더 깊이 들어가 더 오래 흐른다.',
+  boneknife: '짐승 뼈를 갈아 칼로 세웠다. 특별한 것은 없다. 대신 손에 잘 붙는다.',
+  silkknife: '빛바랜 비단을 손잡이에 감았다. 손이 미끄러지지 않아 끝까지 긋는다.',
+  shardknife: '탑의 파편을 칼날로 깎았다. 그 탑처럼, 벤 자리가 다시 서지 못한다.',
+  venombow: '독니를 화살촉으로. 맞은 자리가 아물지 않는다.',
+  layerbow: '산양 뿔을 겹쳐 붙인 활대. 세 대를 한꺼번에 먹인다.',
+  clambow: '자개를 덧댄 활. 네 대가 같이 날아간다.',
+  chainbow: '쇠사슬로 활대를 조였다. 다섯 대를 잇달아 쏜다.',
+  shardrapid: '탑의 파편으로 촉을 갈았다. 여섯 대가 비처럼 떨어진다.',
   honeymeat: '기름진 고기에 꿀을 발라 구웠다. 다 들리게 비밀이라고 했다.',
   slabgrill: '달군 석판에 질긴 고기를 눌러 구웠다. 채석장 일꾼들이 먹던 식이다.',
   winestew:  '묵은 술에 고기를 졸였다. 연회 창고 냄새가 난다.',
@@ -1855,13 +1919,10 @@ const RECIPES = [
   { id:'rimshield',    a:{ card:'woodshield' }, b:{ card:'shieldrim' }, out:['rimshield'] },
   // v4.0.0: 던전 열쇠 — 흑요석 날 → 전투 도끼(방어 무시)
   { id:'obsidianblade', a:{ card:'obsidian' },  b:{ card:'blade' },    out:['obsidianblade'] },
-  { id:'battleaxe',     a:{ card:'handaxe' },   b:{ card:'obsidianblade' }, out:['battleaxe'] },
   // v6.0.0: 🍄 늪지 무덤 열쇠 — 이빨 단검(3) + 흑요석 날(3) = 흑요석 칼(4), 출혈
-  { id:'obsidianknife', a:{ card:'stoneknife' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
   // v9.26.0: 활 — 나무 활에서 갈라진다 (궁수의 무기)
   { id:'woodbow',      a:{ card:'firewood' },  b:{ card:'sinew' },     out:['woodbow'] },        // 손잡이에 힘줄을 걸어 시위로
   { id:'huntbow',      a:{ card:'woodbow' },   b:{ card:'leatherstrap' }, out:['huntbow'] },     // 손잡이를 가죽으로 감음
-  { id:'obsidianbow',  a:{ card:'huntbow' },   b:{ card:'obsidianblade' }, out:['obsidianbow'] },// 흑요석 화살촉
   // v9.28.2: 무기끼리는 못 합친다 (둘 다 상단 필드로 올라가 서로 만날 수 없다) → 활 + **활 부품**
   { id:'wax',          a:{ card:'honeycomb' },  b:{ card:'ember' },    out:['wax'] },       // v3.10.0: 밀랍은 3단계 — 벌집을 불씨에 녹임
   // v9.130.0: 등급별 요리 · 약재
@@ -1872,20 +1933,7 @@ const RECIPES = [
   { id:'antidote',    a:{ card:'glowcap' },   b:{ card:'venomfang' }, out:['antidote'] },
   { id:'silkbandage', a:{ card:'salve' },     b:{ card:'oldsilk' },   out:['silkbandage'] },
   // ── v9.127.0: **장비 등급 사슬** — 쓰던 장비 + 그 등급 땅 재료 → 다음 등급 (docs/장비_등급.md §5) ──
-  { id:'ironaxe',     a:{ card:'battleaxe' },   b:{ card:'ironstone' },  out:['ironaxe'] },
-  { id:'tuskaxe',     a:{ card:'ironaxe' },     b:{ card:'tusk' },       out:['tuskaxe'] },
-  { id:'chainaxe',    a:{ card:'tuskaxe' },     b:{ card:'rustchain' },  out:['chainaxe'] },
-  { id:'shardaxe',    a:{ card:'chainaxe' },    b:{ card:'towershard' }, out:['shardaxe'] },
   { id:'fangspear',   a:{ card:'fang' },        b:{ card:'firewood' },   out:['fangspear'] },   // v9.129.0: 창 사슬
-  { id:'obsspear',    a:{ card:'fangspear' },   b:{ card:'obsidianblade' }, out:['obsspear'] },
-  { id:'ironspear',   a:{ card:'obsspear' },    b:{ card:'ironstone' },  out:['ironspear'] },
-  { id:'tuskspear',   a:{ card:'ironspear' },   b:{ card:'tusk' },       out:['tuskspear'] },
-  { id:'chainspear',  a:{ card:'tuskspear' },   b:{ card:'rustchain' },  out:['chainspear'] },
-  { id:'shardspear',  a:{ card:'chainspear' },  b:{ card:'towershard' }, out:['shardspear'] },
-  { id:'webbow',      a:{ card:'obsidianbow' }, b:{ card:'silkweb' },    out:['webbow'] },
-  { id:'shellbow',    a:{ card:'webbow' },      b:{ card:'shellplate' }, out:['shellbow'] },
-  { id:'hoopbow',     a:{ card:'shellbow' },    b:{ card:'hoop' },       out:['hoopbow'] },
-  { id:'shardbow',    a:{ card:'hoopbow' },     b:{ card:'towershard' }, out:['shardbow'] },
   { id:'stonearmor',  a:{ card:'leatherarmor' }, b:{ card:'stonepelt' }, out:['stonearmor'] },
   { id:'ironmail',    a:{ card:'stonearmor' },  b:{ card:'ironstone' },  out:['ironmail'] },
   { id:'shellarmor',  a:{ card:'ironmail' },    b:{ card:'shellplate' }, out:['shellarmor'] },
@@ -1901,6 +1949,39 @@ const RECIPES = [
   { id:'thunderneck', a:{ card:'glowcharm' },   b:{ card:'fulgurite' },  out:['thunderneck'] },
   { id:'silkknot',    a:{ card:'thunderneck' }, b:{ card:'oldsilk' },    out:['silkknot'] },
   { id:'shardneck',   a:{ card:'silkknot' },    b:{ card:'towershard' }, out:['shardneck'] },
+  // ── v9.136.0: **무기 갈래** — 모양은 그대로, 특성 하나만 키운다 (docs/장비_등급.md §6) ──
+  { id:'battleaxe', a:{ card:'handaxe' }, b:{ card:'obsidianblade' }, out:['battleaxe'] },
+  { id:'ironaxe', a:{ card:'battleaxe' }, b:{ card:'ironstone' }, out:['ironaxe'] },
+  { id:'tuskaxe', a:{ card:'ironaxe' }, b:{ card:'tusk' }, out:['tuskaxe'] },
+  { id:'chainaxe', a:{ card:'tuskaxe' }, b:{ card:'rustchain' }, out:['chainaxe'] },
+  { id:'shardaxe', a:{ card:'chainaxe' }, b:{ card:'towershard' }, out:['shardaxe'] },
+  { id:'twinaxe', a:{ card:'handaxe' }, b:{ card:'fang' }, out:['twinaxe'] },
+  { id:'pincaxe', a:{ card:'twinaxe' }, b:{ card:'pincer' }, out:['pincaxe'] },
+  { id:'sawaxe', a:{ card:'pincaxe' }, b:{ card:'chitin' }, out:['sawaxe'] },
+  { id:'chaintwin', a:{ card:'sawaxe' }, b:{ card:'rustchain' }, out:['chaintwin'] },
+  { id:'shardtwin', a:{ card:'chaintwin' }, b:{ card:'towershard' }, out:['shardtwin'] },
+  { id:'toothdagger', a:{ card:'smalltooth' }, b:{ card:'firewood' }, out:['toothdagger'] },
+  { id:'boneknife', a:{ card:'toothdagger' }, b:{ card:'bone' }, out:['boneknife'] },
+  { id:'obsidianknife', a:{ card:'boneknife' }, b:{ card:'obsidianblade' }, out:['obsidianknife'] },
+  { id:'venomknife', a:{ card:'obsidianknife' }, b:{ card:'venomfang' }, out:['venomknife'] },
+  { id:'shellknife', a:{ card:'venomknife' }, b:{ card:'shellplate' }, out:['shellknife'] },
+  { id:'silkknife', a:{ card:'shellknife' }, b:{ card:'oldsilk' }, out:['silkknife'] },
+  { id:'shardknife', a:{ card:'silkknife' }, b:{ card:'towershard' }, out:['shardknife'] },
+  { id:'obsspear', a:{ card:'fangspear' }, b:{ card:'obsidianblade' }, out:['obsspear'] },
+  { id:'ironspear', a:{ card:'obsspear' }, b:{ card:'ironstone' }, out:['ironspear'] },
+  { id:'tuskspear', a:{ card:'ironspear' }, b:{ card:'tusk' }, out:['tuskspear'] },
+  { id:'chainspear', a:{ card:'tuskspear' }, b:{ card:'rustchain' }, out:['chainspear'] },
+  { id:'shardspear', a:{ card:'chainspear' }, b:{ card:'towershard' }, out:['shardspear'] },
+  { id:'obsidianbow', a:{ card:'huntbow' }, b:{ card:'obsidianblade' }, out:['obsidianbow'] },
+  { id:'venombow', a:{ card:'obsidianbow' }, b:{ card:'venomfang' }, out:['venombow'] },
+  { id:'shellbow', a:{ card:'venombow' }, b:{ card:'shellplate' }, out:['shellbow'] },
+  { id:'hoopbow', a:{ card:'shellbow' }, b:{ card:'hoop' }, out:['hoopbow'] },
+  { id:'shardbow', a:{ card:'hoopbow' }, b:{ card:'towershard' }, out:['shardbow'] },
+  { id:'webbow', a:{ card:'huntbow' }, b:{ card:'silkweb' }, out:['webbow'] },
+  { id:'layerbow', a:{ card:'webbow' }, b:{ card:'ramhorn' }, out:['layerbow'] },
+  { id:'clambow', a:{ card:'layerbow' }, b:{ card:'nacreshard' }, out:['clambow'] },
+  { id:'chainbow', a:{ card:'clambow' }, b:{ card:'rustchain' }, out:['chainbow'] },
+  { id:'shardrapid', a:{ card:'chainbow' }, b:{ card:'towershard' }, out:['shardrapid'] },
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -2008,7 +2089,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.135.0';
+const VERSION = 'v9.136.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2851,7 +2932,7 @@ const CREW_SLOT_KEYS = ['weapon', 'armor', 'trinket'];
 //   근접 7 (가렛 · 토른 · 두르간 · 마르그 · 보른 · 헤이든 · 올가) : 원거리 4 (세리나 · 오르반 · 네이라 · 실바)
 const HERO_KIT = {
   knight:      { body:{ atk:1, def:0, hp:18, spd:3 }, arm:'melee', trait:'gate',  tip:'문 앞 — 맨 앞에 서면 방어 +2' },
-  ally:        { body:{ atk:1, def:0, hp:14, spd:4 }, arm:'bow',   trait:'rapid', tip:'연사 — 공격 속도 ×1.25' },
+  ally:        { body:{ atk:1, def:0, hp:14, spd:4 }, arm:'bow',   trait:'rapid', tip:'연사 — 10초에 2타 더' },
   shieldsmith: { body:{ atk:1, def:1, hp:24, spd:2 }, arm:null,    no:['weapon'], extra:{ shield:2 }, trait:'shell', tip:'껍질 — 방패 칸 셋 · 무기 없음' },
   weaponsmith: { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'axe',   extra:{ weapon:1 }, trait:'dual', tip:'양손 — 무기 칸 둘 (둘째 무기는 공격만 더한다)' },
   armorsmith:  { body:{ atk:1, def:0, hp:16, spd:2 }, arm:'axe',   trait:'lining', tip:'안감 — 갑옷을 입으면 방어 +2' },
@@ -2860,7 +2941,7 @@ const HERO_KIT = {
   cook:        { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'spear', extra:{ consumable:1 }, trait:'pantry', tip:'곳간 — 소모품 칸 둘' },
   peddler:     { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   trait:'know', tip:'아는 것 — 적 방어를 2 덜 받는다' },
   trinketsmith:{ body:{ atk:1, def:0, hp:12, spd:4 }, arm:'bow',   extra:{ trinket:4 }, trait:'hoard', tip:'모으기 — 장신구 칸 다섯' },
-  herbalist:   { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   extra:{ consumable:2 }, trait:'mend', tip:'약손 — 소모품 칸 셋 · 함께 나간 일행이 싸우는 동안 초당 0.3 더 아문다' },
+  herbalist:   { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   extra:{ consumable:2 }, trait:'mend', tip:'약손 — 소모품 칸 셋 · 함께 나간 일행이 싸우는 동안 10초에 3 더 아문다' },
 };
 const kitOf = k => HERO_KIT[k] || HERO_KIT.knight;
 const hTrait = (k, t) => kitOf(k).trait === t;
@@ -3222,7 +3303,7 @@ function load(){
     // v9.102.0: 카드 이름이 바뀐 것 — 조약돌(pebble) → 화강암(granite) · 뗀돌 조각(sharpchip) → 규암(quartzite)
     const s = JSON.parse((localStorage.getItem(SAVE_KEY) || 'null').replace(/"pebble"/g, '"granite"').replace(/"sharpchip"/g, '"quartzite"')
       .replace(/"granite"/g, '"stone"').replace(/"quartzite"/g, '"flint"').replace(/"twig"/g, '"tree"'
-      .replace(/"toothdagger"/g, '"stoneknife"').replace(/"longspear"/g, '"obsspear"').replace(/"multiknife"/g, '"handaxe"').replace(/"harpoon"/g, '"ironaxe"').replace(/"longbow"/g, '"obsidianbow"').replace(/"greatbow"/g, '"obsidianbow"').replace(/"multibow"/g, '"webbow"').replace(/"emberbead"/g, '"crystalneck"').replace(/"emberneck"/g, '"glowcharm"').replace(/"clawblade"/g, '"obsidianblade"').replace(/"forktip"/g, '"obsidianblade"').replace(/"barbtip"/g, '"fang"').replace(/"barb"/g, '"obsidianblade"').replace(/"horncore"/g, '"bisonhorn"').replace(/"bowlimb"/g, '"longhandle"')));   // v9.120.0: 들머리 없앰 · v9.127.0: 사슬에서 뺀 장비
+      .replace(/"longspear"/g, '"obsspear"').replace(/"multiknife"/g, '"twinaxe"').replace(/"harpoon"/g, '"ironaxe"').replace(/"longbow"/g, '"obsidianbow"').replace(/"greatbow"/g, '"obsidianbow"').replace(/"multibow"/g, '"webbow"').replace(/"emberbead"/g, '"crystalneck"').replace(/"emberneck"/g, '"glowcharm"').replace(/"clawblade"/g, '"obsidianblade"').replace(/"forktip"/g, '"obsidianblade"').replace(/"barbtip"/g, '"fang"').replace(/"barb"/g, '"obsidianblade"').replace(/"horncore"/g, '"bisonhorn"').replace(/"bowlimb"/g, '"longhandle"')));   // v9.120.0: 들머리 없앰 · v9.127.0: 사슬에서 뺀 장비
     if (!s || !Array.isArray(s.cards)) return null;
     const merged = new Map();                                     // v0.8.0: 예전 저장의 같은 카드 여러 장 → 한 장 + 수량
     for (const c of s.cards.filter(c => craftable(c.type))){
@@ -4156,6 +4237,7 @@ function renderInsp(){
   if (d.multi > 1) chips.push(`<span class="chip trait">연타 ×${d.multi}</span>`);   // v9.52.0
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
+  if (d.rate) chips.push(`<span class="chip">⚔ ${d.rate}타 / 10초</span>`);   // v9.136.0: 공격 속도는 정수로
   if (d.fireproof) chips.push('<span class="chip trait">불 막음</span>');   // v9.127.0
   if (d.heal) chips.push(`<span class="chip">${statImg('hp')} 먹으면 +${d.heal}</span>`);   // v9.130.0
   if (d.cure) chips.push('<span class="chip trait">불 끄기</span>');
@@ -4219,6 +4301,21 @@ function finParent(t){
   return null;
 }
 // 한 묶음(무기 · 방어구 …)을 줄 · 칸으로 늘어놓는다 — 칸은 깊이(한 단 올라갈 때마다 오른쪽)
+// v9.136.0: **완성품 트리 한 줄 7칸이 가로 스크롤 없이** — 폭이 모자라면 간격부터 줄이고(22 → 8px), 그래도 모자라면 카드를 줄인다
+function fitFinTrees(){
+  for (const el of bookEl.querySelectorAll('.fin-tree')){
+    const cols = +getComputedStyle(el).getPropertyValue('--cols') || 1, W = el.clientWidth - 6;
+    if (!W) continue;
+    const need = g => cols * (CW + 8) + (cols - 1) * g;
+    let gap = 22;
+    while (gap > 8 && need(gap) > W) gap -= 2;
+    el.style.setProperty('--fgap', gap + 'px');
+    if (need(gap) <= W){ el.style.removeProperty('--cw'); el.style.removeProperty('--ch'); continue; }
+    const cw = Math.max(40, Math.floor((W - (cols - 1) * gap) / cols) - 8);
+    el.style.setProperty('--cw', cw + 'px'); el.style.setProperty('--ch', Math.round(cw * CH / CW) + 'px');
+  }
+}
+addEventListener('resize', () => { if (S && S.tab === 'book') fitFinTrees(); });
 function finLayout(list){
   const set = new Set(list);
   const dad = new Map();
@@ -4856,6 +4953,7 @@ function renderBook(){
   const keep = body ? body.scrollTop : 0;
   bookEl.innerHTML = h + '</div></div>';
   paintIcons(bookEl);                                             // v3.5.0
+  fitFinTrees();                                                  // v9.136.0
   bookEl.querySelector('.book-body').scrollTop = keep;
 }
 // v2.9.4: 🌳 길 탭 — 위에 트리 고르는 줄, 아래는 트리 화면과 같은 줄(같은 함수라 늘 같은 내용)
@@ -6396,7 +6494,8 @@ const hWeap = (k, key, dflt) => { const w = equipped('weapon', k); return (w && 
 const hFireproof = k => slotsFor(k).some(sl => /^(armor|shield)/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].fireproof))(equipped(sl.key, k)));   // v9.129.0: 방패가 여럿이어도
 const partyLight = () => !!exp && exp.party.some(k => slotsFor(k).some(sl => /^trinket/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].light))(equipped(sl.key, k))));
 const hRange = k => hWeap(k, 'range', BASE_RANGE) + (hTrait(k, 'reach') && useOf(equipped('weapon', k) || '').includes('창') ? 1 : 0);   // v9.129.0: 헤이든 — 긴 자루                // v8.0.0: 사거리는 **쥔 무기**가 정한다
-const hAps = k => hWeap(k, 'aps', HERO_BASE(k).aps || BASE_APS) * (hTrait(k, 'rapid') ? 1.25 : 1);   // v9.129.0: 세리나 — 연사  // v9.0.0: 초당 공격 횟수
+const hRate = k => hWeap(k, 'rate', Math.round((HERO_BASE(k).aps || BASE_APS) * 10)) + (hTrait(k, 'rapid') ? 2 : 0);   // v9.136.0: 10초 타수 (세리나 연사 +2)
+const hAps = k => hRate(k) / 10;   // v9.129.0: 세리나 — 연사  // v9.0.0: 초당 공격 횟수
 const hBleed = k => hWeap(k, 'bleed', 0);                         // v6.0.0: 출혈
 // v4.0.0: **방어 무시** — 상대 방어를 0으로 친다 (코드 키 이름만 `pierce`).
 //   v9.46.2: 앞을 뚫고 뒤까지 때리는 기능은 **없다**. 그 말과 섞어 쓰지 않는다

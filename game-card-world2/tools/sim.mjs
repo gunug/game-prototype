@@ -233,6 +233,9 @@ function makeAI({ ctx, clock }){
       return g(`(function(){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const mine = t => have(t) > 0 || equipped('weapon') === t;
+        // v9.136.0: 화상엔 불 막음 (갑옷 · 방패) · 어둠엔 빛 (장신구) — 무기가 아니라 몸에 차는 것이 답
+        if (foes.some(f => f.burn) && !CRAFT_TYPES.some(t => DEFS[t].fireproof && (have(t) > 0 || equipped('armor') === t || equipped('shield') === t))) return false;
+        if (foes.some(f => f.dark) && !CRAFT_TYPES.some(t => DEFS[t].light && (have(t) > 0 || equipped('trinket') === t))) return false;
         if (foes.some(f => f.thorns))
           return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
         if (foes.some(f => f.shell))
@@ -244,7 +247,9 @@ function makeAI({ ctx, clock }){
     answerFor(field){
       return g(`(function(){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
-        const want = foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
+        const want = foes.some(f => f.burn) ? t => !!DEFS[t].fireproof          // v9.136.0
+          : foes.some(f => f.dark) ? t => !!DEFS[t].light
+          : foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
           : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 2
           : null;
         if (!want) return null;
@@ -274,6 +279,12 @@ function makeAI({ ctx, clock }){
           if (v > bV){ bV = v; bT = t; }
         }
         if (bT && equipped('weapon') !== bT){ const sl = slotByKey('weapon'); if (have(bT) > 0) equipCard(sl, bT); }
+        // v9.136.0: 화상 땅이면 불 막음 갑옷 · 방패, 어둠 땅이면 빛 장신구를 찬다 (가진 것 중 가장 센 것)
+        const wear = (key, prop) => { const sl = slotByKey(key); if (!sl || !slotOpen(key)) return;
+          const t = CRAFT_TYPES.filter(x => DEFS[x][prop] && have(x) > 0 && useOf(x).includes(slotTag(sl, 'knight'))).sort((a, b) => (DEFS[b].def || 0) - (DEFS[a].def || 0))[0];
+          if (t && !(DEFS[equipped(key)] || {})[prop]) equipCard(sl, t); };
+        if (foes.some(f => f.burn)){ wear('armor', 'fireproof'); wear('shield', 'fireproof'); }
+        if (foes.some(f => f.dark)) wear('trinket', 'light');
         return equipped('weapon');
       })()`);
     },
