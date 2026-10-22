@@ -262,7 +262,7 @@ try {
       return have; };
     const isW = t => useOf(t).includes('무기');
     const ANSWER = { swamptomb: ['bleed', '출혈'], spidernest: ['range', '원거리'], shellcave: ['multi', '연타'],
-      scorched: ['fireproof', '불 막음', ['방어구', '방패']], cellar: ['light', '빛', ['장신구']] };   // v9.127.0: 화상 · 어둠은 무기가 아니다
+      scorched: ['burnguard', '화상 막음', ['방어구', '방패']] };   // v9.127.0: 화상은 무기가 아니다 · v9.137.0: 지하 창고(흡혈)는 정답 하나가 없다
     const bad = [], far = [];
     for (const id in ANSWER){
       const [prop, say, kinds] = ANSWER[id], w = waveOf(id);

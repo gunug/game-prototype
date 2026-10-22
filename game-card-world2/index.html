@@ -1405,24 +1405,7 @@ const DEFS = {
   tuskspear:  { name:'엄니 창',   kind:'gear', step:6, atk:9,  range:3, bleed:2, multi:2, aps:0.9 },
   chainspear: { name:'사슬 창',   kind:'gear', step:7, atk:10, range:4, bleed:2, multi:2, aps:0.9 },
   shardspear: { name:'파편 창',   kind:'gear', step:8, atk:13, range:4, bleed:3, multi:3, aps:0.9 },
-  // 갑옷 — 4등급부터 불 막음
-  stonearmor:{ name:'돌가죽 갑옷', kind:'gear', step:4, def:3 },
-  ironmail:  { name:'쇠누빔 갑옷', kind:'gear', step:5, def:5 },
-  shellarmor:{ name:'갑각 갑옷',   kind:'gear', step:6, def:7,  fireproof:true },
-  chainmail: { name:'쇠미늘 갑옷', kind:'gear', step:7, def:9,  fireproof:true },
-  shardarmor:{ name:'파편 갑옷',   kind:'gear', step:8, def:12, fireproof:true },
-  // 방패 — 4등급부터 불 막음
-  scaleshield:{ name:'돌비늘 방패', kind:'gear', step:5, def:3 },
-  slabshield: { name:'석판 방패',  kind:'gear', step:6, def:4 },
-  nacreshield:{ name:'자개 방패',  kind:'gear', step:7, def:6,  fireproof:true },
-  hoopshield: { name:'쇠테 방패',  kind:'gear', step:8, def:8,  fireproof:true },
-  shardshield:{ name:'파편 방패',  kind:'gear', step:9, def:10, fireproof:true },
-  // 장신구 — 회복은 2등급부터, 빛은 3등급부터 (온기 구슬 · 온기 목걸이의 회복을 이어받는다)
-  crystalneck:{ name:'수정 목걸이', kind:'gear', step:5, def:2, regenFight:0.3 },
-  glowcharm:  { name:'인광 부적',  kind:'gear', step:6, def:3, regenFight:0.5, light:true },
-  thunderneck:{ name:'벼락 목걸이', kind:'gear', step:7, def:4, regenFight:0.6, light:true },
-  silkknot:   { name:'비단 매듭',  kind:'gear', step:8, def:5, regenFight:0.8, light:true },
-  shardneck:  { name:'파편 목걸이', kind:'gear', step:9, def:7, regenFight:1,   light:true },
+  // v9.137.0: 갑옷 · 방패 · 장신구 사슬은 아래 BODY_TABLE 이 정한다
   // v2.1.0: 보스 고유 전리품 — 그 보스만 10%로 떨굼. 쓰임(조합)은 아직 없음
   stonepelt: { name:'돌가죽',     kind:'material', step:1, group:'loot' },   // v4.0.0: 던전 보스 전리품
   toadhide:  { name:'두꺼비 가죽', kind:'material', step:1, group:'loot' },   // v6.0.0: 🍄 늪지 무덤
@@ -1479,6 +1462,50 @@ for (const [id, name, step, atk, rate, kw] of WEAPON_TABLE){
   DEFS[id] = Object.assign({ name, kind: old.kind || 'gear', step, atk, rate }, old.group ? { group: old.group } : {}, kw);
 }
 for (const t in DEFS) if (DEFS[t].rate) DEFS[t].aps = DEFS[t].rate / 10;   // 안에서는 초당으로 센다 (보이는 것은 10초 타수)
+// v9.137.0: **몸 장비 표** — 모양은 그대로, 특성 하나만. 특성 이름은 적의 기믹 이름 그대로 (가시 · 화상 · 껍질 · 재생 · 흡혈). 모두 정수
+const BODY_TABLE = [
+  ['leatherarmor', '가죽 갑옷', 3, 1, {  }],
+  ['stonearmor', '돌가죽 갑옷', 4, 3, {  }],
+  ['spikemail', '가시 갑옷', 5, 4, { thorns:1 }],
+  ['ironmail', '쇠누빔 갑옷', 6, 6, { thorns:2 }],
+  ['chitinmail', '지네 갑옷', 7, 8, { thorns:3 }],
+  ['chainmail', '쇠미늘 갑옷', 8, 10, { thorns:4 }],
+  ['shardarmor', '파편 갑옷', 9, 12, { thorns:5 }],
+  ['toadmail', '두꺼비 갑옷', 5, 4, { burnguard:2 }],
+  ['shellarmor', '갑각 갑옷', 6, 6, { burnguard:3 }],
+  ['charmail', '그을린 갑옷', 7, 8, { burnguard:4 }],
+  ['hoopmail', '쇠테 갑옷', 8, 10, { burnguard:5 }],
+  ['shardfire', '파편 화갑', 9, 12, { burnguard:6 }],
+  ['woodshield', '나무 방패', 3, 1, {  }],
+  ['rimshield', '테 방패', 4, 2, {  }],
+  ['scaleshield', '돌비늘 방패', 5, 3, { shell:1 }],
+  ['nacreshield', '자개 방패', 6, 4, { shell:2 }],
+  ['chitinshield', '지네 방패', 7, 5, { shell:3 }],
+  ['hoopshield', '쇠테 방패', 8, 6, { shell:4 }],
+  ['shardshield', '파편 방패', 9, 7, { shell:5 }],
+  ['stoneshield', '돌가죽 방패', 5, 5, {  }],
+  ['slabshield', '석판 방패', 6, 7, {  }],
+  ['tuskshield', '엄니 방패', 7, 9, {  }],
+  ['chainshield', '사슬 방패', 8, 11, {  }],
+  ['shardwall', '파편 큰방패', 9, 13, {  }],
+  ['claynecklace', '흙 목걸이', 4, 1, {  }],
+  ['crystalneck', '수정 목걸이', 5, 2, {  }],
+  ['glowcharm', '인광 부적', 6, 2, { regen10:2 }],
+  ['thunderneck', '벼락 목걸이', 7, 2, { regen10:3 }],
+  ['nacreneck', '자개 목걸이', 8, 3, { regen10:4 }],
+  ['silkknot', '비단 매듭', 9, 3, { regen10:5 }],
+  ['shardneck', '파편 목걸이', 10, 4, { regen10:6 }],
+  ['toothneck', '이빨 목걸이', 6, 2, { drain:1 }],
+  ['venomneck', '독니 목걸이', 7, 2, { drain:2 }],
+  ['tuskneck', '엄니 목걸이', 8, 3, { drain:3 }],
+  ['batcharm', '박쥐 부적', 9, 3, { drain:4 }],
+  ['shardfang', '파편 이빨', 10, 4, { drain:5 }],
+];
+for (const [id, name, step, def, kw] of BODY_TABLE){
+  const old = DEFS[id] || {};
+  DEFS[id] = Object.assign({ name, kind: old.kind || 'gear', step, def }, old.group ? { group: old.group } : {}, kw);
+}
+for (const t in DEFS) if (DEFS[t].regen10) DEFS[t].regenFight = DEFS[t].regen10 / 10;   // 안에서는 초당 (보이는 것은 10초에 n)
 // 용도 태그 (v0.19.0) — 이 카드가 어디에 쓰이는 물건인지. 한 카드에 여러 개가 붙을 수 있고, 종류는 앞으로 더 늘어남
 // v0.19.1: '○○용' → '○○재료', 생산재료 추가
 // v0.22.0: 화면마다 '재료' 태그와 '결과' 태그를 둘 다 둠 — 재료와 완성품이 같은 화면에 보임
@@ -1544,6 +1571,8 @@ const USE = {
                         // v9.68.1: 회복 갈래
   // v0.57.0: 설비 화면을 없애면서 둘 다 보통 카드가 됨 — 작업대는 완성 도구, 모닥불은 도구 화면에서 만들어 거점 칸에 넣음
   workbench:['도구'],
+  // v9.137.0: 몸 장비 갈래 새것
+  spikemail:['방어구'], chitinmail:['방어구'], toadmail:['방어구'], charmail:['방어구'], hoopmail:['방어구'], shardfire:['방어구'], chitinshield:['방패'], stoneshield:['방패'], tuskshield:['방패'], chainshield:['방패'], shardwall:['방패'], nacreneck:['장신구'], toothneck:['장신구'], venomneck:['장신구'], tuskneck:['장신구'], batcharm:['장신구'], shardfang:['장신구'],
   // v9.136.0: 무기 갈래 새것 · 되살린 이빨 단검
   twinaxe:['무기', '근접무기'], pincaxe:['무기', '근접무기'], sawaxe:['무기', '근접무기'], chaintwin:['무기', '근접무기'], shardtwin:['무기', '근접무기'], toothdagger:['무기', '근접무기'], venomknife:['무기', '근접무기'], shellknife:['무기', '근접무기'], boneknife:['무기', '근접무기'], silkknife:['무기', '근접무기'], shardknife:['무기', '근접무기'], venombow:['무기', '원거리무기'], layerbow:['무기', '원거리무기'], clambow:['무기', '원거리무기'], chainbow:['무기', '원거리무기'], shardrapid:['무기', '원거리무기'],
   honeymeat:['음식'], slabgrill:['음식'], winestew:['음식'], feast:['음식'], antidote:['약품'], silkbandage:['약품'],   // v9.130.0
@@ -1604,6 +1633,25 @@ const useOf = t => {
 };
 // 카드 설명 — 인스펙터 이름 아래. 익살스럽고 재치 있게
 const DESC = {
+  spikemail: '돌비늘을 겉으로 세워 박았다. 붙어서 때리는 놈이 먼저 아프다.',
+  chitinmail: '지네 껍질 마디마다 가시가 선 갑옷. 껴안는 놈이 피를 본다.',
+  toadmail: '늘 젖어 있는 두꺼비 가죽을 덧댔다. 불이 붙지 않는다.',
+  charmail: '이미 한 번 탄 가죽은 다시 잘 타지 않는다.',
+  hoopmail: '술통 쇠테로 몸통을 감쌌다. 불길이 쇠에서 미끄러진다.',
+  shardfire: '탑의 파편 판을 겹쳤다. 벼락 맞은 탑의 것이라 불을 모른다.',
+  chitinshield: '지네 껍질을 겹겹이 댄 방패. 처음 몇 대는 껍질이 받는다.',
+  stoneshield: '테 방패에 돌가죽을 통째로 씌웠다. 단단하다, 그것뿐이다.',
+  tuskshield: '엄니를 가장자리에 둘렀다. 무겁고, 그만큼 막는다.',
+  chainshield: '쇠사슬을 촘촘히 엮어 댔다. 무엇이든 받아 낸다.',
+  shardwall: '탑의 파편 한 장을 통째로. 그 뒤는 성벽 같다.',
+  nacreneck: '자개를 꿴 목걸이. 차고 있으면 조금씩 아문다.',
+  toothneck: '송곳니를 꿴 목걸이. 때리면 그만큼 기운이 돈다.',
+  venomneck: '독니를 꿴 목걸이. 상처를 낼 때마다 내 상처가 아문다.',
+  tuskneck: '엄니를 꿴 목걸이. 뜨거운 것이 몸으로 흘러든다.',
+  batcharm: '박쥐 날개를 접어 만든 부적. 창고의 그것들처럼 빨아들인다.',
+  shardfang: '탑의 파편을 이빨처럼 갈았다. 무너진 것에서 힘을 빼앗는다.',
+  glowcharm: '인광 버섯을 말려 넣은 부적. 차고 있으면 조금씩 아문다.',
+  thunderneck: '벼락 유리를 꿴 목걸이. 속에 갇힌 빛이 몸을 데운다.',
   twinaxe: '손도끼 머리에 송곳니로 날을 하나 더 세웠다. 한 번 휘두르면 두 번 꽂힌다.',
   pincaxe: '날 사이에 집게발을 끼웠다. 세 번 물고 놓는다.',
   sawaxe: '지네 껍질로 날을 톱니처럼 깎았다. 네 번 긁힌다.',
@@ -1674,8 +1722,6 @@ const DESC = {
   hoopshield: '술통 쇠테로 가장자리를 둘렀다. 불에 달궈져도 휘지 않는다.',
   shardshield:'탑의 파편 한 장. 그 뒤에 숨으면 탑 밑에 선 것 같다.',
   crystalneck:'흙 목걸이에 굴 수정을 달았다. 차고 있으면 조금씩 살이 찬다.',
-  glowcharm:  '인광 버섯을 말려 넣은 부적. 어둠 속에서 은은하게 빛난다.',
-  thunderneck:'벼락 유리를 꿴 목걸이. 속에 갇힌 빛이 길을 밝힌다.',
   silkknot:   '빛바랜 비단으로 매듭을 지었다. 연회의 불빛이 아직 배어 있다.',
   shardneck:  '탑의 파편을 갈아 꿴 목걸이. 꼭대기의 불빛이 그 안에 남았다.',
   stone: '어디에나 있다. 그래서 아무도 고마워하지 않는다.',
@@ -1934,21 +1980,6 @@ const RECIPES = [
   { id:'silkbandage', a:{ card:'salve' },     b:{ card:'oldsilk' },   out:['silkbandage'] },
   // ── v9.127.0: **장비 등급 사슬** — 쓰던 장비 + 그 등급 땅 재료 → 다음 등급 (docs/장비_등급.md §5) ──
   { id:'fangspear',   a:{ card:'fang' },        b:{ card:'firewood' },   out:['fangspear'] },   // v9.129.0: 창 사슬
-  { id:'stonearmor',  a:{ card:'leatherarmor' }, b:{ card:'stonepelt' }, out:['stonearmor'] },
-  { id:'ironmail',    a:{ card:'stonearmor' },  b:{ card:'ironstone' },  out:['ironmail'] },
-  { id:'shellarmor',  a:{ card:'ironmail' },    b:{ card:'shellplate' }, out:['shellarmor'] },
-  { id:'chainmail',   a:{ card:'shellarmor' },  b:{ card:'rustchain' },  out:['chainmail'] },
-  { id:'shardarmor',  a:{ card:'chainmail' },   b:{ card:'towershard' }, out:['shardarmor'] },
-  { id:'scaleshield', a:{ card:'rimshield' },   b:{ card:'stonescale' }, out:['scaleshield'] },
-  { id:'slabshield',  a:{ card:'scaleshield' }, b:{ card:'slab' },       out:['slabshield'] },
-  { id:'nacreshield', a:{ card:'slabshield' },  b:{ card:'nacreshard' }, out:['nacreshield'] },
-  { id:'hoopshield',  a:{ card:'nacreshield' }, b:{ card:'hoop' },       out:['hoopshield'] },
-  { id:'shardshield', a:{ card:'hoopshield' },  b:{ card:'towershard' }, out:['shardshield'] },
-  { id:'crystalneck', a:{ card:'claynecklace' }, b:{ card:'cavecrystal' }, out:['crystalneck'] },
-  { id:'glowcharm',   a:{ card:'crystalneck' }, b:{ card:'glowcap' },    out:['glowcharm'] },
-  { id:'thunderneck', a:{ card:'glowcharm' },   b:{ card:'fulgurite' },  out:['thunderneck'] },
-  { id:'silkknot',    a:{ card:'thunderneck' }, b:{ card:'oldsilk' },    out:['silkknot'] },
-  { id:'shardneck',   a:{ card:'silkknot' },    b:{ card:'towershard' }, out:['shardneck'] },
   // ── v9.136.0: **무기 갈래** — 모양은 그대로, 특성 하나만 키운다 (docs/장비_등급.md §6) ──
   { id:'battleaxe', a:{ card:'handaxe' }, b:{ card:'obsidianblade' }, out:['battleaxe'] },
   { id:'ironaxe', a:{ card:'battleaxe' }, b:{ card:'ironstone' }, out:['ironaxe'] },
@@ -1982,6 +2013,39 @@ const RECIPES = [
   { id:'clambow', a:{ card:'layerbow' }, b:{ card:'nacreshard' }, out:['clambow'] },
   { id:'chainbow', a:{ card:'clambow' }, b:{ card:'rustchain' }, out:['chainbow'] },
   { id:'shardrapid', a:{ card:'chainbow' }, b:{ card:'towershard' }, out:['shardrapid'] },
+  // ── v9.137.0: **몸 장비 갈래** — 갑옷 가시 · 화상 막음 / 방패 껍질 · 방어 / 장신구 재생 · 흡혈 (docs/장비_등급.md §7) ──
+  { id:'stonearmor', a:{ card:'leatherarmor' }, b:{ card:'stonepelt' }, out:['stonearmor'] },
+  { id:'spikemail', a:{ card:'stonearmor' }, b:{ card:'stonescale' }, out:['spikemail'] },
+  { id:'ironmail', a:{ card:'spikemail' }, b:{ card:'ironstone' }, out:['ironmail'] },
+  { id:'chitinmail', a:{ card:'ironmail' }, b:{ card:'chitin' }, out:['chitinmail'] },
+  { id:'chainmail', a:{ card:'chitinmail' }, b:{ card:'rustchain' }, out:['chainmail'] },
+  { id:'shardarmor', a:{ card:'chainmail' }, b:{ card:'towershard' }, out:['shardarmor'] },
+  { id:'toadmail', a:{ card:'stonearmor' }, b:{ card:'toadhide' }, out:['toadmail'] },
+  { id:'shellarmor', a:{ card:'toadmail' }, b:{ card:'shellplate' }, out:['shellarmor'] },
+  { id:'charmail', a:{ card:'shellarmor' }, b:{ card:'charhide' }, out:['charmail'] },
+  { id:'hoopmail', a:{ card:'charmail' }, b:{ card:'hoop' }, out:['hoopmail'] },
+  { id:'shardfire', a:{ card:'hoopmail' }, b:{ card:'towershard' }, out:['shardfire'] },
+  { id:'scaleshield', a:{ card:'rimshield' }, b:{ card:'stonescale' }, out:['scaleshield'] },
+  { id:'nacreshield', a:{ card:'scaleshield' }, b:{ card:'nacreshard' }, out:['nacreshield'] },
+  { id:'chitinshield', a:{ card:'nacreshield' }, b:{ card:'chitin' }, out:['chitinshield'] },
+  { id:'hoopshield', a:{ card:'chitinshield' }, b:{ card:'hoop' }, out:['hoopshield'] },
+  { id:'shardshield', a:{ card:'hoopshield' }, b:{ card:'towershard' }, out:['shardshield'] },
+  { id:'stoneshield', a:{ card:'rimshield' }, b:{ card:'stonepelt' }, out:['stoneshield'] },
+  { id:'slabshield', a:{ card:'stoneshield' }, b:{ card:'slab' }, out:['slabshield'] },
+  { id:'tuskshield', a:{ card:'slabshield' }, b:{ card:'tusk' }, out:['tuskshield'] },
+  { id:'chainshield', a:{ card:'tuskshield' }, b:{ card:'rustchain' }, out:['chainshield'] },
+  { id:'shardwall', a:{ card:'chainshield' }, b:{ card:'towershard' }, out:['shardwall'] },
+  { id:'crystalneck', a:{ card:'claynecklace' }, b:{ card:'cavecrystal' }, out:['crystalneck'] },
+  { id:'glowcharm', a:{ card:'crystalneck' }, b:{ card:'glowcap' }, out:['glowcharm'] },
+  { id:'thunderneck', a:{ card:'glowcharm' }, b:{ card:'fulgurite' }, out:['thunderneck'] },
+  { id:'nacreneck', a:{ card:'thunderneck' }, b:{ card:'nacreshard' }, out:['nacreneck'] },
+  { id:'silkknot', a:{ card:'nacreneck' }, b:{ card:'oldsilk' }, out:['silkknot'] },
+  { id:'shardneck', a:{ card:'silkknot' }, b:{ card:'towershard' }, out:['shardneck'] },
+  { id:'toothneck', a:{ card:'crystalneck' }, b:{ card:'fang' }, out:['toothneck'] },
+  { id:'venomneck', a:{ card:'toothneck' }, b:{ card:'venomfang' }, out:['venomneck'] },
+  { id:'tuskneck', a:{ card:'venomneck' }, b:{ card:'tusk' }, out:['tuskneck'] },
+  { id:'batcharm', a:{ card:'tuskneck' }, b:{ card:'batwing' }, out:['batcharm'] },
+  { id:'shardfang', a:{ card:'batcharm' }, b:{ card:'towershard' }, out:['shardfang'] },
 ];
 function tagLevel(def, name){
   let lv = 0;
@@ -2089,7 +2153,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.136.0';
+const VERSION = 'v9.137.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2105,7 +2169,7 @@ const fieldText = t => { const f = placeOf(t); return f ? `${f.emoji} ${f.name}`
 //   ③ 쓸 화면이 아직 없는 용도 태그 ④ 어느 화면에서도 만들 수 없는 조합
 // 콜렉터북 탭 이름 — '1단계' 같은 제작 용어 대신 플레이어가 아는 말로
 // v3.11.0: 단계 규칙 — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다 (위로 갈수록 좁아지는 깔때기)
-const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 상급', 5:'👑 최상급', 6:'⭐ 6단계', 7:'⭐ 7단계', 8:'⭐ 8단계', 9:'⭐ 9단계' };   // v9.127.0: 장비 사슬은 9단계까지
+const STEP_NAME = { 1:'🌿 자연', 2:'⚒ 가공', 3:'🗡 완성품', 4:'⚔ 상급', 5:'👑 최상급', 6:'⭐ 6단계', 7:'⭐ 7단계', 8:'⭐ 8단계', 9:'⭐ 9단계', 10:'⭐ 10단계' };   // v9.127.0: 장비 사슬은 9단계까지
 const stepName = n => STEP_NAME[n] || `${n}`;
 // v7.2.0: **탭이 있는 갈래는 모두 보인다** — 음식 · 약품 · 건축이 탭이 된 뒤에도 흰 목록이 옛날 그대로라 태그가 숨어 있었다
 const SHOWN_USES = ['무기재료', '무기', '근접무기', '원거리무기', '소모품', '갑옷재료', '방어구', '방패', '장신구',
@@ -3580,7 +3644,8 @@ function statsHtml(t){
   const trait = d.multi > 1 ? `<div class="trait-b">연타 ×${d.multi}</div>`   // v9.52.0
     : d.pierce ? '<div class="trait-b">방어 무시</div>'                       // v4.3.0
     : d.bleed ? `<div class="trait-b bleed">출혈 ${d.bleed}</div>`
-    : d.fireproof ? '<div class="trait-b">불 막음</div>' : d.light ? '<div class="trait-b">빛</div>'
+    : d.thorns ? `<div class="trait-b">가시 ${d.thorns}</div>` : d.burnguard ? `<div class="trait-b">화상 막음 ${d.burnguard}</div>`
+    : d.shell ? `<div class="trait-b">껍질 ${d.shell}</div>` : d.regen10 ? `<div class="trait-b">재생 ${d.regen10}</div>` : d.drain ? `<div class="trait-b">흡혈 ${d.drain}</div>`
     : d.heal ? `<div class="trait-b">+${d.heal}</div>` : '';   // v9.127.0 · v9.130.0: 소모품은 회복량    // v6.0.0
   return `<div class="feat">${trait}<div class="stats">`                // v0.82.0: `+`를 붙여 '올려 주는 값'임을 보임
     + (d.atk ? `<span class="s-atk">${statImg('atk')}+${d.atk}</span>` : '')   // v0.87.0: 글씨 색도 그림과 맞춤
@@ -4238,17 +4303,17 @@ function renderInsp(){
   if (d.pierce) chips.push('<span class="chip trait">방어 무시</span>');   // v4.3.0: 무기마다 주요 특성 하나
   if (d.bleed) chips.push(`<span class="chip trait">출혈 ${d.bleed}</span>`);   // v6.0.0
   if (d.rate) chips.push(`<span class="chip">⚔ ${d.rate}타 / 10초</span>`);   // v9.136.0: 공격 속도는 정수로
-  if (d.fireproof) chips.push('<span class="chip trait">불 막음</span>');   // v9.127.0
   if (d.heal) chips.push(`<span class="chip">${statImg('hp')} 먹으면 +${d.heal}</span>`);   // v9.130.0
   if (d.cure) chips.push('<span class="chip trait">불 끄기</span>');
-  if (d.light) chips.push('<span class="chip trait">빛</span>');           // v9.127.0
-  if (d.regenFight) chips.push(`<span class="chip">회복 ${d.regenFight}</span>`);
+  if (d.thorns) chips.push(`<span class="chip trait">가시 ${d.thorns}</span>`);          // v9.137.0
+  if (d.burnguard) chips.push(`<span class="chip trait">화상 막음 ${d.burnguard}</span>`);
+  if (d.shell) chips.push(`<span class="chip trait">껍질 ${d.shell}</span>`);
+  if (d.regen10) chips.push(`<span class="chip trait">재생 ${d.regen10}</span>`);
+  if (d.drain) chips.push(`<span class="chip trait">흡혈 ${d.drain}</span>`);
   if (d.range) chips.push(`<span class="chip">${statImg('range')} 사거리 ${d.range}</span>`);        // v8.0.0 · v8.3.0
   if (d.spd) chips.push(`<span class="chip">${statImg('spd')} 이동 ${d.spd > 0 ? '+' : ''}${d.spd}</span>`);
   if (d.def) chips.push(`<span class="chip">${statImg('def')} ${d.def}</span>`);
   // v9.78.0: 회복 장신구 — 싸울 때 값과 **쉴 때 값**(공통 배수)을 함께
-  if (d.regenFight) chips.push(`<span class="chip">${statImg('hp')} 회복 +${d.regenFight}/s`
-    + `<span class="i-muted"> · 쉴 때 ×${REST_MULT} (+${Math.round(d.regenFight * REST_MULT * 100) / 100}/s)</span></span>`);
   if (chips.length) h += '<div class="chips">' + chips.join('') + '</div>';
   // v6.7.0: '쓰이는 조합' · '만드는 법' 칸은 뺌 — 조합법은 콜렉터북(조합법 · 길)이 맡고,
   //   인스펙터는 **이 카드가 무엇인지**만 짧게 말한다
@@ -6099,8 +6164,8 @@ function renderFoeInsp(){
         + (e.def >= 9 ? '<div class="desc">가죽이 돌처럼 단단하다. 어지간한 날은 <b>긁히기만 한다</b>.</div>' : '')
         + (e.regen ? `<div class="desc">박자마다 <b>${e.regen}</b>씩 살이 차오른다. 벤 자리가 <b>그만큼 빨리 아문다</b>.</div>` : '')   // v6.0.0
         + (e.thorns ? `<div class="desc">몸에 가시가 섰다. <b>붙어서 때린 쪽</b>이 <b>${e.thorns}</b>씩 되돌려받는다. 멀리서 날아온 것에는 아무 일도 없다.</div>` : '')   // v9.51.0
-        + (e.burn ? `<div class="desc">몸에 불씨가 붙어 있다. 맞으면 <b>3초 동안 초마다 ${e.burn}</b>씩 탄다 — <b>불을 막는 갑옷 · 방패</b>를 차면 타지 않는다.</div>` : '')   // v9.127.0
-        + (e.dark ? `<div class="desc">빛이 닿지 않는 곳에 산다. <b>빛이 없으면 주는 피해가 반</b> — 일행 중 누구 하나라도 <b>빛나는 장신구</b>를 차면 모두 본다.</div>` : '')   // v9.127.0
+        + (e.burn ? `<div class="desc"><b>화상 ${e.burn}</b></div>` : '')   // v9.127.0 · v9.137.0: 이름과 수치만
+        + (e.drain ? `<div class="desc"><b>흡혈 ${e.drain}</b></div>` : '')   // v9.137.0
         + (e.shell ? `<div class="desc">겉껍질이 <b>${e.shell}</b>겹이다. 한 대에 한 겹씩 깨지고, 다 깨지기 전에는 <b>안쪽에 닿지 않는다</b> — 세게 치든 약하게 치든 한 겹이다.</div>` : '')   // v9.51.0
         + (foeHits(e) > 1 ? `<div class="desc">한 번 공격하면 <b>${foeHits(e)}번</b> 연달아 꽂힌다.</div>` : '')   // v9.51.0
         + (foeMove(e) === 'hold' ? '<div class="desc">제자리를 지킨다. 쫓아오지 않는다.</div>' : '')
@@ -6133,11 +6198,11 @@ function fieldArmTip(id){
   const foes = planOf(id).filter(e => e.fight).map(e => ENEMIES[e.fight]).filter(Boolean);
   const needBleed = foes.some(e => e.regen), needPierce = foes.some(e => e.def >= 9);
   const needRange = foes.some(e => e.thorns), needFast = foes.some(e => e.shell);   // v9.50.0: 되받음 · 껍질
-  const needFire = foes.some(e => e.burn), needLight = foes.some(e => e.dark);       // v9.127.0: 화상 · 어둠
-  if (needFire || needLight){
-    const tag = needFire ? ['armor', 'shield'] : ['trinket'], prop = needFire ? 'fireproof' : 'light';
+  const needFire = foes.some(e => e.burn);                                         // v9.127.0: 화상 (v9.137.0: 어둠 없앰)
+  if (needFire){
+    const tag = ['armor', 'shield'], prop = 'burnguard';
     const now = tag.map(key => equipped(key)).find(t => t && DEFS[t][prop]);
-    const why = needFire ? '불 막음' : '빛', what = needFire ? '맞으면 불에 탄다' : '어두워 제대로 못 때린다';
+    const why = '화상 막음', what = '화상';
     if (now) return { ok: true, why, type: now };
     const mine = CRAFT_TYPES.filter(t => DEFS[t][prop] && have(t) > 0).sort((a, b) => (DEFS[b].def || 0) - (DEFS[a].def || 0))[0];
     return { ok: false, why, type: mine || null, what };
@@ -6393,12 +6458,12 @@ const ENEMIES = {
     loot: [['tusk', 45, 1], ['charhide', 35, 1], ['toughmeat', 25, 1]] },
   scorchstag:  { name:'그을린 사슴', spd:4, aps:0.9, portrait:'portrait_scorchstag', atk:12, def:5, hp:75, burn:5,
     loot: [['charhide', 60, 2], ['tusk', 40, 1], ['fulgurite', 30, 1], ['bone', 20, 1], ['stagantler', 10, 1]] },
-  // ── v9.127.0: 🍷 지하 창고 — `dark` = **빛이 없으면 우리 편이 주는 피해가 반** (빛나는 장신구 하나면 모두 본다) ──
-  cellarrat:   { name:'창고 쥐', spd:4, aps:1.2, portrait:'portrait_cellarrat', atk:10, def:4, hp:26, dark:true,
+  // ── v9.127.0: 🍷 지하 창고 · v9.137.0: `drain` = **흡혈** — 때릴 때마다 그만큼 찬다 (어둠은 뺐다) ──
+  cellarrat:   { name:'창고 쥐', spd:4, aps:1.2, portrait:'portrait_cellarrat', atk:10, def:4, hp:26, drain:1,
     loot: [['smalltooth', 40, 1], ['oldsilk', 35, 1], ['hoop', 25, 1]] },
-  gloombat:    { name:'큰 박쥐', spd:5, aps:1, portrait:'portrait_gloombat', atk:12, def:4, hp:40, dark:true,
+  gloombat:    { name:'큰 박쥐', spd:5, aps:1, portrait:'portrait_gloombat', atk:12, def:4, hp:40, drain:3,
     loot: [['batwing', 45, 1], ['smalltooth', 30, 1], ['oldwine', 25, 1]] },
-  cellarkeeper:{ name:'창고 주인', spd:2, aps:0.9, portrait:'portrait_cellarkeeper', atk:14, def:6, hp:85, dark:true,
+  cellarkeeper:{ name:'창고 주인', spd:2, aps:0.9, portrait:'portrait_cellarkeeper', atk:14, def:6, hp:85, drain:5,
     loot: [['paleskin', 60, 2], ['batwing', 40, 1], ['rustchain', 30, 1], ['bone', 20, 1], ['cellarkey', 10, 1]] },
   towereye:  { name:'탑의 눈',  spd:0, move:'hold', range:15, aps:0.4, hits:5, beam:true, size:2,
     portrait:'portrait_towereye', atk:3, def:3, hp:90,
@@ -6491,8 +6556,13 @@ const hSpd = k => {          // v8.0.0: 이동속도는 **몸과 장비**가 정
 };
 const hWeap = (k, key, dflt) => { const w = equipped('weapon', k); return (w && DEFS[w] && DEFS[w][key]) || dflt; };
 // v9.127.0: **불 막음** — 갑옷이나 방패 중 하나라도 불을 막으면 타지 않는다 / **빛** — 일행 중 누구 하나라도 빛나는 장신구를 차면 모두 본다
-const hFireproof = k => slotsFor(k).some(sl => /^(armor|shield)/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].fireproof))(equipped(sl.key, k)));   // v9.129.0: 방패가 여럿이어도
-const partyLight = () => !!exp && exp.party.some(k => slotsFor(k).some(sl => /^trinket/.test(sl.key) && (t => !!(t && DEFS[t] && DEFS[t].light))(equipped(sl.key, k))));
+// v9.137.0: 몸 장비 특성 — 칸이 여럿이면 **그대로 더한다** (토른 방패 셋 · 네이라 장신구 다섯)
+const gearSum = (k, re, prop) => slotsFor(k).filter(sl => re.test(sl.key)).reduce((a, sl) => { const t = equipped(sl.key, k); return a + ((t && DEFS[t] && DEFS[t][prop]) || 0); }, 0);
+const hThorns = k => gearSum(k, /^armor/, 'thorns');               // 가시 — 붙어 때린 적이 받는다
+const hBurnGuard = k => gearSum(k, /^(armor|shield)/, 'burnguard'); // 화상 막음 — 화상 피해 −n
+const hShell = k => gearSum(k, /^shield/, 'shell');                 // 껍질 — 싸움마다 처음 n대 막는다
+const hDrain = k => gearSum(k, /^trinket/, 'drain');                // 흡혈 — 때리면 n 찬다
+const hFireproof = k => hBurnGuard(k) > 0;
 const hRange = k => hWeap(k, 'range', BASE_RANGE) + (hTrait(k, 'reach') && useOf(equipped('weapon', k) || '').includes('창') ? 1 : 0);   // v9.129.0: 헤이든 — 긴 자루                // v8.0.0: 사거리는 **쥔 무기**가 정한다
 const hRate = k => hWeap(k, 'rate', Math.round((HERO_BASE(k).aps || BASE_APS) * 10)) + (hTrait(k, 'rapid') ? 2 : 0);   // v9.136.0: 10초 타수 (세리나 연사 +2)
 const hAps = k => hRate(k) / 10;   // v9.129.0: 세리나 — 연사  // v9.0.0: 초당 공격 횟수
@@ -7382,10 +7452,20 @@ function expFoes(dt){
       const HIT_MS = 120;
       if (d.beam) foeBeam(exp.foes.indexOf(f), k, hits * HIT_MS + 220, HIT_MS);   // v9.43.0: 연타 내내 켜지는 빔
       for (let i = 0; i < hits && st.hp > 0; i++){
+        const P = exp.P[k];
+        if (P.shellFoe !== f){ P.shellFoe = f; P.shellLeft = hShell(k); }   // v9.137.0: 껍질 — 그 적과의 싸움마다 처음 n대
+        if (P.shellLeft > 0){ P.shellLeft--; expSwing(exp.foes.indexOf(f), k, 0, false, 'shell', i * HIT_MS); continue; }
         const ed = Math.max(1, d.atk - hDef(k));                   // v9.46.2: 크리처는 방어를 뚫지 않는다
         st.hp = Math.max(0, st.hp - ed);
         expSwing(exp.foes.indexOf(f), k, ed, false, '', i * HIT_MS);
-        if (d.burn && !hFireproof(k)){ const P = exp.P[k]; P.burnMs = 3000; P.burnN = Math.max(P.burnMs > 0 ? (P.burnN || 0) : 0, d.burn); }   // v9.127.0: 화상
+        const burnN = (d.burn || 0) - hBurnGuard(k);               // v9.127.0: 화상 · v9.137.0: 화상 막음만큼 덜 탄다
+        if (burnN > 0){ P.burnMs = 3000; P.burnN = Math.max(P.burnMs > 0 ? (P.burnN || 0) : 0, burnN); }
+        if (d.drain && f.hp > 0) f.hp = Math.min(d.hp, f.hp + Math.min(d.drain, ed));   // v9.137.0: 적 흡혈
+        const th = hThorns(k);                                       // v9.137.0: 가시 — 붙어서(사거리 1) 때린 적이 받는다
+        if (th > 0 && foeRange(d) <= 1 && f.hp > 0){
+          f.hp -= th; expSwing(k, exp.foes.indexOf(f), th, false, 'thorn', i * HIT_MS);
+          if (f.hp <= 0 && exp.foes.indexOf(f) !== exp.foe) f.hp = 1;   // 지금 싸우는 놈이 아니면 쓰러뜨리지는 않는다 (그 판정은 싸움 차례에서)
+        }
       }
       if (st.hp <= 0){                                            // v9.20.0: 쓰러진 캐릭터는 싸움에서 빠진다
         heroFell(k);                                              // v9.77.0: 빈사 — 가득 찰 때까지 못 나간다
@@ -7442,8 +7522,9 @@ function expFight(dt){
     while (hit && h.cd >= every && e.hp > 0){
       h.cd -= every;
       const pierce = hPierce(k);
-      const dmg0 = Math.max(1, hAtk(k) - (pierce ? 0 : Math.max(0, def.def - (hTrait(k, 'know') ? 2 : 0))));   // v9.129.0: 오르반 — 아는 것
-      const dmg = def.dark && !partyLight() ? Math.max(1, Math.ceil(dmg0 / 2)) : dmg0;   // v9.127.0: **어둠** — 빛이 없으면 반
+      const dmg = Math.max(1, hAtk(k) - (pierce ? 0 : Math.max(0, def.def - (hTrait(k, 'know') ? 2 : 0))));   // v9.129.0: 오르반 — 아는 것 · v9.137.0: 어둠 없앰
+      const dr = hDrain(k);                                       // v9.137.0: 흡혈 — 휘두를 때마다 n 찬다
+      if (dr > 0){ const st3 = hSt(k), heal = Math.min(dr, hMax(k) - st3.hp); if (heal > 0){ st3.hp += heal; for (const el of toksOf(k)) floatText(el, `+${heal}`, 'heal', 900); } }
       const bleed = hBleed(k);                                    // 출혈은 때릴 때마다
       const blocked = !pierce && dmg * 3 <= hAtk(k), kindTxt = pierce ? 'pierce' : '';
       const times = hMulti(k);                                    // v9.52.0: 연타 — 같은 박자 안에서 여러 번

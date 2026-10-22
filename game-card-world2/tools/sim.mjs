@@ -211,14 +211,19 @@ function makeAI({ ctx, clock }){
         const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const pierce = knightPierce(), bleed = knightBleed();
         let hp = knightMaxHp();
+        // v9.137.0: **초 단위로** 센다 — 공격 속도(10초 타수) · 연타 · 출혈 · 재생(초당) · 화상 막음을 실제 규칙대로
+        const aps = hAps('knight'), multi = hMulti('knight'), guard = hBurnGuard('knight');
         for (const f of foes){
-          let fhp = f.hp, beats = 0;
-          while (fhp > 0 && beats < 200){
-            beats++;
-            fhp -= Math.max(1, knightAtk() - (pierce ? 0 : f.def));
-            if (fhp > 0){ if (bleed) fhp -= bleed; else if (f.regen) fhp = Math.min(f.hp, fhp + f.regen); }
+          let fhp = f.hp, sec = 0;
+          const out = aps * (Math.max(1, knightAtk() - (pierce ? 0 : f.def)) * multi + bleed);
+          const inc = (f.aps || 1) * (Math.max(1, f.atk - knightDef()) + Math.max(0, (f.burn || 0) - guard));
+          while (fhp > 0 && sec < 120){
+            sec++;
+            fhp -= out;
+            if (fhp > 0 && f.regen && !bleed) fhp = Math.min(f.hp, fhp + f.regen);
+            if (fhp > 0 && f.drain) fhp = Math.min(f.hp, fhp + (f.aps || 1) * f.drain);
             if (fhp <= 0) break;
-            hp -= Math.max(1, f.atk - knightDef());
+            hp -= inc;
             if (hp <= 0) return false;
           }
           if (fhp > 0) return false;                               // 아무리 때려도 안 죽는 놈 (회복 기믹)
@@ -234,8 +239,7 @@ function makeAI({ ctx, clock }){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const mine = t => have(t) > 0 || equipped('weapon') === t;
         // v9.136.0: 화상엔 불 막음 (갑옷 · 방패) · 어둠엔 빛 (장신구) — 무기가 아니라 몸에 차는 것이 답
-        if (foes.some(f => f.burn) && !CRAFT_TYPES.some(t => DEFS[t].fireproof && (have(t) > 0 || equipped('armor') === t || equipped('shield') === t))) return false;
-        if (foes.some(f => f.dark) && !CRAFT_TYPES.some(t => DEFS[t].light && (have(t) > 0 || equipped('trinket') === t))) return false;
+        if (foes.some(f => f.burn) && !CRAFT_TYPES.some(t => DEFS[t].burnguard && (have(t) > 0 || equipped('armor') === t || equipped('shield') === t))) return false;   // v9.137.0
         if (foes.some(f => f.thorns))
           return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
         if (foes.some(f => f.shell))
@@ -247,8 +251,7 @@ function makeAI({ ctx, clock }){
     answerFor(field){
       return g(`(function(){
         const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
-        const want = foes.some(f => f.burn) ? t => !!DEFS[t].fireproof          // v9.136.0
-          : foes.some(f => f.dark) ? t => !!DEFS[t].light
+        const want = foes.some(f => f.burn) ? t => !!DEFS[t].burnguard          // v9.136.0 · v9.137.0
           : foes.some(f => f.thorns) ? t => useOf(t).includes('원거리무기')
           : foes.some(f => f.shell) ? t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 2
           : null;
@@ -283,8 +286,7 @@ function makeAI({ ctx, clock }){
         const wear = (key, prop) => { const sl = slotByKey(key); if (!sl || !slotOpen(key)) return;
           const t = CRAFT_TYPES.filter(x => DEFS[x][prop] && have(x) > 0 && useOf(x).includes(slotTag(sl, 'knight'))).sort((a, b) => (DEFS[b].def || 0) - (DEFS[a].def || 0))[0];
           if (t && !(DEFS[equipped(key)] || {})[prop]) equipCard(sl, t); };
-        if (foes.some(f => f.burn)){ wear('armor', 'fireproof'); wear('shield', 'fireproof'); }
-        if (foes.some(f => f.dark)) wear('trinket', 'light');
+        if (foes.some(f => f.burn)){ wear('armor', 'burnguard'); wear('shield', 'burnguard'); }   // v9.137.0
         return equipped('weapon');
       })()`);
     },
