@@ -330,6 +330,15 @@ try {
   else console.log('✓ 장인 걸음이 닿는다 (소문의 땅 · 물건 재료 · 증명할 놈이 그 시점에 다 있다)');
 } catch (e){ report('장인 걸음', e); }
 
+// v9.139.0: 카드 번호 — 모든 카드에 번호가 있고 겹치지 않는다 (사이에 끼울 땐 빈 번호를 쓴다)
+try {
+  const r = JSON.parse(vm.runInContext(`JSON.stringify((() => { const seen = {}, miss = [], dup = [];
+    for (const t of CRAFT_TYPES){ const n = ITEM_NO[t]; if (!n){ miss.push(DEFS[t].name); continue; } if (seen[n]) dup.push(DEFS[t].name + '=' + DEFS[seen[n]].name); seen[n] = t; }
+    return { miss, dup }; })())`, ctx));
+  if (r.miss.length || r.dup.length) report('카드 번호', new Error((r.miss.length ? '번호 없음: ' + r.miss.join(', ') : '') + (r.dup.length ? ' 겹침: ' + r.dup.join(', ') : '')));
+  else console.log('✓ 카드 번호 (모든 카드 · 겹침 없음)');
+} catch (e){ report('카드 번호', e); }
+
 // v9.101.0: 땅마다 채집품은 겹치지 않는다 (필드 · 던전 · 레이드 모두)
 try {
   const dup = vm.runInContext(`(function(){ const at = {}, bad = [];

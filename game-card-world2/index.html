@@ -2153,7 +2153,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.138.0';
+const VERSION = 'v9.139.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5349,14 +5349,53 @@ const aimFogged = t => !aimReady(t) && aimRecipes(t).some(x => sideReachFog(x.a,
 // v9.38.0: 이름을 보여도 되나 — **인스펙터와 같은 기준**(`cardKnown`)을 쓴다.
 //   재료를 다 본 조합 결과는 아직 안 만들었어도 아는 것으로 친다 (v6.6.0 규칙)
 const aimSeen = t => editMode || cardKnown(t);                    // v9.38.1: 책 · 인스펙터와 같은 규칙
+// v9.139.0: **카드 번호** — 목표 탭 · (앞으로) 다른 목록이 이 차례를 쓴다. 처음 번호는 v9.139.0 콜렉터북에 보이는 차례 그대로.
+//   번호 = 탭(1 재료 · 2 완성품) + 묶음 3자리 + 자리 3자리 (묶음 · 자리 모두 **10씩 띄운다**) — 예: 1 010 010 = 재료 · 산 줍는 것 · 돌
+//   새 카드를 사이에 끼울 땐 **빈 번호**를 쓴다 (010 과 020 사이면 015 · 묶음도 010 과 020 사이면 015). 이웃 사이에 9개씩 더 들어가고 아무것도 밀지 않는다
+//   번호 없는 카드는 맨 뒤 (check.mjs 가 잡는다)
+const ITEM_NO = {
+  stone:1010010, flint:1010020, coal:1010030, tree:1010040,
+  meat:1020010, hide:1020020, smalltooth:1020030, tallow:1020040, bearclaw:1020050,
+  grass:1030010, seed:1030020, honeycomb:1030030, feather:1030040,
+  toughmeat:1040010, bone:1040020, sinew:1040030, toughhide:1040040, bisonhorn:1040050,
+  vine:1050010, berry:1050020, sap:1050030, herb:1050040,
+  fatmeat:1060010, furpelt:1060020, claw:1060030, fang:1060040, mosspelt:1060050,
+  obsidian:1070010, cavecrystal:1070020, limerock:1070030, cavemush:1070040,
+  stonepelt:1080010, stonescale:1080020, cavecore:1080030,
+  bogmoss:1090010, rotroot:1090020, bogclay:1090030, glowcap:1090040,
+  toadhide:1100010, webfoot:1100020, graveseal:1100030,
+  silkweb:1110010, cocoon:1110020, mothwing:1110030, stickysap:1110040,
+  venomfang:1120010, spidereye:1120020, motheregg:1120030,
+  shellpiece:1130010, nacreshard:1130020, barnacle:1130030, saltcrystal:1130040,
+  pincer:1140010, shellplate:1140020, scale:1140030, pearl:1140040,
+  rustchain:1150010, hoop:1150020, oldsilk:1150030, oldwine:1150040,
+  batwing:1160010, paleskin:1160020, cellarkey:1160030,
+  ironstone:1170010, slab:1170020, gravel:1170030, wedge:1170040,
+  molepelt:1180010, ramhorn:1180020, chitin:1180030, centijaw:1180040,
+  water:1190010, soil:1190020, sand:1190030, fish:1190040,
+  fillet:1200010, catfishwhisker:1200020,
+  fulgurite:1210010, charroot:1210020, cinder:1210030, ashgrass:1210040,
+  charhide:1220010, tusk:1220020, stagantler:1220030,
+  ash:1230010, burntbrick:1230020, scrapiron:1230030, glassshard:1230040,
+  towershard:1240010, eyecrystal:1240020,
+  dullgold:1250010, feastfloor:1250020,
+  fletching:1260010, tannedfur:1260020, renderfat:1260030, rope:1260040, glue:1260050, scaleplate:1260060, boneneedle:1260070, wax:1260080, flour:1260090,
+  blade:1270010, leatherstrap:1270020, whetstone:1270030, firewood:1270040, cord:1270050, longhandle:1270060, obsidianblade:1270070,
+  curedleather:1280010,
+  clay:1290010, plank:1290020, shieldboard:1290030, shieldrim:1290040,
+  nacre:1300010, ember:1300020, claybead:1300030,
+  stoneknife:2010010, handaxe:2010020, battleaxe:2010030, ironaxe:2010040, tuskaxe:2010050, chainaxe:2010060, shardaxe:2010070, twinaxe:2010080, pincaxe:2010090, sawaxe:2010100, chaintwin:2010110, shardtwin:2010120, woodbow:2010130, huntbow:2010140, obsidianbow:2010150, venombow:2010160, shellbow:2010170, hoopbow:2010180, shardbow:2010190, webbow:2010200, layerbow:2010210, clambow:2010220, chainbow:2010230, shardrapid:2010240, fangspear:2010250, obsspear:2010260, ironspear:2010270, tuskspear:2010280, chainspear:2010290, shardspear:2010300, toothdagger:2010310, boneknife:2010320, obsidianknife:2010330, venomknife:2010340, shellknife:2010350, silkknife:2010360, shardknife:2010370,
+  leatherarmor:2020010, stonearmor:2020020, spikemail:2020030, ironmail:2020040, chitinmail:2020050, chainmail:2020060, shardarmor:2020070, toadmail:2020080, shellarmor:2020090, charmail:2020100, hoopmail:2020110, shardfire:2020120, woodshield:2020130, rimshield:2020140, scaleshield:2020150, nacreshield:2020160, chitinshield:2020170, hoopshield:2020180, shardshield:2020190, stoneshield:2020200, slabshield:2020210, tuskshield:2020220, chainshield:2020230, shardwall:2020240, claynecklace:2020250, crystalneck:2020260, glowcharm:2020270, thunderneck:2020280, nacreneck:2020290, silkknot:2020300, shardneck:2020310, toothneck:2020320, venomneck:2020330, tuskneck:2020340, batcharm:2020350, shardfang:2020360,
+  pouch:2030010, fishhook:2030020, workbench:2030030,
+  honey:2040010, honeymeat:2040020, feast:2040030, drymeat:2040040, jerky:2040050, smokedfish:2040060, juice:2040070, roastmeat:2040080, slabgrill:2040090, winestew:2040100,
+  salve:2050010, silkbandage:2050020, fishoil:2050030, antidote:2050040,
+};
+const itemNo = t => ITEM_NO[t] || 9999999;
 function aimCandidates(){                                         // 만들 줄 아는 것 — 지금 목표만 뺀다
   const list = CRAFT_TYPES.filter(t => t !== S.goal && aimGoalOk(t));
   const fog = new Map();                                          // 0 = 길이 보임 · 1 = 안개 · 2 = 아예 못 닿음
   for (const t of list) fog.set(t, aimReady(t) ? 0 : aimFogged(t) ? 1 : 2);
-  return list.filter(t => fog.get(t) < 2).sort((a, b) =>
-    fog.get(a) - fog.get(b)                                       // 안개는 뒤로
-    || ((have(a) > 0) - (have(b) > 0))                            // v9.37.0: 이미 가진 것도 뜨되 뒤로
-    || aimRank(a) - aimRank(b) || (DEFS[a].step || 0) - (DEFS[b].step || 0));
+  return list.filter(t => fog.get(t) < 2).sort((a, b) => itemNo(a) - itemNo(b));   // v9.139.0: 콜렉터북 차례 (카드 번호)
 }
 const aimUseCandidates = use => aimCandidates().filter(t => useOf(t).includes(use));   // v3.0.3: 그 쓰임의 후보
 const aimRank = t => cardState(t) === 'can' ? 0 : nextStepTo(t) ? 1 : S.seen.includes(t) ? 2 : 3;
