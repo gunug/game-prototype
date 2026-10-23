@@ -2153,7 +2153,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.141.0';
+const VERSION = 'v9.142.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3096,8 +3096,9 @@ const allyMaxHp = () => hMax('ally');
 const LV_REWARD_TEXT = r => [r.hp ? `최대 체력 +${r.hp}` : '', r.atk ? `공격 +${r.atk}` : '', r.def ? `방어 +${r.def}` : '']
   .filter(Boolean).join(' · ');
 // v9.129.0: **출전 칸 셋** — 셋째 칸은 사람 넷이 합류하면 열린다 (앞 · 뒤 · 원거리)
-const PARTY_THIRD = 4;
-const PARTY = () => [true, true, ALL_HEROES().length >= PARTY_THIRD];
+// v9.142.0: 칸마다 여는 머릿수 — 전열은 처음부터 · 중열은 4명 합류 · 후열은 8명 합류
+const PARTY_OPEN = [0, 4, 8];
+const PARTY = () => PARTY_OPEN.map(n => ALL_HEROES().length >= n);
 const PARTY_MAX = () => PARTY().filter(Boolean).length;
 // v9.131.0: **출전 줄** — 땅마다 전열 · 중열 · 후열 세 칸. 칸에 올려 두기만 하고, ⚔ 출전 단추를 눌러야 나간다.
 //   싸움이 끝나도 줄은 그대로 남는다 (다시 ⚔ 출전이면 같은 줄로). 출전해제를 누르면 줄이 빈다.
@@ -5687,7 +5688,7 @@ function screenRows(){
           icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
           // v9.77.1: 테두리는 **그 사람의 등급** — 기사만 금테, 나머지는 동테 (전엔 비전투요원도 금테로 보였다)
           cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: LINE_LAB[i],
-          need: open ? '' : `${PARTY_THIRD}명 합류`,                // v9.129.0: 셋째 칸을 여는 조건
+          need: open ? '' : `${PARTY_OPEN[i]}명 합류`,              // v9.129.0 · v9.142.0: 그 칸을 여는 조건
         };
       });
       const any = line.some(Boolean);
