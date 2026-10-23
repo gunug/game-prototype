@@ -2153,7 +2153,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.142.0';
+const VERSION = 'v9.143.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2477,6 +2477,7 @@ const showPaused = () => !!((showing && showing.pause) || showQ.some(x => x.paus
 function traceModal(t){
   if (!t) return;
   if (!t.pic){ traceDone(t); return; }
+  joinBefore(t);                                                  // v9.143.0: 합류 흔적이면 합류 표시가 먼저
   relay({ t, pause: true, run: done => traceCard(t, done) });
 }
 function traceCard(t, done){
@@ -3067,12 +3068,12 @@ const allyIn = () => editMode || !!(typeof S !== 'undefined' && S && S.allyJoin)
 const PERSON_TRACE = { st_keeper_01: 'keeper' };                 // v9.97.0: 흔적으로 합류하는 사람은 보른뿐 (v9.124.0: 보른의 흔적 1)
 const JOIN_SHOW = Object.fromEntries(Object.keys(STORY_TRACES).filter(w => !['knight', 'ally', 'keeper'].includes(w)).map(w => [`st_${w}_01`, w]));   // 여관 합류 뒤 흔적 카드 — 카드를 닫으면 합류 표시 (v9.124.0: 장인 모두, 그 사람의 흔적 1)
 const personIn = id => editMode || (SMITH_BY_ID[id] ? smithDone(id) : !!(typeof S !== 'undefined' && S && (S.joined || []).includes(id)));
-function personJoinNow(id, quiet){
+function personJoinNow(id, quiet, first = true){
   if ((S.joined || []).includes(id)) return;
   (S.joined = S.joined || []).push(id);
   logEv('person-join', { who: id });
   const bust = id === 'keeper' ? 'bust_innkeeper' : `bust_${id}`;
-  if (!quiet) unlockShow(`images/portrait/${bust}.png`, `${pName(id)} 합류`, personJob(id), { first: true, pause: true });   // v9.96.0: 그 카드 바로 다음
+  if (!quiet) unlockShow(`images/portrait/${bust}.png`, `${pName(id)} 합류`, personJob(id), { first, pause: true });   // v9.96.0: 그 카드 바로 다음
   renderTabs(); renderAll(); renderInsp(); renderBook(); renderQuest(); save();
 }
 // 흔적 카드를 닫았을 때 — 그 흔적에 걸린 합류를 한다
@@ -3081,13 +3082,21 @@ function traceDone(t, quiet){
   if (t.id === 'st_ally_01') allyJoinNow(quiet);                // v9.124.0: 세리나의 흔적 1
   if (PERSON_TRACE[t.id]) personJoinNow(PERSON_TRACE[t.id], quiet);
   const w = JOIN_SHOW[t.id];                                      // v9.97.0: 여관에서 합류한 사람 — 카드 다음에 합류 표시
-  if (w && !quiet) unlockShow(`images/portrait/bust_${w}.png`, `${pName(w)} 합류`, smithName(w), { first: true, pause: true });
+  if (w && !quiet && !joinShown.has(t.id)) unlockShow(`images/portrait/bust_${w}.png`, `${pName(w)} 합류`, smithName(w), { first: true, pause: true });
 }
-function allyJoinNow(quiet){
+// v9.143.0: **합류 표시 먼저, 그다음 합류 흔적 카드** — 카드를 띄우기 전에 합류를 하고 그 표시를 줄 뒤에 세운다
+const joinShown = new Set();
+function joinBefore(t){
+  if (t.id === 'st_ally_01') allyJoinNow(false, false);
+  if (PERSON_TRACE[t.id]) personJoinNow(PERSON_TRACE[t.id], false, false);
+  const w = JOIN_SHOW[t.id];
+  if (w && !joinShown.has(t.id)){ joinShown.add(t.id); unlockShow(`images/portrait/bust_${w}.png`, `${pName(w)} 합류`, smithName(w), { pause: true }); }
+}
+function allyJoinNow(quiet, first = true){
   if (S.allyJoin) return;
   S.allyJoin = true;
   logEv('ally-join', {});
-  if (!quiet) unlockShow(`images/portrait/${bustOf(hPic('ally'))}.png`, `${pName('ally')} 합류`, hName('ally'), { first: true, pause: true });
+  if (!quiet) unlockShow(`images/portrait/${bustOf(hPic('ally'))}.png`, `${pName('ally')} 합류`, hName('ally'), { first, pause: true });
   renderTabs(); renderAll(); renderInsp(); renderBook(); save();
 }
 const allyLv = () => allySt().lv || 1;
@@ -5819,7 +5828,7 @@ function knightIntro(){
     relay({ pause: true, run: titleShow });                       // v9.121.0: 그 다음 게임 타이틀 — 그리고 '빈손'
   }
   traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
-  if (!(S.traces || []).includes('pl_mountain')){ traceHit('land:mountain'); unlockField(FIELD_BY_ID.mountain); }   // v9.138.0: 첫 땅 — 산
+  if (!(S.traces || []).includes('pl_mountain')){ unlockField(FIELD_BY_ID.mountain); traceHit('land:mountain'); }   // v9.138.0: 첫 땅 — 산
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
   save();
@@ -6352,7 +6361,7 @@ function renderFieldInsp(){
 }
 function raidFirstLook(){                                          // v9.138.0: 부서진 탑 — 처음부터 열린 레이드라 탭을 처음 열 때
   if (S.raidSeen) return; S.raidSeen = true;
-  if (!(S.traces || []).includes('pl_towerruin')){ traceHit('land:towerruin'); unlockField(FIELD_BY_ID.towerruin); }
+  if (!(S.traces || []).includes('pl_towerruin')){ unlockField(FIELD_BY_ID.towerruin); traceHit('land:towerruin'); }
   save();
 }
 function setTab(tab){
@@ -8923,8 +8932,8 @@ function addUnlockNote(id){
   if (!f) return;
   logEv('unlock', { field: id });                                 // v7.6.0
   landFound(id);                                                  // v7.13.0
-  traceHit(`land:${id}`);                                         // v9.138.0: 장소 흔적 카드 먼저
   unlockField(f);                                                 // v9.76.0: 같은 언락 연출
+  traceHit(`land:${id}`);                                         // v9.138.0 · v9.143.0: 열림 다음에 장소 흔적 카드
   toast(`🔓 ${f.emoji} ${f.name} — 새 곳이 열렸다`);
   if (isRowScreen(S.tab)) renderScreen();
 }
@@ -8936,8 +8945,8 @@ function unlockNextField(afterId){
   logEv('unlock', { field: next.id });                             // v7.6.0
   landFound(next.id);                                              // v7.13.0
   save();
-  traceHit(`land:${next.id}`);                                     // v9.138.0: 장소 흔적 카드 먼저
   playUnlock(next);
+  traceHit(`land:${next.id}`);                                     // v9.138.0 · v9.143.0: 열림 다음에 장소 흔적 카드
 }
 // v9.76.0: **언락 연출** — 그림 한 장 + 한 줄을 3초간 덮어 보여 준다 (사람 합류 · 땅 · 던전 · 레이드 공통).
 //   탭하면 바로 닫힌다. 게임은 뒤에서 그대로 돈다
