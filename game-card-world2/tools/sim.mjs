@@ -31,6 +31,9 @@ const MAX_MIN = +arg('--max-min', 240);              // 게임 속 시간 한계
 //   · 손질 시간을 매긴다 — 탭 옮기기 1.2초 · 조합 2.5초 · 목표 고르기 9초(첫 번째 25초)
 //     이 시간은 원정이 아닌 시간이라 로그에서 곧바로 '헤맴(aMs − xMs)' 으로 잡힌다
 const BLIND = has('--blind');
+// v10.0.0: **파티 시뮬** — 기본은 파티(전열 + 창 · 활)로 나간다. --solo 면 예전처럼 가렛 혼자
+const SOLO = has('--solo');
+const GAP_MIN = +arg('--gap', 5);                    // 이만큼(분) 아무 새 일이 없으면 '빈 구간'
 const COST = { tab: 1200, craft: 2500, equip: 2000, goal: 9000, goalFirst: 25000, sortie: 1500, think: 2500 };
 
 // ── 가짜 DOM — check.mjs 와 같은 얼개 (무엇을 읽든 또 가짜를 돌려줌)
@@ -105,6 +108,10 @@ function boot(seed){
   vm.runInContext(CODE, ctx, { filename: 'index.html<script>' });
   ctx.document.hidden = false;                                     // 화면을 보고 있는 셈 (논 시간이 흐르게)
   vm.runInContext('FAST = true', ctx);                             // 연출 건너뛰기 (규칙 · 확률은 그대로)
+  // v10.0.0: 계측 — 사람마다 준 피해 · 받은 피해, 흔적이 열린 때 (게임 함수를 감싼다. 규칙은 그대로)
+  vm.runInContext(`SIMP = { dmg: {}, taken: {}, tr: [], sorties: {} };
+    const __sw = expSwing; expSwing = function(a, b, d){ if (d > 0){ if (typeof a === 'string') SIMP.dmg[a] = (SIMP.dmg[a] || 0) + d; if (typeof b === 'string') SIMP.taken[b] = (SIMP.taken[b] || 0) + d; } return __sw.apply(this, arguments); };
+    const __th = traceHit; traceHit = function(key){ const n0 = (S.traces || []).length; const r = __th.apply(this, arguments); const n1 = (S.traces || []).length; if (n1 > n0) SIMP.tr.push({ t: Date.now() - LOG.start, key }); return r; };`, ctx);
   return { ctx, clock };
 }
 
@@ -190,8 +197,33 @@ function makeAI({ ctx, clock }){
       const before = g('!!exp');
       if (before) return 'busy';
       this.spend(COST.sortie);
-      call('expStart', field, ctx.document.createElement('div'));   // flash() 가 만질 가짜 카드
+      const party = SOLO ? ['knight'] : this.party(field);
+      for (const w of party) call('expStart', field, ctx.document.createElement('div'), w);   // 전열부터 (먼저 나간 사람이 맨 앞)
+      if (g('!!exp')) for (const w of party) g(`SIMP.sorties[${JSON.stringify(w)}] = (SIMP.sorties[${JSON.stringify(w)}] || 0) + 1`);
       return g('!!exp') ? 'go' : 'blocked';
+    },
+    // v10.0.0: **파티 고르기** — 전열 = 가렛(맨 앞에 서야 하는 사람), 남은 칸은 사거리가 있는 사람(창 · 활) 중
+    //   지금 장비로 피해가 가장 센 사람. 고르기 전에 사람마다 가진 장비를 나눠 끼운다 (가렛이 먼저 · 쓰던 것은 남에게)
+    party(field){
+      return g(`(function(){
+        const n = PARTY_MAX(), heroes = ALL_HEROES().filter(k => canSortie(k) && !expOf(k));
+        // 칸마다 가장 센 것을 끼운다 (그 사람 칸이 받는 것만 · 가진 것만)
+        const val = t => { const d = DEFS[t] || {}; return (d.atk || 0) * (d.rate || 10) / 10 * (d.multi || 1) + (d.bleed || 0) + (d.def || 0) * 2
+          + (d.thorns || 0) + (d.burnguard || 0) * 2 + (d.shell || 0) * 2 + (d.regen10 || 0) + (d.drain || 0) * 2 + (d.heal || 0) / 4 + (d.pierce ? 3 : 0); };
+        const gear = k => { for (const sl of slotsFor(k)){ if (!slotOpen(sl.key, k)) continue; const tag = slotTag(sl, k); if (!tag) continue;
+          const cur = equipped(sl.key, k);
+          const best = CRAFT_TYPES.filter(t => have(t) > 0 && useOf(t).includes(tag)).sort((a, b) => val(b) - val(a))[0];
+          if (best && (!cur || val(best) > val(cur))) equipCard(sl, best, k); } };
+        if (heroes.includes('knight')) gear('knight');
+        const dps = k => hAps(k) * (Math.max(1, hAtk(k) - 3) * hMulti(k) + hBleed(k));
+        const rest = heroes.filter(k => k !== 'knight');
+        rest.forEach(gear);
+        const reach = rest.filter(k => hRange(k) >= 2).sort((a, b) => dps(b) - dps(a));
+        const line = (heroes.includes('knight') ? ['knight'] : []).concat(reach).slice(0, n);
+        // 칸이 남으면 사거리 없는 사람이라도 (기다리기만 해도 맞아 줄 몸)
+        for (const k of rest) if (line.length < n && !line.includes(k)) line.push(k);
+        return JSON.parse(JSON.stringify(line));
+      })()`);
     },
     // 원정이 끝날 때까지 시간을 흘려 보낸다. between() 를 주면 **원정이 도는 사이에** 그 일을 한다
     //   (사람 기록을 보면 원정은 자동이라 그동안 조합 · 장비를 만진다 — 그 리듬을 흉내 낸다)
@@ -211,16 +243,20 @@ function makeAI({ ctx, clock }){
         const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
         const pierce = knightPierce(), bleed = knightBleed();
         let hp = knightMaxHp();
+        // v10.0.0: 파티면 함께 나갈 사람들의 피해를 더한다 (가렛 몫은 아래에서)
+        const mates = ${SOLO ? '[]' : "ALL_HEROES().filter(k => k !== 'knight' && canSortie(k)).filter(k => hRange(k) >= 2).slice(0, PARTY_MAX() - 1)"};
+        const mateOut = def => mates.reduce((a, k) => a + hAps(k) * (Math.max(1, hAtk(k) - (hPierce(k) ? 0 : def)) * hMulti(k) + hBleed(k)), 0);
+        const mateBleed = mates.some(k => hBleed(k) > 0);
         // v9.137.0: **초 단위로** 센다 — 공격 속도(10초 타수) · 연타 · 출혈 · 재생(초당) · 화상 막음을 실제 규칙대로
         const aps = hAps('knight'), multi = hMulti('knight'), guard = hBurnGuard('knight');
         for (const f of foes){
           let fhp = f.hp, sec = 0;
-          const out = aps * (Math.max(1, knightAtk() - (pierce ? 0 : f.def)) * multi + bleed);
+          const out = aps * (Math.max(1, knightAtk() - (pierce ? 0 : f.def)) * multi + bleed) + mateOut(f.def);
           const inc = (f.aps || 1) * (Math.max(1, f.atk - knightDef()) + Math.max(0, (f.burn || 0) - guard));
           while (fhp > 0 && sec < 120){
             sec++;
             fhp -= out;
-            if (fhp > 0 && f.regen && !bleed) fhp = Math.min(f.hp, fhp + f.regen);
+            if (fhp > 0 && f.regen && !bleed && !mateBleed) fhp = Math.min(f.hp, fhp + f.regen);
             if (fhp > 0 && f.drain) fhp = Math.min(f.hp, fhp + (f.aps || 1) * f.drain);
             if (fhp <= 0) break;
             hp -= inc;
@@ -241,7 +277,7 @@ function makeAI({ ctx, clock }){
         // v9.136.0: 화상엔 불 막음 (갑옷 · 방패) · 어둠엔 빛 (장신구) — 무기가 아니라 몸에 차는 것이 답
         if (foes.some(f => f.burn) && !CRAFT_TYPES.some(t => DEFS[t].burnguard && (have(t) > 0 || equipped('armor') === t || equipped('shield') === t))) return false;   // v9.137.0
         if (foes.some(f => f.thorns))
-          return CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
+          return ${SOLO ? 'false' : "ALL_HEROES().some(k => k !== 'knight' && canSortie(k) && hRanged(k))"} || CRAFT_TYPES.some(t => useOf(t).includes('원거리무기') && mine(t));
         if (foes.some(f => f.shell))
           return CRAFT_TYPES.some(t => useOf(t).includes('근접무기') && (DEFS[t].aps || 1) * (DEFS[t].multi || 1) >= 2 && mine(t));
         return true;
@@ -396,15 +432,22 @@ function play(ai, note){
       if (cands.length){
         const pick = g(`(function(){
           const list = ${JSON.stringify(cands)};
-          const val = t => { const d = DEFS[t] || {}; return (d.atk || 0) * 3 + (d.def || 0) * 2 + (d.pierce ? 6 : 0) + (d.bleed || 0) * 3 + (d.heal || 0) * 2; };
+          const val = t => { const d = DEFS[t] || {}; return (d.atk || 0) * (d.rate || 10) / 10 * (d.multi || 1) * 3 + (d.def || 0) * 2 + (d.pierce ? 6 : 0) + (d.bleed || 0) * 3 + (d.heal || 0) * 2
+            + (d.thorns || 0) * 2 + (d.burnguard || 0) * 2 + (d.shell || 0) * 3 + (d.regen10 || 0) * 2 + (d.drain || 0) * 3; };   // v10.0.0: 10초 타수 · 연타 · 몸 장비 특성
           const slotOf = t => (ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || {}).key || null;
           let bT = null, bV = 0;
+          // v10.0.0: 파티면 **함께 나갈 사람들의 칸**까지 본다 — 그 사람 칸이 받는 것이면 그 칸의 지금 것과 견준다 (가렛 몫을 조금 더 친다)
+          const who = ${SOLO ? "['knight']" : "ALL_HEROES().slice(0, 1 + Math.max(0, PARTY_MAX() - 1) + 2)"};
           for (const t of list){
-            const k = slotOf(t);
-            if (!k || have(t) > 0 || aimFogged(t)) continue;   // v9.37.0: ??? (안개) 후보는 고르지 않는다 — 값을 알 수 없다
-            const now = k ? equipped(k) : null;
-            const gain = val(t) - (now ? val(now) : 0);
-            if (gain > bV){ bV = gain; bT = t; }
+            if (have(t) > 0 || aimFogged(t)) continue;   // v9.37.0: ??? (안개) 후보는 고르지 않는다 — 값을 알 수 없다
+            for (const k of who){
+              for (const sl of slotsFor(k)){
+                if (!slotOpen(sl.key, k) || !useOf(t).includes(slotTag(sl, k))) continue;
+                const now = equipped(sl.key, k);
+                const gain = (val(t) - (now ? val(now) : 0)) * (k === 'knight' ? 1 : 0.8);
+                if (gain > bV){ bV = gain; bT = t; }
+              }
+            }
           }
           return bT;
         })()`);
@@ -509,8 +552,47 @@ function runOnce(seed){
     땅클리어_분: ev.filter(e => e.k === 'expEnd' && e.how === 'boss').map(e => `${e.field}:${(e.t / 60000).toFixed(1)}`),
     목표수: ev.filter(e => e.k === 'goalDone').length,
     목표달성: ev.filter(e => e.k === 'goalDone').slice(0, 8).map(e => `${e.type}:${((e.aMs - e.xMs) / 60000).toFixed(1)}분`),
+    ...report(ai, log),
     log,
   };
+}
+// v10.0.0: **사람별 기여 · 빈 구간 · 반복** — 새 일이 일어난 때를 모아 사이가 GAP_MIN 분 넘게 빈 곳을 찾는다
+function report(ai, log){
+  const g = expr => vm.runInContext(expr, ai.ctx);
+  const ev = log.ev || [];
+  const P = g('JSON.parse(JSON.stringify(SIMP))');
+  const name = k => g(`pName(${JSON.stringify(k)}) || ${JSON.stringify(k)}`);
+  const 기여 = Object.keys(P.sorties).sort((a, b) => (P.dmg[b] || 0) - (P.dmg[a] || 0))
+    .map(k => `${name(k)} 출전${P.sorties[k]} 준${P.dmg[k] || 0} 받은${P.taken[k] || 0}`);
+  const m = t => +(t / 60000).toFixed(1);
+  const news = [];
+  const seenGear = new Set();
+  for (const e of ev){
+    if (e.k === 'unlock') news.push([m(e.t), '땅 ' + e.field]);
+    else if (e.k === 'inn-done') news.push([m(e.t), '합류 ' + e.smith]);
+    else if (e.k === 'ally-join' || e.k === 'person-join') news.push([m(e.t), '합류 ' + (e.who || 'ally')]);
+    else if (e.k === 'craft' && e.out) for (const o of e.out){
+      if (seenGear.has(o)) continue;
+      const kind = g(`(u => u.includes('무기') ? '무기' : u.includes('방어구') ? '갑옷' : u.includes('방패') ? '방패' : u.includes('장신구') ? '장신구' : '')(useOf(${JSON.stringify(o)}))`);
+      if (kind){ seenGear.add(o); news.push([m(e.t), kind + ' ' + o]); }
+    }
+  }
+  for (const t of P.tr) news.push([m(t.t), '흔적 ' + t.key]);
+  news.sort((a, b) => a[0] - b[0]);
+  const gaps = [];
+  for (let i = 1; i < news.length; i++){ const d = +(news[i][0] - news[i - 1][0]).toFixed(1); if (d >= GAP_MIN) gaps.push(`${news[i - 1][0]}→${news[i][0]}분 (${d}분) ${news[i - 1][1]} → ${news[i][1]}`); }
+  // 같은 땅 반복 — 사이에 새 일이 없이 같은 땅에 연달아 나간 횟수
+  const starts = ev.filter(e => e.k === 'expStart').map(e => [m(e.t), e.field]);
+  const reps = [];
+  let run = null;
+  for (const [t, f] of starts){
+    const fresh = run && news.some(([nt]) => nt > run.t1 && nt <= t);
+    if (run && run.f === f && !fresh){ run.n++; run.t1 = t; }
+    else { if (run && run.n >= 4) reps.push(run); run = { f, n: 1, t0: t, t1: t }; }
+  }
+  if (run && run.n >= 4) reps.push(run);
+  const 반복 = reps.sort((a, b) => b.n - a.n).slice(0, 6).map(r => `${r.f} ×${r.n} (${r.t0}~${r.t1}분)`);
+  return { 기여, 새일수: news.length, 빈구간: gaps, 반복, 시간표: news.map(([t, x]) => `${t} ${x}`) };
 }
 
 const runs = [];
@@ -520,8 +602,9 @@ for (let i = 0; i < RUNS; i++){
   const r = runOnce(seed);
   r.실제초 = +((Date.now() - t0) / 1000).toFixed(1);
   runs.push(r);
-  const { log, ...show } = r;
+  const { log, 시간표, ...show } = r;
   console.log(`— ${i + 1}판`, JSON.stringify(show, null, ' ').replace(/\n\s*/g, ' '));
+  if (has('--timeline')) console.log('  시간표:\n   ' + 시간표.join('\n   '));
 }
 
 if (RUNS > 1){
