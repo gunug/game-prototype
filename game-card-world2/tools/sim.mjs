@@ -310,7 +310,17 @@ function makeAI({ ctx, clock }){
         if (!want) return null;
         const list = CRAFT_TYPES.filter(t => want(t) && have(t) <= 0 && aimReady(t))
           .sort((a, b) => (DEFS[a].step || 0) - (DEFS[b].step || 0));
-        return list[0] || null;
+        if (list[0]) return list[0];
+        // 바로 만들 답이 없으면 **답으로 가는 앞 단계**를 노린다 (두꺼비 갑옷 ← 돌가죽 갑옷 ← 가죽 갑옷)
+        const seen = new Set();
+        const back = t => { if (seen.has(t)) return null; seen.add(t);
+          if (have(t) > 0) return null;
+          if (aimReady(t)) return t;
+          for (const rc of CRAFT_RECIPES){ if (!(rc.out || []).includes(t)) continue;
+            for (const c of [rc.a.card, rc.b.card]){ if (!c || have(c) > 0 || !DEFS[c] || !CRAFT_TYPES.includes(c)) continue; const r = back(c); if (r) return r; } }
+          return null; };
+        for (const t of CRAFT_TYPES.filter(want).sort((a, b) => (DEFS[a].step || 0) - (DEFS[b].step || 0))){ const r = back(t); if (r) return r; }
+        return null;
       })()`);
     },
     armFor(field){
@@ -448,7 +458,7 @@ function play(ai, note){
       if (cands.length){
         const pick = g(`(function(){
           const list = ${JSON.stringify(cands)};
-          const val = t => { const d = DEFS[t] || {}; return (d.atk || 0) * (d.rate || 10) / 10 * (d.multi || 1) * 3 + (d.def || 0) * 2 + (d.pierce ? 6 : 0) + (d.bleed || 0) * 3 + (d.heal || 0) * 2
+          const val = t => { const d = DEFS[t] || {}; return (d.atk || 0) * (d.rate || 10) / 10 * (d.multi || 1) * 3 + (d.def || 0) * 2 + (d.pierce ? 6 : 0) + (d.bleed || 0) * 3 + (d.heal || 0) / 4   // 소모품 회복은 끼우는 값과 같게 (×2 였을 땐 잔치만 노려 빈 구간이 생김)
             + (d.thorns || 0) * 2 + (d.burnguard || 0) * 2 + (d.shell || 0) * 3 + (d.regen10 || 0) * 2 + (d.drain || 0) * 3; };   // v10.0.0: 10초 타수 · 연타 · 몸 장비 특성
           const slotOf = t => (ALL_SLOTS.find(sl => useOf(t).includes(sl.tag)) || {}).key || null;
           let bT = null, bV = 0;
