@@ -126,6 +126,16 @@
   .foelist .cw.being{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .foelist .cw.being .name{font-size:calc(var(--cw) * .14);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
+  /* v10.0.0: **폰 세로** (html.phone — 화면 폭이 좁고 세로일 때) — 줄이 폭을 넘지 않게.
+     크리처 줄은 남는 폭만 쓰고 옆으로 민다 · 아래 캐릭터 카드는 줄을 내린다 (끌기와 가로 스크롤이 부딪치지 않게) */
+  html.phone .lrow.fieldrow{padding-left:calc(var(--cw) * .06);gap:calc(var(--cw) * .07);max-width:100%;box-sizing:border-box;}
+  html.phone .lrow .foelist{flex:1 1 auto;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+  html.phone .lrow .foelist::-webkit-scrollbar{display:none;}
+  html.phone .sortie-btns{width:calc(var(--cw) * .82);}
+  html.phone .sortie-btns button{font-size:11px;padding:6px 2px;}
+  html.phone .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:calc(var(--cw) * .12);max-width:100%;}
+  html.phone .botarea{justify-content:flex-start;overflow-y:auto;}
+  html.phone .chars > .cw.hero{zoom:.82;}                          /* 열한 명이 두 줄에 든다 */
   /* v9.131.0: 출전 단추 — 출전 칸 왼쪽 */
   .lrow.fieldrow{align-self:stretch;justify-content:flex-start;padding-left:calc(var(--cw) * .2);}   /* 줄마다 칸이 같은 자리에 (크리처가 없는 잠긴 줄도) */
   .sortie-btns{flex:none;display:flex;flex-direction:column;gap:6px;width:calc(var(--cw) * .9);}
@@ -2153,7 +2163,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v9.143.0';
+const VERSION = 'v10.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3604,6 +3614,7 @@ function layout(){
     put(uiEl, 0, FH, W, H - FH);
     uiEl.className = 'ui bottom';
   }
+  document.documentElement.classList.toggle('phone', !land && W < 600);   // v10.0.0: 폰 세로
   const fr = fieldEl.getBoundingClientRect();                    // 알림은 필드 위쪽 가운데
   Object.assign(document.getElementById('toasts').style,
     { left: fr.left + 'px', width: (FW * k) + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
