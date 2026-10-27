@@ -120,11 +120,12 @@ function boot(seed){
       const mateOut = def => mates.reduce((a, k) => a + hAps(k) * (Math.max(1, hAtk(k) - (hPierce(k) ? 0 : def)) * hMulti(k) + hBleed(k)), 0);
       const mateBleed = mates.some(k => hBleed(k) > 0), bleed = hBleed(F), pierce = hPierce(F);
       const aps = hAps(F), multi = hMulti(F), guard = hBurnGuard(F), max = hMax(F);
+      const defF = hDef(F) + (hTrait(F, 'gate') && !hFront(F) ? 2 : 0);   // 가렛 '문 앞' — 셈할 땐 아직 원정 밖이라 직접 더한다
       let hp = max, T = 0, won = 0;
       for (const f of foes){
         let fhp = f.hp, sec = 0, shell = hShell(F);                  // 껍질은 싸움마다 다시
         const out = aps * (Math.max(1, hAtk(F) - (pierce ? 0 : f.def)) * multi + bleed) + mateOut(f.def);
-        const inc = (f.aps || 1) * (Math.max(1, f.atk - hDef(F)) + Math.max(0, (f.burn || 0) - guard));
+        const inc = (f.aps || 1) * (Math.max(1, f.atk - defF) + Math.max(0, (f.burn || 0) - guard));
         while (fhp > 0 && sec < 120){
           sec++; T++;
           fhp -= out;
