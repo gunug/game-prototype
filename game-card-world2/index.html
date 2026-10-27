@@ -24,6 +24,14 @@
   .ui{position:fixed;z-index:2147482900;display:flex;flex-direction:column;box-sizing:border-box;background:rgba(20,20,16,.96);}
   .ui.side{border-left:1px solid var(--hairline);}
   .ui.bottom{border-top:1px solid var(--hairline);}
+  /* v10.2.0: **폰 세로 — 인스펙터는 아래 시트**. 손잡이를 탭하거나 위로 밀면 화면 60% 까지 펼친다 (필드 위에 덮는다 · 카드 크기는 그대로) */
+  .ui.sheet{border-radius:14px 14px 0 0;box-shadow:0 -6px 18px rgba(0,0,0,.45);}
+  .ui.sheet.open{border-top-color:rgba(255,212,0,.35);}
+  .sheet-grip{display:none;}
+  .ui.sheet .sheet-grip{flex:none;display:flex;align-items:center;justify-content:center;height:20px;cursor:pointer;touch-action:none;}
+  .ui.sheet .sheet-grip::before{content:'';width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);}
+  .ui.sheet.open .sheet-grip::before{background:rgba(255,212,0,.6);}
+  .ui.sheet .insp{padding-top:2px;}
   /* UI 아래쪽 버튼 줄 — 채집 · 크래프팅 · 콜렉터북 · 설정 */
   .ver-out{margin-left:auto;opacity:.75;}   /* v0.47.1: 버전은 버튼 줄 오른쪽 끝에 */
   .uibar{flex:none;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--hairline);}
@@ -135,6 +143,10 @@
   html.phone .sortie-btns button{font-size:11px;padding:6px 2px;}
   html.phone .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:calc(var(--cw) * .12);max-width:100%;}
   html.phone .botarea{justify-content:flex-start;overflow-y:auto;}
+  /* v10.2.0: 정비 줄 — 칸이 많은 사람(네이라 아홉 칸 …)은 칸을 다음 줄로 내린다 */
+  html.phone .gear-tab .lrow{max-width:100%;box-sizing:border-box;padding:0 4px;}
+  html.phone .gear-tab .lrow .rowslots{flex:1 1 auto;min-width:0;flex-wrap:wrap;row-gap:calc(var(--cw) * .08);}
+  .ui.sheet.open{background:rgb(20,20,16);}
   html.phone .chars > .cw.hero{zoom:.82;}                          /* 열한 명이 두 줄에 든다 */
   /* v9.131.0: 출전 단추 — 출전 칸 왼쪽 */
   .lrow.fieldrow{align-self:stretch;justify-content:flex-start;padding-left:calc(var(--cw) * .2);}   /* 줄마다 칸이 같은 자리에 (크리처가 없는 잠긴 줄도) */
@@ -1049,6 +1061,7 @@
     border-bottom:1px solid var(--hairline);}
   .book-head2:first-child{margin-top:0;}
   .book-row{display:flex;gap:10px;flex-wrap:wrap;}
+  html.phone .book-row > .scene-sleeve{width:calc(50% - 5px);}   /* v10.2.0: 폰 — 흔적은 두 장씩 폭을 꽉 채운다 */
   /* v9.49.0: 완성품 계보 — 칸(열)은 단계, 줄(행)은 갈래. 부모와 자식을 선으로 잇는다 */
   .fin-solo{display:flex;flex-wrap:wrap;gap:calc(var(--cw) * .2) calc(var(--cw) * .3);margin-top:calc(var(--cw) * .2);}   /* v9.132.0: 트리 없는 완성품 — 가로로, 폭에 맞춰 줄바꿈 */
   .fin-tree{display:grid;grid-template-columns:repeat(var(--cols,1), max-content);
@@ -1127,6 +1140,7 @@
   </div>
 </div>
 <div class="ui side" id="ui">
+  <div class="sheet-grip" id="sheetGrip" title="펼치기 · 접기"></div>
   <div class="insp" id="insp"></div>
 </div>
 <div class="phone-frame" id="frame" hidden></div>
@@ -2163,7 +2177,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.1.0';
+const VERSION = 'v10.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3580,6 +3594,13 @@ function setMobileMode(on){
   paintMobileTurn();                                              // v7.1.0
   measure();
 }
+// v10.2.0: 아래 시트 — 펼침 상태 (저장하지 않는다)
+let sheetOpen = false;
+function setSheet(on){
+  on = !!on && document.documentElement.classList.contains('phone');
+  if (on === sheetOpen) return;
+  sheetOpen = on; layout();
+}
 function layout(){
   // v4.4.0: 모바일 모드면 **논리 크기는 412×915 그대로** 두고, 창이 작으면 통째로 줄여 보여 준다
   const k = mobileMode
@@ -3610,9 +3631,12 @@ function layout(){
     put(uiEl, FW, 0, W - FW, H);
     uiEl.className = 'ui side';
   } else {
+    const phone = W < 600;                                        // v10.2.0: 폰 세로면 아래 시트
+    if (!phone) sheetOpen = false;
+    const top = sheetOpen ? Math.round(H * 0.4) : FH;             // 펼쳐도 필드 크기(카드 크기)는 그대로 — 시트가 덮을 뿐
     put(fieldEl, 0, 0, FW, FH);
-    put(uiEl, 0, FH, W, H - FH);
-    uiEl.className = 'ui bottom';
+    put(uiEl, 0, top, W, H - top);
+    uiEl.className = 'ui bottom' + (phone ? ' sheet' : '') + (sheetOpen ? ' open' : '');
   }
   document.documentElement.classList.toggle('phone', !land && W < 600);   // v10.0.0: 폰 세로
   const fr = fieldEl.getBoundingClientRect();                    // 알림은 필드 위쪽 가운데
@@ -4124,6 +4148,7 @@ addEventListener('pointermove', e => {
   if (!drag.moved){
     if (Math.hypot(dx, dy) < 6) return;
     drag.moved = true;
+    setSheet(false);                                             // v10.2.0: 끌면 시트를 접어 놓을 자리를 보인다
     drag.el.classList.add('dragging');
     heroPick = null;                                           // v0.50.0: 끌기 시작하면 그 카드 정보를 인스펙터에
     select(drag.c.id);
@@ -6078,6 +6103,7 @@ addEventListener('pointermove', e => {
   if (!d.moved){
     if (Math.hypot(dx, dy) < 6) return;
     d.moved = true;
+    setSheet(false);                                             // v10.2.0
     for (const b of gatherEl.querySelectorAll('[data-slot-id]')){   // v0.32.0: 놓을 수 있는 칸은 모두 노란 테두리
       b.classList.toggle('can', !b.classList.contains('locked') && slotTakes(b.dataset.slotId, d.token));
     }
@@ -6376,6 +6402,7 @@ function raidFirstLook(){                                          // v9.138.0: 
   save();
 }
 function setTab(tab){
+  setSheet(false);                                               // v10.2.0
   if (tab === 'raid') setTimeout(raidFirstLook, 0);                // v9.138.0
   if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
@@ -9288,6 +9315,22 @@ document.getElementById('reset').addEventListener('click', () => {
   knightIntro();                                                  // 첫 대사부터 다시
 });
 addEventListener('resize', () => { measure(); renderAll(); });
+{ // v10.2.0: 시트 손잡이 — 탭이면 뒤집고, 위로 밀면 펼치고, 아래로 밀면 접는다
+  const grip = document.getElementById('sheetGrip');
+  let y0 = null;
+  grip.addEventListener('pointerdown', e => { y0 = e.clientY; grip.setPointerCapture(e.pointerId); });
+  grip.addEventListener('pointerup', e => {
+    if (y0 == null) return;
+    const dy = e.clientY - y0; y0 = null;
+    setSheet(dy < -20 ? true : dy > 20 ? false : !sheetOpen);
+  });
+  grip.addEventListener('pointercancel', () => { y0 = null; });
+  // 시트 밖을 누르면 접는다 — 카드를 누른 것은 빼고 (다른 카드를 보려는 것)
+  document.addEventListener('pointerdown', e => {
+    if (!sheetOpen || e.target.closest('#ui') || e.target.closest('.cw')) return;
+    setSheet(false);
+  }, true);
+}
 measure();
 syncUnlocks(null);                                                // v4.1.2: 저장을 불러온 뒤 잠금 상태를 맞춤
 paintIcons(document.body);                                        // v3.5.0: 고정 HTML(안내문 · 던전 판) 속 이모지도 그림으로
