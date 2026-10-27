@@ -505,7 +505,13 @@ function play(ai, note){
     const list = ai.fields().filter(f => !f.locked);
     // v9.127.0: 안 깬 땅 중 **지금 넘을 만한 곳부터** — 한 던전(늪 · 출혈)에 막혀 다른 길(채석장 · 강가)을 영영 안 가던 것
     const open = list.filter(f => !st.cleared.includes(f.id));
-    const next = open.find(f => ai.canBeat(f.id) && ai.canAnswer(f.id)) || open[0];
+    const ready = open.find(f => ai.canBeat(f.id) && ai.canAnswer(f.id));
+    // 넘을 땅이 하나도 없으면 — **다른 안 깬 땅의 답**(화상 막음 …)을 먼저 목표로 (한 땅에 매달려 다른 길의 답을 안 만들던 것)
+    if (!ready){
+      for (const f of open){ if (ai.canAnswer(f.id)) continue; const w = ai.answerFor(f.id);
+        if (w){ if (st.goal !== w){ ai.goal(w); note(`다른 땅 답 목표 ${w} (${f.id})`); } break; } }
+    }
+    const next = ready || open[0];
     const target = next || list[list.length - 1];
     if (target){
       ai.armFor(target.id);                                        // 그 땅에 맞는 무기로
