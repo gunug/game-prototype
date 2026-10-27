@@ -32,6 +32,7 @@
   .ui.sheet .sheet-grip::before{content:'';width:44px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);}
   .ui.sheet.open .sheet-grip::before{background:rgba(255,212,0,.6);}
   .ui.sheet .insp{padding-top:2px;}
+  .ui.sheet:not(.open) .insp{overflow:hidden;cursor:pointer;}   /* v10.3.0: 접히면 이름 한 줄만 — 탭하면 펼침 */
   /* UI 아래쪽 버튼 줄 — 채집 · 크래프팅 · 콜렉터북 · 설정 */
   .ver-out{margin-left:auto;opacity:.75;}   /* v0.47.1: 버전은 버튼 줄 오른쪽 끝에 */
   .uibar{flex:none;position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-top:1px solid var(--hairline);}
@@ -143,6 +144,35 @@
   html.phone .sortie-btns button{font-size:11px;padding:6px 2px;}
   html.phone .chars{flex-wrap:wrap;justify-content:center;align-content:flex-start;gap:calc(var(--cw) * .12);max-width:100%;}
   html.phone .botarea{justify-content:flex-start;overflow-y:auto;}
+  /* v10.3.0: **스크롤은 하나 · 조작 칸은 바닥에 고정** (목표 탭 빼고 — 거긴 위 칸이 작고 아래 후보가 스크롤 하나)
+     가운데 줄 목록(.toplist)만 세로로 굴러가고, 끌어다 놓을 카드는 바닥 **가로 한 줄**(옆으로 밀면 넘김 · 위로 밀면 집기) */
+  html.phone .field:not(.aim-tab) .gather .toplist{max-height:none;bottom:var(--dockh, 40%);justify-content:flex-start;overscroll-behavior:contain;}
+  html.phone .field:not(.aim-tab) .gather .toplist .cw{touch-action:pan-y;}           /* 줄 위 카드를 짚고 위아래로 밀어도 스크롤 */
+  html.phone .field:not(.aim-tab) .gather .toplist .foelist .cw{touch-action:pan-x pan-y;}
+  html.phone .field:not(.aim-tab) .gather .botarea{top:auto;bottom:0;overflow:visible;padding:4px 0 2px;gap:2px;
+    background:rgba(14,14,11,.97);border-top:1px solid var(--hairline);box-shadow:0 -4px 12px rgba(0,0,0,.35);}
+  html.phone .field:not(.aim-tab) .gather .chars{flex-wrap:nowrap;justify-content:flex-start;align-content:center;overflow-x:auto;overflow-y:hidden;
+    width:100%;box-sizing:border-box;padding:6px 10px;gap:calc(var(--cw) * .1);scrollbar-width:none;overscroll-behavior-x:contain;}
+  html.phone .field:not(.aim-tab) .gather .chars::-webkit-scrollbar{display:none;}
+  html.phone .field:not(.aim-tab) .gather .chars .cw{touch-action:pan-x;}             /* 옆 = 넘김 · 위 = 집기 */
+  html.phone .field:not(.aim-tab) .gather .chars .sect-lab{flex:none;align-self:stretch;display:flex;align-items:center;padding:0 6px;
+    font-size:11px;border-left:1px solid rgba(255,212,0,.35);white-space:nowrap;}
+  /* 여관은 위 칸(등록 넷)이 짧아 가운데가 빈다 — 바닥 칸을 줄내림으로 (사람 · 납품을 다 보인다) */
+  html.phone .field.inn-tab .gather .chars{flex-wrap:wrap;justify-content:center;overflow-x:hidden;}
+  html.phone .field.inn-tab .gather .chars .sect-lab{flex:0 0 100%;border-left:0;padding:2px 4px 0;}
+  html.phone .field.inn-tab .gather .chars .cw{touch-action:none;}
+  html.phone .field:not(.aim-tab) .gather .gather-hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 20px);}
+  /* 정비 — 갈래 칩 (장비가 수십 장이라 한 줄을 갈래로 거른다) */
+  .gchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;width:100%;box-sizing:border-box;padding:2px 10px 0;}
+  .gchips::-webkit-scrollbar{display:none;}
+  .gchips button{flex:none;padding:3px 10px;border-radius:999px;border:1px solid var(--hairline);background:rgba(255,255,255,.05);color:var(--muted);font:inherit;font-size:12px;font-weight:800;}
+  .gchips button.on{background:var(--brand-yellow);color:#1a1a17;border-color:var(--brand-yellow);}
+  .gchips button .n{opacity:.7;margin-left:3px;font-weight:700;}
+  /* 수첩 — 한 줄로 접는다 (탭하면 펼침) */
+  html.phone .quest.show:not(.qopen){max-height:34px;overflow:hidden;padding:4px 30px 4px 12px;position:relative;}
+  html.phone .quest:not(.qopen) .q-book,html.phone .quest:not(.qopen) .q-op{display:none;}
+  html.phone .quest.show:not(.qopen)::after{content:'\25BE';position:absolute;right:12px;top:7px;color:var(--brand-yellow);font-size:12px;}
+  html.phone .quest.show.qopen{max-height:45%;}
   /* v10.2.0: 정비 줄 — 칸이 많은 사람(네이라 아홉 칸 …)은 칸을 다음 줄로 내린다 */
   html.phone .gear-tab .lrow{max-width:100%;box-sizing:border-box;padding:0 4px;}
   html.phone .gear-tab .lrow .rowslots{flex:1 1 auto;min-width:0;flex-wrap:wrap;row-gap:calc(var(--cw) * .08);}
@@ -2177,7 +2207,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.2.0';
+const VERSION = 'v10.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3617,8 +3647,9 @@ function layout(){
   // v5.0.0: 인스펙터는 고정 폭(높이) — 좁은 화면에서는 UI_MIN 까지만 줄어든다
   const iw = Math.max(UI_MIN, Math.min(INSP_W, Math.round(W * 0.32)));
   const ih = Math.max(UI_MIN, Math.min(INSP_H, Math.round(H * 0.34)));
+  const PEEK_H = 62;                                              // v10.3.0: 폰 세로 — 접힌 인스펙터는 손잡이 + 이름 한 줄
   if (land){ FW = Math.max(260, W - iw); FH = H; }
-  else { FW = W; FH = Math.max(260, H - ih); }
+  else { FW = W; FH = Math.max(260, H - (W < 600 ? PEEK_H : ih)); }
   FS = Math.min(FW, FH);                                          // 카드 크기는 짧은 변 기준
   const fieldEl = document.getElementById('field'), uiEl = document.getElementById('ui');
   const frame = document.getElementById('frame');
@@ -3639,6 +3670,7 @@ function layout(){
     uiEl.className = 'ui bottom' + (phone ? ' sheet' : '') + (sheetOpen ? ' open' : '');
   }
   document.documentElement.classList.toggle('phone', !land && W < 600);   // v10.0.0: 폰 세로
+  setTimeout(syncDockH, 0);                                       // v10.3.0
   const fr = fieldEl.getBoundingClientRect();                    // 알림은 필드 위쪽 가운데
   Object.assign(document.getElementById('toasts').style,
     { left: fr.left + 'px', width: (FW * k) + 'px', top: (fr.top + 8) + 'px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', pointerEvents: 'none' });
@@ -5949,6 +5981,12 @@ function renderTopGrid(){
     : `<div class="empty-lab">아직 만든 ${esc((b.tops || []).join(' · ') || b.top)}가 없음 — 아래에서 재료를 조합하세요</div>`;
   syncTopH();
 }
+gatherEl.addEventListener('click', e => {                         // v10.3.0: 정비 갈래 칩
+  const c = e.target.closest('[data-gchip]');
+  if (!c) return;
+  e.stopPropagation(); gearChip = c.dataset.gchip; renderScreen();
+  const ch = gatherEl.querySelector('.chars'); if (ch) ch.scrollLeft = 0;
+});
 gatherEl.addEventListener('click', e => {                         // v9.131.0: ⚔ 출전 · 출전해제
   const go = e.target.closest('[data-sortie]'), off = e.target.closest('[data-unsortie]');
   if (go){ e.stopPropagation(); sortieGo(go.dataset.sortie); renderScreen(); renderInsp(); }
@@ -5963,16 +6001,39 @@ topGridEl.addEventListener('click', e => {
   inspType = el.dataset.topcard; selected = null;                 // 탭하면 정보만
   renderTopGrid(); renderInsp();
 });
+// v10.3.0: 바닥 조작 칸 높이 → --dockh (가운데 스크롤이 그 위에서 끝난다)
+function syncDockH(){
+  const b = gatherEl.querySelector('.botarea');
+  if (b) document.documentElement.style.setProperty('--dockh', b.offsetHeight + 'px');
+}
+// v10.3.0: 정비 갈래 칩 — 폰에서 장비 한 줄을 갈래로 거른다 (저장하지 않는다)
+let gearChip = 'all';
+const GEAR_CHIPS = [['all', '전체'], ['weapon', '무기'], ['armor', '갑옷'], ['shield', '방패'], ['trinket', '장신구'], ['use', '소모품']];
+const gearKind = t => { const u = useOf(t);
+  return u.some(x => x.includes('무기') || x === '도끼' || x === '창') ? 'weapon' : u.includes('방어구') ? 'armor'
+    : u.includes('방패') ? 'shield' : u.includes('장신구') ? 'trinket' : 'use'; };
 function renderScreen(){
   gatherEl.hidden = !isRowScreen(S.tab);
   if (gatherEl.hidden) return;
-  const rows = screenRows(), toks = screenTokens();
+  // v10.3.0: 다시 그려도 스크롤 자리를 지킨다 (같은 탭일 때만 — 칸에 놓을 때마다 맨 위로 튀던 것)
+  const keep = renderScreen.tab === S.tab ? { y: (gatherEl.querySelector('.toplist') || {}).scrollTop || 0,
+    x: (gatherEl.querySelector('.chars') || {}).scrollLeft || 0 } : { y: 0, x: 0 };
+  renderScreen.tab = S.tab;
+  const rows = screenRows();
+  let toks = screenTokens(), chips = '';
+  if (S.tab === 'gearup' && document.documentElement.classList.contains('phone')){   // v10.3.0
+    const n = k => k === 'all' ? toks.length : toks.filter(t => t.token && gearKind(t.token) === k).length;
+    if (gearChip !== 'all' && !n(gearChip)) gearChip = 'all';
+    chips = '<div class="gchips">' + GEAR_CHIPS.filter(([k]) => k === 'all' || n(k))
+      .map(([k, lab]) => `<button type="button" data-gchip="${k}"${gearChip === k ? ' class="on"' : ''}>${lab}<span class="n">${n(k)}</span></button>`).join('') + '</div>';
+    if (gearChip !== 'all') toks = toks.filter(t => t.token && gearKind(t.token) === gearChip);
+  }
   gatherEl.innerHTML = '<div class="toplist">'
     + rows.map(row => row.slotsFirst
       ? `<div class="lrow fieldrow">${row.pre || ''}<div class="rowslots">${row.slots.slice().reverse().map(slotHtmlOf).join('')}</div>${row.card}</div>`   // v9.131.0 · v9.132.0: 후열 · 중열 · 전열 (전열이 땅 옆)
       : `<div class="lrow">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
-    + '<div class="botarea">'
+    + '<div class="botarea">' + chips
     + '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('')
     + (isFieldTab(S.tab) ? knightSayHtml() : '') + '</div>'
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
@@ -5988,6 +6049,9 @@ function renderScreen(){
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
+  syncDockH();                                                    // v10.3.0
+  { const tl = gatherEl.querySelector('.toplist'), ch = gatherEl.querySelector('.chars');
+    if (tl) tl.scrollTop = keep.y; if (ch) ch.scrollLeft = keep.x; }
   syncTopH();
   expBuild();                                                     // v3.14.0: 원정 줄은 수첩 아래 고정 자리
 }
@@ -6093,17 +6157,21 @@ gatherEl.addEventListener('pointerdown', e => {
     : equipped(fs.key, fs.who);
   if (!token) return;
   const r0 = el.getBoundingClientRect();
-  tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false };
+  tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false,
+    dock: !!e.target.closest('.botarea') && document.documentElement.classList.contains('phone') && S.tab !== 'aim' && S.tab !== 'inn' };   // 여관 바닥은 줄내림이라 옆 넘김 없음   // v10.3.0: 바닥 칸에서 집었나
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
 });
 addEventListener('pointermove', e => {
   const d = tokenDrag;
   if (!d) return;
   const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+  d.lx = e.clientX; d.ly = e.clientY;                             // v10.3.0: 자동 스크롤이 마지막 자리를 쓴다
   if (!d.moved){
     if (Math.hypot(dx, dy) < 6) return;
+    if (d.dock && Math.abs(dx) > Math.abs(dy)){ tokenDrag = null; return; }   // v10.3.0: 바닥 칸을 옆으로 = 넘김 (끌기 아님)
     d.moved = true;
     setSheet(false);                                             // v10.2.0
+    dragAutoScroll(d);                                            // v10.3.0
     for (const b of gatherEl.querySelectorAll('[data-slot-id]')){   // v0.32.0: 놓을 수 있는 칸은 모두 노란 테두리
       b.classList.toggle('can', !b.classList.contains('locked') && slotTakes(b.dataset.slotId, d.token));
     }
@@ -6132,6 +6200,33 @@ addEventListener('pointermove', e => {
     d.el.style.transform = `translate(${fx}px, ${fy}px)`;
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
+});
+// v10.3.0: 끄는 동안 가운데 스크롤의 위 · 아래 끝에 손가락이 머물면 저절로 굴린다 (화면 밖 칸에도 놓게)
+//   아래 끝은 한 번 위로 올라간 뒤에만 — 바닥 칸에서 집어 올릴 때 지나가며 굴리지 않게
+function dragAutoScroll(d){
+  if (!document.documentElement.classList.contains('phone')) return;
+  const tl = gatherEl.querySelector('.toplist');
+  if (!tl) return;
+  const EDGE = 44;
+  const tick = () => {
+    if (tokenDrag !== d) return;
+    const r = tl.getBoundingClientRect();
+    if (d.ly < r.bottom - EDGE * 1.5) d.up = true;
+    const v = d.ly < r.top + EDGE ? -Math.ceil((r.top + EDGE - d.ly) / 4)
+      : d.up && d.ly > r.bottom - EDGE && d.ly < r.bottom + EDGE ? Math.ceil((d.ly - (r.bottom - EDGE)) / 4) : 0;
+    if (v){
+      const t0 = tl.scrollTop; tl.scrollTop += v;
+      if (tl.scrollTop !== t0) dispatchEvent(new PointerEvent('pointermove', { clientX: d.lx, clientY: d.ly }));   // 칸 스냅을 다시
+    }
+    setTimeout(tick, 16);                                         // rAF 는 창이 가려지면 멈춘다
+  };
+  setTimeout(tick, 16);
+}
+addEventListener('pointercancel', () => {                         // v10.3.0: 브라우저가 스크롤로 가져가면 끌기를 놓는다
+  const d = tokenDrag;
+  if (!d) return;
+  tokenDrag = null;
+  if (d.moved){ d.el.remove(); for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can'); renderScreen(); renderInsp(); }
 });
 const SNAP_PAD = 20;                                              // v9.39.0: 칸 둘레 이만큼까지는 빨려 들어간다 (px)
 function snapUnder(cx, cy, token){                                // 카드 **가운데**가 걸린 칸
@@ -9325,6 +9420,18 @@ addEventListener('resize', () => { measure(); renderAll(); });
     setSheet(dy < -20 ? true : dy > 20 ? false : !sheetOpen);
   });
   grip.addEventListener('pointercancel', () => { y0 = null; });
+  // v10.3.0: 접힌 시트(이름 한 줄)를 탭하면 펼친다
+  document.getElementById('ui').addEventListener('click', e => {
+    if (sheetOpen || e.target.closest('#sheetGrip') || !document.documentElement.classList.contains('phone')) return;
+    e.stopPropagation(); e.preventDefault(); setSheet(true);
+  }, true);
+  // v10.3.0: 수첩 — 폰에선 한 줄로 접혀 있다. 단추 · 탭 이름이 아닌 곳을 탭하면 펼침 / 접음
+  document.getElementById('quest').addEventListener('click', e => {
+    if (!document.documentElement.classList.contains('phone')) return;
+    if (e.target.closest('button, a, [data-tab], .q-aim, .q-edit-done, .tablink')) return;
+    e.currentTarget.classList.toggle('qopen');
+    setTimeout(syncHeadH, 0); setTimeout(syncHeadH, 400);
+  });
   // 시트 밖을 누르면 접는다 — 카드를 누른 것은 빼고 (다른 카드를 보려는 것)
   document.addEventListener('pointerdown', e => {
     if (!sheetOpen || e.target.closest('#ui') || e.target.closest('.cw')) return;
