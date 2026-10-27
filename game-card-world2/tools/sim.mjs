@@ -33,6 +33,7 @@ const MAX_MIN = +arg('--max-min', 240);              // 게임 속 시간 한계
 const BLIND = has('--blind');
 // v10.0.0: **파티 시뮬** — 기본은 파티(전열 + 창 · 활)로 나간다. --solo 면 예전처럼 가렛 혼자
 const SOLO = has('--solo');
+const KFRONT = has('--knight-front');               // 예전처럼 가렛을 늘 전열에 (D 전과 비교)
 const GAP_MIN = +arg('--gap', 5);                    // 이만큼(분) 아무 새 일이 없으면 '빈 구간'
 const COST = { tab: 1200, craft: 2500, equip: 2000, goal: 9000, goalFirst: 25000, sortie: 1500, think: 2500 };
 
@@ -111,6 +112,36 @@ function boot(seed){
   // v10.0.0: 계측 — 사람마다 준 피해 · 받은 피해, 흔적이 열린 때 (게임 함수를 감싼다. 규칙은 그대로)
   vm.runInContext(`SIMP = { dmg: {}, taken: {}, tr: [], sorties: {} };
     const __sw = expSwing; expSwing = function(a, b, d){ if (d > 0){ if (typeof a === 'string') SIMP.dmg[a] = (SIMP.dmg[a] || 0) + d; if (typeof b === 'string') SIMP.taken[b] = (SIMP.taken[b] || 0) + d; } return __sw.apply(this, arguments); };
+    // D: **전열 고르기** — 앞 사람 F 가 맞고 때리고, 뒤 사람(사거리 2 이상)이 거든다. 초 단위로 대본의 적을 차례로
+    //   점수 = 이기면 1 + 남은 체력 비율 − 걸린 시간, 지면 넘긴 적 비율의 절반. 가장 높은 사람이 전열
+    SIMP.dps = k => hAps(k) * (Math.max(1, hAtk(k) - 3) * hMulti(k) + hBleed(k));
+    SIMP.mates = (F, heroes, n) => heroes.filter(k => k !== F && hRange(k) >= 2).sort((a, b) => SIMP.dps(b) - SIMP.dps(a)).slice(0, Math.max(0, n - 1));
+    SIMP.fight = (F, foes, mates) => {
+      const mateOut = def => mates.reduce((a, k) => a + hAps(k) * (Math.max(1, hAtk(k) - (hPierce(k) ? 0 : def)) * hMulti(k) + hBleed(k)), 0);
+      const mateBleed = mates.some(k => hBleed(k) > 0), bleed = hBleed(F), pierce = hPierce(F);
+      const aps = hAps(F), multi = hMulti(F), guard = hBurnGuard(F), max = hMax(F);
+      let hp = max, T = 0, won = 0;
+      for (const f of foes){
+        let fhp = f.hp, sec = 0, shell = hShell(F);                  // 껍질은 싸움마다 다시
+        const out = aps * (Math.max(1, hAtk(F) - (pierce ? 0 : f.def)) * multi + bleed) + mateOut(f.def);
+        const inc = (f.aps || 1) * (Math.max(1, f.atk - hDef(F)) + Math.max(0, (f.burn || 0) - guard));
+        while (fhp > 0 && sec < 120){
+          sec++; T++;
+          fhp -= out;
+          if (fhp > 0 && f.regen && !bleed && !mateBleed) fhp = Math.min(f.hp, fhp + f.regen);
+          if (fhp > 0 && f.drain) fhp = Math.min(f.hp, fhp + (f.aps || 1) * f.drain);
+          if (fhp <= 0) break;
+          if (shell > 0){ shell -= Math.min(shell, f.aps || 1); continue; }
+          hp -= inc;
+          if (hp <= 0) return { win: false, score: won / Math.max(1, foes.length) / 2 };
+        }
+        if (fhp > 0) return { win: false, score: won / Math.max(1, foes.length) / 2 };   // 아무리 때려도 안 죽는 놈
+        won++;
+      }
+      return { win: true, score: 1 + hp / max - T / 1000 };
+    };
+    SIMP.front = (heroes, foes, n) => heroes.slice().map(k => [k, SIMP.fight(k, foes, SIMP.mates(k, heroes, n)).score])
+      .sort((a, b) => b[1] - a[1] || (a[0] === 'knight' ? -1 : b[0] === 'knight' ? 1 : 0)).map(x => x[0])[0];
     const __th = traceHit; traceHit = function(key){ const n0 = (S.traces || []).length; const r = __th.apply(this, arguments); const n1 = (S.traces || []).length; if (n1 > n0) SIMP.tr.push({ t: Date.now() - LOG.start, key }); return r; };`, ctx);
   return { ctx, clock };
 }
@@ -200,6 +231,7 @@ function makeAI({ ctx, clock }){
       const party = SOLO ? ['knight'] : this.party(field);
       for (const w of party) call('expStart', field, ctx.document.createElement('div'), w);   // 전열부터 (먼저 나간 사람이 맨 앞)
       if (g('!!exp')) for (const w of party) g(`SIMP.sorties[${JSON.stringify(w)}] = (SIMP.sorties[${JSON.stringify(w)}] || 0) + 1`);
+      if (g('!!exp') && party[0]) g(`SIMP.fronts = SIMP.fronts || {}; SIMP.fronts[${JSON.stringify(party[0])}] = (SIMP.fronts[${JSON.stringify(party[0])}] || 0) + 1`);   // D: 누가 맨 앞에 섰나
       return g('!!exp') ? 'go' : 'blocked';
     },
     // v10.0.0: **파티 고르기** — 전열 = 가렛(맨 앞에 서야 하는 사람), 남은 칸은 사거리가 있는 사람(창 · 활) 중
@@ -214,12 +246,15 @@ function makeAI({ ctx, clock }){
           const cur = equipped(sl.key, k);
           const best = CRAFT_TYPES.filter(t => have(t) > 0 && useOf(t).includes(tag)).sort((a, b) => val(b) - val(a))[0];
           if (best && (!cur || val(best) > val(cur))) equipCard(sl, best, k); } };
-        if (heroes.includes('knight')) gear('knight');
-        const dps = k => hAps(k) * (Math.max(1, hAtk(k) - 3) * hMulti(k) + hBleed(k));
-        const rest = heroes.filter(k => k !== 'knight');
-        rest.forEach(gear);
-        const reach = rest.filter(k => hRange(k) >= 2).sort((a, b) => dps(b) - dps(a));
-        const line = (heroes.includes('knight') ? ['knight'] : []).concat(reach).slice(0, n);
+        // D (측정.md §4): 전열 = 그 땅에서 **가장 오래 버티는 사람** (가렛 고정 아님). 방패 · 갑옷은 전열부터 끼운다
+        const foes = planOf(${JSON.stringify(field)}).filter(e => e.fight).map(e => ENEMIES[e.fight]);
+        const pickF = () => ${KFRONT ? "heroes.includes('knight') ? 'knight' : SIMP.front(heroes, foes, n)" : 'SIMP.front(heroes, foes, n)'};
+        const front0 = pickF();                                     // 지금 장비로 한 번 고르고
+        if (front0) gear(front0);
+        heroes.filter(k => k !== front0).forEach(gear);
+        const front = pickF();                                      // 끼운 뒤 다시 본다
+        const rest = heroes.filter(k => k !== front);
+        const line = (front ? [front] : []).concat(SIMP.mates(front, heroes, n));
         // 칸이 남으면 사거리 없는 사람이라도 (기다리기만 해도 맞아 줄 몸)
         for (const k of rest) if (line.length < n && !line.includes(k)) line.push(k);
         return JSON.parse(JSON.stringify(line));
@@ -241,30 +276,10 @@ function makeAI({ ctx, clock }){
       return g(`(function(){
         const plan = planOf(${JSON.stringify(field)});
         const foes = plan.filter(e => e.fight).map(e => ENEMIES[e.fight]);
-        const pierce = knightPierce(), bleed = knightBleed();
-        let hp = knightMaxHp();
-        // v10.0.0: 파티면 함께 나갈 사람들의 피해를 더한다 (가렛 몫은 아래에서)
-        const mates = ${SOLO ? '[]' : "ALL_HEROES().filter(k => k !== 'knight' && canSortie(k)).filter(k => hRange(k) >= 2).slice(0, PARTY_MAX() - 1)"};
-        const mateOut = def => mates.reduce((a, k) => a + hAps(k) * (Math.max(1, hAtk(k) - (hPierce(k) ? 0 : def)) * hMulti(k) + hBleed(k)), 0);
-        const mateBleed = mates.some(k => hBleed(k) > 0);
-        // v9.137.0: **초 단위로** 센다 — 공격 속도(10초 타수) · 연타 · 출혈 · 재생(초당) · 화상 막음을 실제 규칙대로
-        const aps = hAps('knight'), multi = hMulti('knight'), guard = hBurnGuard('knight');
-        for (const f of foes){
-          let fhp = f.hp, sec = 0;
-          const out = aps * (Math.max(1, knightAtk() - (pierce ? 0 : f.def)) * multi + bleed) + mateOut(f.def);
-          const inc = (f.aps || 1) * (Math.max(1, f.atk - knightDef()) + Math.max(0, (f.burn || 0) - guard));
-          while (fhp > 0 && sec < 120){
-            sec++;
-            fhp -= out;
-            if (fhp > 0 && f.regen && !bleed && !mateBleed) fhp = Math.min(f.hp, fhp + f.regen);
-            if (fhp > 0 && f.drain) fhp = Math.min(f.hp, fhp + (f.aps || 1) * f.drain);
-            if (fhp <= 0) break;
-            hp -= inc;
-            if (hp <= 0) return false;
-          }
-          if (fhp > 0) return false;                               // 아무리 때려도 안 죽는 놈 (회복 기믹)
-        }
-        return true;
+        // D (측정.md §4): 맨 앞 사람(F)이 맞고 때리고 뒤 사람이 거든다 — 가렛 고정 아님 (SIMP.fight)
+        const hs = ALL_HEROES().filter(k => canSortie(k)), n = ${SOLO ? 1 : 'PARTY_MAX()'};
+        const F = ${SOLO || KFRONT ? "'knight'" : "SIMP.front(hs, foes, n) || 'knight'"};
+        return SIMP.fight(F, foes, SIMP.mates(F, hs, n)).win;
       })()`);
     },
     // 그 땅에 맞는 무기로 바꿔 쥔다 (회복하는 놈에겐 출혈, 단단한 놈에겐 방어 무시)
@@ -563,7 +578,7 @@ function report(ai, log){
   const P = g('JSON.parse(JSON.stringify(SIMP))');
   const name = k => g(`pName(${JSON.stringify(k)}) || ${JSON.stringify(k)}`);
   const 기여 = Object.keys(P.sorties).sort((a, b) => (P.dmg[b] || 0) - (P.dmg[a] || 0))
-    .map(k => `${name(k)} 출전${P.sorties[k]} 준${P.dmg[k] || 0} 받은${P.taken[k] || 0}`);
+    .map(k => `${name(k)} 출전${P.sorties[k]}${(P.fronts || {})[k] ? ` 전열${P.fronts[k]}` : ''} 준${P.dmg[k] || 0} 받은${P.taken[k] || 0}`);
   const m = t => +(t / 60000).toFixed(1);
   const news = [];
   const seenGear = new Set();
