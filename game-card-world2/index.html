@@ -204,6 +204,13 @@
   .lrow.preset-head .pp-main:disabled{opacity:.6;}
   .lrow.preset-head .pp-clear{padding:3px 10px;border-radius:999px;border:1px solid rgba(255,120,100,.5);background:rgba(255,120,100,.08);color:#ffb3a6;font:inherit;font-size:12px;font-weight:800;}
   .lrow.preset-row{position:relative;}
+  /* v10.13.0: 편성 줄 — 왼쪽 칸 셋 · 가운데 상반신 · 오른쪽 칸 셋 */
+  .lrow.pp-three{align-self:center;align-items:stretch;gap:calc(var(--cw) * .1);padding:4px 0;}
+  .pp-three .pp-side{display:flex;flex-direction:column;justify-content:center;gap:calc(var(--cw) * .08);min-width:calc(var(--cw) * .8);}
+  .pp-three .pslot.pp-bust{width:calc(var(--cw) * 1.9);height:auto;min-height:calc(var(--ch) * 1.8);}
+  .pp-three .pp-bustcard{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow:hidden;padding:0;}
+  .pp-three .pp-bustcard .bustimg{width:100%;flex:1;min-height:0;object-fit:cover;object-position:center top;image-rendering:pixelated;}
+  .pp-three .pp-bustcard .name{position:static;padding:2px 0 3px;font-size:calc(var(--cw) * .17);font-weight:800;}
   /* v0.34.0: 위 줄엔 완성품 카드. v2.7.0: 격자를 접고 한 줄로 — 많아지면 옆으로 민다 */
   .toplist.grid{gap:calc(var(--cw) * .12);}
   .toplist.grid .cw{position:relative;flex:none;width:var(--cw);height:var(--ch);aspect-ratio:auto;cursor:pointer;}
@@ -2265,7 +2272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.12.1';
+const VERSION = 'v10.13.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3124,19 +3131,20 @@ const CREW_SLOT_KEYS = ['weapon', 'armor', 'trinket'];
 //   무기 갈래: axe 도끼(사거리 1) · spear 창(사거리 2~3, 앞 사람 뒤에서 찌른다) · melee 둘 다 · bow 활
 //   칸: 기본은 무기 · 갑옷 · 방패 · 장신구 · 소모품 하나씩. extra = 더 받는 칸 수, no = 없는 칸
 //   v10.5.0: **누구든 칸은 최대 다섯** — 더 받는 칸만큼 다른 칸을 뺀다
+//   v10.13.0: **모두 여섯** (사용자 확정 표) — 기본 여섯 명은 장신구 둘
 //   근접 7 (가렛 · 토른 · 두르간 · 마르그 · 보른 · 헤이든 · 올가) : 원거리 4 (세리나 · 오르반 · 네이라 · 실바)
 const HERO_KIT = {
-  knight:      { body:{ atk:1, def:0, hp:18, spd:3 }, arm:'melee', trait:'gate',  tip:'문 앞 — 맨 앞에 서면 방어 +2' },
-  ally:        { body:{ atk:1, def:0, hp:14, spd:4 }, arm:'bow',   trait:'rapid', tip:'연사 — 10초에 2타 더' },
-  shieldsmith: { body:{ atk:1, def:1, hp:24, spd:2 }, arm:null,    no:['weapon', 'trinket'], extra:{ shield:2 }, trait:'shell', tip:'껍질 — 방패 칸 셋 · 무기 없음' },
-  weaponsmith: { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'axe',   no:['consumable'], extra:{ weapon:1 }, trait:'dual', tip:'양손 — 무기 칸 둘 (둘째 무기는 공격만 더한다)' },
-  armorsmith:  { body:{ atk:1, def:0, hp:16, spd:2 }, arm:'axe',   trait:'lining', tip:'안감 — 갑옷을 입으면 방어 +2' },
-  keeper:      { body:{ atk:1, def:0, hp:24, spd:2 }, arm:'spear', trait:'big', tip:'덩치 — 몸이 크다 (체력 24)' },
-  carpenter:   { body:{ atk:1, def:0, hp:15, spd:3 }, arm:'spear', trait:'reach', tip:'긴 자루 — 창 사거리 +1' },
-  cook:        { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'spear', no:['armor', 'shield'], extra:{ consumable:2 }, trait:'pantry', tip:'곳간 — 소모품 칸 셋' },
-  peddler:     { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   trait:'know', tip:'아는 것 — 적 방어를 2 덜 받는다' },
-  trinketsmith:{ body:{ atk:1, def:0, hp:12, spd:4 }, arm:'bow',   no:['armor', 'shield', 'consumable'], extra:{ trinket:3 }, trait:'hoard', tip:'모으기 — 장신구 칸 넷' },
-  herbalist:   { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   no:['shield', 'trinket'], extra:{ consumable:2 }, trait:'mend', tip:'약손 — 소모품 칸 셋 · 함께 나간 일행이 싸우는 동안 10초에 3 더 아문다' },
+  knight:      { body:{ atk:1, def:0, hp:18, spd:3 }, arm:'melee', extra:{ trinket:1 }, trait:'gate',  tip:'문 앞 — 맨 앞에 서면 방어 +2' },
+  ally:        { body:{ atk:1, def:0, hp:14, spd:4 }, arm:'bow',   extra:{ trinket:1 }, trait:'rapid', tip:'연사 — 10초에 2타 더' },
+  shieldsmith: { body:{ atk:1, def:1, hp:24, spd:2 }, arm:null,    no:['weapon'], extra:{ shield:2 }, trait:'shell', tip:'껍질 — 방패 칸 셋 · 무기 없음' },
+  weaponsmith: { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'axe',   extra:{ weapon:1 }, trait:'dual', tip:'양손 — 무기 칸 둘 (둘째 무기는 공격만 더한다)' },
+  armorsmith:  { body:{ atk:1, def:0, hp:16, spd:2 }, arm:'axe',   extra:{ trinket:1 }, trait:'lining', tip:'안감 — 갑옷을 입으면 방어 +2' },
+  keeper:      { body:{ atk:1, def:0, hp:24, spd:2 }, arm:'spear', extra:{ trinket:1 }, trait:'big', tip:'덩치 — 몸이 크다 (체력 24)' },
+  carpenter:   { body:{ atk:1, def:0, hp:15, spd:3 }, arm:'spear', extra:{ trinket:1 }, trait:'reach', tip:'긴 자루 — 창 사거리 +1' },
+  cook:        { body:{ atk:1, def:0, hp:16, spd:3 }, arm:'spear', no:['shield'], extra:{ consumable:2 }, trait:'pantry', tip:'곳간 — 소모품 칸 셋' },
+  peddler:     { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   extra:{ trinket:1 }, trait:'know', tip:'아는 것 — 적 방어를 2 덜 받는다' },
+  trinketsmith:{ body:{ atk:1, def:0, hp:12, spd:4 }, arm:'bow',   no:['armor', 'shield', 'consumable'], extra:{ trinket:4 }, trait:'hoard', tip:'모으기 — 장신구 칸 다섯' },
+  herbalist:   { body:{ atk:1, def:0, hp:12, spd:3 }, arm:'bow',   no:['shield'], extra:{ consumable:2 }, trait:'mend', tip:'약손 — 소모품 칸 셋 · 함께 나간 일행이 싸우는 동안 10초에 3 더 아문다' },
 };
 const kitOf = k => HERO_KIT[k] || HERO_KIT.knight;
 const hTrait = (k, t) => kitOf(k).trait === t;
@@ -5875,16 +5883,18 @@ function screenRows(){
       + `<button type="button" class="pp-clear" data-preset-clear${presetEmpty(presetPick) ? ' disabled' : ''}>편성 지우기</button></div>` }];
     PARTY().forEach((open, i) => {
       const who = P.heroes[i] && ALL_HEROES().includes(P.heroes[i]) ? P.heroes[i] : null;
-      const hs = { id: `pp${i}:h`, open, card: !!who,
-        icon: who ? `<img class="icon" src="images/icon/${hCard(who)}.png" alt="${esc(hName(who))}" draggable="false">` : '',
-        cardName: who ? pName(who) : '', frame: who === 'knight' ? 'gold' : 'bronze', lab: LINE_LAB[i],
-        need: open ? '' : `${PARTY_OPEN[i]}명 합류` };
+      // v10.13.0: 사람 칸 = **상반신** (가운데) · 장비 칸은 왼쪽 셋 · 오른쪽 셋
+      const hs = `<div class="pslot pp-bust${who ? ' filled' : ''}" data-slot-id="pp${i}:h">` + (who
+        ? `<div class="cw framed f-${who === 'knight' ? 'gold' : 'bronze'} pp-bustcard"><img class="bustimg" src="images/portrait/${bustOf(hPic(who))}.png" alt="${esc(hName(who))}" draggable="false">`
+          + `<div class="name">${esc(pName(who))}</div></div>`
+        : `<span class="pslot-lab">${esc(LINE_LAB[i])}</span>`) + '</div>';
       const g = who ? presetGear(presetPick, who) : {};
       const gs = who ? slotsFor(who).map(sl => { const ok = slotOpen(sl.key, who), t = ok ? g[sl.key] : null;
         return { id: `pp${i}:${sl.key}`, open: ok, card: !!t, type: t, icon: t ? iconHtml(t) : '',
           cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: slotName(sl, who),
           need: ok || !sl.smith ? '' : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` }; }) : [];
-      rows.push({ card: '', slots: [hs].concat(gs), cls: 'preset-row' });
+      const side = list => `<div class="pp-side">${list.map(slotHtmlOf).join('')}</div>`;
+      rows.push({ raw: `<div class="lrow preset-row pp-three">${side(gs.slice(0, 3))}${hs}${side(gs.slice(3))}</div>` });
     });
     return rows;
   }
