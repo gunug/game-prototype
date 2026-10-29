@@ -2272,7 +2272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.9.1';
+const VERSION = 'v10.10.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3305,7 +3305,8 @@ function presetClear(p){
 // 지금 그 사람이 쓰는 편성 — 편성으로 나간 원정 중일 때만
 const heroPresetNow = who => { let E = null; try { E = expOf(who); } catch (e) { return null; }   // 불러오는 동안(원정 목록 전)엔 없다
   return E && E.preset != null && presetOf(E.preset) && presetOf(E.preset).heroes.includes(who) ? E.preset : null; };
-const presetBusy = p => presetOf(p).heroes.some(w => w && heroPresetNow(w) === p);   // 이 편성으로 원정 중
+// v10.10.0: 원정 중에도 편성은 고칠 수 있다 — 원정은 **나갈 때 찍어 둔 장비**(E.gearSnap)로 끝까지 싸우고, 고친 것은 다음 출전부터
+const expGear = who => { const E = expOf(who); return (E.gearSnap = E.gearSnap || {})[who] = E.gearSnap[who] || {}; };
 let presetView = null;                                            // 편성 탭 정보 칸 — { who, p } 동안은 그 편성 장비로 셈한다
 function sortieGo(fid){
   if (expAt(fid)){ toast('🏃 이미 원정 중'); return; }
@@ -3320,7 +3321,8 @@ function sortieGo(fid){
   for (const w of line){ const st = hSt(w); st.hp = hMax(w); st.down = false; }   // v10.8.0: 회복 없음 — 늘 가득 찬 채로 나간다
   const fel = gatherEl.querySelector(`[data-field="${fid}"]`) || document.createElement('div');   // 다른 탭에서 불러도 터지지 않게
   for (const w of line) expStart(fid, fel, w);                    // 전열부터 — 먼저 나간 사람이 맨 앞
-  { const E0 = expAt(fid); if (E0) E0.preset = mainPreset(); }   // v10.6.0 · v10.7.0: 그 원정 동안은 나갈 때의 편성 장비로
+  { const E0 = expAt(fid); if (E0){ E0.preset = mainPreset();     // v10.6.0 · v10.7.0: 그 원정 동안은 나갈 때의 편성 장비로
+    E0.gearSnap = {}; for (const w of E0.party) E0.gearSnap[w] = Object.assign({}, presetOf(E0.preset).gear[w] || {}); } }   // v10.10.0: 찍어 둔다
   // v9.135.0: **처음 배치** — 한꺼번에 나가므로 출발할 때 자리를 정해 둔다 (셋이면 전열 2칸 · 중열 1칸 · 후열 0칸)
   const E = expAt(fid);
   if (E){ const live = E.party.filter(k => !E.P[k].out); live.forEach((k, i) => { const h = E.P[k]; h.x = h.xd = h.to = live.length - 1 - i; h.step = 0; }); }
@@ -6152,10 +6154,8 @@ gatherEl.addEventListener('click', e => {                         // v10.6.0: �
   if (mn){ e.stopPropagation(); S.mainPreset = presetPick; save(); toast(`편성 ${presetPick + 1}이 메인 — ⚔ 출전하면 이 편성이 나간다`); renderScreen(); renderInsp(); renderAll(); return; }   // v10.7.0
   if (c){ e.stopPropagation(); presetPick = +c.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
   else if (clr){ e.stopPropagation(); if (presetEmpty(presetPick)) return;
-    if (presetBusy(presetPick)){ toast('🏃 이 편성은 원정 중 — 돌아오면 비울 수 있다'); return; }
     const p = presetPick;                                         // v10.7.1: 바로 지우지 않고 한 번 묻는다
     askSure(`편성 ${p + 1}을 비울까?`, `${presetOf(p).heroes.filter(Boolean).map(pName).join(' · ')} — 사람을 빼고, 낀 장비는 전부 가방으로 돌아간다.`, '비우기', () => {
-      if (presetBusy(p)) return;
       presetClear(p); toast(`편성 ${p + 1}을 비웠다 — 장비는 가방으로`); renderScreen(); renderInsp(); }); }
 });
 gatherEl.addEventListener('click', e => {                         // v9.131.0: ⚔ 출전 · 출전해제
@@ -6222,7 +6222,8 @@ function renderScreen(){
       : S.tab === 'inn' ? (innRegs().length                        // v9.55.0 · v9.80.1 · v9.81.0
         ? `재료를 그 사람 줄의 칸에 끌어다 놓으세요 — 등록 ${innRegs().length}/${INN_MAX}`
         : '〈합류 전〉은 합류 퀘스트, 〈합류〉는 이야기 — 등록 칸에 끌어다 놓거나 카드를 탭해 등록하세요')
-      : S.tab === 'party' ? `사람을 전열 · 중열 · 후열에, 장비를 그 옆 칸에 — 출전은 늘 메인(편성 ${mainPreset() + 1})`   // v10.6.0 · v10.7.0
+      : S.tab === 'party' ? (EXPS.some(E => E.preset === presetPick) ? `편성 ${presetPick + 1}은 원정 중 — 지금 고친 것은 다음 출전부터`   // v10.10.0
+        : `사람을 전열 · 중열 · 후열에, 장비를 그 옆 칸에 — 출전은 늘 메인(편성 ${mainPreset() + 1})`)   // v10.6.0 · v10.7.0
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
@@ -6283,7 +6284,6 @@ function slotTakes(id, token){
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
   if (S.tab === 'party'){                                         // v10.6.0
     const { row } = slotId(id), i = ppRow({ row }), P = presetOf(presetPick);
-    if (presetBusy(presetPick)) return false;                     // 원정 중인 편성은 못 바꾼다
     if (slotKey === 'h') return ALL_HEROES().includes(token) && !!PARTY()[i];
     const who = P.heroes[i], sl = slotByKey(slotKey);
     return !!who && !!DEFS[token] && !!sl && slotsFor(who).some(x => x.key === slotKey) && slotOpen(sl.key, who) && useOf(token).includes(slotTag(sl, who));
@@ -6501,7 +6501,6 @@ const ppRow = fs => +String(fs.row).slice(2);
 function presetToken(fs){
   const who = presetOf(presetPick).heroes[ppRow(fs)];
   if (!who) return null;
-  if (presetBusy(presetPick)){ toast('🏃 이 편성은 원정 중 — 돌아오면 바꿀 수 있다'); return null; }
   return fs.key === 'h' ? who : presetGear(presetPick, who)[fs.key] || null;
 }
 // v10.3.0: 끄는 동안 가운데 스크롤의 위 · 아래 끝에 손가락이 머물면 저절로 굴린다 (화면 밖 칸에도 놓게)
@@ -6999,7 +6998,7 @@ const ENEMIES = {
 let simGear = null;                                               // tools/sim.mjs 전용 — 사람마다 제 장비 (편성 없이 고르게)
 const gearMap = who => simGear ? simGear(who)
   : presetView && presetView.who === who ? presetGear(presetView.p, who)   // v10.6.0: 편성 탭 정보 칸
-  : heroPresetNow(who) != null ? presetGear(heroPresetNow(who), who)  // v10.6.0: 편성으로 나간 원정 동안
+  : heroPresetNow(who) != null ? expGear(who)                     // v10.6.0: 편성으로 나간 원정 동안 · v10.10.0 나갈 때 찍어 둔 장비
   : presetOf(mainPreset()).heroes.includes(who) ? presetGear(mainPreset(), who)
   : {};
 const equipped = (key, who) => (key === 'camp' ? (S.equip = S.equip || {}) : gearMap(who || 'knight'))[key] || null;
@@ -7801,7 +7800,10 @@ function expConsume(){
     exp.line = `${pName(k) || hName(k)} — ${d.name}${d.cure && burning ? ' (불을 껐다)' : ''}`;
     logEv('consume', { who: k, type: t, heal });
     const c = cardOf(t);                                          // 같은 것이 남아 있으면 칸을 다시 채운다
-    if (c && c.n > 0){ useOne(c); } else gearMap(k)[pick] = null;
+    if (c && c.n > 0){ useOne(c); }
+    else { gearMap(k)[pick] = null;                               // v10.10.0: 찍어 둔 칸을 비우고, 편성에 그대로 있으면 거기서도 뺀다
+      const pg = exp.preset != null && presetOf(exp.preset) ? presetOf(exp.preset).gear[k] : null;
+      if (pg && pg[pick] === t) pg[pick] = null; }
     save();
   }
 }
