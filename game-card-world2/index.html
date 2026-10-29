@@ -200,6 +200,8 @@
   /* v10.6.0: 편성 — 위 칩(편성 1~5 · 편성 지우기) · 출전 줄의 편성 고르기 */
   .lrow.preset-head{align-self:stretch;justify-content:center;flex-wrap:wrap;gap:6px;padding:4px 8px;}
   .lrow.preset-head .gchips{width:auto;padding:0;}
+  .fight-chips .gchips button.locked{opacity:.55;}
+  .fight-chips .gchips button .lockm{height:1em;margin-right:3px;vertical-align:-2px;}
   .lrow.preset-head .gchips button.main:not(.on){border-color:var(--brand-yellow);color:var(--brand-yellow);}
   .lrow.preset-head .pp-main{padding:3px 10px;border-radius:999px;border:1px solid var(--brand-yellow);background:rgba(255,212,0,.08);color:var(--brand-yellow);font:inherit;font-size:12px;font-weight:800;}
   .lrow.preset-head .pp-main:disabled{opacity:.6;}
@@ -2266,7 +2268,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.11.2';
+const VERSION = 'v10.12.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5485,7 +5487,7 @@ function renderTabs(){                                            // v0.21.0: �
   //   단추 동작은 그대로. 묶음마다 살짝 다른 바탕과 구분선만 둔다
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
   const groups = [
-    { key:'go',    items: [btn('battle', '🗡️ 필드'), btn('dungeon', '🏚 던전'), btn('raid', '🗼 레이드')] },
+    { key:'go',    items: [btn(fightTarget(), '🗡️ 전투')] },   // v10.12.0: 필드 · 던전 · 레이드는 전투 페이지 안 칩으로
     // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
     { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
@@ -5525,7 +5527,8 @@ function renderTabs(){                                            // v0.21.0: �
   for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
-const FREE_TAB_NAME = { battle:'🗡️ 필드', dungeon:'🏚 던전', raid:'🗼 레이드', aim:'🎯 목표', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
+// v10.12.0: 필드 · 던전 · 레이드는 '전투' 한 페이지
+const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -5902,7 +5905,12 @@ function screenRows(){
       unseen: !!g && !aimSeen(g) }] }];                            // v9.40.1: 아래 카드와 같은 가림   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
   if (isFieldTab(S.tab)){                                         // v4.0.0 던전 · v9.42.0 레이드도 같은 줄 화면
-    return (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
+    // v10.12.0: **전투 페이지** — 맨 위 칩으로 필드 · 던전 · 레이드를 고른다 (못 가는 곳은 자물쇠)
+    const chips = '<div class="gchips">' + FIGHT_CHIPS.map(([id, lab, ic]) => { const lock = fightLocked(id);
+      return `<button type="button" data-fightchip="${id}" class="${S.tab === id ? 'on' : ''}${lock ? ' locked' : ''}">`
+        + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic)) + ` ${lab}</button>`; }).join('') + '</div>';
+    return [{ raw: `<div class="lrow preset-head fight-chips">${chips}</div>` }].concat(
+      (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
       .filter(f => f.id !== 'prelude' || !preludeGone()).map(f => {
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
@@ -5924,7 +5932,7 @@ function screenRows(){
         + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away ? ' disabled' : ''}>`
         + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : '⚔ 출전'}</button></div>`;
       return { card: card + foeCards, slots: [], pre, slotsFirst: true };
-    });
+    }));
   }
   // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
   const slotOf = (row, sl) => {
@@ -6388,13 +6396,26 @@ addEventListener('pointermove', e => {
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
 });
+// v10.12.0: **전투 페이지 하나** — 메뉴엔 '전투' 단추 하나, 안에서 칩으로 필드 · 던전 · 레이드 (속은 지금처럼 battle · dungeon · raid 탭)
+const FIGHT_CHIPS = [['battle', '필드', 'field'], ['dungeon', '던전', 'dungeon'], ['raid', '레이드', 'raid']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
+const fightLocked = id => id === 'dungeon' ? DUNGEONS().every(f => fieldLocked(f.id)) : id === 'raid' ? RAIDS().every(f => fieldLocked(f.id)) : false;
+const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS[0])
+  : battleEnd ? fieldTab(FIELD_BY_ID[battleEnd.fid] || {}) : (isFieldTab(S.fightTab) && !fightLocked(S.fightTab) ? S.fightTab : 'battle');   // 마지막에 고른 칩
+gatherEl.addEventListener('click', e => {
+  const c = e.target.closest('[data-fightchip]');
+  if (!c) return;
+  e.stopPropagation();
+  const id = c.dataset.fightchip;
+  if (fightLocked(id)){ toast(`🔒 아직 갈 수 있는 ${id === 'raid' ? '레이드' : '던전'}가 없다`); return; }
+  if (id !== S.tab) setTab(id);
+});
 // ── 전투 화면 (v10.9.0) ─────────────────────────────
 // 원정이 도는 동안 그 원정의 탭(필드 · 던전 · 레이드)은 **땅 목록 대신 전투 화면**이다 —
 //   위: 원정 줄(크게) + 진행 바 · 아래: 파티 체력 · 원정 짐 · [돌아가기] [배속]. 끝나면 결과 · [같은 땅 다시] [땅 목록]
 let battleEnd = null;                                             // 끝난 원정의 결과 — 땅 목록으로 돌아갈 때까지 (저장하지 않는다)
 let battleSpeed = 1;                                              // 배속 (저장하지 않는다)
-const battleE = () => EXPS.find(E => S.tab === expHome(E)) || null;
-const battleMode = () => isFieldTab(S.tab) && (!!battleE() || !!(battleEnd && fieldTab(FIELD_BY_ID[battleEnd.fid] || {}) === S.tab));
+const battleE = () => isFieldTab(S.tab) ? EXPS[0] || null : null;   // v10.12.0: 원정은 하나 — 전투 페이지면 어느 칩이든
+const battleMode = () => isFieldTab(S.tab) && (!!battleE() || !!battleEnd);
 const miniCards = (list, lost) => { const n = {}; for (const t of list) n[t] = (n[t] || 0) + 1;
   return `<div class="mini-cards${lost ? ' lost' : ''}">` + Object.keys(n).sort((a, b) => itemNo(a) - itemNo(b)).map(t =>
     `<div class="cw framed f-${frameOf(DEFS[t])}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${n[t]}</div></div>`).join('') + '</div>'; };
@@ -6787,6 +6808,7 @@ function setTab(tab){
   if (tab === 'raid') setTimeout(raidFirstLook, 0);                // v9.138.0
   if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   if (tab === 'gearup') tab = 'party';                            // v10.7.0: 정비는 편성으로
+  if (isFieldTab(tab)) S.fightTab = tab;                          // v10.12.0: 마지막에 고른 칩
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
   if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
   if (paused){ stopInserts(); if (paused) return; }               // v9.56.8: 끼우는 중이면 멈추고 보내 준다
@@ -8409,12 +8431,12 @@ function expBlockHtml(E){
 function expBuild(){
   const el = document.getElementById('exp');
   if (!el) return;
-  const mine = EXPS.filter(E => S.tab === expHome(E));            // v4.1.1: 그 원정이 속한 탭에서만 큰 화면
+  const mine = isFieldTab(S.tab) ? EXPS : [];                     // v4.1.1 · v10.12.0: 전투 페이지에서 큰 화면
   const on = mine.length > 0;
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1: 열고 닫힐 때 부드럽게
   if (!on){
-    setTimeout(() => { if (!EXPS.some(E => S.tab === expHome(E))){ el.innerHTML = ''; el._key = null; } }, 320);
+    setTimeout(() => { if (!(isFieldTab(S.tab) && EXPS.length)){ el.innerHTML = ''; el._key = null; } }, 320);
     syncHeadH(); return;
   }
   // v3.14.3: 이미 지은 트랙이면 다시 짓지 않는다 — 다시 지으면 쓰러진 적까지 등장 연출이 되풀이돼 번쩍인다
@@ -8440,14 +8462,14 @@ function hpBar(box, hp, max){
 function renderMiniExp(){
   const el = document.getElementById('miniexp');
   if (!el) return;
-  const away = EXPS.filter(E => S.tab !== expHome(E));            // v9.22.0: 다른 탭에서 도는 원정들
+  const away = isFieldTab(S.tab) ? [] : EXPS;                      // v9.22.0 · v10.12.0: 전투 페이지 밖에서 도는 원정
   const keepMini = exp;                                           // v9.24.1: 그리고 나면 되돌린다
   setTimeout(() => { exp = keepMini || EXPS[0] || null; }, 0);
   exp = away[0] || exp;
   const on = away.length > 0;                                      // v4.1.1: 그 원정의 탭이 아니면 미니로
   el.hidden = false;
   el.classList.toggle('on', on);                                  // v3.14.1
-  if (!on){ setTimeout(() => { if (!EXPS.some(E => S.tab !== expHome(E))){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
+  if (!on){ setTimeout(() => { if (isFieldTab(S.tab) || !EXPS.length){ el.innerHTML = ''; el._key = null; } }, 320); syncHeadH(); return; }
   // v3.14.2: **한 번만 짓고 그 뒤엔 값만 고친다** — 매 틱 다시 그려 그림이 깜빡이던 것
   const key = `${exp.uid}|${exp.id}|${exp.spots.length}|${exp.foes.map(f => f.key).join(',')}`;
   if (el._key !== key){
@@ -8484,7 +8506,7 @@ function expPaint(){
   renderMiniExp();                                                // v3.13.0
   const el = document.getElementById('exp');
   if (!el || !EXPS.length){ exp = keep || null; return; }
-  if (EXPS.some(E => S.tab === expHome(E)) && !el.firstChild) expBuild();   // v3.14.0: 돌아오면 다시 만듦
+  if (isFieldTab(S.tab) && EXPS.length && !el.firstChild) expBuild();   // v3.14.0: 돌아오면 다시 만듦
   if (!el.firstChild || el.hidden){ exp = keep || EXPS[0] || null; return; }
   for (const box of el.querySelectorAll('.exp-one')){             // v9.22.0: 원정마다
     const E = EXPS.find(X => String(X.uid) === box.dataset.exp);
