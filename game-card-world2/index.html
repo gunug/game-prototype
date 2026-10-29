@@ -2272,7 +2272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.9.0';
+const VERSION = 'v10.9.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6414,14 +6414,14 @@ function renderBattle(){
         + `<span class="b-nm">${esc(pName(k))}</span><span class="b-bar"><i></i></span><span class="b-hp"></span>`
         + `<span class="b-gear">${g.map(t => iconHtml(t)).join('')}</span></div>`; }).join('') + '</div>'
       + '<div class="b-sec"><div class="b-lab" data-bhaul-lab></div><div data-bhaul></div></div>';
-    bot = `<button type="button" data-bhome${live ? '' : ' disabled'}>돌아가기 — 짐을 챙겨</button>`
+    bot = `<button type="button" data-bhome${live ? '' : ' disabled'}>돌아가기 — 짐은 잃는다</button>`
       + `<button type="button" class="spd" data-bspeed>×${battleSpeed}</button>`;
   } else {
-    const R = battleEnd, f = FIELD_BY_ID[R.fid] || {}, win = R.kind !== 'down';
+    const R = battleEnd, f = FIELD_BY_ID[R.fid] || {}, win = R.kind === 'clear' || R.kind === 'boss';   // v10.9.1
     const title = R.kind === 'boss' ? (R.first ? '처음으로 넘었다' : '보스를 넘었다') : R.kind === 'clear' ? '끝까지 다녀왔다'
-      : R.kind === 'home' ? '짐을 챙겨 돌아왔다' : R.kind === 'retreat' ? '이길 수 없어 물러났다' : '쓰러졌다';
+      : R.kind === 'home' ? '돌아왔다' : R.kind === 'retreat' ? '이길 수 없어 물러났다' : '쓰러졌다';
     top = `<div class="b-res ${win ? 'win' : 'fail'}">${esc(f.name || '')} — ${title}</div>`
-      + `<div class="b-sub">${win ? (R.items.length ? `가져온 것 ${R.items.length}개` : '가져온 것 없음') : `잃은 것 ${R.items.length}개 — 지면 아무것도 못 가져온다`}</div>`
+      + `<div class="b-sub">${win ? (R.items.length ? `가져온 것 ${R.items.length}개` : '가져온 것 없음') : `잃은 것 ${R.items.length}개 — 끝까지 가거나 보스를 넘어야 가져온다`}</div>`
       + (R.items.length ? miniCards(R.items, !win) : '');
     bot = `<button type="button" class="go" data-bagain="${R.fid}">같은 땅 다시</button><button type="button" data-bdone>땅 목록</button>`;
   }
@@ -6469,7 +6469,7 @@ function lostHaulPop(haul, fid, kind){
   const m = document.createElement('div');
   m.className = 'tmodal cfm';
   m.innerHTML = `<div class="cfm-box lh-box" role="dialog" aria-modal="true">`
-    + `<div class="cfm-t">${kind === 'retreat' ? '물러났다' : '쓰러졌다'} — 짐을 잃었다</div>`
+    + `<div class="cfm-t">${kind === 'retreat' ? '물러났다' : kind === 'home' ? '돌아왔다' : '쓰러졌다'} — 짐을 잃었다</div>`
     + `<div class="cfm-d">${f ? esc(f.name) + '에서 ' : ''}담았던 ${haul.length}개를 두고 왔다. 땅 끝까지 가거나 보스를 넘어야 가져온다.</div>`
     + `<div class="lh-list">${list}</div>`
     + `<div class="cfm-b"><button type="button" class="cfm-ok lh-ok" data-cfm="ok">확인</button></div></div>`;
@@ -8202,7 +8202,7 @@ function expEnd(kind){
   const line = kind === 'down' ? `${who} 쓰러져 돌아왔다`
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : kind === 'retreat' ? '이길 수 없어 물러났다'                 // v8.1.1
-    : kind === 'home' ? '짐을 챙겨 돌아왔다'                       // v10.9.0: 돌아가기
+    : kind === 'home' ? '돌아왔다 — 짐은 두고'                     // v10.9.0: 돌아가기 (v10.9.1: 짐을 잃는다)
     : '원정을 마쳤다';
   if (kind === 'down') toast(`🩸 ${who} 빈사 — 원정 중단`);
   E.phase = 'end';
@@ -8211,9 +8211,9 @@ function expEnd(kind){
   E.line = line;
   E.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   E.endKind = kind;                                             // v9.48.8: 끝맺음 글귀 (성공 · 실패 · 물러남)
-  { const haul = E.haul || []; E.haul = [];                     // v10.8.0: 짐 — 쓰러지지 않았으면 가방으로, 쓰러졌으면 잃는다
+  { const haul = E.haul || []; E.haul = [];                     // v10.8.0: 짐 — 땅 끝까지 가거나 보스를 넘어야 가방으로. 그 밖(쓰러짐 · 돌아가기 · 물러남)은 다 잃는다
     battleEnd = { fid: E.id, kind, items: haul.slice(), first: kind === 'boss' && !E.wasCleared };   // v10.9.0: 결과 화면
-    if (kind !== 'down'){                                         // v10.9.0: 돌아가기 · 물러남도 짐을 지킨다
+    if (kind === 'clear' || kind === 'boss'){                     // v10.9.1: 돌아가기 · 물러남은 짐을 지키지 않는다
       const tok = tokOf(expLead()), r = tok ? tok.getBoundingClientRect() : null;
       if (FAST) haul.forEach(t => flyToCraft(t, null));
       else haul.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 160));
