@@ -1072,6 +1072,13 @@
   .tmodal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
     background:rgba(0,0,0,.62);animation:tmIn .22s ease-out;}
   .tmodal.out{animation:tmOut .22s ease-in forwards;}
+  /* v10.7.1: 확인 창 — 되돌릴 수 없는 일 앞에서 한 번 묻는다 */
+  .cfm-box{background:#1d1a14;border:1px solid var(--brand-yellow);border-radius:12px;padding:16px 16px 12px;max-width:min(320px,88vw);box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .cfm-box .cfm-t{font-weight:800;font-size:15px;margin-bottom:6px;}
+  .cfm-box .cfm-d{font-size:13px;color:var(--muted);line-height:1.45;}
+  .cfm-box .cfm-b{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+  .cfm-box .cfm-b button{padding:7px 14px;border-radius:8px;font:inherit;font-size:13px;font-weight:800;border:1px solid var(--hairline);background:rgba(255,255,255,.06);color:inherit;}
+  .cfm-box .cfm-b .cfm-ok{background:#c9553f;border-color:#e07a66;color:#fff;}
   /* v9.121.0: 게임 타이틀 — 이야기 다섯 장 뒤 · '빈손' 앞. 아래에서 위로 떠오르며 페이드 인 → 머물다 → 위로 페이드 아웃 (3초) */
   .title-show{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
     background:rgba(8,10,14,.92);cursor:pointer;}
@@ -2228,7 +2235,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.7.0';
+const VERSION = 'v10.7.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6107,7 +6114,10 @@ gatherEl.addEventListener('click', e => {                         // v10.6.0: �
   if (c){ e.stopPropagation(); presetPick = +c.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
   else if (clr){ e.stopPropagation(); if (presetEmpty(presetPick)) return;
     if (presetBusy(presetPick)){ toast('🏃 이 편성은 원정 중 — 돌아오면 비울 수 있다'); return; }
-    presetClear(presetPick); toast(`편성 ${presetPick + 1}을 비웠다 — 장비는 가방으로`); renderScreen(); renderInsp(); }
+    const p = presetPick;                                         // v10.7.1: 바로 지우지 않고 한 번 묻는다
+    askSure(`편성 ${p + 1}을 비울까?`, `${presetOf(p).heroes.filter(Boolean).map(pName).join(' · ')} — 사람을 빼고, 낀 장비는 전부 가방으로 돌아간다.`, '비우기', () => {
+      if (presetBusy(p)) return;
+      presetClear(p); toast(`편성 ${p + 1}을 비웠다 — 장비는 가방으로`); renderScreen(); renderInsp(); }); }
 });
 gatherEl.addEventListener('click', e => {                         // v9.131.0: ⚔ 출전 · 출전해제
   const go = e.target.closest('[data-sortie]'), off = e.target.closest('[data-unsortie]');
@@ -6344,6 +6354,20 @@ addEventListener('pointermove', e => {
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
 });
+// v10.7.1: 확인 창 — [그만두기] [ok]. 바깥을 누르거나 Esc 면 그만둔다
+function askSure(title, desc, okLab, onOk){
+  const m = document.createElement('div');
+  m.className = 'tmodal cfm';
+  m.innerHTML = `<div class="cfm-box" role="dialog" aria-modal="true"><div class="cfm-t">${esc(title)}</div><div class="cfm-d">${esc(desc)}</div>`
+    + `<div class="cfm-b"><button type="button" data-cfm="no">그만두기</button><button type="button" class="cfm-ok" data-cfm="ok">${esc(okLab)}</button></div></div>`;
+  const close = ok => { removeEventListener('keydown', key); m.remove(); if (ok) onOk(); };
+  const key = e => { if (e.key === 'Escape') close(false); };
+  m.addEventListener('pointerdown', e => e.stopPropagation());
+  m.addEventListener('click', e => { const b = e.target.closest('[data-cfm]'); if (b) close(b.dataset.cfm === 'ok'); else if (!e.target.closest('.cfm-box')) close(false); });
+  addEventListener('keydown', key);
+  document.body.appendChild(m);
+  m.querySelector('[data-cfm="no"]').focus();
+}
 // v10.6.0: 편성 칸 — `pp<줄>:h` 는 사람, `pp<줄>:<칸>` 는 그 사람의 장비
 const ppRow = fs => +String(fs.row).slice(2);
 function presetToken(fs){
