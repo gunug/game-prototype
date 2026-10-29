@@ -1079,6 +1079,12 @@
   .cfm-box .cfm-b{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
   .cfm-box .cfm-b button{padding:7px 14px;border-radius:8px;font:inherit;font-size:13px;font-weight:800;border:1px solid var(--hairline);background:rgba(255,255,255,.06);color:inherit;}
   .cfm-box .cfm-b .cfm-ok{background:#c9553f;border-color:#e07a66;color:#fff;}
+  /* v10.8.1: 잃은 짐 목록 */
+  .cfm-box.lh-box{max-width:min(420px,92vw);}
+  .lh-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px;max-height:46vh;overflow-y:auto;
+    --cw:64px;--ch:86px;filter:grayscale(.55) brightness(.85);}
+  .lh-list .cw{position:relative;width:var(--cw);height:var(--ch);}
+  .cfm-box .cfm-b .cfm-ok.lh-ok{background:var(--brand-yellow);border-color:var(--brand-yellow);color:#1a1a17;}
   /* v9.121.0: 게임 타이틀 — 이야기 다섯 장 뒤 · '빈손' 앞. 아래에서 위로 떠오르며 페이드 인 → 머물다 → 위로 페이드 아웃 (3초) */
   .title-show{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
     background:rgba(8,10,14,.92);cursor:pointer;}
@@ -2235,7 +2241,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.8.0';
+const VERSION = 'v10.8.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6354,6 +6360,29 @@ addEventListener('pointermove', e => {
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
 });
+// v10.8.1: **잃은 짐** — 지거나 물러나면 그 원정에서 담았던 것을 종류별로 보여 준다 [확인]
+function lostHaulPop(haul, fid, kind){
+  const n = {}; for (const t of haul) n[t] = (n[t] || 0) + 1;
+  const list = Object.keys(n).sort((a, b) => itemNo(a) - itemNo(b)).map(t =>
+    `<div class="lh-item"><div class="cw framed f-${frameOf(DEFS[t])}"><div class="emoji">${iconHtml(t)}</div>`
+    + `<div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${n[t]}</div></div></div>`).join('');
+  const f = FIELD_BY_ID[fid];
+  const m = document.createElement('div');
+  m.className = 'tmodal cfm';
+  m.innerHTML = `<div class="cfm-box lh-box" role="dialog" aria-modal="true">`
+    + `<div class="cfm-t">${kind === 'retreat' ? '물러났다' : '쓰러졌다'} — 짐을 잃었다</div>`
+    + `<div class="cfm-d">${f ? esc(f.name) + '에서 ' : ''}담았던 ${haul.length}개를 두고 왔다. 땅 끝까지 가거나 보스를 넘어야 가져온다.</div>`
+    + `<div class="lh-list">${list}</div>`
+    + `<div class="cfm-b"><button type="button" class="cfm-ok lh-ok" data-cfm="ok">확인</button></div></div>`;
+  const close = () => { removeEventListener('keydown', key); m.remove(); };
+  const key = e => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
+  m.addEventListener('pointerdown', e => e.stopPropagation());
+  m.addEventListener('click', e => { if (e.target.closest('[data-cfm]') || !e.target.closest('.cfm-box')) close(); });
+  addEventListener('keydown', key);
+  document.body.appendChild(m);
+  paintIcons(m);
+  m.querySelector('[data-cfm]').focus();
+}
 // v10.7.1: 확인 창 — [그만두기] [ok]. 바깥을 누르거나 Esc 면 그만둔다
 function askSure(title, desc, okLab, onOk){
   const m = document.createElement('div');
@@ -8086,7 +8115,7 @@ function expEnd(kind){
       const tok = tokOf(expLead()), r = tok ? tok.getBoundingClientRect() : null;
       if (FAST) haul.forEach(t => flyToCraft(t, null));
       else haul.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 160));
-    } else if (haul.length) toast(`전리품 ${haul.length}개를 잃었다 — 지면 아무것도 못 가져온다`);
+    } else if (haul.length && !FAST) setTimeout(() => lostHaulPop(haul, E.id, kind), 900);   // v10.8.1: 잃은 짐 목록 (끝맺음 글귀 뒤에)
   }
   // v0.61.0: 여기까지 와 봤다 — 가장 멀리 간 자리를 필드마다 남긴다 (넘어서면 그 자리로 옮겨감)
   S.marks = S.marks || {};
