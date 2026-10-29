@@ -2272,7 +2272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.11.0';
+const VERSION = 'v10.11.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6453,7 +6453,13 @@ gatherEl.addEventListener('click', e => {                         // v10.9.0: �
   const again = e.target.closest('[data-bagain]'), done = e.target.closest('[data-bdone]');
   if (!home && !spd && !again && !done) return;
   e.stopPropagation();
-  if (home){ const E = battleE(); if (E && E.phase !== 'end'){ const keep = exp; exp = E; expEnd('home'); exp = keep && keep !== E ? keep : E; } }
+  if (home){ const E = battleE(); if (!E || E.phase === 'end') return;   // v10.11.1: 한 번 묻는다
+    const n = (E.haul || []).length;
+    askSure('돌아갈까?', `이대로 돌아가면 이번 원정에서 얻은 짐을 모두 잃습니다.${n ? ` (지금 짐 ${n}개)` : ''}`, '돌아가기', () => {
+      if (E.phase === 'end' || !EXPS.includes(E)) return;
+      const keep = exp; exp = E; expEnd('home'); exp = keep && keep !== E ? keep : E;
+      renderScreen(); renderInsp(); });
+    return; }
   else if (spd){ battleSpeed = battleSpeed === 1 ? 2 : 1; spd.textContent = `×${battleSpeed}`; return; }
   else if (again){ const fid = again.dataset.bagain; battleEnd = null; sortieGo(fid); }
   else if (done){ battleEnd = null; }
