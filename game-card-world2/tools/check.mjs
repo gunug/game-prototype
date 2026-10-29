@@ -89,7 +89,7 @@ refresh('보통', "S.seen = ['stone','flint']; S.knight.lv = 6; S.knight.xp = 7;
 refresh('예전 저장', `localStorage.setItem(SAVE_KEY, JSON.stringify({
   cards: [{ id:1, type:'stone', x:0, y:0 }, { id:2, type:'stone', x:0, y:0 }, { id:3, type:'없는카드', x:0, y:0 }],
   seen: ['stone','없는카드'], tab: 'gather', quest: { id:'gomountain', n:0 },
-  fields: { mountain:{ locked:false, left:3 } }, lootSeen: { animal:['meat'] } }));`,
+  fields: { mountain:{ locked:false, left:3 } }, lootSeen: { animal:['meat'] }, gearMoved: true }));`,   // v10.7.0: 옛 장비 옮기기(세리나 활)는 따로 — 여기선 카드 합치기만 본다
   { lv: 1, xp: 0, seen: 1, tab: 'battle', cards: 1 });             // 같은 카드는 한 장으로 합쳐짐
 refresh('에디터 모드', "S.seen = ['stone']; S.knight.lv = 3; save(); localStorage.setItem(EDIT_KEY, '1');",
   { lv: 3 });

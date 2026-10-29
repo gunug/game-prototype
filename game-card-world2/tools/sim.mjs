@@ -109,6 +109,8 @@ function boot(seed){
   vm.runInContext(CODE, ctx, { filename: 'index.html<script>' });
   ctx.document.hidden = false;                                     // 화면을 보고 있는 셈 (논 시간이 흐르게)
   vm.runInContext('FAST = true', ctx);                             // 연출 건너뛰기 (규칙 · 확률은 그대로)
+  // v10.7.0: 게임은 장비를 편성에만 둔다 — 시뮬은 예전처럼 사람마다 제 장비로 고른다 (나가는 셋만 싸우니 결과는 같다)
+  vm.runInContext('simGear = who => ((S.gear = S.gear || {})[who] = S.gear[who] || {})', ctx);
   // v10.0.0: 계측 — 사람마다 준 피해 · 받은 피해, 흔적이 열린 때 (게임 함수를 감싼다. 규칙은 그대로)
   vm.runInContext(`SIMP = { dmg: {}, taken: {}, tr: [], sorties: {} };
     const __sw = expSwing; expSwing = function(a, b, d){ if (d > 0){ if (typeof a === 'string') SIMP.dmg[a] = (SIMP.dmg[a] || 0) + d; if (typeof b === 'string') SIMP.taken[b] = (SIMP.taken[b] || 0) + d; } return __sw.apply(this, arguments); };
