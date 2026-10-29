@@ -2235,7 +2235,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.7.1';
+const VERSION = 'v10.8.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3272,12 +3272,14 @@ const presetBusy = p => presetOf(p).heroes.some(w => w && heroPresetNow(w) === p
 let presetView = null;                                            // 편성 탭 정보 칸 — { who, p } 동안은 그 편성 장비로 셈한다
 function sortieGo(fid){
   if (expAt(fid)){ toast('🏃 이미 원정 중'); return; }
+  if (EXPS.length){ toast('🏃 원정은 한 번에 하나 — 돌아오면 다시 나간다'); return; }   // v10.8.0: 한 편성을 제대로
   const line = mainHeroes();                                      // v10.7.0: 메인 편성이 나간다
   if (!line.length){ toast(`편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`); return; }
   const away = line.filter(w => expOf(w));
   if (away.length){ toast(`🏃 ${away.map(pName).join(' · ')} 이미 원정 중`); return; }
   const rest = line.filter(w => !canSortie(w));                   // v9.133.0: 한 사람이라도 회복중이면 나가지 않는다
   if (rest.length){ toast(`🩸 ${rest.map(pName).join(' · ')} 회복중 — 가득 차야 나간다`); return; }
+  for (const w of line){ const st = hSt(w); st.hp = hMax(w); st.down = false; }   // v10.8.0: 회복 없음 — 늘 가득 찬 채로 나간다
   const fel = gatherEl.querySelector(`[data-field="${fid}"]`) || document.createElement('div');   // 다른 탭에서 불러도 터지지 않게
   for (const w of line) expStart(fid, fel, w);                    // 전열부터 — 먼저 나간 사람이 맨 앞
   { const E0 = expAt(fid); if (E0) E0.preset = mainPreset(); }   // v10.6.0 · v10.7.0: 그 원정 동안은 나갈 때의 편성 장비로
@@ -5883,11 +5885,10 @@ function screenRows(){
         foeCardHtml(k, { attrs: ` data-foe-card="${k}" title="${esc((ENEMIES[k] || {}).name || '')}"`, sel: foePick === k })).join('')}</div>`;
       // v10.7.0: **출전 칸 없음** — ⚔ 출전 하나. 나가는 것은 늘 메인 편성
       const going = !!expAt(f.id), line = mainHeroes();
-      const away = line.some(w => expOf(w));                       // 메인 편성이 다른 땅에 나가 있다
-      const resting = line.some(w => !canSortie(w));               // v9.133.0: 회복중인 사람이 있으면 못 나간다
+      const away = !going && EXPS.length > 0;                      // v10.8.0: 원정은 한 번에 하나
       const pre = locked ? '<div class="sortie-btns"></div>' : `<div class="sortie-btns">`
-        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away || resting ? ' disabled' : ''}>`
-        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : resting ? '🩸 회복중' : '⚔ 출전'}</button></div>`;
+        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away ? ' disabled' : ''}>`
+        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : '⚔ 출전'}</button></div>`;
       return { card: card + foeCards, slots: [], pre, slotsFirst: true };
     });
   }
@@ -5954,7 +5955,7 @@ function screenTokens(){
   // v5.1.0: 원정 중이면 기사는 못 끈다 — 토큰을 주지 않고 '출전중'만 보인다
   if (isFieldTab(S.tab)){                                         // v4.0.0 · v9.20.0 · v9.73.0: 합류한 사람 모두
     // v9.79.0: 출전중은 물론 **회복중(빈사)** 도 집히지 않는다
-    return ALL_HEROES().map(k => ({ token: null, html: heroCardHtml(k, false) }));   // v10.7.0: 끌지 않는다 — 나가는 것은 메인 편성
+    return [];                                                    // v10.8.0: 바닥 사람 칸 없앰 — 나가는 것은 메인 편성 (편성 탭에서 본다)
   }
   if (S.tab === 'party'){                                         // v10.6.0: 사람(이 벌에 없는) + 가진 장비
     const P = presetOf(presetPick);
@@ -6168,8 +6169,7 @@ function renderScreen(){
       : `<div class="lrow${row.cls ? ' ' + row.cls : ''}">${row.card}<div class="rowslots">${row.slots.map(slotHtmlOf).join('')}</div></div>`).join('')
     + '</div>'
     + '<div class="botarea">' + chips
-    + '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('')
-    + (isFieldTab(S.tab) ? knightSayHtml() : '') + '</div>'
+    + (isFieldTab(S.tab) ? '' : '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('') + '</div>')   // v10.8.0: 필드엔 사람 칸 없음
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
@@ -6623,7 +6623,7 @@ function renderFieldInsp(){
       + '<div class="sub">상태</div><div class="stat-grid">'
       + statRow('atk', '공격', hAtk(who), 'v-atk')
       + statRow('def', '방어', hDef(who), 'v-def')
-      + statRow('hp', '체력', `${k.hp}/${hMax(who)}`, 'v-hp', k.hp <= 0 ? '빈사' : '')
+      + statRow('hp', '체력', `${k.hp}/${hMax(who)}`, 'v-hp', k.hp <= 0 && expOf(who) ? '쓰러짐' : '')
       + statRow('spd', '이동', hSpd(who))
       + statRow('range', '사거리', hRange(who))
       + '</div>'
@@ -6632,7 +6632,7 @@ function renderFieldInsp(){
           + ` · 장비 ${statImg('atk')}+${gAtk} ${statImg('def')}+${gDef}</div>` : '')
       + `<div class="row i-muted">${expOf(who)
         ? `원정 중 — ${statImg('hp')} +${fightRegen(who)}/s`
-        : `쉬는 중 — ${statImg('hp')} +${healPerSec(who)}/s · 가득까지 ${Math.round(hMax(who) / healPerSec(who))}초`}</div>`
+        : '돌아오면 체력이 바로 가득 찬다'}</div>`                   // v10.8.0: 회복 없음
       + lvTableHtml(who);                                          // v0.68.0: 레벨 표
     return;
   }
@@ -7010,8 +7010,9 @@ const hAlive = k => hSt(k).hp > 0;
 //   그냥 다친 사람(쓰러지지 않은)은 체력이 덜 차도 나갈 수 있다
 const hDown = k => !!hSt(k).down;
 const heroFell = k => { const st = hSt(k); st.down = true; };     // 쓰러진 순간 표식을 박는다
-const canSortie = k => hAlive(k) && !hDown(k);
-const hStateLab = k => expOf(k) ? '출전중' : hDown(k) ? '회복중' : '';
+// v10.8.0: **회복 개념 없앰** — 원정에서 돌아오면 바로 가득 찬다 (쉬는 시간 · 빈사 대기 없음)
+const canSortie = () => true;
+const hStateLab = k => expOf(k) ? '출전중' : '';
 // 옛 이름들 (기사 전용으로 부르던 곳)
 const knightAtk = () => hAtk('knight');
 const knightDef = () => hDef('knight');
@@ -7370,16 +7371,12 @@ const SEARCH_MS = 1100;                                          // v0.13.4: 채
 //   거점 카드의 `heal` = 초당 회복량. 거점이 없으면 HEAL_BARE
 // v9.74.0: **누구나 조금은 아문다.** 싸우는 중에도 맨몸으로 10초에 한 칸. 장신구(회복 갈래)가 이 위에 더해진다
 const HEAL_BARE_FIGHT = 0.1;
-// v9.78.0: **쉴 때는 싸울 때의 다섯 배.** 회복 수치는 하나(싸울 때)만 두고, 쉴 때는 이 배수로 센다
-const REST_MULT = 5;
 // v0.55.0: 거점 칸이 비어 있으면 회복이 절반 속도 (모닥불을 넣으면 제 속도)
-// v9.68.1: 쉴 때의 회복 = 맨바닥 + **회복 장신구**(캐릭터마다 제 장신구를 본다)
+// v9.68.1: 회복 장신구 — 캐릭터마다 제 장신구를 본다 (v10.8.0: 쉴 때의 회복은 없앴다 · 싸울 때만)
 const regenOf = (who, kind) => slotsFor(who || 'knight').filter(sl => /^trinket/.test(sl.key)).reduce((a, sl) => { const t = equipped(sl.key, who); return a + ((t && DEFS[t] && DEFS[t][kind]) || 0); }, 0);   // v9.129.0: 장신구가 여럿이면 더한다
-const healPerSec = who => Math.round(fightRegen(who || 'knight') * REST_MULT * 100) / 100;
 // 싸우는 중의 회복 — 맨몸 + 장신구 (소수점이 지저분해지지 않게 한 자리로 다듬는다)
 const fightRegen = who => Math.round((HEAL_BARE_FIGHT + regenOf(who, 'regenFight')
   + (exp && exp.party.includes(who) && exp.party.some(j => hTrait(j, 'mend')) ? 0.3 : 0)) * 100) / 100;   // v9.129.0: 실바 — 약손
-const healFullMs = () => Math.round(knightMaxHp() / healPerSec('knight') * 1000);   // 빈사 → 가득 (보여 주기용)
 // v1.1.0: 그 카드를 얻는 곳 — 조합으로 나오면 그 조합식의 탭, 아니면 그 카드가 나오는 필드
 // v5.2.0: 목표 줄의 장소 · 재료를 눌렀을 때
 // v7.12.0: 그 땅으로 — 굴이면 던전 탭, 아니면 필드 탭. 가서 그 땅을 골라 둔다
@@ -7442,8 +7439,6 @@ function jumpTo(t){
   setTab('battle');
   if (f){ fieldPick = f.id; heroPick = null; renderScreen(); renderInsp(); toast(`${DEFS[t].name} — ${f.emoji} ${f.name}에서 얻는다`); }
 }
-// v0.86.0: 초당 회복량 — '가득까지 걸리는 시간'으로 정해 두었으므로 최대 체력에 따라 달라진다
-const healMs = who => Math.max(120, 1000 / healPerSec(who));      // 체력 한 칸에 걸리는 시간 (최대 체력과 무관)
 // 원정 일정 — at: 진행도(0~1). loot 재료 줍기 · fight 전투 · boss 마지막
 // v0.58.0: 원정 순서를 필드마다 똑같은 틀로 맞춤
 //   ① 채집-잡몹-채집-잡몹-채집 ② 중간보스 ③ 채집-잡몹-채집-잡몹-채집 ④ 필드보스
@@ -8086,6 +8081,13 @@ function expEnd(kind){
   E.line = line;
   E.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   E.endKind = kind;                                             // v9.48.8: 끝맺음 글귀 (성공 · 실패 · 물러남)
+  { const haul = E.haul || []; E.haul = [];                     // v10.8.0: 짐 — 이겼으면 가방으로, 졌거나 물러났으면 잃는다
+    if (kind === 'clear' || kind === 'boss'){
+      const tok = tokOf(expLead()), r = tok ? tok.getBoundingClientRect() : null;
+      if (FAST) haul.forEach(t => flyToCraft(t, null));
+      else haul.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 160));
+    } else if (haul.length) toast(`전리품 ${haul.length}개를 잃었다 — 지면 아무것도 못 가져온다`);
+  }
   // v0.61.0: 여기까지 와 봤다 — 가장 멀리 간 자리를 필드마다 남긴다 (넘어서면 그 자리로 옮겨감)
   S.marks = S.marks || {};
   const best = S.marks[E.id] || 0;
@@ -8131,7 +8133,12 @@ function dropLoot(def, foeIdx){
     for (const t of got) if (!list.includes(t)){ list.push(t); added = true; }
     if (added){ save(); renderInsp(); }
   }
-  got.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 260));   // 여러 장이면 차례로
+  haulAdd(got, from);                                             // v10.8.0: 짐에 담는다 — 이기고 돌아와야 가방으로
+}
+// v10.8.0: **원정 짐** — 주운 것 · 떨군 것은 바로 가방에 들지 않는다. 땅을 끝까지 가거나 보스를 넘으면 가방으로, 지거나 물러나면 잃는다
+function haulAdd(list, tok){
+  (exp.haul = exp.haul || []).push(...list);
+  if (tok && !FAST) floatText(tok, list.map(t => `+${DEFS[t].name}`).join(' '), 'heal', 900);
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
@@ -8141,7 +8148,7 @@ function expLoot(){
   if (!pool.length) return;
   const t = pick(pool);
   exp.line = `${objP(DEFS[t].name)} 주웠다`;
-  flyToCraft(t, box);
+  haulAdd([t], tok);                                              // v10.8.0: 짐에 담는다
   expPaint();
 }
 // v0.22.1: 지금 화면에 안 올라오는 카드가 만들어졌을 때 — 그 자리에 잠깐 떠 있다가 위로 사라짐
@@ -8968,23 +8975,12 @@ function gainXp(n){
 }
 // 쉬는 동안 회복 (원정 중엔 안 됨)
 function healTick(dt){
-  // v9.20.0: 쉴 때는 **둘 다** 회복한다 (궁수도 빈사면 못 나간다)
-  // v9.22.0: 나가 있는 캐릭터는 회복하지 않는다
-  // v9.68.1: 속도는 캐릭터마다 다르다 — 제 장신구(회복 갈래)가 더해진다
-  if (paused) return;
-  let woke = false;                                               // v9.106.0: 회복중이 풀린 사람이 있나
-  for (const who of ALL_HEROES()){                                // v9.74.2: 비전투요원도 쉬면 아문다
+  // v10.8.0: **회복 없음** — 원정에 나가 있지 않은 사람은 늘 가득 (돌아오는 순간 찬다)
+  for (const who of ALL_HEROES()){
+    if (expOf(who)) continue;
     const st = hSt(who);
-    if (st.hp >= hMax(who) && st.down){ st.down = false; woke = true; }   // v9.77.0: 가득 차면 빈사가 풀린다
-    if (expOf(who) || st.hp >= hMax(who)){ st.healP = 0; continue; }
-    st.healP = (st.healP || 0) + dt;
-    const ms = healMs(who);
-    while (st.healP >= ms && st.hp < hMax(who)){ st.healP -= ms; st.hp++; }
-    if (st.hp >= hMax(who) && st.down){ st.down = false; woke = true; }   // v9.106.0: 차는 그 박자에 바로 푼다
-    renderKnight(); save();
+    if (st.hp !== hMax(who) || st.down){ st.hp = hMax(who); st.down = false; st.healP = 0; }
   }
-  // v9.106.0: 회복이 끝나면 **바로** 카드를 다시 그린다 — 전엔 다른 탭을 다녀와야 '회복중'이 풀려 끌 수 있었다
-  if (woke){ renderScreen(); renderInsp(); save(); }
 }
 
 // ── 퀘스트 (v0.9.0) ─────────────────────────────────
