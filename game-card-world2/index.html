@@ -777,6 +777,7 @@
   .q-pic.emo{display:inline-block;text-align:center;font-size:13px;line-height:18px;}
   .q-op{font-size:11px;color:var(--muted);padding:2px 0 0 18px;white-space:normal;line-height:1.35;}
   .q-row.goal .q-tag{filter:drop-shadow(0 0 4px rgba(255,212,0,.6));}
+  .q-row.prod .prod-need.ok{opacity:.55;}                         /* v10.14.0: 다 모은 재료는 흐리게 */
   .q-row.q-step-in{animation:questIn 1.2s cubic-bezier(.2,.8,.3,1);}
   .q-row.q-done-flash{animation:questDone .5s ease-in forwards;}
   @keyframes questDone{0%{opacity:1;}100%{opacity:0;transform:translateY(-2px);}}
@@ -2272,7 +2273,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.13.0';
+const VERSION = 'v10.14.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3518,7 +3519,7 @@ const slotId = id => {
 };
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'inn', 'party', 'book', 'settings'];   // v10.6.0: 편성   // v9.55.0: 여관   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
+const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'prod', 'inn', 'party', 'book', 'settings'];   // v10.6.0: 편성   // v9.55.0: 여관   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -4057,7 +4058,7 @@ const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?'
 // v7.8.0: 글 속 **그림이 붙은 탭 이름**(🎯 목표 · ⚔️ 무기 · 📖 콜렉터북 …)은 눌러서 그 탭으로 간다.
 //   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
 const TAB_LINK = {
-  '🎯 목표':'aim', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'party', '🏨 여관':'inn',
+  '🎯 목표':'aim', '⚒ 생산':'prod', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'party', '🏨 여관':'inn',
   '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'weapon', '🔨 조합':'tool',
   '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
 };
@@ -4120,6 +4121,7 @@ function unlockBoards(){
 }
 function addCard(type, x, y, anim, from, made){
   if (type === S.goal) setTimeout(checkGoalDone, 0);              // v3.0.6: 주워서 채워지는 목표도 끝남
+  if (S.prod && type !== S.prod) setTimeout(checkProdDone, 0);    // v10.14.0: 재료가 다 모였나
   if (DEFS[type]){                                                // v3.2.1: 목표에 안 걸고 먼저 만들어 버려도 사슬이 멈추지 않게
     for (const u of useOf(type)) questHit(`aim-use:${u}`);
     if ((DEFS[type].atk || 0) >= 2) questHit('aim-atk2');
@@ -5494,7 +5496,7 @@ function renderTabs(){                                            // v0.21.0: �
   const groups = [
     { key:'go',    items: [btn(fightTarget(), '🗡️ 전투')] },   // v10.12.0: 필드 · 던전 · 레이드는 전투 페이지 안 칩으로
     // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
-    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
+    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), btn('prod', '⚒ 생산'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
     // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 여관이 말해 준다
     { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b) && boardOpen(b)).map(boardBtn) },
@@ -5533,7 +5535,7 @@ function renderTabs(){                                            // v0.21.0: �
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
 // v10.12.0: 필드 · 던전 · 레이드는 '전투' 한 페이지
-const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', prod:'⚒ 생산', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -5542,7 +5544,7 @@ function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'party' || tab === 'aim' || tab === 'inn';   // v10.6.0: 편성   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드 · v9.55.0 여관
+const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'party' || tab === 'aim' || tab === 'prod' || tab === 'inn';   // v10.14.0: 생산   // v10.6.0: 편성   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드 · v9.55.0 여관
 // ── 🎯 목표 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
@@ -5803,6 +5805,79 @@ function setGoal(t){
   questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
   renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
 }
+// ── ⚒ 생산 (v10.14.0) ─────────────────────────────────
+// **손으로 한 번이라도 만들어 본** 완성품(목표 후보와 같은 갈래 — 중간 재료는 안 뜬다)을 하나 걸면,
+//   중간 조합을 건너뛰고 **줍는 재료**만 모으면 된다. 다 모이면 그 재료가 가방에서 빠지고 결과물이 들어온다 (퀘스트 줄도 사라짐)
+const prodMade = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && (S.madeRecipes || []).includes(r.id));
+const prodCandidates = () => CRAFT_TYPES.filter(t => t !== S.prod && aimGoalOk(t) && prodMade(t)).sort((a, b) => itemNo(a) - itemNo(b));
+const prodRecipe = t => { const rs = CRAFT_RECIPES.filter(r => (r.out || []).includes(t));   // 해 본 조합이 먼저
+  return rs.find(r => (S.madeRecipes || []).includes(r.id)) || rs.find(r => !r.cook) || rs[0]; };
+const prodLeafy = t => !CRAFT_RECIPES.some(r => (r.out || []).includes(t)) || gatherFieldsAll(t).length > 0;   // 땅에서 나오면 거기서 멈춘다
+function prodNeeds(t){                                            // [{ type | use, n }] — 줍는 재료까지 풀어서 센다
+  const need = new Map(), add = (k, n) => need.set(k, (need.get(k) || 0) + n);
+  const walk = (type, n, d, top) => {
+    const r = d > 0 && (top || !prodLeafy(type)) ? prodRecipe(type) : null;
+    if (!r){ add('c:' + type, n); return; }
+    const runs = Math.ceil(n / ((r.out || []).filter(o => o === type).length || 1));
+    for (const sd of [r.a, r.b]) sd.card ? walk(sd.card, runs, d - 1, false) : add('u:' + sd.use, runs);
+  };
+  walk(t, 1, 12, true);
+  return [...need].map(([k, n]) => k[0] === 'c' ? { type: k.slice(2), n } : { use: k.slice(2), n })
+    .sort((a, b) => !!a.use - !!b.use);                           // 카드부터 세고 태그는 남은 것으로
+}
+function prodLeft(t){                                             // 가방에서 얼마나 모였나 + 끝나면 뺄 것
+  const stock = {}, take = {};
+  for (const c of S.cards) if (c.n > 0) stock[c.type] = (stock[c.type] || 0) + c.n;
+  const pull = (k, n) => { const u = Math.min(stock[k] || 0, n); stock[k] = (stock[k] || 0) - u; if (u) take[k] = (take[k] || 0) + u; return u; };
+  const list = prodNeeds(t).map(x => {
+    let got = 0;
+    if (x.type) got = pull(x.type, x.n);
+    else for (const k of Object.keys(stock)) if (got < x.n && k !== t && useOf(k).includes(x.use)) got += pull(k, x.n - got);
+    return { ...x, got };
+  });
+  return { list, take, ok: list.every(x => x.got >= x.n) };
+}
+function checkProdDone(){
+  const t = S.prod;
+  if (!t || !DEFS[t]) return false;
+  const L = prodLeft(t);
+  if (!L.ok) return false;
+  S.prod = null;
+  for (const [k, n] of Object.entries(L.take)) for (let i = 0; i < n; i++){ const c = cardOf(k); if (c && c.n > 0) useOne(c); }
+  logEv('prodDone', Object.assign({ type: t }, logSpan('prodSet', e => e.type === t) || {}));
+  addCard(t, 0, 0, true, null, true);
+  toast(`⚒ 생산 완료 — ${DEFS[t].name}`);
+  save();
+  if (isRowScreen(S.tab)) renderScreen();
+  renderQuest(); renderInsp();
+  return true;
+}
+function setProd(t){
+  S.prod = t;
+  logEv('prodSet', { type: t });
+  toast(`⚒ 생산 — ${DEFS[t].name}`);
+  renderScreen(); renderInsp(); renderQuest(); save();
+  setTimeout(checkProdDone, 0);                                   // 이미 다 가졌으면 바로 끝
+}
+const prodNeedName = x => x.type ? goCard(x.type) : `🏷️ ${esc(x.use)}`;
+function prodPlanHtml(){                                          // 생산 탭 아래 — 재료마다 모은 수 · 나는 곳
+  const t = S.prod;
+  if (!t || !DEFS[t]) return prodCandidates().length
+    ? '<div class="aim-empty">아래 카드를 위 ⚒ 칸에 끌어다 놓으면 모을 재료를 수첩에 적어 줍니다.</div>'
+    : '<div class="aim-empty">아직 생산할 것이 없어요 — 무기 · 방어구 · 장신구 · 소모품을 한 번 손으로 만들면 여기에 뜹니다.</div>';
+  return `<div class="aim-plan"><div class="aim-t">⚒ ${esc(DEFS[t].name)} 생산 — 재료</div>`
+    + prodLeft(t).list.map(x => { const ok = x.got >= x.n;
+      return `<div class="aim-step${ok ? ' done' : ''}"><span class="aim-box">${ok ? '☑' : '☐'}</span>`
+        + (x.type && !ok ? getStepBody(x.type) : prodNeedName(x)) + ` <span class="q-prog">${x.got}/${x.n}</span></div>`; }).join('')
+    + '</div>';
+}
+function prodRowHtml(){                                           // 수첩 한 줄 — 모을 재료와 모은 수
+  const t = S.prod;
+  if (!t || !DEFS[t]) return '';
+  const body = prodLeft(t).list.map(x => `<span class="prod-need${x.got >= x.n ? ' ok' : ''}">${prodNeedName(x)} <span class="q-prog">${x.got}/${x.n}</span></span>`).join(' · ');
+  return `<div class="q-row prod"><span class="q-tag">⚒</span><b class="q-name">${esc(DEFS[t].name)} 생산</b>`
+    + `<span class="q-text">${body}</span>${editDoneBtn('prod', t)}<span class="q-n"></span></div>`;
+}
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
 function slotHtmlOf(sl){
   const inner = sl.card
@@ -5911,6 +5986,13 @@ function screenRows(){
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'',
       unseen: !!g && !aimSeen(g) }] }];                            // v9.40.1: 아래 카드와 같은 가림   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
+  if (S.tab === 'prod'){                                          // v10.14.0: 한 줄 · 한 칸
+    const t = S.prod && DEFS[S.prod] ? S.prod : null;
+    const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">⚒</div>'
+      + '<div class="name">생산</div><div class="sub-lab">하나만</div></div>';
+    return [{ card, slots: [{ id:'prod:goal', open:true, card: !!t, type: t, icon: t ? iconHtml(t) : '',
+      cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab:'' }] }];
+  }
   if (isFieldTab(S.tab)){                                         // v4.0.0 던전 · v9.42.0 레이드도 같은 줄 화면
     // v10.12.0: **전투 페이지** — 맨 위 칩으로 필드 · 던전 · 레이드를 고른다 (못 가는 곳은 자물쇠)
     const chips = '<div class="gchips">' + FIGHT_CHIPS.map(([id, lab, ic]) => { const lock = fightLocked(id);
@@ -6013,6 +6095,12 @@ function screenTokens(){
         html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${statsHtml(c.type)}<div class="emoji">${iconHtml(c.type)}</div>`
           + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>` })));
   }
+  if (S.tab === 'prod') return prodCandidates().map(t => ({      // v10.14.0: 손으로 만들어 본 것들
+    token: t,
+    html: `<div class="cw framed f-${frameOf(DEFS[t])}${inspType === t ? ' sel' : ''}">${statsHtml(t)}`
+      + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div>`
+      + (have(t) ? `<div class="cnt">${have(t)}</div>` : '') + '</div>',
+  }));
   if (S.tab === 'aim') return aimCandidates().map(t => ({                 // v3.0.0: 만들 줄 아는 것들
     token: t,
     // v3.0.7: 카드 위엔 할 일을 적지 않는다 — 상태는 테두리 빛으로만, 자세한 건 탭했을 때 인스펙터에서
@@ -6219,6 +6307,7 @@ function renderScreen(){
     + '</div>'
     + '<div class="botarea">' + chips
     + (isFieldTab(S.tab) ? '' : '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('') + '</div>')   // v10.8.0: 필드엔 사람 칸 없음
+    + (S.tab === 'prod' ? prodPlanHtml() : '')                    // v10.14.0
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
@@ -6226,6 +6315,8 @@ function renderScreen(){
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중`
         : mainHeroes().length ? `⚔ 출전 — 편성 ${mainPreset() + 1}(메인) ${mainHeroes().map(w => esc(pName(w))).join(' · ')}이 나간다`   // v10.7.0
         : `편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`)
+      : S.tab === 'prod' ? (S.prod ? '재료가 가방에 다 모이면 저절로 생산된다 — 칸 밖으로 끌면 그만둔다'   // v10.14.0
+        : '생산할 카드를 ⚒ 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : S.tab === 'inn' ? (innRegs().length                        // v9.55.0 · v9.80.1 · v9.81.0
@@ -6256,6 +6347,7 @@ function dropOnSlot(id, token){
     }
     return;
   }
+  if (S.tab === 'prod'){ setProd(token); return; }               // v10.14.0
   if (S.tab === 'aim'){ setGoal(token); slotPick = 'aim:goal'; return; }   // v3.0.0 · v5.4.0: 걸자마자 차례를 보여 준다
   if (S.tab === 'party'){                                         // v10.6.0
     const i = ppRow({ row: rowKey });
@@ -6291,6 +6383,7 @@ function slotTakes(id, token){
     return false;
   }
   if (S.tab === 'aim') return !!DEFS[token];                      // v3.0.0
+  if (S.tab === 'prod') return !!DEFS[token] && prodMade(token);   // v10.14.0
   if (S.tab === 'party'){                                         // v10.6.0
     const { row } = slotId(id), i = ppRow({ row }), P = presetOf(presetPick);
     if (slotKey === 'h') return ALL_HEROES().includes(token) && !!PARTY()[i];
@@ -6353,6 +6446,7 @@ gatherEl.addEventListener('pointerdown', e => {
   const fs = slotId(fromSlot);                                    // v9.24.2: 어느 줄(누구)의 칸인지까지 읽는다
   const token = tokEl ? tokEl.dataset.token
     : S.tab === 'aim' ? S.goal
+    : S.tab === 'prod' ? S.prod                                    // v10.14.0
     : S.tab === 'inn' ? (/^reg\d$/.test(fs.key) ? innRegs()[+fs.key.slice(3)] : null)   // v9.55.0 · v9.81.0
     : isFieldTab(S.tab) ? (expAt(fs.row) ? null : lineupOf(fs.row)[+fs.key])   // v9.131.0: 출전 줄 (원정 중엔 못 뺀다)
     : S.tab === 'party' ? presetToken(fs)                          // v10.6.0
@@ -6360,7 +6454,7 @@ gatherEl.addEventListener('pointerdown', e => {
   if (!token) return;
   const r0 = el.getBoundingClientRect();
   tokenDrag = { el, token, fromSlot, sx: e.clientX, sy: e.clientY, ox: r0.left, oy: r0.top, moved: false,
-    dock: !!e.target.closest('.botarea') && document.documentElement.classList.contains('phone') && S.tab !== 'aim' && S.tab !== 'inn' };   // 여관 바닥은 줄내림이라 옆 넘김 없음   // v10.3.0: 바닥 칸에서 집었나
+    dock: !!e.target.closest('.botarea') && document.documentElement.classList.contains('phone') && S.tab !== 'aim' && S.tab !== 'prod' && S.tab !== 'inn' };   // 여관 바닥은 줄내림이라 옆 넘김 없음   // v10.3.0: 바닥 칸에서 집었나
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
 });
 addEventListener('pointermove', e => {
@@ -6574,7 +6668,8 @@ addEventListener('pointerup', e => {
       dropOnSlot(hit, d.token);
     }
   } else if (d.fromSlot && !hit){
-    if (S.tab === 'aim'){ S.goal = null; slotPick = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4 · v5.4.0
+    if (S.tab === 'prod'){ S.prod = null; toast('생산을 그만뒀다'); renderQuest(); save(); }   // v10.14.0
+    else if (S.tab === 'aim'){ S.goal = null; slotPick = null; toast('목표를 풀었다'); questRegress(); renderQuest(); renderHint(); save(); }   // v3.0.0 · v3.2.4 · v5.4.0
     else if (S.tab === 'inn') innUnregister(d.token);              // v9.55.0: 등록 칸에서 끌어내면 그 사람만 푼다
     else if (isFieldTab(S.tab)){ const f = slotId(d.fromSlot); lineupDrop(f.row, +f.key); }   // v9.131.0: 줄 밖으로 끌면 그 사람만 빠진다
     else if (S.tab === 'party'){ const f = slotId(d.fromSlot), i = ppRow(f);   // v10.6.0: 사람을 빼면 그 사람 장비도 가방으로
@@ -6841,7 +6936,7 @@ function setTab(tab){
   // v0.99.0: 날아가는 중이던 필드 카드는 다른 탭으로 가면 감춤 (카드는 그대로 들어온다)
   for (const el of document.querySelectorAll('.fly.from-field')) el.style.visibility = tab === 'battle' ? '' : 'hidden';
   table.hidden = isRowScreen(tab) || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
-  fieldEl.classList.toggle('aim-tab', tab === 'aim');             // v3.5.3: 목표 화면 전용 배치
+  fieldEl.classList.toggle('aim-tab', tab === 'aim' || tab === 'prod');   // v3.5.3: 목표 화면 전용 배치 · v10.14.0 생산도
   fieldEl.classList.toggle('gear-tab', tab === 'gearup' || tab === 'party');   // v7.5.0: 정비도 같은 배치 · v10.6.0 편성도
   fieldEl.classList.toggle('inn-tab', tab === 'inn');             // v9.68.0: 여관은 두 묶음으로 줄을 내린다
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
@@ -9168,14 +9263,14 @@ function renderQuest(){
   const el = document.getElementById('quest');
   const list = S.quests || [];
   const goalRow = goalRowHtml();                                  // v3.0.5: 목표에 건 목표의 **지금 한 단계**
-  const innRow = innRowHtml();                                    // v9.55.2: 여관에 등록한 사람 — 지금 걸음 한 줄
+  const innRow = innRowHtml() + prodRowHtml();                    // v9.55.2: 여관에 등록한 사람 — 지금 걸음 한 줄 · v10.14.0 생산 줄
   el.hidden = false;
   // v9.56.7: **적을 것이 하나라도 있으면 판은 열려 있다.** 전엔 기사가 한마디 할 때마다 판 전체를 감춰(v0.43.0),
   //   목표 · 여관 줄이 멀쩡히 있는데도 수첩이 열렸다 닫혔다 했다. 대사는 말풍선이 따로 말한다
   el.classList.toggle('show', list.length > 0 || !!goalRow || !!innRow);
   if (!list.length && !goalRow && !innRow){
     clearTimeout(questClear);
-    questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml() && !innRowHtml()) el.innerHTML = ''; }, 360);
+    questClear = setTimeout(() => { if (!(S.quests || []).length && !goalRowHtml() && !innRowHtml() && !prodRowHtml()) el.innerHTML = ''; }, 360);
     return;
   }
   clearTimeout(questClear);
@@ -9247,6 +9342,10 @@ function aimMakeClick(e){
 }
 function editDone(kind, id){
   if (!editMode) return;
+  if (kind === 'prod'){                                           // v10.14.0: 재료 없이 바로 받는다
+    if (S.prod !== id || !DEFS[id]) return;
+    S.prod = null; addCard(id, 0, 0, true, null, true); renderQuest(); renderScreen(); return;
+  }
   if (kind === 'goal'){
     if (S.goal !== id || !DEFS[id]) return;
     addCard(id, 0, 0, true, null, true);
