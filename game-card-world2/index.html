@@ -1079,6 +1079,37 @@
   .cfm-box .cfm-b{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
   .cfm-box .cfm-b button{padding:7px 14px;border-radius:8px;font:inherit;font-size:13px;font-weight:800;border:1px solid var(--hairline);background:rgba(255,255,255,.06);color:inherit;}
   .cfm-box .cfm-b .cfm-ok{background:#c9553f;border-color:#e07a66;color:#fff;}
+  /* v10.9.0: 전투 화면 — 원정 줄을 키우고, 아래에 파티 체력 · 짐 · 조작 / 끝나면 결과 */
+  .field.battle-on .exp.on .exp-one{zoom:1.35;}
+  html.phone .field.battle-on .exp.on .exp-one{zoom:1.2;}
+  .field.battle-on .exp-map{height:14px;}
+  .bpanel{align-items:stretch !important;justify-content:flex-start !important;gap:10px !important;padding:10px 12px !important;max-height:none !important;bottom:var(--dockh,64px);}
+  .bpanel .b-sec{display:flex;flex-direction:column;gap:6px;}
+  .bpanel .b-lab{font-size:12px;font-weight:800;color:var(--muted);}
+  .bpanel .b-lab b{color:var(--brand-yellow);}
+  .bpanel .b-hero{display:flex;align-items:center;gap:8px;}
+  .bpanel .b-hero img.face{width:34px;height:34px;border-radius:8px;object-fit:cover;flex:none;image-rendering:pixelated;}
+  .bpanel .b-hero .b-nm{width:52px;flex:none;font-size:13px;font-weight:800;}
+  .bpanel .b-hero .b-bar{flex:1;height:12px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;position:relative;}
+  .bpanel .b-hero .b-bar i{position:absolute;left:0;top:0;bottom:0;background:#5fcf5f;transition:width .2s;}
+  .bpanel .b-hero .b-bar i.low{background:#e0553f;}
+  .bpanel .b-hero .b-hp{width:46px;flex:none;text-align:right;font-size:12px;font-variant-numeric:tabular-nums;}
+  .bpanel .b-hero.out{opacity:.4;}
+  .bpanel .b-hero .b-gear{display:flex;gap:2px;flex:none;}
+  .bpanel .b-hero .b-gear img{width:22px;height:22px;object-fit:contain;}
+  .mini-cards{display:flex;flex-wrap:wrap;gap:6px;--cw:52px;--ch:70px;}
+  .mini-cards .cw{position:relative;width:var(--cw);height:var(--ch);}
+  .mini-cards.lost{filter:grayscale(.55) brightness(.85);}
+  .bpanel .b-empty{font-size:12px;color:var(--muted);}
+  .bpanel .b-res{font-size:20px;font-weight:900;text-align:center;}
+  .bpanel .b-res.fail{color:#ff7a66;}
+  .bpanel .b-res.win{color:var(--brand-yellow);}
+  .bpanel .b-sub{text-align:center;font-size:13px;color:var(--muted);}
+  .bctl{flex-direction:row !important;justify-content:center !important;gap:10px !important;padding:8px 12px !important;}
+  .bctl button{flex:1;max-width:200px;padding:10px 8px;border-radius:10px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--hairline);background:rgba(255,255,255,.06);color:inherit;}
+  .bctl button.go{background:#e8b84a;color:#1a1408;border-color:#f3d27a;}
+  .bctl button.spd{flex:0 0 64px;}
+  .bctl button:disabled{opacity:.45;}
   /* v10.8.1: 잃은 짐 목록 */
   .cfm-box.lh-box{max-width:min(420px,92vw);}
   .lh-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px;max-height:46vh;overflow-y:auto;
@@ -2241,7 +2272,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.8.1';
+const VERSION = 'v10.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3279,6 +3310,7 @@ let presetView = null;                                            // 편성 탭 
 function sortieGo(fid){
   if (expAt(fid)){ toast('🏃 이미 원정 중'); return; }
   if (EXPS.length){ toast('🏃 원정은 한 번에 하나 — 돌아오면 다시 나간다'); return; }   // v10.8.0: 한 편성을 제대로
+  battleEnd = null;                                               // v10.9.0: 지난 결과 화면은 닫는다
   const line = mainHeroes();                                      // v10.7.0: 메인 편성이 나간다
   if (!line.length){ toast(`편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`); return; }
   const away = line.filter(w => expOf(w));
@@ -6153,7 +6185,9 @@ const gearKind = t => { const u = useOf(t);
     : u.includes('방패') ? 'shield' : u.includes('장신구') ? 'trinket' : 'use'; };
 function renderScreen(){
   gatherEl.hidden = !isRowScreen(S.tab);
+  fieldEl.classList.toggle('battle-on', !gatherEl.hidden && battleMode());   // v10.9.0
   if (gatherEl.hidden) return;
+  if (battleMode()){ renderScreen.tab = null; renderBattle(); syncDockH(); syncTopH(); expBuild(); return; }   // v10.9.0: 전투 화면
   // v10.3.0: 다시 그려도 스크롤 자리를 지킨다 (같은 탭일 때만 — 칸에 놓을 때마다 맨 위로 튀던 것)
   const keep = renderScreen.tab === S.tab ? { y: (gatherEl.querySelector('.toplist') || {}).scrollTop || 0,
     x: (gatherEl.querySelector('.chars') || {}).scrollLeft || 0 } : { y: 0, x: 0 };
@@ -6360,6 +6394,71 @@ addEventListener('pointermove', e => {
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
 });
+// ── 전투 화면 (v10.9.0) ─────────────────────────────
+// 원정이 도는 동안 그 원정의 탭(필드 · 던전 · 레이드)은 **땅 목록 대신 전투 화면**이다 —
+//   위: 원정 줄(크게) + 진행 바 · 아래: 파티 체력 · 원정 짐 · [돌아가기] [배속]. 끝나면 결과 · [같은 땅 다시] [땅 목록]
+let battleEnd = null;                                             // 끝난 원정의 결과 — 땅 목록으로 돌아갈 때까지 (저장하지 않는다)
+let battleSpeed = 1;                                              // 배속 (저장하지 않는다)
+const battleE = () => EXPS.find(E => S.tab === expHome(E)) || null;
+const battleMode = () => isFieldTab(S.tab) && (!!battleE() || !!(battleEnd && fieldTab(FIELD_BY_ID[battleEnd.fid] || {}) === S.tab));
+const miniCards = (list, lost) => { const n = {}; for (const t of list) n[t] = (n[t] || 0) + 1;
+  return `<div class="mini-cards${lost ? ' lost' : ''}">` + Object.keys(n).sort((a, b) => itemNo(a) - itemNo(b)).map(t =>
+    `<div class="cw framed f-${frameOf(DEFS[t])}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${n[t]}</div></div>`).join('') + '</div>'; };
+function renderBattle(){
+  const E = battleE(), live = E && E.phase !== 'end';
+  let top = '', bot = '';
+  if (live || (E && !battleEnd)){
+    top = '<div class="b-sec"><div class="b-lab">파티</div>' + E.party.map(k => {
+      const g = ['weapon', 'armor', 'shield'].map(key => equipped(key, k)).filter(Boolean);
+      return `<div class="b-hero" data-bhero="${k}"><img class="face" src="images/icon/${hCard(k)}.png" alt="" draggable="false">`
+        + `<span class="b-nm">${esc(pName(k))}</span><span class="b-bar"><i></i></span><span class="b-hp"></span>`
+        + `<span class="b-gear">${g.map(t => iconHtml(t)).join('')}</span></div>`; }).join('') + '</div>'
+      + '<div class="b-sec"><div class="b-lab" data-bhaul-lab></div><div data-bhaul></div></div>';
+    bot = `<button type="button" data-bhome${live ? '' : ' disabled'}>돌아가기 — 짐을 챙겨</button>`
+      + `<button type="button" class="spd" data-bspeed>×${battleSpeed}</button>`;
+  } else {
+    const R = battleEnd, f = FIELD_BY_ID[R.fid] || {}, win = R.kind !== 'down';
+    const title = R.kind === 'boss' ? (R.first ? '처음으로 넘었다' : '보스를 넘었다') : R.kind === 'clear' ? '끝까지 다녀왔다'
+      : R.kind === 'home' ? '짐을 챙겨 돌아왔다' : R.kind === 'retreat' ? '이길 수 없어 물러났다' : '쓰러졌다';
+    top = `<div class="b-res ${win ? 'win' : 'fail'}">${esc(f.name || '')} — ${title}</div>`
+      + `<div class="b-sub">${win ? (R.items.length ? `가져온 것 ${R.items.length}개` : '가져온 것 없음') : `잃은 것 ${R.items.length}개 — 지면 아무것도 못 가져온다`}</div>`
+      + (R.items.length ? miniCards(R.items, !win) : '');
+    bot = `<button type="button" class="go" data-bagain="${R.fid}">같은 땅 다시</button><button type="button" data-bdone>땅 목록</button>`;
+  }
+  gatherEl.innerHTML = `<div class="toplist bpanel">${top}</div><div class="botarea bctl">${bot}</div>`;
+  paintIcons(gatherEl);
+  paintBattle(true);
+}
+function paintBattle(force){
+  if (!battleMode()) return;
+  const E = battleE();
+  if (!E){ if (!force && !gatherEl.querySelector('.b-res')) renderBattle(); return; }
+  if (E.phase === 'end' && !gatherEl.querySelector('.b-res') && battleEnd){ renderBattle(); return; }
+  for (const row of gatherEl.querySelectorAll('[data-bhero]')){
+    const k = row.dataset.bhero, hp = Math.max(0, hSt(k).hp), max = hMax(k), p = Math.max(0, Math.min(1, hp / max));
+    const bar = row.querySelector('.b-bar i'); bar.style.width = (p * 100).toFixed(1) + '%'; bar.classList.toggle('low', p <= 0.34);
+    row.querySelector('.b-hp').textContent = `${hp}/${max}`;
+    row.classList.toggle('out', !!(E.P[k] && E.P[k].out));
+  }
+  const haul = E.haul || [], box = gatherEl.querySelector('[data-bhaul]');
+  if (box && box._n !== haul.length){
+    box._n = haul.length;
+    box.innerHTML = haul.length ? miniCards(haul) : '<div class="b-empty">아직 담은 것이 없다</div>';
+    gatherEl.querySelector('[data-bhaul-lab]').innerHTML = `원정 짐 <b>${haul.length}</b> — 쓰러지면 잃는다`;
+    paintIcons(box);
+  }
+}
+gatherEl.addEventListener('click', e => {                         // v10.9.0: 전투 화면 단추
+  const home = e.target.closest('[data-bhome]'), spd = e.target.closest('[data-bspeed]');
+  const again = e.target.closest('[data-bagain]'), done = e.target.closest('[data-bdone]');
+  if (!home && !spd && !again && !done) return;
+  e.stopPropagation();
+  if (home){ const E = battleE(); if (E && E.phase !== 'end'){ const keep = exp; exp = E; expEnd('home'); exp = keep && keep !== E ? keep : E; } }
+  else if (spd){ battleSpeed = battleSpeed === 1 ? 2 : 1; spd.textContent = `×${battleSpeed}`; return; }
+  else if (again){ const fid = again.dataset.bagain; battleEnd = null; sortieGo(fid); }
+  else if (done){ battleEnd = null; }
+  renderScreen(); renderInsp();
+});
 // v10.8.1: **잃은 짐** — 지거나 물러나면 그 원정에서 담았던 것을 종류별로 보여 준다 [확인]
 function lostHaulPop(haul, fid, kind){
   const n = {}; for (const t of haul) n[t] = (n[t] || 0) + 1;
@@ -6541,7 +6640,7 @@ function gameTick(){
   tickLast = now;
   if (paused) return;
   if (showPaused()) return;                                       // v9.92.0 · v9.96.0: 흔적 카드(와 그 합류 표시)가 줄에 있으면 멈춤
-  expTick(dt);                                                    // v0.13.0: 원정 진행
+  expTick(dt * battleSpeed);                                      // v0.13.0: 원정 진행 · v10.9.0 배속
   healTick(dt);                                                   // v0.13.0: 기사 회복
 }
 // v4.3.0: 크리처 정보 — 한 번 싸워 본 적만 수치가 보인다
@@ -7625,6 +7724,7 @@ function expStart(id, cardEl, who){
   landFound(id);                                                  // v7.13.0: 가 본 땅은 책에 남는다
   exp = { uid: expUid++, id, len: LEN, t: 0, phase: 'run', idx: 0, foe: -1, foes, spot: -1, spots,
     party: [who], P: { [who]: mkHero(0) }, shots: [],             // v9.20.0 함께 나간 이들 · v9.35.0 날아가는 화살
+    wasCleared: (S.cleared || []).includes(id),                   // v10.9.0: 결과에 '처음으로 넘었다'
     search: 0, rcd: 0, stallMs: 0, line: `${FIELD_BY_ID[id].name} 원정 시작` };
   EXPS.push(exp);                                                 // v9.22.0: 원정 목록에 더한다
   const elx = document.getElementById('exp');
@@ -8102,6 +8202,7 @@ function expEnd(kind){
   const line = kind === 'down' ? `${who} 쓰러져 돌아왔다`
     : kind === 'boss' ? '보스를 쓰러뜨리고 돌아왔다'
     : kind === 'retreat' ? '이길 수 없어 물러났다'                 // v8.1.1
+    : kind === 'home' ? '짐을 챙겨 돌아왔다'                       // v10.9.0: 돌아가기
     : '원정을 마쳤다';
   if (kind === 'down') toast(`🩸 ${who} 빈사 — 원정 중단`);
   E.phase = 'end';
@@ -8110,12 +8211,15 @@ function expEnd(kind){
   E.line = line;
   E.fail = kind === 'down';                                     // v0.21.0: 실패 — 큰 글씨 + 한 줄 팁
   E.endKind = kind;                                             // v9.48.8: 끝맺음 글귀 (성공 · 실패 · 물러남)
-  { const haul = E.haul || []; E.haul = [];                     // v10.8.0: 짐 — 이겼으면 가방으로, 졌거나 물러났으면 잃는다
-    if (kind === 'clear' || kind === 'boss'){
+  { const haul = E.haul || []; E.haul = [];                     // v10.8.0: 짐 — 쓰러지지 않았으면 가방으로, 쓰러졌으면 잃는다
+    battleEnd = { fid: E.id, kind, items: haul.slice(), first: kind === 'boss' && !E.wasCleared };   // v10.9.0: 결과 화면
+    if (kind !== 'down'){                                         // v10.9.0: 돌아가기 · 물러남도 짐을 지킨다
       const tok = tokOf(expLead()), r = tok ? tok.getBoundingClientRect() : null;
       if (FAST) haul.forEach(t => flyToCraft(t, null));
       else haul.forEach((t, i) => setTimeout(() => flyToCraft(t, r), i * 160));
     } else if (haul.length && !FAST) setTimeout(() => lostHaulPop(haul, E.id, kind), 900);   // v10.8.1: 잃은 짐 목록 (끝맺음 글귀 뒤에)
+    if (FAST) battleEnd = null;                                   // 시뮬은 결과 화면을 안 본다
+    else setTimeout(() => { if (battleMode()) renderScreen(); }, 0);
   }
   // v0.61.0: 여기까지 와 봤다 — 가장 멀리 간 자리를 필드마다 남긴다 (넘어서면 그 자리로 옮겨감)
   S.marks = S.marks || {};
@@ -8412,6 +8516,7 @@ function expPaint(){
     paintTail(box);
   }
   exp = keep || EXPS[0] || null;
+  paintBattle();                                                  // v10.9.0
 }
 // v9.41.0: 이 줄의 카메라가 담아야 할 적 — 교전 중인 것 중 가장 먼 놈
 function camFoe(k){
