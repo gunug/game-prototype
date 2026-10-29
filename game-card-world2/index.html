@@ -182,10 +182,7 @@
   .gchips button.on{background:var(--brand-yellow);color:#1a1a17;border-color:var(--brand-yellow);}
   .gchips button .n{opacity:.7;margin-left:3px;font-weight:700;}
   /* 수첩 — 한 줄로 접는다 (탭하면 펼침) */
-  html.phone .quest.show:not(.qopen){max-height:34px;overflow:hidden;padding:4px 30px 4px 12px;position:relative;}
-  html.phone .quest:not(.qopen) .q-book,html.phone .quest:not(.qopen) .q-op{display:none;}
-  html.phone .quest.show:not(.qopen)::after{content:'\25BE';position:absolute;right:12px;top:7px;color:var(--brand-yellow);font-size:12px;}
-  html.phone .quest.show.qopen{max-height:45%;}
+  /* v10.12.1: 수첩은 폰에서도 늘 펼침 (한 줄 접기 · 탭 여닫기 없앰) */
   /* v10.2.0: 정비 줄 — 칸이 많은 사람(네이라 아홉 칸 …)은 칸을 다음 줄로 내린다 */
   html.phone .gear-tab .lrow{max-width:100%;box-sizing:border-box;padding:0 4px;}
   html.phone .gear-tab .lrow .rowslots{flex:1 1 auto;min-width:0;flex-wrap:wrap;row-gap:calc(var(--cw) * .08);}
@@ -2268,7 +2265,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.12.0';
+const VERSION = 'v10.12.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -9137,7 +9134,7 @@ const withP = w => w + (hasJong(w) ? '과' : '와');                // v3.5.1: �
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
   const H = S.hints || {};
-  if (!H.sortie) return '기사 카드를 전열 칸에 올리고 ⚔ 출전을 누른다';
+  if (!H.sortie) return '땅 옆의 ⚔ 출전을 누른다';                 // v10.12.1: 출전 칸은 없어졌다 (v10.7.0)
   if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
     const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
     return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
@@ -9783,13 +9780,6 @@ addEventListener('resize', () => { measure(); renderAll(); });
     if (sheetOpen || e.target.closest('#sheetGrip') || !document.documentElement.classList.contains('phone')) return;
     e.stopPropagation(); e.preventDefault(); setSheet(true);
   }, true);
-  // v10.3.0: 수첩 — 폰에선 한 줄로 접혀 있다. 단추 · 탭 이름이 아닌 곳을 탭하면 펼침 / 접음
-  document.getElementById('quest').addEventListener('click', e => {
-    if (!document.documentElement.classList.contains('phone')) return;
-    if (e.target.closest('button, a, [data-tab], .q-aim, .q-edit-done, .tablink')) return;
-    e.currentTarget.classList.toggle('qopen');
-    setTimeout(syncHeadH, 0); setTimeout(syncHeadH, 400);
-  });
   // 시트 밖을 누르면 접는다 — 카드를 누른 것은 빼고 (다른 카드를 보려는 것)
   document.addEventListener('pointerdown', e => {
     if (!sheetOpen || e.target.closest('#ui') || e.target.closest('.cw')) return;
