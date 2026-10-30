@@ -206,8 +206,9 @@
   .lrow.preset-row{position:relative;}
   /* v10.13.0: 편성 줄 — 왼쪽 칸 셋 · 가운데 상반신 · 오른쪽 칸 셋 */
   .lrow.pp-three{align-self:center;align-items:stretch;gap:calc(var(--cw) * .1);padding:4px 0;}
-  .pp-three .pp-side{display:flex;flex-direction:column;justify-content:center;gap:calc(var(--cw) * .08);min-width:calc(var(--cw) * .8);}
-  .pp-three .pslot.pp-bust{width:calc(var(--cw) * 1.9);height:auto;min-height:calc(var(--ch) * 1.8);}
+  /* v10.15.1: 상반신 오른쪽에 장비 3열 × 2행 — 상반신 카드 높이 = 칸 두 줄 (그림 비율 3:4) */
+  .pp-three .pp-grid{display:grid;grid-template-columns:repeat(3, calc(var(--cw) * .8));grid-auto-rows:calc(var(--ch) * .8);gap:calc(var(--cw) * .08);align-content:center;}
+  .pp-three .pslot.pp-bust{height:calc(var(--ch) * 1.6 + var(--cw) * .08);width:calc((var(--ch) * 1.6 + var(--cw) * .08) * .75);min-height:0;}
   .pp-three .pp-bustcard{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;overflow:hidden;padding:0;}
   .pp-three .pp-bustcard .bustimg{width:100%;flex:1;min-height:0;object-fit:cover;object-position:center top;image-rendering:pixelated;}
   .pp-three .pp-bustcard .name{position:static;padding:2px 0 3px;font-size:calc(var(--cw) * .17);font-weight:800;}
@@ -2248,7 +2249,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.15.0';
+const VERSION = 'v10.15.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5942,8 +5943,7 @@ function screenRows(){
         return { id: `pp${i}:${sl.key}`, open: ok, card: !!t, type: t, icon: t ? iconHtml(t) : '',
           cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: slotName(sl, who),
           need: ok || !sl.smith ? '' : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` }; }) : [];
-      const side = list => `<div class="pp-side">${list.map(slotHtmlOf).join('')}</div>`;
-      rows.push({ raw: `<div class="lrow preset-row pp-three">${side(gs.slice(0, 3))}${hs}${side(gs.slice(3))}</div>` });
+      rows.push({ raw: `<div class="lrow preset-row pp-three">${hs}<div class="pp-grid">${gs.map(slotHtmlOf).join('')}</div></div>` });   // v10.15.1: 상반신 + 오른쪽 3열 × 2행
     });
     return rows;
   }
