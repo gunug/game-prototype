@@ -219,6 +219,13 @@ try {
   else console.log('✓ 같은 카드 두 장 조합 없음');
 } catch (e){ report('같은 카드 두 장 조합', e); }
 
+// 7.7) v11.0.2: 조합식에 들어가는 재료는 모두 물성(TRAITS)이 있어야 한다 — 오르반 힌트가 쓴다
+try {
+  const miss = vm.runInContext(`[...new Set(CRAFT_RECIPES.flatMap(r => [r.a.card, r.b.card]))].filter(t => t && !(TRAITS[t] || []).length)`, ctx);
+  if (miss.length) report('물성 없는 재료', new Error(miss.join(', ')));
+  else console.log('✓ 조합 재료 모두 물성 있음');
+} catch (e){ report('물성 없는 재료', e); }
+
 // 8) 단계 규칙 (v3.11.0) — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다
 try {
   const bad = vm.runInContext(`(function(){
