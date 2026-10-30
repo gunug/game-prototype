@@ -2292,7 +2292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.0.7';
+const VERSION = 'v11.0.8';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6265,11 +6265,7 @@ function prodPlanHtml(){                                          // 생산 탭 
   if (!t || !DEFS[t]) return prodCandidates().length
     ? '<div class="aim-empty">아래 카드를 위 ⚒ 칸에 끌어다 놓으면 모을 재료를 수첩에 적어 줍니다.</div>'
     : '<div class="aim-empty">아직 생산할 것이 없어요 — 무기 · 방어구 · 장신구 · 소모품을 한 번 손으로 만들면 여기에 뜹니다.</div>';
-  return `<div class="aim-plan"><div class="aim-t">⚒ ${esc(DEFS[t].name)} 생산 — 재료</div>`
-    + prodLeft(t).list.filter(x => x.got < x.n)                   // v10.15.2: 다 모은 재료는 숨김 (가방에서 줄면 다시 뜬다)
-      .map(x => '<div class="aim-step"><span class="aim-box">☐</span>'
-        + (x.type ? getStepBody(x.type) : prodNeedName(x)) + ` <span class="q-prog">${x.got}/${x.n}</span></div>`).join('')
-    + '</div>';
+  return '';                                                      // v11.0.8: 걸어 둔 동안의 '생산 — 재료' 목록 없앰 (수첩 줄이 말한다)
 }
 function prodRowHtml(){                                           // 수첩 한 줄 — 모을 재료와 모은 수
   const t = S.prod;
