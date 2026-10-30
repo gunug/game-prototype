@@ -147,6 +147,8 @@
   .lrow .slotbox .box{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .foelist .cw.being{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .foelist .cw.being .name{font-size:calc(var(--cw) * .14);}
+  .foelist .cw.matc{position:relative;flex:none;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}   /* v10.16.0: 땅 줄의 재료 카드 */
+  .foelist .cw.matc .name{font-size:calc(var(--cw) * .14);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
   /* v10.0.0: **폰 세로** (html.phone — 화면 폭이 좁고 세로일 때) — 줄이 폭을 넘지 않게.
      크리처 줄은 남는 폭만 쓰고 옆으로 민다 · 아래 캐릭터 카드는 줄을 내린다 (끌기와 가로 스크롤이 부딪치지 않게) */
@@ -2248,7 +2250,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.15.3';
+const VERSION = 'v10.16.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5430,6 +5432,20 @@ let fieldPick = null, foePick = null;                             // v4.3.0: 고
 let heroPick = null;                                              // v0.13.0 · v9.24.0: 인스펙터에 올린 캐릭터 ('knight' · 'ally')
 // v0.18.3: 그 필드 원정에 나오는 크리처의 전리품 종류 · 받아 봤는지
 function foesOf(id){ return [...new Set(planOf(id).filter(e => e.fight).map(e => e.fight))]; }
+// v10.16.0: 그 땅을 **끝까지 한 번** 가면 그 재료를 한 장 이상 얻을 확률(%) — 줍기는 채집품 중 하나 고르게, 싸움은 떨굼표 비율대로 하나
+function landDrops(id){
+  const miss = {};
+  const roll = (t, p) => { if (DEFS[t]) miss[t] = (t in miss ? miss[t] : 1) * (1 - p); };
+  for (const e of planOf(id)){
+    if (e.loot){ const pool = yieldsOf(id), n = {};
+      for (const t of pool) n[t] = (n[t] || 0) + 1;
+      for (const t in n) roll(t, n[t] / pool.length); }
+    else if (e.fight && ENEMIES[e.fight]){ const tb = ENEMIES[e.fight].loot || [], sum = tb.reduce((a, l) => a + l[1], 0) || 1;
+      for (const l of tb) roll(l[0], l[1] / sum); }
+  }
+  return Object.keys(miss).map(t => ({ t, p: Math.max(1, Math.round((1 - miss[t]) * 100)) }))
+    .sort((a, b) => b.p - a.p || itemNo(a.t) - itemNo(b.t));
+}
 function lootTypes(id){
   const out = [];
   for (const k of foesOf(id)) for (const l of (ENEMIES[k].loot || [])) if (!out.includes(l[0])) out.push(l[0]);
@@ -5984,9 +6000,10 @@ function screenRows(){
           : '')
         + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">🎯 ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2 · v7.10.0: 목표 그림으로
         + '</div>';
-      // v4.2.0: 필드 카드 왼쪽에 그곳에 나오는 크리처를 작게 — 무엇이 기다리는지 한눈에
-      const foeCards = locked ? '' : `<div class="foelist">${foesOf(f.id).map(k =>   // v8.5.0: 기사 카드와 같은 틀 · 같은 크기
-        foeCardHtml(k, { attrs: ` data-foe-card="${k}" title="${esc((ENEMIES[k] || {}).name || '')}"`, sel: foePick === k })).join('')}</div>`;
+      // v10.16.0: 크리처 대신 **나오는 재료와 확률** — 원정 한 번(끝까지)에 한 장 이상 얻을 확률. 못 본 것은 실루엣 · ???
+      const foeCards = locked ? '' : `<div class="foelist">${landDrops(f.id).map(({ t, p }) => { const seen = aimSeen(t);
+        return `<div class="cw framed f-${frameOf(DEFS[t])} matc${seen ? '' : ' unseen'}" title="${esc(aimName(t))} ${p}%">`
+          + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(aimName(t))}</div><div class="cnt">${p}%</div></div>`; }).join('')}</div>`;
       // v10.7.0: **출전 칸 없음** — ⚔ 출전 하나. 나가는 것은 늘 메인 편성
       const going = !!expAt(f.id), line = mainHeroes();
       const away = !going && EXPS.length > 0;                      // v10.8.0: 원정은 한 번에 하나
