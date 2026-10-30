@@ -2264,7 +2264,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.16.2';
+const VERSION = 'v10.17.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2684,7 +2684,7 @@ function innWhereShort(t){
 }
 function innGetBody(sm, onlyLeft){                                // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
   const got = innGiven(sm.id);
-  return (sm.give || []).filter(([t, n]) => !onlyLeft || (got[t] || 0) < n).map(([t, n]) => {   // v9.107.0: 수첩엔 다 낸 것은 뺀다
+  return (sm.give || []).filter(([t, n]) => !onlyLeft || (got[t] || 0) + have(t) < n).map(([t, n]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
     const mine = Math.min((got[t] || 0) + have(t), n);
     const where = mine >= n ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`;
     return `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${n}</b>${where}`;
@@ -2767,9 +2767,35 @@ function innHit(key){
   }
 }
 // 등록하기 전에 이미 해 둔 걸음은 바로 인정한다 — 받고 보니 끝나 있는 일로 막히지 않게
-function innSelfCheck(){
-  for (const id of innRegs().slice())
-    if (SMITH_BY_ID[id] && !smithDone(id) && smithStep(id) < INN_STEPS.length && innGiveDone(id)) innAdvance(id);
+function innSelfCheck(){ innAutoGive(); }
+// v10.17.0: **제출 없음** — 등록한 사람의 물건 걸음(합류 · 이야기)은 가방에 필요한 수가 다 모이는 순간 저절로 건네고 끝난다.
+//   (생산과 같다 — 다 모였을 때 한꺼번에 가방에서 빠진다. 모자라면 아무것도 안 빠진다)
+let innAutoBusy = false;
+function innAutoGive(){
+  if (innAutoBusy || !S.inn) return false;
+  innAutoBusy = true;
+  let moved = false;
+  try {
+    for (const id of innRegs().slice()){
+      const story = storyCan(id), st = story ? storyNow(id) : null;
+      if (!story && !(SMITH_BY_ID[id] && !smithDone(id) && smithStep(id) === 0)) continue;
+      const give = story ? (st && st.give) : SMITH_BY_ID[id].give;
+      if (!give) continue;
+      const box = story ? ((S.inn.sgiven = S.inn.sgiven || {})[id] = S.inn.sgiven[id] || {})
+        : ((S.inn.given = S.inn.given || {})[id] = S.inn.given[id] || {});
+      if (!give.every(([t, k]) => (box[t] || 0) + have(t) >= k)) continue;
+      for (const [t, k] of give){
+        const n = Math.max(0, k - (box[t] || 0));
+        for (let i = 0; i < n; i++){ const c = cardOf(t); if (c && c.n > 0) useOne(c); }
+        box[t] = Math.max(box[t] || 0, k);
+      }
+      logEv('inn-auto', { who: id, story });
+      story ? storyAdvance(id) : innAdvance(id);
+      moved = true;
+    }
+  } finally { innAutoBusy = false; }
+  if (moved){ renderAll(); renderInsp(); renderQuest(); save(); }
+  return moved;
 }
 // --- 사람 이야기 (v9.80.0) ----------------------------
 // 확정: **합류한 사람마다 다섯 걸음 이야기가 있다.** 여관 등록 칸에 올리면 그 사람 이야기를 이어서 한다.
@@ -2999,7 +3025,7 @@ function storyStepText(st, id, html, onlyLeft){
   }
   if (st.make) return e(`🔨 ${objP(nameShown(st.make) ? DEFS[st.make].name : '???')} 만들자`);
   const got = storyGiven(id);
-  return st.give.filter(([t, k]) => !onlyLeft || (got[t] || 0) < k).map(([t, k]) => {   // v9.107.0: 수첩엔 다 낸 것은 뺀다
+  return st.give.filter(([t, k]) => !onlyLeft || (got[t] || 0) + have(t) < k).map(([t, k]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
     const mine = Math.min((got[t] || 0) + have(t), k);
     return html ? `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${k}</b>`
       + (mine >= k ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`)
@@ -3064,6 +3090,7 @@ function storyHit(key){
 // 다 건넨 걸음은 등록하자마자 넘긴다 (손에 쥔 것을 저절로 내지는 않는다 — 건네는 손맛은 남긴다)
 function storySelfCheck(id){
   if (innRegs().includes(id) && storyGiveDone(id)) storyAdvance(id);
+  innAutoGive();                                                  // v10.17.0: 이미 다 가졌으면 바로 끝
 }
 // 정보 칸 — 다섯 걸음. 마친 걸음은 ✔ + 그 한 줄, 지금 걸음은 할 일, 뒤 걸음은 가린다
 function storyInspHtml(id){
@@ -3909,6 +3936,7 @@ function syncCards(){
     renderTopGrid();
     renderNew();
     if (isRowScreen(S.tab)) renderScreen();                       // 전투·정비 줄의 카드·장비 칸
+    innAutoGive();                                                // v10.17.0: 여관 걸음 — 다 모였으면 저절로 건넨다
     questCheckBlocks(); renderQuest();
     renderMeta(); renderInsp(); renderBook();
     save();
@@ -4468,7 +4496,7 @@ function renderSmithInsp(){
   // v9.61.0: 걸음은 하나 — 내야 할 물건만 적는다
   const ok = st > 0;
   const steps = `<div class="q-row${ok ? ' done' : ''}">${ok ? '✔' : reg ? '▶' : '·'} `
-    + `${esc(ok ? '물건' : reg && innHandReady(sm.id) ? '제출하기' : '구하기')} `
+    + `${esc(ok ? '물건' : '구하기')} `   // v10.17.0: 제출 없음
     + `<span class="i-muted">${ok ? esc(innStepNote(sm)) : innGetBody(sm)}</span></div>`;
   inspEl.innerHTML = '<div class="head"><div class="pic">'
     + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
@@ -5941,11 +5969,11 @@ function screenRows(){
       const got = story ? storyGiven(id) : innGiven(id);
       const slots = [];
       if (give) for (const [t, k] of give){
-        const g = got[t] || 0, full = g >= k;
+        const g = Math.min((got[t] || 0) + have(t), k), full = g >= k;   // v10.17.0: 낸 수 + 가진 수 (제출 없음)
         slots.push({ id: `inn:g-${id}-${t}`, open: true, card: full, type: t,
           icon: full ? iconHtml(t) : '', cardName: full ? DEFS[t].name : '',
           // v9.122.0: 손에 다 쥐었으면 **수량 대신 '끌어 놓기'** — 0/2 를 보면 아직 모자란 줄 알고 다시 필드로 간다
-          frame: full ? frameOf(DEFS[t]) : 'wood', lab: DEFS[t].name, note: !full && g + have(t) >= k ? '끌어 놓기' : `${g}/${k}` });
+          frame: full ? frameOf(DEFS[t]) : 'wood', lab: DEFS[t].name, note: `${g}/${k}` });
       } else if (st) slots.push({ id: `inn:task-${id}`, open: true, card: false,   // 칸엔 짧게 — 자세한 글은 수첩 줄 · 정보 칸
         lab: st.kill ? '사냥' : '만들기',
         note: st.kill ? (foeKnown(st.kill) ? ENEMIES[st.kill].name : '???') : (nameShown(st.make) ? DEFS[st.make].name : '???') });
@@ -6326,7 +6354,7 @@ function renderScreen(){
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
         : '만들고 싶은 카드를 🎯 칸에 끌어다 놓으세요')
       : S.tab === 'inn' ? (innRegs().length                        // v9.55.0 · v9.80.1 · v9.81.0
-        ? `재료를 그 사람 줄의 칸에 끌어다 놓으세요 — 등록 ${innRegs().length}/${INN_MAX}`
+        ? `재료가 가방에 다 모이면 저절로 건넨다 — 등록 ${innRegs().length}/${INN_MAX}`   // v10.17.0
         : '〈합류 전〉은 합류 퀘스트, 〈합류〉는 이야기 — 등록 칸에 끌어다 놓거나 카드를 탭해 등록하세요')
       : S.tab === 'party' ? (EXPS.some(E => E.preset === presetPick) ? `편성 ${presetPick + 1}은 원정 중 — 지금 고친 것은 다음 출전부터`   // v10.10.0
         : `사람을 전열 · 중열 · 후열에, 장비를 그 옆 칸에 — 출전은 늘 메인(편성 ${mainPreset() + 1})`)   // v10.6.0 · v10.7.0
@@ -9320,13 +9348,10 @@ function innRowOf(id){
   const sm = SMITH_BY_ID[id];
   if (!sm || smithStep(id) >= INN_STEPS.length) return '';
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
-  const ready = innHandReady(id);                                 // 다 쥐었나 — 그러면 '제출하기'
-  const left = (sm.give || []).filter(([t, n]) => (innGiven(id)[t] || 0) < n);   // v9.107.0: 다 낸 것은 빼고 남은 것만
-  const body = ready ? `🏨 여관 <b>${esc(pName(id))}</b> 줄의 칸에 끌어다 놓자 — ${esc(left.map(([t, n]) =>
-      `${DEFS[t].name} ×${n - (innGiven(id)[t] || 0)}`).join(' · '))}` : innGetBody(sm, true);
+  const body = innGetBody(sm, true);                              // v10.17.0: 제출 없음 — 다 모이면 저절로 건넨다 (모인 재료는 숨김)
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
-    + `<span class="q-text">${esc(ready ? '제출하기' : '구하기')} · ${body}</span>`
+    + `<span class="q-text">구하기 · ${body}</span>`
     + editDoneBtn('join', id) + '<span class="q-n"></span></div>';
 }
 // v9.82.0: **에디터 모드 전용 '완료'** — 조건 · 재료 · 조합 차례와 상관없이 그 결과를 바로 받는다
