@@ -2292,7 +2292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.0.6';
+const VERSION = 'v11.0.7';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6097,12 +6097,12 @@ function mixCraft(r, a, b){                                       // 실제로 �
   if (firstTime) S.madeRecipes.push(r.id);
   logEv('craft', { recipe: r.id, out: outs.slice(), tab: 'mix', 처음: firstTime });
   useOne(ca); useOne(cardOf(b) || cb);
+  if (!FAST) showMixResult(outs, firstTime);                      // v11.0.7: 결과 창이 **먼저** 줄에 선다 — 만들어서 생기는 흔적 카드 · 합류 표시는 그 뒤에
   for (const t of outs) addCard(t, 0, 0, true, null, true);
   const H = S.hints || (S.hints = {});
   H.craft = true;
   if (outs.some(o => useOf(o).includes('근접무기'))) H.firstWeapon = true;
   if (outs.includes(S.goal)) setTimeout(checkGoalDone, 0);
-  if (!FAST) showMixResult(outs, firstTime);                      // v11.0.1: 결과는 판 가운데 크게
   renderHint();
   return true;
 }
@@ -6141,8 +6141,10 @@ function mixMarkAll(t){
 }
 const mixOver = (d, e) => document.elementsFromPoint(e.clientX, e.clientY)
   .find(x => x.matches && x.matches('.mixgrid [data-mix]') && x !== d.el) || null;
-function showMixResult(outs, first){
-  document.querySelectorAll('.mix-result').forEach(x => x.remove());
+function showMixResult(outs, first){                            // v11.0.7: 보여 주기 줄(relay)에 선다 — 흔적 카드와 겹치지 않는다
+  relay({ run: done => mixResultEl(outs, first, done) });
+}
+function mixResultEl(outs, first, done){
   const el = document.createElement('div');
   el.className = 'mix-result';
   el.innerHTML = `<div class="mr-box"><div class="mr-lab">${first ? '처음 만들었다' : '만들었다'}</div><div class="mr-cards">`
@@ -6150,7 +6152,8 @@ function showMixResult(outs, first){
     + '</div></div>';
   document.body.appendChild(el);
   paintIcons(el);
-  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 200); };
+  let gone = false;
+  const close = () => { if (gone) return; gone = true; el.classList.add('out'); setTimeout(() => { el.remove(); done(); }, 200); };
   el.addEventListener('pointerdown', close);
   setTimeout(close, 1600);
 }
