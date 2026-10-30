@@ -2292,7 +2292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.0.4';
+const VERSION = 'v11.0.5';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5819,8 +5819,17 @@ const goalLeft = g => {
 const goalScouting = g => goalLeft(g).some(st => st.kind === 'scout');
 const scoutLandList = t => scoutFields(t).length ? scoutFields(t) : gatherFieldsAll(t);   // 갈 수 있는 땅 먼저, 없으면 잠긴 땅이라도
 const scoutLandIds = t => scoutLandList(t).map(f => f.id);
+// v11.0.5: 잠긴 땅이면 **먼저 깰 땅**을 말한다 — 앞 땅도 잠겨 있으면 거슬러 올라가 지금 갈 수 있는 땅까지
+function unlockFirst(id){
+  let p = unlockAfter(id), n = 0;
+  while (p && fieldLocked(p) && n++ < 20) p = unlockAfter(p);
+  return p && FIELD_BY_ID[p] ? FIELD_BY_ID[p] : null;
+}
+const scoutLockedHtml = f => { const p = unlockFirst(f.id);
+  return `${landBtn(f)}<span class="i-muted">${hasJong(f.name) ? '은' : '는'} 잠겨 있다 — 먼저</span> ${p ? landBtn(p) : '앞 땅'}<span class="i-muted">${p && hasJong(p.name) ? '을' : '를'} 클리어하자</span>`; };
 const goalMatHtml = st => st.kind === 'scout'
-  ? `<span class="rcp-ic unk">?</span> <b class="scout-tag">탐색</b> ${st.lands.map(f => landBtn(f) + (fieldLocked(f.id) ? '<span class="i-muted">(잠김)</span>' : '')).join(' · ')}<span class="i-muted">에 방문하여 재료를 탐색하자</span>`
+  ? `<span class="rcp-ic unk">?</span> <b class="scout-tag">탐색</b> ` + (st.lands.every(f => fieldLocked(f.id)) ? scoutLockedHtml(st.lands[0])
+    : `${st.lands.map(landBtn).join(' · ')}<span class="i-muted">에 방문하여 재료를 탐색하자</span>`)
   : `${rcpIcon(st.type, aimSeen(st.type))} ${esc(aimName(st.type))}${(st.n || 1) > 1 ? ` <span class="q-prog">×${st.n}</span>` : ''}`;
 function goalMatsHtml(g, cls){
   const left = goalLeft(g);
