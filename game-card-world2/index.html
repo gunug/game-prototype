@@ -148,6 +148,20 @@
   .foelist .cw.being{width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}
   .foelist .cw.being .name{font-size:calc(var(--cw) * .14);}
   .foelist .cw.matc{position:relative;flex:none;width:calc(var(--cw) * .8);height:calc(var(--ch) * .8);}   /* v10.16.0: 땅 줄의 재료 카드 */
+  /* v10.16.1: 재료는 4열 × 2행 · 땅 카드는 그 두 줄 높이 · 출전 단추는 땅 카드 안 (두께 있는 단추) */
+  .foelist.matgrid{display:grid;grid-template-columns:repeat(var(--mcols), calc(var(--cw) * .8));grid-template-rows:repeat(2, calc(var(--ch) * .8));
+    gap:calc(var(--cw) * .06);max-width:calc(var(--cw) * 3.38);overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+  .cw.matc .pct{position:absolute;left:50%;bottom:calc(var(--ch) * .2);transform:translateX(-50%);z-index:3;padding:0 5px;border-radius:7px;
+    background:#e8b84a;color:#1a1408;font-size:calc(var(--cw) * .15);font-weight:900;line-height:1.4;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,.5);}
+  .gather .lrow > .cw.field.big{height:calc(var(--ch) * 1.6 + var(--cw) * .06);width:calc((var(--ch) * 1.6 + var(--cw) * .06) * .735);flex:none;}
+  .cw.field.big .fgo{position:relative;z-index:4;width:84%;margin-top:auto;margin-bottom:8%;flex:none;}   /* 그림 · 이름 아래로 흐른다 (겹치지 않게) */
+  .cw.field.big .emoji{flex:0 1 auto;min-height:0;}
+  .cw.field.big .name{flex:none;}
+  .cw.field.big .sortie-go{width:100%;padding:7px 2px 6px;font-size:calc(var(--cw) * .2);font-weight:900;border-radius:9px;white-space:nowrap;cursor:pointer;
+    background:linear-gradient(#f7d77c, #e2a935);color:#1a1408;border:1px solid #ffe7a3;
+    box-shadow:0 4px 0 #8a5f12, 0 6px 8px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.55);transform:translateY(-2px);}
+  .cw.field.big .sortie-go:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 #8a5f12, 0 2px 3px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4);}
+  .cw.field.big .sortie-go:disabled{opacity:.6;cursor:default;filter:grayscale(.6);}
   .foelist .cw.matc .name{font-size:calc(var(--cw) * .14);}
   .lrow .rowslots{display:flex;align-items:center;gap:calc(var(--cw) * .08);}
   /* v10.0.0: **폰 세로** (html.phone — 화면 폭이 좁고 세로일 때) — 줄이 폭을 넘지 않게.
@@ -2250,7 +2264,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.16.0';
+const VERSION = 'v10.16.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -5993,24 +6007,26 @@ function screenRows(){
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
-      const card = `<div class="cw framed f-stone field${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
+      const going = !!expAt(f.id), line = mainHeroes();
+      const away = !going && EXPS.length > 0;                      // v10.8.0: 원정은 한 번에 하나
+      const goBtn = `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away ? ' disabled' : ''}>`
+        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : '⚔ 출전'}</button>`;
+      const card = `<div class="cw framed f-stone field big${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${locked ? '???' : esc(f.name)}</div>`   // v9.64.0: 잠김은 장인과 같은 꼴
         + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
           + `<b class="lockneed">${esc(fieldNeed(f.id))}</b></div>`
           : '')
         + (goalNeedsAt(f.id).length && !locked ? `<div class="fneed">🎯 ${goalNeedsAt(f.id).length}</div>` : '')   // v3.0.2 · v7.10.0: 목표 그림으로
+        + (locked ? '' : `<div class="fgo">${goBtn}</div>`)          // v10.16.1: ⚔ 출전은 땅 카드 안에
         + '</div>';
       // v10.16.0: 크리처 대신 **나오는 재료와 확률** — 원정 한 번(끝까지)에 한 장 이상 얻을 확률. 못 본 것은 실루엣 · ???
-      const foeCards = locked ? '' : `<div class="foelist">${landDrops(f.id).map(({ t, p }) => { const seen = aimSeen(t);
+      // v10.16.1: 땅 카드 오른쪽에 **4열 × 2행** (여덟이 넘으면 열이 늘고 옆으로 넘김) · 확률은 카드 가운데 아래
+      const drops = locked ? [] : landDrops(f.id);
+      const foeCards = locked ? '' : `<div class="foelist matgrid" style="--mcols:${Math.max(4, Math.ceil(drops.length / 2))}">${drops.map(({ t, p }) => { const seen = aimSeen(t);
         return `<div class="cw framed f-${frameOf(DEFS[t])} matc${seen ? '' : ' unseen'}" title="${esc(aimName(t))} ${p}%">`
-          + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(aimName(t))}</div><div class="cnt">${p}%</div></div>`; }).join('')}</div>`;
-      // v10.7.0: **출전 칸 없음** — ⚔ 출전 하나. 나가는 것은 늘 메인 편성
-      const going = !!expAt(f.id), line = mainHeroes();
-      const away = !going && EXPS.length > 0;                      // v10.8.0: 원정은 한 번에 하나
-      const pre = locked ? '<div class="sortie-btns"></div>' : `<div class="sortie-btns">`
-        + `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away ? ' disabled' : ''}>`
-        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : '⚔ 출전'}</button></div>`;
-      return { card: card + foeCards, slots: [], pre, slotsFirst: true };
+          + `<div class="emoji">${iconHtml(t)}</div><div class="pct">${p}%</div><div class="name">${esc(aimName(t))}</div></div>`; }).join('')}</div>`;
+      // v10.7.0: **출전 칸 없음** — ⚔ 출전 하나. 나가는 것은 늘 메인 편성 (v10.16.1: 단추는 땅 카드 안)
+      return { card: card + foeCards, slots: [], pre: '', slotsFirst: true };
     }));
   }
   // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
