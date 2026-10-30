@@ -201,6 +201,17 @@ try {
   else console.log('✓ 같은 두 재료는 결과가 하나뿐');
 } catch (e){ report('같은 재료 · 다른 결과', e); }
 
+// 7.5) v10.15.0: **대전제 — 조합 결과 하나에 조합식은 하나.** 두 조합식이 같은 결과를 내면 안 된다
+try {
+  const multi = vm.runInContext(`(function(){
+    const by = {};
+    for (const r of CRAFT_RECIPES) for (const o of new Set(r.out || [])) (by[o] = by[o] || []).push(r.id);
+    return Object.entries(by).filter(([o, ids]) => ids.length > 1).map(([o, ids]) => o + ' <- ' + ids.join(', '));
+  })()`, ctx);
+  if (multi.length) report('결과 하나에 조합식 여럿', new Error(multi.join(' | ')));
+  else console.log('✓ 결과 하나에 조합식은 하나');
+} catch (e){ report('결과 하나에 조합식 여럿', e); }
+
 // 8) 단계 규칙 (v3.11.0) — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다
 try {
   const bad = vm.runInContext(`(function(){
