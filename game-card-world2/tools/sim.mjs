@@ -207,18 +207,12 @@ function makeAI({ ctx, clock }){
         const ca = S.cards.find(c => c.type === A && c.n > 0);
         const cb = S.cards.find(c => c.type === B && c.n > 0);
         if (!ca || !cb || ca === cb) return false;
-        const r0 = CRAFT_RECIPES.find(r => !r.cook
-          && ((sideMatch(r.a, A) && sideMatch(r.b, B)) || (sideMatch(r.a, B) && sideMatch(r.b, A))));
-        if (!r0) return false;
-        const boards = recipeBoards(r0);
-        if (!boards.length) return false;
-        if (!boards.includes(S.tab)) setTab(boards[0]);
-        const m = craftMatch(ca.type, cb.type);
-        if (!m) return false;
-        return craft(ca, cb, m) !== false;
+        // v11.0.0: 🔨 조합(오르반의 판) 하나 — 두 장을 차례로 누르는 것과 같은 길
+        if (S.tab !== 'mix') setTab('mix');
+        return mixTry(A, B) === 'ok';
       })()`);
     },
-    canCraft(a, b){ return g(`!!craftMatch(${JSON.stringify(a)}, ${JSON.stringify(b)})`); },
+    canCraft(a, b){ return g(`(function(){ const r = mixRecipe(${JSON.stringify(a)}, ${JSON.stringify(b)}); return !!r && recipeCan(r) && have(${JSON.stringify(a)}) > 0 && have(${JSON.stringify(b)}) > 0; })()`); },
     goal(t){ this.spend(this.firstGoal ? COST.goal : COST.goalFirst); this.firstGoal = true; return call('setGoal', t); },
     plan(t){ return g(`JSON.parse(JSON.stringify(goalSteps(${JSON.stringify(t)})))`); },
     // 아직 안 끝난 걸음들 (게임의 판정을 그대로 쓴다)

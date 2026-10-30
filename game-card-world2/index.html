@@ -794,6 +794,19 @@
   .q-pic.emo{display:inline-block;text-align:center;font-size:13px;line-height:18px;}
   .q-op{font-size:11px;color:var(--muted);padding:2px 0 0 18px;white-space:normal;line-height:1.35;}
   .q-row.goal .q-tag{filter:drop-shadow(0 0 4px rgba(255,212,0,.6));}
+  /* v11.0.0: 🔨 조합 — 오르반의 판 (5×5) */
+  .lrow.mix-row{flex-direction:column;align-items:center;gap:8px;width:100%;}
+  .mix-orban{display:flex;align-items:center;gap:8px;max-width:calc(var(--cw) * 5.2);width:100%;}
+  .mix-op{width:calc(var(--cw) * .6);height:calc(var(--cw) * .6);border-radius:8px;flex:none;image-rendering:pixelated;}
+  .mix-say{flex:1;background:var(--panel, rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:6px 10px;font-size:13px;line-height:1.4;}
+  .mix-say b{color:#e8b84a;margin-right:4px;}
+  .mixgrid{display:grid;grid-template-columns:repeat(5, calc(var(--cw) * .9));grid-auto-rows:calc(var(--ch) * .9);gap:calc(var(--cw) * .08);justify-content:center;}
+  .mixgrid .cw.mixc{position:relative;width:100%;height:100%;cursor:pointer;transition:filter .15s, opacity .15s, transform .1s;}
+  .mixgrid .cw.mixc .name{font-size:calc(var(--cw) * .15);}
+  .mixgrid .cw.mixc.sel{outline:3px solid #ffd54a;outline-offset:2px;transform:translateY(-3px);}
+  .mixgrid .cw.mixc.hi{box-shadow:0 0 0 2px #ffd54a, 0 0 14px rgba(255,213,74,.75);}
+  .mixgrid .cw.mixc.dim{filter:brightness(.35) grayscale(.6);}
+  .mixgrid .aim-empty{grid-column:1 / -1;}
   .q-row.q-step-in{animation:questIn 1.2s cubic-bezier(.2,.8,.3,1);}
   .q-row.q-done-flash{animation:questDone .5s ease-in forwards;}
   @keyframes questDone{0%{opacity:1;}100%{opacity:0;transform:translateY(-2px);}}
@@ -2264,7 +2277,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.17.1';
+const VERSION = 'v11.0.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2337,7 +2350,7 @@ const QUESTS = {
                 //   그때 하는 '맨손으론 저 이빨을…' 한마디에 묻힌다
                 text:() => aimUseCandidates('근접무기').length ? '🎯 목표에 만들 무기를 등록하자'
                   : '⛰️ 산에서 무기가 될 재료를 더 모으자' },        // v9.98.0: 들머리는 깨면 사라진다
-  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🎯 목표에 적힌 차례대로 만들자',
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🔨 조합에서 목표를 만들자',
                 goal:1, key:'equip:weapon' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
                 say:'맨손이지만 — 늑대부터 넘어 보자' },          // v9.98.0: 무기 장인보다 먼저 (합류 사이에 가렛의 걸음 둘)
@@ -2345,7 +2358,7 @@ const QUESTS = {
   aimbetter:  { name:'더 센 것을 고르자', goal:1, key:'aim-atk2',
                 text:() => aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? '🎯 목표에 더 센 무기를 등록하자'
                   : '⛰️ 더 센 무기가 될 재료를 발견하자' },
-  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🎯 목표에 적힌 차례대로 만들자' : '더 센 무기를 쥐자',
+  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🔨 조합에서 목표를 만들자' : '더 센 무기를 쥐자',
                 goal:1, key:'equip:atk2' },
   bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
                 say:'이 정도면 곰을 만나러 가도 되겠지' },
@@ -3537,7 +3550,7 @@ const slotId = id => {
 };
 // v0.55.1: 장비 칸 실루엣 그림 없앰 — 칸에는 이름만, 카드 좌상단 표시도 없음
 const BOARD_BY_ID = Object.fromEntries(BOARDS.map(b => [b.id, b]));
-const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'prod', 'inn', 'party', 'book', 'settings'];   // v10.6.0: 편성   // v9.55.0: 여관   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
+const freeTabs = ['battle', 'dungeon', 'raid', 'aim', 'mix', 'prod', 'inn', 'party', 'book', 'settings'];   // v10.6.0: 편성   // v9.55.0: 여관   // v3.3.0: 보드가 아닌 화면들. v3.7.3: 설정
 const boardTags = id => (BOARD_BY_ID[id] || BOARDS[0]).tags;
 const boardTag = () => boardTags(S.tab)[0];
 const boardOf = id => BOARD_BY_ID[id] || BOARDS[0];
@@ -4078,8 +4091,8 @@ const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?'
 //   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
 const TAB_LINK = {
   '🎯 목표':'aim', '⚒ 생산':'prod', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'party', '🏨 여관':'inn',
-  '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'weapon', '🔨 조합':'tool',
-  '🧰 도구':'toolbox', '🏠 건축':'build', '🍖 음식':'food', '🧪 약품':'potion',
+  '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'mix', '🔨 조합':'mix',
+  '🧰 도구':'mix', '🏠 건축':'mix', '🍖 음식':'mix', '🧪 약품':'mix',
 };
 const TAB_LINK_RE = new RegExp('(' + Object.keys(TAB_LINK).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'g');
 // v7.12.0: 땅 이름(⛰️ 산 · 🪨 돌가죽 굴 …)도 링크 — 누르면 그 탭으로 가고 그 땅을 골라 인스펙터에 띄운다
@@ -5158,6 +5171,11 @@ const sideHere = (t, id) => onBoard(t, id) || onTopGrid(t, id);
 const sideOnBoard = (sd, id) => sd.card ? sideHere(sd.card, id)
   : CRAFT_TYPES.some(t => useOf(t).includes(sd.use) && sideHere(t, id));
 // v9.55.0: **열려 있는 탭만** 센다 — 장인을 못 찾아 잠긴 탭의 조합은 지금 할 수 없고, 목표에도 뜨지 않는다
+// v11.0.0: **완성품(무기 · 방어구 · 방패 · 장신구 · 소모품)을 내는 조합만 그 갈래 장인이 있어야 한다.** 중간 재료는 누구나 · 언제나
+const recipeSmith = r => { if (!(r.out || []).some(o => aimGoalOk(o))) return null;
+  const b = BOARDS.find(b => b.smith && sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id));
+  return b ? b.smith : null; };
+const recipeCan = r => { const s = recipeSmith(r); return !s || smithOk(s); };
 const recipeBoards = r => BOARDS.filter(b => boardOpen(b) && sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id)).map(b => b.id);
 function comboRowHtml(r){
   const on = comboDone(r);
@@ -5171,7 +5189,7 @@ const sideKnown = sd => sd.card ? S.seen.includes(sd.card) : CRAFT_TYPES.some(t 
 const comboReady = r => !comboDone(r) && sideKnown(r.a) && sideKnown(r.b);
 function renderCombos(){
   // v0.74.0: 어느 화면에서도 만들 수 없는 조합은 아예 안 보여 준다 (만들 화면이 없다는 건 기획 사정)
-  const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use) && recipeBoards(r).length);
+  const list = CRAFT_RECIPES.filter(r => (r.a.card || r.a.use) && (r.b.card || r.b.use) && recipeCan(r));   // v11.0.0
   const done = list.filter(comboDone).length;
   const ready = list.filter(comboReady).length;
   let h = `<div class="book-field"><div class="book-fname">🧪 해 본 조합 ${done}/${list.length}`
@@ -5529,10 +5547,10 @@ function renderTabs(){                                            // v0.21.0: �
   const groups = [
     { key:'go',    items: [btn(fightTarget(), '🗡️ 전투')] },   // v10.12.0: 필드 · 던전 · 레이드는 전투 페이지 안 칩으로
     // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
-    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), btn('prod', '⚒ 생산'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
+    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), btn('mix', '🔨 조합'), btn('prod', '⚒ 생산'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
     // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 여관이 말해 준다
-    { key:'make',  items: BOARDS.filter(b => b.id !== 'gearup' && !boardEmpty(b) && boardOpen(b)).map(boardBtn) },
+    // v11.0.0: **조합 탭들(조합 · 무기 · 갑옷 · 방패 · 장신구 · 도구 · 건축 · 음식 · 약) 없앰** — 만드는 곳은 🔨 조합(오르반의 판) 하나
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
   host.insertAdjacentHTML('afterbegin', html);
@@ -5568,7 +5586,7 @@ function renderTabs(){                                            // v0.21.0: �
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
 // v10.12.0: 필드 · 던전 · 레이드는 '전투' 한 페이지
-const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', prod:'⚒ 생산', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', mix:'🔨 조합', prod:'⚒ 생산', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -5577,11 +5595,11 @@ function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 //   전투: 필드 줄 + 출전 칸 · 아래는 캐릭터 → 놓으면 원정 출발
 //   정비: 캐릭터 줄 + 장비 칸 · 아래는 가진 장비 → 놓으면 장착
 let slotPick = null;
-const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'party' || tab === 'aim' || tab === 'prod' || tab === 'inn';   // v10.14.0: 생산   // v10.6.0: 편성   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드 · v9.55.0 여관
+const isRowScreen = tab => isFieldTab(tab) || tab === 'gearup' || tab === 'party' || tab === 'aim' || tab === 'mix' || tab === 'prod' || tab === 'inn';   // v10.14.0: 생산   // v10.6.0: 편성   // v3.0.0 · v4.0.0 던전 · v9.42.0 레이드 · v9.55.0 여관
 // ── 🎯 목표 (v3.0.0) ─────────────────────────────────
 // 지금 **구하는 법을 아는** 물건들을 아래에 깔고, 하나를 위 칸에 올리면 그게 목표가 된다.
 //   목표를 올리면 모자란 재료부터 조합 순서까지 차례가 만들어지고(goalPlan), 팁 줄이 '지금 할 한 줄'만 말한다
-const aimRecipes = t => CRAFT_RECIPES.filter(x => !x.cook && (x.out || []).includes(t) && recipeBoards(x).length);
+const aimRecipes = t => CRAFT_RECIPES.filter(x => !x.cook && (x.out || []).includes(t) && recipeCan(x));   // v11.0.0: 탭이 아니라 장인
 function sideReachKnown(sd, d){                                   // 그 재료를 구할 줄 아나 — 본 적 있거나, 아는 재료로 만들 수 있거나
   if (sideKnown(sd)) return true;
   if (!sd.card || d <= 0) return false;
@@ -5663,7 +5681,7 @@ const aimRank = t => cardState(t) === 'can' ? 0 : nextStepTo(t) ? 1 : S.seen.inc
 // 목표까지의 차례 — 아래(구할 것)부터 위(마지막 조합)까지
 // v3.6.2: **개수까지 센다.** 가진 것을 먼저 쓰고, 모자란 만큼만 적는다
 //   (작업대처럼 같은 부품이 두 번 들어가는 길은 '뗀석기 ×2' 로 보인다)
-function goalPlan(t, depth = 5){
+function goalPlan(t, depth = 12){                                  // v11.0.0: 5 → 12 (긴 갈래도 줍는 재료까지)
   const stock = {};                                               // 지금 가진 것 — 쓰면 줄어든다
   for (const c of S.cards) if (c.n > 0) stock[c.type] = (stock[c.type] || 0) + c.n;
   stock[t] = 0;                                                   // v9.37.0: **목표 자신은 가진 것으로 치지 않는다** (하나 더 만드는 차례)
@@ -5774,18 +5792,21 @@ const goalStepBody = st => st.kind === 'scout' ? scoutStepBody(st.type, st.where
   : (st.kind === 'make' ? stepWhere(st.r) + aimLine(st.r)
   : st.kind === 'get' ? getStepBody(st.type)
   : `<span class="i-muted">이 태그가 붙은 재료</span> 🏷️ ${esc(st.use)}`) + stepN(st);
+// v11.0.0: **목표는 재료만** — 구할 곳(땅의 재료 확률이 말한다) · 조합식(🔨 조합에서 알아낸다)은 적지 않는다.
+//   다 모은 재료는 숨기고, 다른 데 써서 모자라면 다시 뜬다 (goalPlan 이 가진 것을 먼저 쓰고 모자란 만큼만 적는다)
+const goalLeft = g => goalPlan(g).filter(st => st.kind === 'get' || st.kind === 'scout');
+const goalMatHtml = st => `${rcpIcon(st.type, aimSeen(st.type))} ${esc(aimName(st.type))}${(st.n || 1) > 1 ? ` <span class="q-prog">×${st.n}</span>` : ''}`;
+function goalMatsHtml(g, cls){
+  const left = goalLeft(g);
+  return left.length ? left.map(st => `<div class="${cls}"><span class="aim-box">☐</span>${goalMatHtml(st)}</div>`).join('')
+    : `<div class="${cls} done"><span class="aim-box">☑</span>재료가 다 모였다 — 🔨 조합에서 만들자</div>`;
+}
 function goalPlanHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 만드는 차례를 적어 줍니다.</div>';
   const plan = goalSteps(g);
   const first = plan.findIndex(st => !planStepDone(st));
-  return `<div class="aim-plan"><div class="aim-t">🎯 ${esc(aimName(g))} 만들기</div>`
-    + (plan.length ? plan.map((st, i) => {
-        const done = planStepDone(st);
-        return `<div class="aim-step${done ? ' done' : i === first ? ' now' : ''}">`
-          + `<span class="aim-box">${done ? '☑' : '☐'}</span>${goalStepBody(st)}</div>`;
-      }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
-    + '</div>';
+  return `<div class="aim-plan"><div class="aim-t">🎯 ${esc(aimName(g))} 만들기 — 재료</div>${goalMatsHtml(g, 'aim-step')}</div>`;   // v11.0.0
 }
 // v3.0.0: 목표 탭은 '재료를 구할 줄 아는 것'만 실어 이름을 가리지 않았다.
 // v9.37.0: 안개 후보가 생겨 **아직 못 본 것은 ???** 로 가린다 (보고 나면 저절로 이름이 돈다)
@@ -5838,15 +5859,123 @@ function setGoal(t){
   questRegress();                                                 // v3.2.4: 튜토리얼 중엔 딴 것으로 바꾸면 되돌아감
   renderScreen(); renderInsp(); renderQuest(); renderHint(); save();
 }
+// ── 🔨 조합 — 오르반의 판 (v11.0.0) ───────────────────────
+// 가진 재료를 5×5 로 깐다 (25종이 넘으면 '목표까지의 다음 조합' 두 장은 꼭, 나머지는 무작위). 두 장을 차례로 누르면 합친다.
+//   한 장을 집으면 판이 그 카드 기준으로 바뀐다 — 해 본 짝만 표시:
+//     목표가 있으면 목표 길의 조합 = 빛 · 그 밖(조합식이 있어도) = 어둡게 / 목표가 없으면 조합식 있음 = 빛 · 없음 = 어둡게
+//   안 해 본 짝은 아무 표시도 없다. 조합식 없는 짝은 아무 일도 안 일어나고 기록만 (오답노트)
+//   완성품은 그 갈래 장인이 없으면 '장인 필요' — 재료는 그대로. 판은 들어올 때 · 조합할 때마다 새로 깐다
+let mixPick = null, mixDeal = [], mixHintAt = null;
+const MIX_N = 25;
+const mixKey = (a, b) => [a, b].sort().join('+');
+const mixRecipe = (a, b) => CRAFT_RECIPES.find(r => (r.a.card === a && r.b.card === b) || (r.a.card === b && r.b.card === a));
+const mixShuffle = list => { const a = list.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const mixPath = () => S.goal && DEFS[S.goal] ? goalPlan(S.goal).filter(st => st.kind === 'make').map(st => st.r) : [];
+function mixTarget(){                                             // 목표까지 가는 길에서 지금 만들 수 있는 다음 조합 (없으면 길의 첫 조합)
+  const path = mixPath().filter(r => r.a.card && r.b.card);
+  return path.find(r => have(r.a.card) > 0 && have(r.b.card) > 0) || path[0] || null;
+}
+function mixDealNow(){
+  const all = [...new Set(S.cards.filter(c => c.n > 0).map(c => c.type))].filter(t => DEFS[t]);
+  const r = mixTarget(), must = r ? [r.a.card, r.b.card].filter(t => have(t) > 0) : [];
+  mixDeal = mixShuffle(all.length <= MIX_N ? all
+    : must.concat(mixShuffle(all.filter(t => !must.includes(t))).slice(0, MIX_N - must.length)));
+}
+function mixMark(p, t){                                           // 집은 카드 p 기준으로 t 의 표시 — '' · hi · dim
+  if (!p || p === t || !(S.mixTried || {})[mixKey(p, t)]) return '';
+  const r = mixRecipe(p, t);
+  if (S.goal && DEFS[S.goal]) return r && mixPath().includes(r) ? 'hi' : 'dim';
+  return r ? 'hi' : 'dim';
+}
+const josaRan = w => w + (hasJong(w) ? '이란' : '란');
+function mixHints(r){                                             // 오르반의 힌트 다섯 — 조합식마다 데이터에서 만든다
+  const a = r.a.card, b = r.b.card, o = (r.out || [])[0];
+  const nm = t => DEFS[t].name, from = t => (placeOf(t) || {}).name || '어딘가';
+  const tag = t => useOf(t).find(u => !FUNCTION_USES.includes(u));
+  const d = String(DESC[o] || '').split(/(?<=[.!?。])\s/)[0];
+  return [
+    d ? `"${d}" — ${josaRan(nm(o))} 그런 물건이지.` : `${josaRan(nm(o))}… 재료는 이미 판 위에 있네.`,
+    `하나는 ${from(a)}에서 온 것이지.`,
+    `다른 하나는 ${from(b)} 쪽 물건이야.`,
+    `하나는 이름이 '${nm(a)[0]}'로 시작하더군. 다른 하나는 '${nm(b)[0]}'.`,
+    tag(a) && tag(b) ? `${tag(a)}에 ${tag(b)}. 그 둘이면 되네.` : `${nm(a).length}글자 하나, ${nm(b).length}글자 하나. 그 둘이야.`,
+  ];
+}
+function mixHintLine(){
+  if (!S.goal || !DEFS[S.goal]) return '뭘 만들지 🎯 목표에 정하면 한마디 거들지.';
+  const r = mixTarget();
+  if (!r) return '재료부터 모아 오게. 판이 비었어.';
+  if ((S.madeRecipes || []).includes(r.id)) return `${withP(DEFS[r.a.card].name)} ${DEFS[r.b.card].name}. 해 본 거잖나.`;   // 해 본 조합은 거의 정답
+  const hs = mixHints(r);
+  if (!mixHintAt || mixHintAt.r !== r.id) mixHintAt = { r: r.id, i: Math.floor(Math.random() * hs.length) };
+  return hs[mixHintAt.i];
+}
+function mixHintNext(){                                           // 실패할 때마다 다른 힌트로
+  if (!mixHintAt) return;
+  const r = CRAFT_RECIPES.find(x => x.id === mixHintAt.r);
+  const n = r ? mixHints(r).length : 5;
+  let i = mixHintAt.i;
+  while (n > 1 && i === mixHintAt.i) i = Math.floor(Math.random() * n);
+  mixHintAt.i = i;
+}
+function mixCraft(r, a, b){                                       // 실제로 합친다 — 옛 craft() 와 같은 기록 · 연출만 판에 맞게
+  const ca = cardOf(a), cb = cardOf(b);
+  if (!ca || !cb || ca.n <= 0 || cb.n <= 0) return false;
+  const outs = r.out.slice();
+  S.madeRecipes = S.madeRecipes || [];
+  const firstTime = !S.madeRecipes.includes(r.id);
+  if (firstTime) S.madeRecipes.push(r.id);
+  logEv('craft', { recipe: r.id, out: outs.slice(), tab: 'mix', 처음: firstTime });
+  useOne(ca); useOne(cardOf(b) || cb);
+  for (const t of outs) addCard(t, 0, 0, true, null, true);
+  const H = S.hints || (S.hints = {});
+  H.craft = true;
+  if (outs.some(o => useOf(o).includes('근접무기'))) H.firstWeapon = true;
+  if (outs.includes(S.goal)) setTimeout(checkGoalDone, 0);
+  toast(`🔨 ${outs.map(t => DEFS[t].name).join(' · ')}${firstTime ? ' — 처음 만들었다' : ''}`);
+  renderHint();
+  return true;
+}
+function mixTry(a, b){                                            // 'none' 조합식 없음 · 'smith' 장인 필요 · 'ok'
+  (S.mixTried = S.mixTried || {})[mixKey(a, b)] = 1;
+  const r = mixRecipe(a, b), target = mixTarget();
+  if (!r){ logEv('mixFail', { a, b }); mixHintNext(); toast('아무 일도 일어나지 않았다'); save(); return 'none'; }
+  const sm = recipeSmith(r);
+  if (sm && !smithOk(sm)){ mixHintNext(); toast(`🏨 ${smithName(sm)}이 있어야 만들 수 있다`); save(); return 'smith'; }
+  if (target && r !== target) mixHintNext();
+  if (!mixCraft(r, a, b)) return 'none';
+  mixPick = null;
+  mixDealNow();                                                   // 조합할 때마다 새로 깐다 (자리로 답을 외우지 않게)
+  save();
+  return 'ok';
+}
+function mixRowsHtml(){
+  const orban = personIn('peddler') ? `<div class="mix-orban"><img class="mix-op" src="images/icon/card_peddler.png" alt="" draggable="false">`
+    + `<div class="mix-say"><b>${esc(pName('peddler'))}</b> ${esc(mixHintLine())}</div></div>` : '';
+  if (!mixDeal.length) mixDealNow();
+  const cells = mixDeal.filter(t => have(t) > 0).map(t => {
+    const mark = mixMark(mixPick, t);
+    return `<div class="cw framed f-${frameOf(DEFS[t])} mixc${mixPick === t ? ' sel' : ''}${mark ? ' ' + mark : ''}" data-mix="${t}" title="${esc(DEFS[t].name)}">`
+      + `<div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${have(t)}</div></div>`; }).join('');
+  return orban + `<div class="mixgrid">${cells || '<div class="aim-empty">가진 재료가 없다 — 🗡️ 전투에서 모아 오자</div>'}</div>`;
+}
+gatherEl.addEventListener('click', e => {
+  if (S.tab !== 'mix') return;
+  const el = e.target.closest('[data-mix]');
+  if (!el) return;
+  const t = el.dataset.mix;
+  if (!mixPick){ mixPick = t; inspType = t; }
+  else if (mixPick === t) mixPick = null;
+  else { mixTry(mixPick, t); mixPick = null; }                   // 한 번 합쳐 보면 손에서 내려놓는다
+  renderScreen(); renderInsp();
+});
 // ── ⚒ 생산 (v10.14.0) ─────────────────────────────────
 // **손으로 한 번이라도 만들어 본** 완성품(목표 후보와 같은 갈래 — 중간 재료는 안 뜬다)을 하나 걸면,
 //   중간 조합을 건너뛰고 **줍는 재료**만 모으면 된다. 다 모이면 그 재료가 가방에서 빠지고 결과물이 들어온다 (퀘스트 줄도 사라짐)
 const prodMade = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && (S.madeRecipes || []).includes(r.id));
 const prodCandidates = () => CRAFT_TYPES.filter(t => t !== S.prod && aimGoalOk(t) && prodMade(t)).sort((a, b) => itemNo(a) - itemNo(b));
 const prodRecipe = t => CRAFT_RECIPES.find(r => (r.out || []).includes(t));   // v10.15.0: 결과 하나에 조합식은 하나
-const prodSmith = t => { const r = prodRecipe(t);                // v10.17.1: 마지막 조합을 하는 탭의 장인
-  const b = r && BOARDS.find(b => b.smith && sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id));
-  return b ? b.smith : null; };
+const prodSmith = t => { const r = prodRecipe(t); return r ? recipeSmith(r) : null; };   // v10.17.1: 완성품의 갈래 장인
 const prodLeafy = t => !CRAFT_RECIPES.some(r => (r.out || []).includes(t)) || gatherFieldsAll(t).length > 0;   // 땅에서 나오면 거기서 멈춘다
 function prodNeeds(t){                                            // [{ type | use, n }] — 줍는 재료까지 풀어서 센다
   const need = new Map(), add = (k, n) => need.set(k, (need.get(k) || 0) + n);
@@ -6020,6 +6149,7 @@ function screenRows(){
       cardName: g ? aimName(g) : '', frame: g ? frameOf(DEFS[g]) : 'wood', lab:'',
       unseen: !!g && !aimSeen(g) }] }];                            // v9.40.1: 아래 카드와 같은 가림   // v6.2.0: 카드가 이미 '목표'라 딱지는 뺌
   }
+  if (S.tab === 'mix') return [{ raw: `<div class="lrow mix-row">${mixRowsHtml()}</div>` }];   // v11.0.0
   if (S.tab === 'prod'){                                          // v10.14.0: 한 줄 · 한 칸
     const t = S.prod && DEFS[S.prod] ? S.prod : null;
     // v10.17.1: 올린 완성품의 **갈래 장인 하나** (무기 · 갑옷 · 방패 · 장신구 · 요리사 · 약재) — 도구는 장인이 없어 안 뜬다
@@ -6138,6 +6268,7 @@ function screenTokens(){
         html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${statsHtml(c.type)}<div class="emoji">${iconHtml(c.type)}</div>`
           + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>` })));
   }
+  if (S.tab === 'mix') return [];                                 // v11.0.0: 판이 전부
   if (S.tab === 'prod') return prodCandidates().map(t => ({      // v10.14.0: 손으로 만들어 본 것들
     token: t,
     html: `<div class="cw framed f-${frameOf(DEFS[t])}${inspType === t ? ' sel' : ''}">${statsHtml(t)}`
@@ -6358,6 +6489,7 @@ function renderScreen(){
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중`
         : mainHeroes().length ? `⚔ 출전 — 편성 ${mainPreset() + 1}(메인) ${mainHeroes().map(w => esc(pName(w))).join(' · ')}이 나간다`   // v10.7.0
         : `편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`)
+      : S.tab === 'mix' ? (mixPick ? `${DEFS[mixPick].name} — 합칠 카드를 하나 더 누르자 (다시 누르면 내려놓기)` : '카드 두 장을 차례로 누르면 합쳐진다')   // v11.0.0
       : S.tab === 'prod' ? (S.prod ? '재료가 가방에 다 모이면 저절로 생산된다 — 칸 밖으로 끌면 그만둔다'   // v10.14.0
         : '생산할 카드를 ⚒ 칸에 끌어다 놓으세요')
       : S.tab === 'aim' ? (S.goal ? '🎯 목표 카드를 탭하면 만드는 차례가 정보 칸에 나옵니다'   // v5.4.0
@@ -6833,14 +6965,8 @@ function renderGoalInsp(){
   const first = plan.findIndex(st => !planStepDone(st));
   inspEl.innerHTML = `<div class="head"><div class="pic">${iconHtml(g)}</div>`
     + `<div><div class="nm">${esc(aimName(g))} 만들기</div>`
-    + `<div class="kd">🎯 목표 · ${plan.filter(planStepDone).length}/${plan.length} 됨${editDoneBtn('goal', g)}</div></div></div>`
-    + `<div class="aim-plan insp-plan">`
-    + (plan.length ? plan.map((st, i) => {
-        const done = planStepDone(st);
-        return `<div class="aim-step${done ? ' done' : i === first ? ' now' : ''}">`
-          + `<span class="aim-box">${done ? '☑' : '☐'}</span>${goalStepBody(st)}</div>`;
-      }).join('') : '<div class="aim-step done"><span class="aim-box">☑</span>다 됐다 — 만들기만 하면 됨</div>')
-    + '</div>';
+    + `<div class="kd">🎯 목표 · 남은 재료 ${goalLeft(g).length}${editDoneBtn('goal', g)}</div></div></div>`
+    + `<div class="aim-plan insp-plan">${goalMatsHtml(g, 'aim-step')}</div>`;   // v11.0.0: 재료만
   linkTabs(inspEl); paintIcons(inspEl);                           // v7.8.0
 }
 // v7.18.0: 이 땅의 적들이 무엇으로 막는지 보고, 가진 무기 중 **맞는 것**을 짚어 준다
@@ -6953,6 +7079,8 @@ function setTab(tab){
   if (tab === 'raid') setTimeout(raidFirstLook, 0);                // v9.138.0
   if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   if (tab === 'gearup') tab = 'party';                            // v10.7.0: 정비는 편성으로
+  if (BOARD_BY_ID[tab]) tab = 'mix';                              // v11.0.0: 옛 조합 탭은 모두 🔨 조합으로
+  if (tab === 'mix'){ mixPick = null; mixDealNow(); }             // v11.0.0: 들어올 때마다 판을 새로 깐다
   if (isFieldTab(tab)) S.fightTab = tab;                          // v10.12.0: 마지막에 고른 칩
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
   if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
@@ -9288,7 +9416,7 @@ function opNote(){
     return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
       : '🎯 목표 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
   }
-  if (!H.craft && S.cards.length >= 2) return '카드를 다른 카드 위로 끌어다 놓으면 합쳐진다';
+  if (!H.craft && S.cards.length >= 2) return '🔨 조합에서 카드 두 장을 차례로 누르면 합쳐진다';   // v11.0.0
   if (!H.equip && haveWeapon()) return '편성 탭에서 무기를 가렛의 무기 칸으로 끌어다 놓는다';   // v10.7.0
   if (!H.book && (S.newCards.length + (S.newTraces || []).length) >= 3) return '📖 콜렉터북을 열면 새 카드가 끼워진다';
   return null;
@@ -9416,9 +9544,8 @@ function goalStepKey(){
 function goalRowHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '';
-  const plan = goalSteps(g);
-  const st = plan.find(x => !planStepDone(x));
-  const body = st ? goalStepBody(st) : `${rcpIcon(g, true)} ${esc(aimName(g))} <span class="i-muted">재료가 다 모였다 — 만들기만 하면 된다</span>`;
+  const left = goalLeft(g);                                        // v11.0.0: 남은 재료만 (다 모은 것은 숨김)
+  const body = left.length ? left.map(goalMatHtml).join(' · ') : '<span class="i-muted">재료가 다 모였다 — 🔨 조합에서 만들자</span>';
   return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}</b>`
     + `<span class="q-text">${body}</span>`                       // v3.6.6: '남은 N' 은 헷갈려서 뺌
     + editDoneBtn('goal', g)                                      // v9.82.0
@@ -9723,7 +9850,7 @@ function setEditMode(on, quiet, noKeep){                          // v9.125.0: n
   if (!noKeep) try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (e) {}
   selected = null; fieldPick = null; slotPick = null; heroPick = null;
   renderTabs();
-  if (!freeTabs.includes(S.tab) && !boardOpen(BOARD_BY_ID[S.tab])) S.tab = 'battle';   // v0.91.0
+  if (!freeTabs.includes(S.tab)) S.tab = BOARD_BY_ID[S.tab] ? 'mix' : 'battle';   // v0.91.0 · v11.0.0: 옛 조합 탭 → 🔨 조합
   setTab(S.tab);
   renderAll(); renderBook(); renderInsp();
   if (!quiet) toast(on ? '🔧 에디터 모드 — 모든 잠금 해제 · 카드 1개씩 (저장 안 함)' : '🔧 에디터 모드 끔 — 원래 상태로');
