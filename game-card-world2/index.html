@@ -2292,7 +2292,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.0.5';
+const VERSION = 'v11.0.6';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6271,8 +6271,9 @@ function prodPlanHtml(){                                          // 생산 탭 
 function prodRowHtml(){                                           // 수첩 한 줄 — 모을 재료와 모은 수
   const t = S.prod;
   if (!t || !DEFS[t]) return '';
-  const body = prodLeft(t).list.filter(x => x.got < x.n).map(x => `<span class="prod-need">${prodNeedName(x)} <span class="q-prog">${x.got}/${x.n}</span></span>`).join(' · ');
-  return `<div class="q-row prod"><span class="q-tag">⚒</span><b class="q-name">${esc(DEFS[t].name)} 생산</b>`
+  const x = prodLeft(t).list.find(x => x.got < x.n);              // v11.0.6: 지금 모을 것 하나만
+  const body = x ? `<span class="prod-need">${prodNeedName(x)} <span class="q-prog">${x.got}/${x.n}</span></span>` : '';
+  return `<div class="q-row prod"><span class="q-tag">⚒</span><b class="q-name">${esc(DEFS[t].name)}</b>`
     + `<span class="q-text">${body}</span>${editDoneBtn('prod', t)}<span class="q-n"></span></div>`;
 }
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
@@ -9690,21 +9691,33 @@ function innStepKeyNow(){                                          // v9.81.0: �
   return k || null;
 }
 function innRowHtml(){ return innRegs().map(innRowOf).join(''); }  // v9.81.0: 한 사람에 한 줄
+// v11.0.6: **수첩 줄은 '제목 - 지금 할 것 하나'** — 남은 것을 다 늘어놓거나 어디서 나는지 · 뒤 차례를 적지 않는다
+const qMat = (t, got, n) => `${rcpIcon(t, aimSeen(t))} ${esc(aimName(t))} <span class="q-prog">${got}/${n}</span>`;
+function qNowGive(give, given){                                   // 아직 모자란 첫 재료 하나
+  const x = give.find(([t, k]) => (given[t] || 0) + have(t) < k);
+  return x ? qMat(x[0], Math.min((given[x[0]] || 0) + have(x[0]), x[1]), x[1]) : '<span class="i-muted">다 모였다</span>';
+}
+function qNowStory(id){
+  const st = storyNow(id);
+  if (st.kill) return esc(`⚔ ${objP(foeKnown(st.kill) ? (ENEMIES[st.kill] || {}).name : '???')} 넘자`);
+  if (st.make) return esc(`🔨 ${objP(nameShown(st.make) ? DEFS[st.make].name : '???')} 만들자`);
+  return qNowGive(st.give || [], storyGiven(id));
+}
 function innRowOf(id){
   if (storyCan(id)){                                              // v9.80.0: 사람 이야기
     if (!storyNow(id)) return '';
     return `<div class="q-row inn"><span class="q-tag">🏨</span>`
       + `<img class="q-pic" src="images/icon/${personPic(id)}.png" alt="" draggable="false">`
-      + `<b class="q-name">${esc(pName(id))} 이야기 (${storyStep(id) + 1}/${storyLen(id)})</b>`
-      + `<span class="q-text">${storyStepText(storyNow(id), id, true, true)}</span>${storyNow(id).make ? aimMakeBtn(storyNow(id).make) : ''}${editDoneBtn('story', id)}<span class="q-n"></span></div>`;
+      + `<b class="q-name">${esc(pName(id))} 이야기</b>`
+      + `<span class="q-text">${qNowStory(id)}</span>${storyNow(id).make ? aimMakeBtn(storyNow(id).make) : ''}${editDoneBtn('story', id)}<span class="q-n"></span></div>`;   // v11.0.6: 제목 - 지금 할 것 하나
   }
   const sm = SMITH_BY_ID[id];
   if (!sm || smithStep(id) >= INN_STEPS.length) return '';
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
-  const body = innGetBody(sm, true);                              // v10.17.0: 제출 없음 — 다 모이면 저절로 건넨다 (모인 재료는 숨김)
+  const body = qNowGive(sm.give || [], innGiven(id));              // v11.0.6: 지금 모을 것 하나만
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
-    + `<span class="q-text">구하기 · ${body}</span>`
+    + `<span class="q-text">${body}</span>`
     + editDoneBtn('join', id) + '<span class="q-n"></span></div>';
 }
 // v9.82.0: **에디터 모드 전용 '완료'** — 조건 · 재료 · 조합 차례와 상관없이 그 결과를 바로 받는다
@@ -9760,9 +9773,13 @@ function goalStepKey(){
 function goalRowHtml(){
   const g = S.goal;
   if (!g || !DEFS[g]) return '';
-  const left = goalLeft(g);                                        // v11.0.0: 남은 재료만 (다 모은 것은 숨김)
-  const body = left.length ? left.map(goalMatHtml).join(' · ') : '<span class="i-muted">재료가 다 모였다 — 🔨 조합에서 만들자</span>';
-  return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}${goalScouting(g) ? ' — 탐색' : ''}</b>`   // v11.0.4
+  const st = goalLeft(g)[0];                                       // v11.0.6: 지금 할 것 하나만
+  const body = !st ? '🔨 조합에서 만들자'
+    : st.kind === 'scout' ? (st.lands.every(f => fieldLocked(f.id))
+      ? (p => p ? `${esc(p.name)} 클리어` : esc(`${st.lands[0].name} 열기`))(unlockFirst(st.lands[0].id))
+      : `${esc(st.lands[0].name)} 탐색`)
+    : qMat(st.type, have(st.type), have(st.type) + (st.n || 1));
+  return `<div class="q-row goal"><span class="q-tag">🎯</span><b class="q-name">${esc(aimName(g))}</b>`
     + `<span class="q-text">${body}</span>`                       // v3.6.6: '남은 N' 은 헷갈려서 뺌
     + editDoneBtn('goal', g)                                      // v9.82.0
     + `<span class="q-n"></span></div>`;
