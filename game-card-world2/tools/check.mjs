@@ -212,6 +212,13 @@ try {
   else console.log('✓ 결과 하나에 조합식은 하나');
 } catch (e){ report('결과 하나에 조합식 여럿', e); }
 
+// 7.6) 대전제 — 같은 카드 두 장의 조합은 없다 (오르반 판에서 한 칸을 두 번 집는 일이 없다)
+try {
+  const same = vm.runInContext(`CRAFT_RECIPES.filter(r => r.a.card && r.a.card === r.b.card).map(r => r.id)`, ctx);
+  if (same.length) report('같은 카드 두 장 조합', new Error(same.join(', ')));
+  else console.log('✓ 같은 카드 두 장 조합 없음');
+} catch (e){ report('같은 카드 두 장 조합', e); }
+
 // 8) 단계 규칙 (v3.11.0) — N단계는 (N−1)+(N−1) 또는 (N−1)+(N−2) 로만 만든다
 try {
   const bad = vm.runInContext(`(function(){
