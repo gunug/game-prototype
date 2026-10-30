@@ -2264,7 +2264,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v10.17.0';
+const VERSION = 'v10.17.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4527,7 +4527,7 @@ function renderSceneInsp(){
   return true;
 }
 function renderInsp(){
-  if ((S.tab === 'inn' || S.tab === 'aim') && innPick && renderSmithInsp()) return;   // v9.55.0 여관 · v9.67.0 목표의 만물상
+  if ((S.tab === 'inn' || S.tab === 'aim' || S.tab === 'prod') && innPick && renderSmithInsp()) return;   // v9.55.0 여관 · v9.67.0 목표의 만물상
   if (isFieldTab(S.tab)) return renderFieldInsp();                // v4.3.0 던전 · v9.42.0 레이드도 같은 정보 칸
   if (S.tab === 'book' && bookPick && String(bookPick).startsWith('smith:') && renderSmithInsp()) return;   // v9.56.0: 책에서 고른 여관 사람
   if (S.tab === 'book' && bookPick && /^(scene|trace):/.test(String(bookPick)) && renderSceneInsp()) return;   // v9.83.0 · v9.86.0
@@ -5844,6 +5844,9 @@ function setGoal(t){
 const prodMade = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && (S.madeRecipes || []).includes(r.id));
 const prodCandidates = () => CRAFT_TYPES.filter(t => t !== S.prod && aimGoalOk(t) && prodMade(t)).sort((a, b) => itemNo(a) - itemNo(b));
 const prodRecipe = t => CRAFT_RECIPES.find(r => (r.out || []).includes(t));   // v10.15.0: 결과 하나에 조합식은 하나
+const prodSmith = t => { const r = prodRecipe(t);                // v10.17.1: 마지막 조합을 하는 탭의 장인
+  const b = r && BOARDS.find(b => b.smith && sideOnBoard(r.a, b.id) && sideOnBoard(r.b, b.id) && boardMakes(r, b.id));
+  return b ? b.smith : null; };
 const prodLeafy = t => !CRAFT_RECIPES.some(r => (r.out || []).includes(t)) || gatherFieldsAll(t).length > 0;   // 땅에서 나오면 거기서 멈춘다
 function prodNeeds(t){                                            // [{ type | use, n }] — 줍는 재료까지 풀어서 센다
   const need = new Map(), add = (k, n) => need.set(k, (need.get(k) || 0) + n);
@@ -6019,7 +6022,13 @@ function screenRows(){
   }
   if (S.tab === 'prod'){                                          // v10.14.0: 한 줄 · 한 칸
     const t = S.prod && DEFS[S.prod] ? S.prod : null;
-    const card = '<div class="cw framed f-stone camp-lab"><div class="emoji">⚒</div>'
+    // v10.17.1: 올린 완성품의 **갈래 장인 하나** (무기 · 갑옷 · 방패 · 장신구 · 요리사 · 약재) — 도구는 장인이 없어 안 뜬다
+    const who = t ? prodSmith(t) : null;
+    const card = (who && personIn(who) ? '<div class="foelist">' + beingCardHtml({
+      cls: `f-bronze foe keeper${innPick === who ? ' sel' : ''}`,
+      attrs: ` data-smith="${who}" title="${esc(SMITH_BY_ID[who].name)}"`,
+      pic: `images/icon/${SMITH_BY_ID[who].card}.png`, name: pName(who), job: SMITH_BY_ID[who].name }) + '</div>' : '')
+      + '<div class="cw framed f-stone camp-lab"><div class="emoji">⚒</div>'
       + '<div class="name">생산</div><div class="sub-lab">하나만</div></div>';
     return [{ card, slots: [{ id:'prod:goal', open:true, card: !!t, type: t, icon: t ? iconHtml(t) : '',
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab:'' }] }];
@@ -6461,7 +6470,7 @@ function unequipSlot(sl, who){
 let tokenDrag = null;
 gatherEl.addEventListener('click', e => {                         // v9.55.0: 줄에 놓인 장인 카드 · 여관 주인
   const sm = e.target.closest('[data-smith]');
-  if (!isRowScreen(S.tab) || (S.tab !== 'inn' && S.tab !== 'aim')) return;   // v9.67.1: 🎯 목표의 만물상도
+  if (!isRowScreen(S.tab) || (S.tab !== 'inn' && S.tab !== 'aim' && S.tab !== 'prod')) return;   // v10.17.1: 생산의 장인도   // v9.67.1: 🎯 목표의 만물상도
   const hero = e.target.closest('[data-hero-card]');              // v9.71.0: 여관의 기사 · 궁수
   if (hero){ heroPick = hero.dataset.heroCard; innPick = null; slotPick = null; renderScreen(); renderInsp(); return; }
   if (!sm) return;
