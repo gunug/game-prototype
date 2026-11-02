@@ -90,7 +90,18 @@
   .tabgroup .tabbtn.on{background:var(--brand-yellow);color:var(--on-brand);}
   .tabgroup .tabbtn.locked{opacity:.75;}
   /* v6.5.0: PC 에서는 가로로 밀지 않고 **줄을 내린다** (묶음은 통째로 내려감). 좁은 화면은 ☰ 로 접히므로 줄이 길지 않다 */
-  .fieldhead .uibar{border-top:0;flex-wrap:wrap;overflow-x:hidden;row-gap:4px;}
+  /* v11.2.0: 📖 콜렉터북 · ⚙ 설정은 오른쪽 위에 떠 있는 단추 (레이어) · 전투 · 편성 · 제작 · 퀘스트는 맨 아래 고정 메뉴 */
+  .fieldhead{min-height:38px;}
+  .fieldhead .uibar{position:absolute;top:4px;right:6px;z-index:9;border:0;padding:0;flex-wrap:nowrap;gap:4px;}
+  .fieldhead .uibar .tabbtn{background:rgba(30,30,24,.92);box-shadow:0 2px 6px rgba(0,0,0,.45);padding:5px 10px;font-size:12px;}
+  .fieldhead .uibar .tabbtn.on{background:var(--brand-yellow);}
+  .fieldhead .uibar .ver-out{margin-right:4px;font-size:10px;}
+  html:not(.phone) .field.list-tab .gather .toplist{max-height:none;bottom:var(--dockh, 34px);justify-content:flex-start;}
+  html:not(.phone) .field.list-tab .gather .botarea{top:auto;bottom:0;overflow:visible;padding:4px 0 2px;}
+  .botnav{position:fixed;z-index:8000;display:flex;box-sizing:border-box;gap:6px;padding:6px 8px;background:rgb(20,20,16);border-top:1px solid var(--hairline);}
+  .botnav .navbig{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;
+    border-radius:12px;font-size:14px;font-weight:800;}
+  .botnav .navic{width:26px;height:26px;}
   .fieldhead .uibar::-webkit-scrollbar{height:5px;}
   .fieldhead .uibar::-webkit-scrollbar-thumb{background:rgba(255,212,0,.45);border-radius:3px;}
   .fieldhead .quest{background:transparent;}
@@ -1281,6 +1292,7 @@
       <b>진행도 + 기록</b>은 지금 상태와 <b>처음 켠 때부터의 모든 걸음</b>(고른 탭 · 원정 · 조합 · 목표에 걸린 시간)을 JSON 으로 복사한다.</div>
   </div>
 </div>
+<nav class="botnav" id="botnav"></nav>
 <div class="ui side" id="ui">
   <div class="sheet-grip" id="sheetGrip" title="펼치기 · 접기"></div>
   <div class="insp" id="insp"></div>
@@ -2294,7 +2306,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.1.0';
+const VERSION = 'v11.2.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3826,6 +3838,7 @@ function setSheet(on){
   if (on === sheetOpen) return;
   sheetOpen = on; layout();
 }
+const HIDE_INSP = true, BOTNAV_H = 64;                            // v11.2.0
 function layout(){
   // v4.4.0: 모바일 모드면 **논리 크기는 412×915 그대로** 두고, 창이 작으면 통째로 줄여 보여 준다
   const k = mobileMode
@@ -3843,7 +3856,9 @@ function layout(){
   const iw = Math.max(UI_MIN, Math.min(INSP_W, Math.round(W * 0.32)));
   const ih = Math.max(UI_MIN, Math.min(INSP_H, Math.round(H * 0.34)));
   const PEEK_H = 62;                                              // v10.3.0: 폰 세로 — 접힌 인스펙터는 손잡이 + 이름 한 줄
-  if (land){ FW = Math.max(260, W - iw); FH = H; }
+  // v11.2.0: **인스펙터 숨김 · 맨 아래 고정 메뉴** — 필드가 화면을 다 쓰고 아래 메뉴 높이만 비운다 (HIDE_INSP 만 끄면 인스펙터가 돌아온다)
+  if (HIDE_INSP){ FW = W; FH = H - BOTNAV_H; }
+  else if (land){ FW = Math.max(260, W - iw); FH = H; }
   else { FW = W; FH = Math.max(260, H - (W < 600 ? PEEK_H : ih)); }
   FS = Math.min(FW, FH);                                          // 카드 크기는 짧은 변 기준
   const fieldEl = document.getElementById('field'), uiEl = document.getElementById('ui');
@@ -3852,7 +3867,11 @@ function layout(){
     frame.hidden = !mobileMode;
     if (mobileMode) frame.style.cssText = `left:${ox}px;top:${oy}px;width:${Math.round(W * k)}px;height:${Math.round(H * k)}px`;
   }
-  if (land){
+  put(document.getElementById('botnav'), 0, H - BOTNAV_H, W, BOTNAV_H);
+  if (HIDE_INSP){
+    put(fieldEl, 0, 0, FW, FH);
+    uiEl.style.display = 'none';
+  } else if (land){
     put(fieldEl, 0, 0, FW, FH);
     put(uiEl, FW, 0, W - FW, H);
     uiEl.className = 'ui side';
@@ -3872,8 +3891,6 @@ function layout(){
   const root = document.documentElement.style;
   root.setProperty('--fs', FS + 'px');
   root.setProperty('--fw', FW + 'px'); root.setProperty('--fh', FH + 'px');   // v5.0.0
-  const nw = mobileMode || FW < NARROW_FS;                        // v4.7.0: 모바일 모드거나 필드가 좁으면 ☰ (폭 기준)
-  if (nw !== narrowUI){ narrowUI = nw; navOpen = false; renderTabs(); }
   syncHeadH();                                                    // v3.6.0
 }
 function syncHeadH(){                                             // v3.6.0: 머리(탭 + 수첩) 높이 → --headh
@@ -5549,9 +5566,9 @@ function lockPop(btn, text){
 function renderTabs(){                                            // v0.21.0: 잠긴 화면도 버튼이 보이고 자물쇠가 붙음
   const wrap = document.getElementById('tabs');
   const menu = document.getElementById('navmenu');                // v4.7.0: 좁은 화면에서 탭이 들어가는 판
-  const host = narrowUI ? menu : wrap;
+  const host = document.getElementById('botnav');                 // v11.2.0: 큰 메뉴 넷은 맨 아래 · 📖 ⚙ 는 #tabs 그대로 오른쪽 위에 뜬다
   const FIXED = ['bookBtn', 'setBtn'];                            // v3.3.0 · v3.7.3: 📖 · ⚙ 단추는 고정
-  for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) if (!FIXED.includes(b.id)) b.remove();
+  host.innerHTML = '';
   for (const g of document.querySelectorAll('#tabs .tabgroup, #navmenu .tabgroup')) if (!g.firstElementChild) g.remove();   // v4.5.0: 빈 묶음은 치운다
   const lab = b => (b.icon ? `<img class="icon inline tabic" src="images/icon/${b.icon}.png" alt="" draggable="false">` : '') + b.name;   // v0.33.0
   // v0.90.0: '전투' → '필드'. v0.91.0: 던전도 눌러서 들어갈 수 있음 (안은 아직 계획표뿐)
@@ -5565,45 +5582,13 @@ function renderTabs(){                                            // v0.21.0: �
   // v4.5.0: 같은 결끼리 묶어 보이게 — [나가는 곳][준비][만드는 곳][기록][설정]
   //   단추 동작은 그대로. 묶음마다 살짝 다른 바탕과 구분선만 둔다
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
-  const groups = [
-    { key:'go',    items: [btn(fightTarget(), '🗡️ 전투')] },   // v10.12.0: 필드 · 던전 · 레이드는 전투 페이지 안 칩으로
-    // v9.55.0: 정비 · 목표 옆에 🏨 퀘스트 — 사람을 찾는 자리
-    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn(craftTarget(), '🔨 제작'), personIn('keeper') ? btn('inn', '🏨 퀘스트') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
-    // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
-    // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 퀘스트이 말해 준다
-    // v11.0.0: **조합 탭들(조합 · 무기 · 갑옷 · 방패 · 장신구 · 도구 · 건축 · 음식 · 약) 없앰** — 만드는 곳은 🔨 조합(오르반의 판) 하나
-  ];
-  const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
-  host.insertAdjacentHTML('afterbegin', html);
-  // 📖 콜렉터북 · ⚙ 설정은 고정 단추 — 각자 한 묶음으로 감싸 둔다 (좁으면 판 안으로 옮겨 간다)
-  for (const id of ['bookBtn', 'setBtn']){
-    const b = document.getElementById(id);
-    if (!b) continue;
-    let g = b.parentElement.classList.contains('tabgroup') ? b.parentElement : null;
-    if (!g){
-      g = document.createElement('span');
-      g.className = 'tabgroup tg-' + (id === 'bookBtn' ? 'book' : 'set');
-      b.parentElement.insertBefore(g, b);
-      g.appendChild(b);
-    }
-    if (g.parentElement !== host){                                 // v4.7.0: 좁으면 판, 넓으면 다시 줄로
-      if (host === wrap) wrap.insertBefore(g, document.getElementById('ver'));   // 버전은 줄 오른쪽 끝에 그대로
-      else host.appendChild(g);
-    }
-  }
-  // ☰ 단추 — 좁을 때만. 지금 보고 있는 탭 이름을 달고 있는다
-  const nav = document.getElementById('navBtn');
-  nav.hidden = !narrowUI;
-  menu.hidden = !narrowUI || !navOpen;
-  nav.classList.toggle('on', navOpen);
-  if (narrowUI){
-    document.getElementById('navNow').textContent = tabName(S.tab);
-    menu.style.top = (wrap.offsetHeight + 2) + 'px';
-    const bd = document.getElementById('bookBadge'), nb = document.getElementById('navBadge');
-    nb.hidden = bd.hidden; nb.textContent = bd.textContent;       // 새 카드 알림은 ☰ 에도 붙는다
-  }
+  const big = (tab, ic, label) => `<button class="tabbtn navbig" data-tab="${tab}">${uiIcon(ic, 'navic')}<span>${label}</span></button>`;
+  host.innerHTML = big(fightTarget(), 'field', '전투') + big('party', 'party', '편성') + big(craftTarget(), 'craft', '제작')
+    + (personIn('keeper') ? big('inn', 'inn', '퀘스트') : '');      // v9.91.0: 보른을 만나야 퀘스트
+  document.getElementById('navBtn').hidden = true;
+  menu.hidden = true;
   paintIcons(wrap); paintIcons(menu);                             // v3.5.0
-  for (const b of document.querySelectorAll('#tabs [data-tab], #navmenu [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
+  for (const b of document.querySelectorAll('#tabs [data-tab], #botnav [data-tab]')) b.classList.toggle('on', b.dataset.tab === S.tab);
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
 // v10.12.0: 필드 · 던전 · 레이드는 '전투' 한 페이지
@@ -7340,6 +7325,7 @@ function setTab(tab){
   table.hidden = isRowScreen(tab) || tab === 'book' || tab === 'settings';   // v0.29.0: 전투·정비는 줄 화면
   fieldEl.classList.toggle('aim-tab', tab === 'aim' || tab === 'prod');   // v3.5.3: 목표 화면 전용 배치 · v10.14.0 생산도
   fieldEl.classList.toggle('gear-tab', tab === 'gearup' || tab === 'party');   // v7.5.0: 정비도 같은 배치 · v10.6.0 편성도
+  fieldEl.classList.toggle('list-tab', isFieldTab(tab) || tab === 'mix');   // v11.2.0: 목록이 화면을 끝까지 쓴다
   fieldEl.classList.toggle('inn-tab', tab === 'inn');             // v9.68.0: 여관은 두 묶음으로 줄을 내린다
   renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
@@ -7365,7 +7351,7 @@ function onTabClick(e){
   setTab(btn.dataset.tab);
 }
 document.getElementById('tabs').addEventListener('click', onTabClick);
-document.getElementById('navmenu').addEventListener('click', onTabClick);   // v4.7.0
+document.getElementById('botnav').addEventListener('click', onTabClick);   // v11.2.0
 gatherEl.addEventListener('click', e => {
   if (paused) return;
   const hc = e.target.closest('[data-hero-card]');               // v0.13.0 · v9.24.0: 캐릭터 탭 → 인스펙터에 그 캐릭터
