@@ -98,6 +98,12 @@
   .fieldhead .uibar .ver-out{margin-right:4px;font-size:10px;}
   html:not(.phone) .field.list-tab .gather .toplist{max-height:none;bottom:var(--dockh, 34px);justify-content:flex-start;}
   html:not(.phone) .field.list-tab .gather .botarea{top:auto;bottom:0;overflow:visible;padding:4px 0 2px;}
+  .subnav{position:absolute;left:0;right:0;bottom:0;height:42px;z-index:7;box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+    background:rgb(20,20,16);border-top:1px solid var(--hairline);}
+  .subnav[hidden]{display:none;}
+  .subnav .gchips{width:auto;max-width:100%;padding:0 8px;}
+  .subnav .gchips button{padding:5px 14px;font-size:13px;}
+  .field.has-sub > .gather{bottom:42px;}
   .botnav{position:fixed;z-index:8000;display:flex;box-sizing:border-box;gap:6px;padding:6px 8px;background:rgb(20,20,16);border-top:1px solid var(--hairline);}
   .botnav .navbig{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;
     border-radius:12px;font-size:14px;font-weight:800;}
@@ -229,9 +235,9 @@
   /* v10.6.0: 편성 — 위 칩(편성 1~5 · 편성 지우기) · 출전 줄의 편성 고르기 */
   .lrow.preset-head{align-self:stretch;justify-content:center;flex-wrap:wrap;gap:6px;padding:4px 8px;}
   .lrow.preset-head .gchips{width:auto;padding:0;}
-  .fight-chips .gchips button.locked{opacity:.55;}
-  .fight-chips .gchips button .lockm{height:1em;margin-right:3px;vertical-align:-2px;}
-  .lrow.preset-head .gchips button.main:not(.on){border-color:var(--brand-yellow);color:var(--brand-yellow);}
+  .subnav .gchips button.locked{opacity:.55;}
+  .subnav .gchips button .lockm{height:1em;margin-right:3px;vertical-align:-2px;}
+  .subnav .gchips button.main:not(.on){border-color:var(--brand-yellow);color:var(--brand-yellow);}
   .lrow.preset-head .pp-main{padding:3px 10px;border-radius:999px;border:1px solid var(--brand-yellow);background:rgba(255,212,0,.08);color:var(--brand-yellow);font:inherit;font-size:12px;font-weight:800;}
   .lrow.preset-head .pp-main:disabled{opacity:.6;}
   .lrow.preset-head .pp-clear{padding:3px 10px;border-radius:999px;border:1px solid rgba(255,120,100,.5);background:rgba(255,120,100,.08);color:#ffb3a6;font:inherit;font-size:12px;font-weight:800;}
@@ -1270,6 +1276,7 @@
   </div>
   <div class="toplist grid" id="topgrid" hidden></div>
   <div class="gather" id="gather" hidden></div>
+  <div class="subnav" id="subnav" hidden></div>
   <div class="dungeon" id="dungeon" hidden></div>
   <div class="book inline" id="book" hidden></div>
   <!-- v3.7.3: 설정은 팝업이 아니라 탭 (탭 줄이 가로로 넘칠 때 팝업이 잘려 안 보이던 것) -->
@@ -2306,7 +2313,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.2.0';
+const VERSION = 'v11.3.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6333,7 +6340,7 @@ function screenRows(){
     const P = presetOf(presetPick);
     const chips = '<div class="gchips">' + presets().map((x, i) => `<button type="button" data-preset="${i}" class="${i === presetPick ? 'on' : ''}${i === mainPreset() ? ' main' : ''}">`
       + `편성 ${i + 1}${i === mainPreset() ? ' · 메인' : ''}<span class="n">${x.heroes.filter(Boolean).length}</span></button>`).join('') + '</div>';
-    const rows = [{ raw: `<div class="lrow preset-head">${chips}`
+    const rows = [{ sub: chips }, { raw: `<div class="lrow preset-head">`
       + `<button type="button" class="pp-main" data-preset-main${presetPick === mainPreset() ? ' disabled' : ''}>${presetPick === mainPreset() ? '메인 편성' : '메인으로'}</button>`   // v10.7.0
       + `<button type="button" class="pp-clear" data-preset-clear${presetEmpty(presetPick) ? ' disabled' : ''}>편성 지우기</button></div>` }];
     PARTY().forEach((open, i) => {
@@ -6384,7 +6391,7 @@ function screenRows(){
     const chips = '<div class="gchips">' + FIGHT_CHIPS.map(([id, lab, ic]) => { const lock = fightLocked(id);
       return `<button type="button" data-fightchip="${id}" class="${S.tab === id ? 'on' : ''}${lock ? ' locked' : ''}">`
         + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic)) + ` ${lab}</button>`; }).join('') + '</div>';
-    return [{ raw: `<div class="lrow preset-head fight-chips">${chips}</div>` }].concat(
+    return [{ sub: chips }].concat(
       (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
       .filter(f => f.id !== 'prelude' || !preludeGone()).map(f => {
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
@@ -6657,16 +6664,27 @@ const GEAR_CHIPS = [['all', '전체'], ['weapon', '무기'], ['armor', '갑옷']
 const gearKind = t => { const u = useOf(t);
   return u.some(x => x.includes('무기') || x === '도끼' || x === '창') ? 'weapon' : u.includes('방어구') ? 'armor'
     : u.includes('방패') ? 'shield' : u.includes('장신구') ? 'trinket' : 'use'; };
+// v11.3.0: **2뎁스 칩 줄** — 필드 · 던전 · 레이드 / 목표 · 조합 · 생산 / 편성 1~5 는 아래 고정 메뉴 바로 위
+function setSubnav(html){
+  const el = document.getElementById('subnav');
+  el.hidden = !html;
+  el.innerHTML = html;
+  if (html) paintIcons(el);
+  fieldEl.classList.toggle('has-sub', !!html);
+}
 function renderScreen(){
   gatherEl.hidden = !isRowScreen(S.tab);
   fieldEl.classList.toggle('battle-on', !gatherEl.hidden && battleMode());   // v10.9.0
+  setSubnav('');                                                  // v11.3.0: 아래 칩 줄 — 이 화면에 있으면 다시 채운다
   if (gatherEl.hidden) return;
   if (battleMode()){ renderScreen.tab = null; renderBattle(); syncDockH(); syncTopH(); expBuild(); return; }   // v10.9.0: 전투 화면
   // v10.3.0: 다시 그려도 스크롤 자리를 지킨다 (같은 탭일 때만 — 칸에 놓을 때마다 맨 위로 튀던 것)
   const keep = renderScreen.tab === S.tab ? { y: (gatherEl.querySelector('.toplist') || {}).scrollTop || 0,
     x: (gatherEl.querySelector('.chars') || {}).scrollLeft || 0 } : { y: 0, x: 0 };
   renderScreen.tab = S.tab;
-  const rows = isCraftTab(S.tab) ? [craftChipsRow()].concat(screenRows()) : screenRows();   // v11.1.0
+  const rowsAll = isCraftTab(S.tab) ? [craftChipsRow()].concat(screenRows()) : screenRows();   // v11.1.0
+  const rows = rowsAll.filter(r => !r.sub);
+  setSubnav((rowsAll.find(r => r.sub) || {}).sub || '');          // v11.3.0: 2뎁스 칩은 아래 메뉴 바로 위
   let toks = screenTokens(), chips = '';
   if ((S.tab === 'gearup' || S.tab === 'party') && document.documentElement.classList.contains('phone')){   // v10.3.0 · v10.6.0 편성도
     const kind = t => ALL_HEROES().includes(t) ? 'hero' : gearKind(t);
@@ -6884,15 +6902,19 @@ const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS
 const CRAFT_CHIPS = [['aim', '목표', 'aim'], ['mix', '조합', 'craft'], ['prod', '생산', 'forge']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const isCraftTab = tab => CRAFT_CHIPS.some(c => c[0] === tab);
 const craftTarget = () => isCraftTab(S.tab) ? S.tab : isCraftTab(S.craftTab) ? S.craftTab : 'aim';
-const craftChipsRow = () => ({ raw: '<div class="lrow preset-head fight-chips"><div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) =>
-  `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div></div>' });
-gatherEl.addEventListener('click', e => {
+const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) =>
+  `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div>' });
+document.getElementById('subnav').addEventListener('click', e => {
+  const p = e.target.closest('[data-preset]');
+  if (p){ presetPick = +p.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
+});
+document.getElementById('subnav').addEventListener('click', e => {
   const c = e.target.closest('[data-craftchip]');
   if (!c) return;
   e.stopPropagation();
   if (c.dataset.craftchip !== S.tab) setTab(c.dataset.craftchip);
 });
-gatherEl.addEventListener('click', e => {
+document.getElementById('subnav').addEventListener('click', e => {
   const c = e.target.closest('[data-fightchip]');
   if (!c) return;
   e.stopPropagation();
