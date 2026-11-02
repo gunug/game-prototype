@@ -2294,7 +2294,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.0.15';
+const VERSION = 'v11.1.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2398,7 +2398,7 @@ const QUESTS = {
   lv5:        { name:'몸을 단련하자',   text:'몸을 단련하자 (5레벨)',             goal:1, key:'level:5',
                 say:'들소의 뿔을 맞고 버틸 몸이 필요해' },
   // v9.55.0: 갑옷은 레벨이 아니라 **사람**이 열어 준다 — 여관으로 보낸다
-  innarmor:   { name:'갑옷을 만들 사람',  text:'🏨 여관에서 갑옷 장인을 찾자',  goal:1, key:'smith:armorsmith',
+  innarmor:   { name:'갑옷을 만들 사람',  text:'🏨 퀘스트에서 갑옷 장인을 찾자',  goal:1, key:'smith:armorsmith',
                 say:'들소의 뿔을 맞고 버틸 것이 필요해 — 가죽을 다룰 사람을 찾자' },
   garmor:     { name:'몸을 지키자',     text:'갑옷을 걸치자',         goal:1, key:'equip:armor',
                 say:'이제 갑옷을 걸칠 수 있겠어' },
@@ -3138,7 +3138,7 @@ function storyInspHtml(id){
   const tail = !can ? '<div class="i-muted">합류하면 이야기가 열린다</div>'
     : s >= storyLen(id) || reg ? ''
     : S.tab === 'inn' ? `<button class="reset story-reg" data-story-reg="${id}">🏨 등록 — 이야기 이어 하기${innRegs().length ? ` (${esc(pName(innRegs()[0]))} 대신)` : ''}</button>`   // v9.80.1 · v11.0.3: 칸이 하나라 바꿔 앉힌다
-    : '<div class="i-muted">🏨 여관 등록 칸에 올리면 이어서 한다</div>';
+    : '<div class="i-muted">🏨 퀘스트 등록 칸에 올리면 이어서 한다</div>';
   return `<div class="i-sect">이야기 <span class="i-muted">${s}/${storyLen(id)}${reg ? ' (등록함)' : ''}</span>${reg && s < storyLen(id) ? editDoneBtn('story', id) : ''}</div>${rows}${tail}`;
 }
 const newQuest = id => ({ id, n: 0, done: false });                // v0.16.1: 퀘스트는 여러 개 (S.quests)
@@ -3506,7 +3506,7 @@ const SMITHS = [
 ];
 const SMITH_BY_ID = Object.fromEntries(SMITHS.map(x => [x.id, x]));
 // v9.69.0: **장인마다 합류 퀘스트 한 장.** 처음부터 함께인 셋(여관 주인 · 만물상 · 무기 장인)만 빼고,
-//   나머지는 그 사람의 땅이 열리는 순간 수첩에 한 줄이 붙는다 — 🏨 여관에 등록하고 물건을 건네면 끝난다
+//   나머지는 그 사람의 땅이 열리는 순간 수첩에 한 줄이 붙는다 — 🏨 퀘스트에 등록하고 물건을 건네면 끝난다
 const joinQuestId = id => `join_${id}`;
 for (const sm of SMITHS){
   if (sm.free) continue;                                          // 무기 장인은 처음부터 함께다
@@ -3514,14 +3514,14 @@ for (const sm of SMITHS){
     name: `${sm.name} 합류`, goal: 1, key: `smith:${sm.id}`,
     text: () => smithOk(sm.id) ? `${subP2(sm.name)} 합류했다`
       : innRegs().includes(sm.id) ? `🏨 ${sm.name}에게 물건을 건네자`
-      : `🏨 여관에 ${objP(sm.name)} 등록하자`,
+      : `🏨 퀘스트에 ${objP(sm.name)} 등록하자`,
     say: sm.rumor || '',
   };
 }
 // v9.97.0: 만물상 합류 = **보른의 의뢰** (v9.120.0: 산에서 주운 것을 내놓는다) · 무기 장인 = 날을 세우는 법
 Object.assign(QUESTS[joinQuestId('peddler')], { name: '보른의 의뢰',
   text: () => smithOk('peddler') ? '보른의 의뢰를 마쳤다'
-    : innRegs().includes('peddler') ? '🏨 산에서 주운 것을 여관에 내자' : '🏨 여관에 만물상을 등록하고 의뢰를 받자' });
+    : innRegs().includes('peddler') ? '🏨 산에서 주운 것을 여관에 내자' : '🏨 퀘스트에 만물상을 등록하고 의뢰를 받자' });
 Object.assign(QUESTS[joinQuestId('weaponsmith')], { name: '날을 세우는 사람' });
 // 땅이 열려 **찾아 나설 수 있게 된** 장인의 합류 퀘스트를 준다.
 //   수첩 규칙 ②를 지켜 **한 번에 한 사람만** — 그가 합류하면 다음 사람이 붙는다
@@ -4111,7 +4111,7 @@ const EMOJI_RE = new RegExp('(' + Object.keys(EMOJI_ICON).join('|') + ')\uFE0F?'
 // v7.8.0: 글 속 **그림이 붙은 탭 이름**(🎯 목표 · ⚔️ 무기 · 📖 콜렉터북 …)은 눌러서 그 탭으로 간다.
 //   그림이 붙은 것만 링크로 친다 — 맨 '무기' · '갑옷' 까지 링크하면 보통 문장까지 파랗게 물든다
 const TAB_LINK = {
-  '🎯 목표':'aim', '⚒ 생산':'prod', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'party', '🏨 여관':'inn',
+  '🎯 목표':'aim', '⚒ 생산':'prod', '🗡️ 필드':'battle', '🏚 던전':'dungeon', '🗼 레이드':'raid', '🔧 정비':'party', '🏨 퀘스트':'inn',
   '📖 콜렉터북':'book', '⚙ 설정':'settings', '⚔️ 무기':'mix', '🔨 조합':'mix',
   '🧰 도구':'mix', '🏠 건축':'mix', '🍖 음식':'mix', '🧪 약품':'mix',
 };
@@ -4508,7 +4508,7 @@ function renderSmithInsp(){
   }
   if (innPick === 'inn'){
     inspEl.innerHTML = '<div class="head"><div class="pic"><img class="icon" src="images/icon/card_inn.png" alt="" draggable="false"></div>'
-      + '<div><div class="nm">여관</div><div class="kd">사람이 모이는 곳</div></div></div>'
+      + '<div><div class="nm">퀘스트</div><div class="kd">사람이 모이는 곳</div></div></div>'
       + '<div class="desc">길이 갈라지는 자리에 선 집. 손을 쓸 줄 아는 사람들이 여기에 앉아 있다 — '
       + '누가 앉아 있는지는 소문을 쫓아야 알 수 있다.</div>';
     return true;
@@ -4535,7 +4535,7 @@ function renderSmithInsp(){
   inspEl.innerHTML = '<div class="head"><div class="pic">'
     + `<img class="icon" src="images/icon/${sm.card}.png" alt="" draggable="false"></div>`
     + `<div><div class="nm">${esc(pName(sm.id))}</div>`
-    + `<div class="kd">${esc(sm.name)} · 여관</div></div></div>`
+    + `<div class="kd">${esc(sm.name)} · 퀘스트</div></div></div>`
     + bodyPicHtml(`bust_${sm.id}`)
     + `<div class="i-open">${esc(smithOpensText(sm.id))}</div>`    // 노란 한 줄 — 이 사람이 열어 주는 것
     + `<div class="desc">${esc(sm.desc)}</div>`
@@ -5567,10 +5567,10 @@ function renderTabs(){                                            // v0.21.0: �
   const btn = (tab, label) => `<button class="tabbtn" data-tab="${tab}">${label}</button>`;
   const groups = [
     { key:'go',    items: [btn(fightTarget(), '🗡️ 전투')] },   // v10.12.0: 필드 · 던전 · 레이드는 전투 페이지 안 칩으로
-    // v9.55.0: 정비 · 목표 옆에 🏨 여관 — 사람을 찾는 자리
-    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn('aim', '🎯 목표'), btn('mix', '🔨 조합'), btn('prod', '⚒ 생산'), personIn('keeper') ? btn('inn', '🏨 여관') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
+    // v9.55.0: 정비 · 목표 옆에 🏨 퀘스트 — 사람을 찾는 자리
+    { key:'prep',  items: [btn('party', uiIcon('party', 'inline tabic') + '편성'), btn(craftTarget(), '🔨 제작'), personIn('keeper') ? btn('inn', '🏨 퀘스트') : ''] },   // v9.91.0: 보른을 만나야 여관 · v10.7.0: 정비 탭 없앰 (장비는 편성에서)
     // v6.9.0: 만드는 탭 아홉은 **한 갈래** — 묶음 하나에 담고, 폭이 모자라면 묶음 안에서 줄을 내린다
-    // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 여관이 말해 준다
+    // v9.56.3: **잠긴 탭은 단추를 아예 숨긴다** — 어디서 만드는지는 🏨 퀘스트이 말해 준다
     // v11.0.0: **조합 탭들(조합 · 무기 · 갑옷 · 방패 · 장신구 · 도구 · 건축 · 음식 · 약) 없앰** — 만드는 곳은 🔨 조합(오르반의 판) 하나
   ];
   const html = groups.map(g => `<span class="tabgroup tg-${g.key}">${g.items.filter(Boolean).join('')}</span>`).join('');
@@ -5607,7 +5607,7 @@ function renderTabs(){                                            // v0.21.0: �
 }
 // v4.7.0: 탭 이름 — ☰ 단추에 지금 탭을 보이려고
 // v10.12.0: 필드 · 던전 · 레이드는 '전투' 한 페이지
-const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🎯 목표', mix:'🔨 조합', prod:'⚒ 생산', inn:'🏨 여관', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
+const FREE_TAB_NAME = { battle:'🗡️ 전투', dungeon:'🗡️ 전투', raid:'🗡️ 전투', aim:'🔨 제작', mix:'🔨 제작', prod:'🔨 제작', inn:'🏨 퀘스트', party:'편성', book:'📖 콜렉터북', settings:'⚙ 설정' };
 const tabName = tab => FREE_TAB_NAME[tab] || (BOARD_BY_ID[tab] || {}).name || tab;
 function setNavOpen(on){ navOpen = !!on; renderTabs(); syncHeadH(); }
 // ── 줄 화면 (v0.29.0) ───────────────────────────────
@@ -5846,7 +5846,7 @@ function goalMatsHtml(g, cls){
 }
 function goalPlanHtml(){
   const g = S.goal;
-  if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 만드는 차례를 적어 줍니다.</div>';
+  if (!g || !DEFS[g]) return '<div class="aim-empty">아래 카드를 위 🎯 칸에 끌어다 놓으면 모을 재료를 적어 줍니다.</div>';
   const plan = goalSteps(g);
   const first = plan.findIndex(st => !planStepDone(st));
   return `<div class="aim-plan"><div class="aim-t">🎯 ${esc(aimName(g))} 만들기 — 재료</div>${goalMatsHtml(g, 'aim-step')}</div>`;   // v11.0.0
@@ -6304,7 +6304,7 @@ function smithCardHtml(id, drag, tag){
       + `<b class="lockneed">${esc(smithNeed(id))}</b></div>` : '' });
 }
 function screenRows(){
-  // v9.55.0: 🏨 여관 — 윗줄은 여관 주인(등록 칸 하나), 등록한 장인이 있으면 그 아래 **세 걸음** 줄
+  // v9.55.0: 🏨 퀘스트 — 윗줄은 여관 주인(등록 칸 하나), 등록한 장인이 있으면 그 아래 **세 걸음** 줄
   if (S.tab === 'inn'){
     S.inn = S.inn || freshInn();
     const regs = innRegs();
@@ -6315,7 +6315,7 @@ function screenRows(){
       pic: 'images/icon/card_innkeeper.png', name: pName('keeper'), job: '여관 주인' })}</div>`;
     const innCard = `<div class="cw framed f-stone field${innPick === 'inn' ? ' sel' : ''}" data-smith="inn">`
       + '<div class="emoji"><img class="icon" src="images/icon/card_inn.png" alt="여관" draggable="false"></div>'
-      + '<div class="name">여관</div></div>';
+      + '<div class="name">퀘스트</div></div>';
     // v9.81.0: **등록 칸은 셋.** 윗줄에 셋, 등록한 사람마다 그 아래에 제 줄 —
     //   물건 걸음이면 재료 슬롯(낸 수 / 필요한 수), 사냥 · 만들기 걸음이면 할 일 칸 하나
     const regSlots = [];
@@ -6681,7 +6681,7 @@ function renderScreen(){
   const keep = renderScreen.tab === S.tab ? { y: (gatherEl.querySelector('.toplist') || {}).scrollTop || 0,
     x: (gatherEl.querySelector('.chars') || {}).scrollLeft || 0 } : { y: 0, x: 0 };
   renderScreen.tab = S.tab;
-  const rows = screenRows();
+  const rows = isCraftTab(S.tab) ? [craftChipsRow()].concat(screenRows()) : screenRows();   // v11.1.0
   let toks = screenTokens(), chips = '';
   if ((S.tab === 'gearup' || S.tab === 'party') && document.documentElement.classList.contains('phone')){   // v10.3.0 · v10.6.0 편성도
     const kind = t => ALL_HEROES().includes(t) ? 'hero' : gearKind(t);
@@ -6895,6 +6895,18 @@ const FIGHT_CHIPS = [['battle', '필드', 'field'], ['dungeon', '던전', 'dunge
 const fightLocked = id => id === 'dungeon' ? DUNGEONS().every(f => fieldLocked(f.id)) : id === 'raid' ? RAIDS().every(f => fieldLocked(f.id)) : false;
 const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS[0])
   : battleEnd ? fieldTab(FIELD_BY_ID[battleEnd.fid] || {}) : (isFieldTab(S.fightTab) && !fightLocked(S.fightTab) ? S.fightTab : 'battle');   // 마지막에 고른 칩
+// v11.1.0: **제작 페이지** — 메뉴엔 '제작' 하나, 맨 위 칩으로 목표 · 조합 · 생산을 고른다. 마지막에 고른 칩을 기억
+const CRAFT_CHIPS = [['aim', '목표', 'aim'], ['mix', '조합', 'craft'], ['prod', '생산', 'forge']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
+const isCraftTab = tab => CRAFT_CHIPS.some(c => c[0] === tab);
+const craftTarget = () => isCraftTab(S.tab) ? S.tab : isCraftTab(S.craftTab) ? S.craftTab : 'aim';
+const craftChipsRow = () => ({ raw: '<div class="lrow preset-head fight-chips"><div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) =>
+  `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div></div>' });
+gatherEl.addEventListener('click', e => {
+  const c = e.target.closest('[data-craftchip]');
+  if (!c) return;
+  e.stopPropagation();
+  if (c.dataset.craftchip !== S.tab) setTab(c.dataset.craftchip);
+});
 gatherEl.addEventListener('click', e => {
   const c = e.target.closest('[data-fightchip]');
   if (!c) return;
@@ -7300,6 +7312,7 @@ function setTab(tab){
   if (BOARD_BY_ID[tab]) tab = 'mix';                              // v11.0.0: 옛 조합 탭은 모두 🔨 조합으로
   if (tab === 'mix'){ mixPick = null; mixDealNow(); }             // v11.0.0: 들어올 때마다 판을 새로 깐다
   if (isFieldTab(tab)) S.fightTab = tab;                          // v10.12.0: 마지막에 고른 칩
+  if (isCraftTab(tab)) S.craftTab = tab;                          // v11.1.0
   const bd = BOARD_BY_ID[tab];                                    // v7.0.0: 빈 탭(카드가 하나도 없는 조합)에는 머물지 않는다
   if (bd && !CRAFT_TYPES.some(t => onBoard(t, bd.id) || onTopGrid(t, bd.id))) tab = 'battle';
   if (paused){ stopInserts(); if (paused) return; }               // v9.56.8: 끼우는 중이면 멈추고 보내 준다
