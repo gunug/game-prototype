@@ -55,6 +55,7 @@ ICONS = [
     ("ui_mushroom", "늪지 무덤",  "a single mushroom with a wide speckled cap", False),
     ("ui_shell",    "껍질 동굴",  "a spiral sea shell", False),
     ("ui_run",      "원정 중",    "a pair of worn leather boots with mud on them", False),
+    ("ui_flag",     "메인 편성",  "a small red triangular pennant flag on a short wooden pole, standing upright", True),
     ("ui_clip",     "기록",       "a flat wooden board with a bone clip holding a sheet", False),
     ("card_prelude", "들머리",    "a narrow dirt path between low grassy mounds, with a few loose stones and a dry branch", False),
 ]

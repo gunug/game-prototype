@@ -101,8 +101,9 @@
   .subnav{position:absolute;left:0;right:0;bottom:0;height:42px;z-index:7;box-sizing:border-box;display:flex;align-items:center;justify-content:center;
     background:rgb(20,20,16);border-top:1px solid var(--hairline);}
   .subnav[hidden]{display:none;}
-  .subnav .gchips{width:auto;max-width:100%;padding:0 8px;}
-  .subnav .gchips button{padding:5px 14px;font-size:13px;}
+  .subnav .gchips{width:auto;max-width:100%;padding:8px 8px 0;}
+  .subnav .gchips button{position:relative;padding:5px 14px;font-size:13px;}
+  .subnav .gchips button .mainflag{position:absolute;left:-1px;top:-9px;width:18px;height:18px;margin:0;pointer-events:none;}
   .field.has-sub > .gather{bottom:42px;}
   .botnav{position:fixed;z-index:8000;display:flex;box-sizing:border-box;gap:6px;padding:6px 8px;background:rgb(20,20,16);border-top:1px solid var(--hairline);}
   .botnav .navbig{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;
@@ -179,6 +180,7 @@
     background:linear-gradient(#f7d77c, #e2a935);color:#1a1408;border:1px solid #ffe7a3;
     box-shadow:0 4px 0 #8a5f12, 0 6px 8px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.55);transform:translateY(-2px);}
   .cw.field.big .sortie-go:active:not(:disabled){transform:translateY(2px);box-shadow:0 0 0 #8a5f12, 0 2px 3px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4);}
+  .cw.field.big .sortie-go .goflag{display:inline-block;height:1.15em;width:auto;margin:0 3px 0 0;vertical-align:-.2em;}
   .cw.field.big .sortie-go:disabled{opacity:.6;cursor:default;filter:grayscale(.6);}
   .foelist .cw.matc .name{font-size:calc(var(--cw) * .14);}
   .inn-want .cw.matc.full{box-shadow:0 0 0 2px #ffd54a;}          /* v11.0.3: 다 모은 재료 */
@@ -2312,7 +2314,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.3.1';
+const VERSION = 'v11.3.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4107,7 +4109,7 @@ const ICONS = {
   star:'ui_star', pin:'ui_pin', note:'ui_note', hand:'ui_hand', xp:'ui_xp', down:'ui_down',
   warn:'ui_warn', nature:'ui_nature', forge:'ui_forge', tools:'ui_tools', build:'ui_build',
   food:'ui_food', trident:'ui_trident', bow:'ui_bow', rope:'ui_rope', bag:'ui_bag', rock:'ui_rock',
-  web:'ui_web', mushroom:'ui_mushroom', shell:'ui_shell', run:'ui_run', clip:'ui_clip',
+  web:'ui_web', mushroom:'ui_mushroom', shell:'ui_shell', run:'ui_run', clip:'ui_clip', flag:'ui_flag',
   lock:'ui_lock', unlock:'ui_lock-open',
   dungeon:'card_dungeon', bone:'card_bone', cloth:'card_leatherarmor', trinket:'card_claynecklace',
   raid:'ui_raid',                                                 // v9.42.0: 레이드 탭
@@ -4120,6 +4122,7 @@ const uiIcon = (id, cls = 'inline') => ICONS[id]
   ? `<img class="icon ${cls}" src="images/icon/${ICONS[id]}.png" alt="" draggable="false">` : '';
 // 글자 속 이모지 → 그림 (한 곳에서만 바꾼다)
 const EMOJI_ICON = {
+  '🚩':'flag',                                                     // v11.3.2: 메인 편성 · 출전
   '🎯':'aim', '🌳':'tree', '📖':'book', '🔨':'craft', '🔧':'gear', '🗡':'field', '⚙':'settings',
   '🧪':'recipe', '📜':'trace', '🏷':'tag', '👑':'boss', '🔑':'key', '🧺':'gather', '🐾':'paw',
   '🔩':'parts', '🔥':'fire', '🛡':'shield', '⭐':'star', '📌':'pin', '📓':'note', '👆':'hand',
@@ -6337,7 +6340,8 @@ function screenRows(){
   }
   if (S.tab === 'party'){                                         // v10.6.0: 편성 — 위 칩 + 세 줄(사람 칸 + 그 사람의 장비 칸)
     const P = presetOf(presetPick);
-    const chips = '<div class="gchips">' + presets().map((x, i) => `<button type="button" data-preset="${i}" class="${i === presetPick ? 'on' : ''}">편성 ${i + 1}</button>`).join('') + '</div>';   // v11.3.1: 칩엔 번호만
+    const chips = '<div class="gchips">' + presets().map((x, i) => `<button type="button" data-preset="${i}" class="${i === presetPick ? 'on' : ''}">`
+      + `${i === mainPreset() ? uiIcon('flag', 'mainflag') : ''}편성 ${i + 1}</button>`).join('') + '</div>';   // v11.3.1: 칩엔 번호만 · v11.3.2: 메인엔 깃발
     const rows = [{ sub: chips }, { raw: `<div class="lrow preset-head">`
       + `<button type="button" class="pp-main" data-preset-main${presetPick === mainPreset() ? ' disabled' : ''}>${presetPick === mainPreset() ? '메인 편성' : '메인으로'}</button>`   // v10.7.0
       + `<button type="button" class="pp-clear" data-preset-clear${presetEmpty(presetPick) ? ' disabled' : ''}>편성 지우기</button></div>` }];
@@ -6398,7 +6402,7 @@ function screenRows(){
       const going = !!expAt(f.id), line = mainHeroes();
       const away = !going && EXPS.length > 0;                      // v10.8.0: 원정은 한 번에 하나
       const goBtn = `<button class="reset sortie-go" type="button" data-sortie="${f.id}"${going || !line.length || away ? ' disabled' : ''}>`
-        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : '⚔ 출전'}</button>`;
+        + `${going ? '🏃 원정 중' : away ? '🏃 다른 땅' : `${uiIcon('flag', 'goflag')}출전`}</button>`;   // v11.3.2: 메인 칩과 같은 깃발
       const card = `<div class="cw framed f-stone field big${fieldPick === f.id ? ' sel' : ''}${locked ? ' field-locked' : ''}" data-field="${f.id}">`
         + `<div class="emoji">${fieldIcon(f)}</div><div class="name">${locked ? '???' : esc(f.name)}</div>`   // v9.64.0: 잠김은 장인과 같은 꼴
         + (locked ? '<div class="lockbox"><img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">'
@@ -6630,7 +6634,7 @@ gatherEl.addEventListener('click', e => {                         // v10.3.0: �
 });
 gatherEl.addEventListener('click', e => {                         // v10.6.0: 편성 칩 · 편성 지우기
   const c = e.target.closest('[data-preset]'), clr = e.target.closest('[data-preset-clear]'), mn = e.target.closest('[data-preset-main]');
-  if (mn){ e.stopPropagation(); S.mainPreset = presetPick; save(); toast(`편성 ${presetPick + 1}이 메인 — ⚔ 출전하면 이 편성이 나간다`); renderScreen(); renderInsp(); renderAll(); return; }   // v10.7.0
+  if (mn){ e.stopPropagation(); S.mainPreset = presetPick; save(); toast(`편성 ${presetPick + 1}이 메인 — 🚩 출전하면 이 편성이 나간다`); renderScreen(); renderInsp(); renderAll(); return; }   // v10.7.0
   if (c){ e.stopPropagation(); presetPick = +c.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
   else if (clr){ e.stopPropagation(); if (presetEmpty(presetPick)) return;
     const p = presetPick;                                         // v10.7.1: 바로 지우지 않고 한 번 묻는다
@@ -6706,7 +6710,7 @@ function renderScreen(){
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
     + `<div class="gather-hint">${isFieldTab(S.tab)
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중`
-        : mainHeroes().length ? `⚔ 출전 — 편성 ${mainPreset() + 1}(메인) ${mainHeroes().map(w => esc(pName(w))).join(' · ')}이 나간다`   // v10.7.0
+        : mainHeroes().length ? `🚩 출전 — 편성 ${mainPreset() + 1}(메인) ${mainHeroes().map(w => esc(pName(w))).join(' · ')}이 나간다`   // v10.7.0
         : `편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`)
       : S.tab === 'mix' ? '카드를 끌어 다른 카드 위에 놓으면 합쳐진다'   // v11.0.0 · v11.0.1: 끌어 놓기
       : S.tab === 'prod' ? (S.prod ? '재료가 가방에 다 모이면 저절로 생산된다 — 칸 밖으로 끌면 그만둔다'   // v10.14.0
@@ -7269,7 +7273,7 @@ function renderFieldInsp(){
   }
   const f = fieldPick && FIELD_BY_ID[fieldPick];
   if (!f){
-    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>기사를 필드 줄의 전열 칸에 올리고 ⚔ 출전을 누르면 원정을 떠납니다.</div>';
+    inspEl.innerHTML = '<div class="empty">필드를 탭하면 정보가 나와요.<br><br>기사를 필드 줄의 전열 칸에 올리고 🚩 출전을 누르면 원정을 떠납니다.</div>';
     return;
   }
   const ys = yieldsOf(f.id);
@@ -9647,7 +9651,7 @@ const withP = w => w + (hasJong(w) ? '과' : '와');                // v3.5.1: �
 // 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
 function opNote(){
   const H = S.hints || {};
-  if (!H.sortie) return '땅 옆의 ⚔ 출전을 누른다';                 // v10.12.1: 출전 칸은 없어졌다 (v10.7.0)
+  if (!H.sortie) return '땅 옆의 🚩 출전을 누른다';                 // v10.12.1: 출전 칸은 없어졌다 (v10.7.0)
   if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
     const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
     return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
