@@ -2322,7 +2322,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.5.0';
+const VERSION = 'v11.6.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6079,10 +6079,26 @@ function mixHintLine(){
   if (!S.goal || !DEFS[S.goal]) return '뭘 만들지 🎯 목표에 정하면 한마디 거들지.';
   const r = mixTarget();
   if (!r) return '재료부터 모아 오게. 판이 비었어.';
+  const miss = [r.a.card, r.b.card].filter(t => have(t) <= 0);    // v11.6.0: 정답 재료가 판에 없으면 힌트 대신 구할 곳
+  if (miss.length) return mixMissLine(miss);
   if ((S.madeRecipes || []).includes(r.id)) return `${withP(DEFS[r.a.card].name)} ${DEFS[r.b.card].name}. 해 본 거잖나.`;   // 해 본 조합은 거의 정답
   const hs = mixHints(r);
   if (!mixHintAt || mixHintAt.r !== r.id) mixHintAt = { r: r.id, i: Math.floor(Math.random() * hs.length) };
   return hs[mixHintAt.i];
+}
+// v11.6.0: **판에 없는 재료** — 힌트를 말하면 판 안에 답이 있는 줄 안다. 어디서 나는지만 말한다
+//   만드는 것이면 '먼저 만들어 오게' · 못 본 재료는 이름 대신 땅만 · 땅이 다 잠겼으면 먼저 깰 땅
+function mixMissLine(miss){
+  const eul = w => w + (hasJong(w) ? '을' : '를'), eun = w => w + (hasJong(w) ? '은' : '는');
+  const made = miss.filter(t => CRAFT_RECIPES.some(x => (x.out || []).includes(t)));
+  if (made.length) return `아직 판에 없는 게 있어. ${eul(made.map(aimName).join(' · '))} 먼저 만들어 오게.`;
+  const lands = [...new Map(miss.flatMap(scoutLandList).map(f => [f.id, f])).values()];
+  const open = lands.filter(f => !fieldLocked(f.id)), seen = miss.filter(aimSeen).map(t => DEFS[t].name);
+  const what = seen.length === miss.length ? eun(seen.join(' · ')) : '모자란 재료는';
+  if (!lands.length) return `아직 판에 없는 게 있어. ${what} 아직 나도 어디서 나는지 모르겠어.`;
+  if (!open.length){ const p = unlockFirst(lands[0].id);
+    return `아직 판에 없는 게 있어. ${what} ${lands[0].name}에서 나는데, 거긴 잠겼어. ${p ? eul(p.name) + ' 먼저 깨게.' : ''}`.trim(); }
+  return `아직 판에 없는 게 있어. ${what} ${open.map(f => f.name).join(' · ')}에서 구해 오게.`;
 }
 function mixHintNext(){                                           // 실패할 때마다 다른 힌트로
   if (!mixHintAt) return;
