@@ -643,6 +643,7 @@
     text-shadow:0 0 4px rgba(0,0,0,.95), 0 0 10px rgba(80,230,90,.9), 0 2px 6px rgba(0,0,0,.8);}
   .exp-lane .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
   .exp-lane .dmg.thornhit{color:#ffb0e0;text-shadow:0 0 6px rgba(255,120,200,.6);font-weight:900;}   /* v9.50.0: 되받음 */
+  .exp-lane .dmg.short{color:#d8d8d0;font-weight:800;font-size:calc(var(--cf) * .14);opacity:.9;}   /* v11.7.0: 사거리 부족 */
   .exp-lane .dmg.shellhit{color:#cfe3ff;text-shadow:0 0 6px rgba(150,190,255,.6);font-weight:900;}   /* v9.50.0: 껍질 */
   .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   /* v9.29.0: 숫자는 **떠오르며 사라진다**. `floatUp` 키프레임이 없어서 그대로 겹쳐 쌓여 안 읽혔다 */
@@ -2322,7 +2323,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.6.1';
+const VERSION = 'v11.7.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -8703,7 +8704,8 @@ function expFight(dt){
       }
       }                                                           // v9.52.0: 연타 고리 끝
     }
-    if (!hit) h.cd = Math.min(h.cd, every);
+    // v11.7.0: **사거리 부족** — 칠 때가 됐는데 닿지 않으면 그 박자를 날린다 (글자를 띄우고 공격 타이머를 처음부터)
+    if (!hit && h.cd >= every){ h.cd = 0; if (!FAST) for (const el of toksOf(k)) floatText(el, '사거리 부족', 'short', 900); }
     if (hit) anyHit = true;
   }
   exp.line = !anyHit && !foeHit ? '거리를 좁힌다'
@@ -9259,7 +9261,11 @@ function paintLane(el, lane){
       pie.hidden = !on;
       if (on) pie.style.setProperty('--p', (Math.max(0, Math.min(1, (h2.cd || 0) / every)) * 360).toFixed(0) + 'deg');
     }
-    ht.classList.toggle('walk', !h2.out && h2.to != null && h2.to !== h2.x);   // v0.13.2 걸을 때만 · v9.48.6 제자리면 멈춘다
+    // v11.7.0: 앞사람에 걸려 **느리게라도 움직이면** 걷는다 — 그림 자리가 방금 바뀌었나로 본다 (완전히 멈추면 안 걷는다)
+    const lx = h2.xd != null ? h2.xd : h2.x, tnow = performance.now();
+    if (ht._lx != null && Math.abs(lx - ht._lx) > 0.002) ht._mvAt = tnow;
+    ht._lx = lx;
+    ht.classList.toggle('walk', !h2.out && ((h2.to != null && h2.to !== h2.x) || tnow - (ht._mvAt || 0) < 200));   // v0.13.2 걸을 때만 · v9.48.6 제자리면 멈춘다
     ht.classList.toggle('dig', exp.phase === 'search' && k2 === expLead());   // v0.13.4: 뒤지는 중
     hpBar(ht.querySelector('.hp'), hSt(k2).hp, hMax(k2));         // v9.47.0: 막대만
   }
