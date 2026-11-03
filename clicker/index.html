@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>클리커</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets-ds.css">
+<style>
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:var(--s5);padding-top:var(--s7);}
+  #money{font-size:40px;font-weight:800;margin:0;}
+  #click{font-size:24px;padding:24px 48px;}
+  .upg{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .upg .desc{color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+  <main class="container wrap">
+    <a href="../index.html">← 목록</a>
+    <p id="money">0원</p>
+    <button id="click" class="btn btn-primary">클릭 (+1원)</button>
+    <div class="card upg">
+      <h3 style="margin:0">업그레이드 <span id="lv">Lv 0</span></h3>
+      <button id="buy" class="btn btn-secondary"></button>
+      <p class="desc">살 때마다 가격 ×1.15</p>
+    </div>
+  </main>
+<script>
+  let money = 0;
+  let level = 0;
+  const BASE_COST = 10;
+  const COST_MUL = 1.15;
+
+  const cost = () => Math.floor(BASE_COST * Math.pow(COST_MUL, level));
+
+  function render() {
+    document.getElementById('money').textContent = money.toLocaleString() + '원';
+    document.getElementById('lv').textContent = 'Lv ' + level;
+    const buy = document.getElementById('buy');
+    buy.textContent = '구입 (' + cost().toLocaleString() + '원)';
+    buy.disabled = money < cost();
+  }
+
+  document.getElementById('click').addEventListener('click', () => {
+    money += 1;
+    render();
+  });
+
+  document.getElementById('buy').addEventListener('click', () => {
+    const c = cost();
+    if (money < c) return;
+    money -= c;
+    level += 1;
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>
