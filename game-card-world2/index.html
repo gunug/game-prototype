@@ -1101,6 +1101,13 @@
   .aim-box{font-size:13px;}
   .fneed{position:absolute;top:2px;left:4px;font-size:10px;color:var(--brand-yellow);background:rgba(0,0,0,.45);border-radius:var(--r-pill);padding:0 5px;}
   .aim-empty{margin:8px 10px;font-size:12px;color:var(--muted);}
+  .pp-guide{margin:4px 10px;padding:8px 12px;border:1px solid var(--hairline);border-radius:10px;background:rgba(0,0,0,.25);font-size:13px;max-width:480px;width:calc(100% - 20px);box-sizing:border-box;}   /* v11.4.0 */
+  .pp-guide .pp-gt{font-weight:800;color:var(--brand-yellow);margin-bottom:4px;}
+  .pp-guide .pp-gr{display:flex;align-items:center;gap:8px;padding:3px 0;}
+  .pp-guide .pp-gr > span:not(.pp-gi){flex:1;}
+  .pp-guide .pp-gi{width:28px;height:28px;flex:none;display:flex;}
+  .pp-guide .pp-gi img{width:100%;height:100%;}
+  .pp-guide button{flex:none;padding:3px 10px;border-radius:999px;border:1px solid var(--brand-yellow);background:rgba(255,212,0,.08);color:var(--brand-yellow);font:inherit;font-size:12px;font-weight:800;cursor:pointer;}
   .cw.aim-can{box-shadow:0 0 0 1px rgba(255,212,0,.5);}          /* v3.0.7: 지금 만들 수 있는 것만 살짝 빛남 */
   .cw.unseen .name{color:var(--muted);}
   .cw.unseen .emoji .icon, .cw.unseen .emoji img{filter:brightness(0) opacity(.45);}   /* v9.37.0: 못 본 것은 검은 실루엣 (목표의 ??? 후보) */
@@ -2315,7 +2322,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.3.3';
+const VERSION = 'v11.4.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6273,6 +6280,29 @@ function prodRowHtml(){                                           // 수첩 한 
     + `<span class="q-text">${body}</span>${editDoneBtn('prod', t)}<span class="q-n"></span></div>`;
 }
 // 칸 하나 그리기 — id는 `<줄>:<칸>`
+// v11.4.0: **편성 — 장비 칸을 누르면 아래엔 그 칸에 낄 것만.** 낄 게 없으면 얻는 길을 알려 준다
+let ppSlot = null;
+const ppSlotNow = () => { if (!ppSlot || S.tab !== 'party') return null;
+  const f = slotId(ppSlot), who = presetOf(presetPick).heroes[ppRow(f)], sl = slotByKey(f.key);
+  return who && sl && slotsFor(who).some(x => x.key === f.key) ? { id: ppSlot, who, sl } : null; };
+function ppGuideHtml({ sl, who }){                                // 낄 것이 없을 때 — 장인 합류 · 목표 + 조합 · 생산
+  const lab = esc(slotName(sl, who));
+  if (!slotOpen(sl.key, who)) return `<div class="pp-guide"><div class="pp-gt">${lab} 칸은 닫혀 있다</div>`
+    + `<div class="pp-gr"><span>${esc(smithName(sl.smith))} 합류시키기${smithLocked(sl.smith) ? ` — ${esc(smithNeed(sl.smith))}` : ''}</span>`
+    + `<button type="button" data-ppgo="inn">퀘스트</button></div></div>`;
+  const tag = slotTag(sl, who), aims = aimCandidates();
+  const ways = CRAFT_TYPES.filter(t => useOf(t).includes(tag)).map(t => {
+    const rc = CRAFT_RECIPES.find(x => (x.out || []).includes(t)), sm = rc && recipeSmith(rc);
+    return prodMade(t) ? { t, o: 0, how: '생산하기', go: `prod:${t}`, btn: '생산' }
+      : sm && !smithOk(sm) ? { t, o: 2, how: `${smithName(sm)} 합류시키기`, go: 'inn', btn: '퀘스트' }
+      : aims.includes(t) ? { t, o: 1, how: '목표에 올리고 조합하기', go: `aim:${t}`, btn: '목표로' }
+      : { t, o: 3, how: '필드에서 재료를 더 찾자' };
+  }).sort((a, b) => a.o - b.o || itemNo(a.t) - itemNo(b.t)).slice(0, 4);
+  return `<div class="pp-guide"><div class="pp-gt">${lab} 칸에 낄 것이 없다 — 이렇게 얻는다</div>`
+    + ways.map(w => `<div class="pp-gr"><span class="pp-gi">${iconHtml(w.t)}</span><span><b>${esc(aimName(w.t))}</b> · ${esc(w.how)}</span>`
+      + (w.go ? `<button type="button" data-ppgo="${w.go}">${w.btn}</button>` : '') + '</div>').join('')
+    + (ways.length ? '' : '<div class="pp-gr"><span>아직 이 칸에 맞는 물건을 모른다 — 필드에서 재료를 더 찾자</span></div>') + '</div>';
+}
 function slotHtmlOf(sl){
   const inner = sl.card
     // v9.40.1: 아직 안 밝혀진 것은 칸에 올려도 **아래 카드와 똑같이** — 검은 실루엣 · 수치 없음
@@ -6283,7 +6313,7 @@ function slotHtmlOf(sl){
     : `<img class="lock" src="images/icon/ui_lock.png" alt="잠김" draggable="false">`   // v0.56.0: 잠긴 칸도 무엇이 들어갈지는 보여 줌
       + (sl.need ? `<b class="lockneed">${esc(sl.need)}</b>` : '')                    // v0.98.0: 자물쇠 위에 조건
       + (sl.lab ? `<span class="pslot-lab">${esc(sl.lab)}</span>` : '');
-  return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
+  return `<div class="pslot${sl.open ? '' : ' locked'}${slotPick === sl.id || (ppSlot === sl.id && S.tab === 'party') ? ' sel' : ''}${sl.card ? ' filled' : ''}" data-slot-id="${sl.id}">${inner}</div>`;
 }
 // 이 화면의 줄 목록
 // v9.55.0: 장인 카드 — 아직 밝혀지지 않았으면 검은 실루엣 + ??? (목표의 안개 카드와 같은 규칙)
@@ -6474,12 +6504,12 @@ function screenTokens(){
     // v9.79.0: 출전중은 물론 **회복중(빈사)** 도 집히지 않는다
     return [];                                                    // v10.8.0: 바닥 사람 칸 없앰 — 나가는 것은 메인 편성 (편성 탭에서 본다)
   }
-  if (S.tab === 'party'){                                         // v10.6.0: 사람(이 벌에 없는) + 가진 장비
-    const P = presetOf(presetPick);
-    return ALL_HEROES().filter(k => !P.heroes.includes(k)).map(k => ({ token: k, html: heroCardHtml(k, true) }))
-      .concat(S.cards.filter(c => onBoard(c.type, 'gearup') && c.n > 0).map(c => ({ token: c.type,
+  if (S.tab === 'party'){                                         // v10.6.0: 사람(이 벌에 없는) · v11.4.0: 장비 칸을 누르면 그 칸에 낄 것만
+    const P = presetOf(presetPick), ps = ppSlotNow();
+    if (!ps) return ALL_HEROES().filter(k => !P.heroes.includes(k)).map(k => ({ token: k, html: heroCardHtml(k, true) }));
+    return S.cards.filter(c => c.n > 0 && slotTakes(ps.id, c.type)).map(c => ({ token: c.type,
         html: `<div class="cw framed f-${frameOf(DEFS[c.type])}">${statsHtml(c.type)}<div class="emoji">${iconHtml(c.type)}</div>`
-          + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>` })));
+          + `<div class="name">${esc(DEFS[c.type].name)}</div><div class="cnt">${c.n}</div></div>` }));
   }
   if (S.tab === 'mix') return [];                                 // v11.0.0: 판이 전부
   if (S.tab === 'prod') return prodCandidates().map(t => ({      // v10.14.0: 손으로 만들어 본 것들
@@ -6636,7 +6666,7 @@ gatherEl.addEventListener('click', e => {                         // v10.3.0: �
 gatherEl.addEventListener('click', e => {                         // v10.6.0: 편성 칩 · 편성 지우기
   const c = e.target.closest('[data-preset]'), clr = e.target.closest('[data-preset-clear]'), mn = e.target.closest('[data-preset-main]');
   if (mn){ e.stopPropagation(); S.mainPreset = presetPick; save(); toast(`편성 ${presetPick + 1}이 메인 — 🚩 출전하면 이 편성이 나간다`); renderScreen(); renderInsp(); renderAll(); return; }   // v10.7.0
-  if (c){ e.stopPropagation(); presetPick = +c.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
+  if (c){ e.stopPropagation(); presetPick = +c.dataset.preset; heroPick = null; inspType = null; slotPick = null; ppSlot = null; renderScreen(); renderInsp(); }
   else if (clr){ e.stopPropagation(); if (presetEmpty(presetPick)) return;
     const p = presetPick;                                         // v10.7.1: 바로 지우지 않고 한 번 묻는다
     askSure(`편성 ${p + 1}을 비울까?`, `${presetOf(p).heroes.filter(Boolean).map(pName).join(' · ')} — 사람을 빼고, 낀 장비는 전부 가방으로 돌아간다.`, '비우기', () => {
@@ -6689,7 +6719,7 @@ function renderScreen(){
   const rows = rowsAll.filter(r => !r.sub);
   setSubnav((rowsAll.find(r => r.sub) || {}).sub || '');          // v11.3.0: 2뎁스 칩은 아래 메뉴 바로 위
   let toks = screenTokens(), chips = '';
-  if ((S.tab === 'gearup' || S.tab === 'party') && document.documentElement.classList.contains('phone')){   // v10.3.0 · v10.6.0 편성도
+  if (S.tab === 'gearup' && document.documentElement.classList.contains('phone')){   // v10.3.0 · v11.4.0: 편성은 거르기 칩 없음 (칸을 누르면 거른다)
     const kind = t => ALL_HEROES().includes(t) ? 'hero' : gearKind(t);
     const n = k => k === 'all' ? toks.length : toks.filter(t => t.token && kind(t.token) === k).length;
     if (gearChip !== 'all' && !n(gearChip)) gearChip = 'all';
@@ -6706,6 +6736,7 @@ function renderScreen(){
     + '<div class="botarea">' + chips
     + (isFieldTab(S.tab) ? '' : '<div class="chars">' + toks.map(t => t.token ? t.html.replace('<div class="cw', `<div data-token="${t.token}" class="cw`) : t.html).join('') + '</div>')   // v10.8.0: 필드엔 사람 칸 없음
     + (S.tab === 'prod' ? prodPlanHtml() : '')                    // v10.14.0
+    + (S.tab === 'party' && ppSlotNow() && !toks.length ? ppGuideHtml(ppSlotNow()) : '')   // v11.4.0
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
@@ -6722,7 +6753,8 @@ function renderScreen(){
         ? '재료가 가방에 다 모이면 저절로 건넨다'   // v10.17.0 · v11.0.3: 한 사람만
         : '〈합류 전〉은 합류 퀘스트, 〈합류〉는 이야기 — 등록 칸에 끌어다 놓거나 카드를 탭해 등록하세요')
       : S.tab === 'party' ? (EXPS.some(E => E.preset === presetPick) ? `편성 ${presetPick + 1}은 원정 중 — 지금 고친 것은 다음 출전부터`   // v10.10.0
-        : `사람을 전열 · 중열 · 후열에, 장비를 그 옆 칸에 — 출전은 늘 메인(편성 ${mainPreset() + 1})`)   // v10.6.0 · v10.7.0
+        : ppSlotNow() ? `${esc(pName(ppSlotNow().who))}의 ${esc(slotName(ppSlotNow().sl, ppSlotNow().who))} 칸 — ${toks.length ? '끌거나 탭해서 낀다 · ' : ''}칸을 다시 누르면 사람 목록`   // v11.4.0
+        : `사람을 전열 · 중열 · 후열에 — 장비 칸을 누르면 낄 것이 나온다 · 출전은 늘 메인(편성 ${mainPreset() + 1})`)   // v10.6.0 · v10.7.0
       : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
@@ -6834,6 +6866,17 @@ gatherEl.addEventListener('click', e => {                         // v9.55.0: �
   slotPick = null; heroPick = null;
   renderScreen(); renderInsp();
 });
+gatherEl.addEventListener('click', e => {                         // v11.4.0: 편성 — 장비 칸 누르기 · 얻는 길 단추
+  if (S.tab !== 'party') return;
+  const go = e.target.closest('[data-ppgo]');
+  if (go){ const [k, t] = go.dataset.ppgo.split(':'); ppSlot = null;
+    if (k === 'prod'){ setTab('prod'); setProd(t); } else if (k === 'aim'){ setTab('aim'); setGoal(t); } else setTab('inn');
+    return; }
+  const se = e.target.closest('[data-slot-id]');
+  if (!se || slotId(se.dataset.slotId).key === 'h') return;
+  ppSlot = ppSlot === se.dataset.slotId ? null : se.dataset.slotId;
+  renderScreen();
+});
 gatherEl.addEventListener('pointerdown', e => {
   if (paused) return;
   const slotEl = e.target.closest('[data-slot-id]');
@@ -6909,7 +6952,7 @@ const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([i
   `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div>' });
 document.getElementById('subnav').addEventListener('click', e => {
   const p = e.target.closest('[data-preset]');
-  if (p){ presetPick = +p.dataset.preset; heroPick = null; inspType = null; slotPick = null; renderScreen(); renderInsp(); }
+  if (p){ presetPick = +p.dataset.preset; heroPick = null; inspType = null; slotPick = null; ppSlot = null; renderScreen(); renderInsp(); }
 });
 document.getElementById('subnav').addEventListener('click', e => {
   const c = e.target.closest('[data-craftchip]');
@@ -7064,11 +7107,13 @@ addEventListener('pointerup', e => {
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.remove('hot', 'can');
   if (!d.moved){                                                  // 탭 — 정보만
     if (d.fromSlot && S.tab === 'party'){ const f = slotId(d.fromSlot);   // v10.6.0: 사람이면 사람 정보, 장비면 장비 정보
+      if (f.key !== 'h') return;                                  // v11.4.0: 장비 칸 탭은 click 이 맡는다 (낄 것 목록)
       if (f.key === 'h'){ heroPick = d.token; inspType = null; } else { inspType = d.token; heroPick = null; }
       slotPick = null; selected = null; renderScreen(); renderInsp(); }
     else if (d.fromSlot){ slotPick = d.fromSlot; renderScreen(); renderInsp(); }
     else if (SMITH_BY_ID[d.token]){ innPick = d.token; slotPick = null; renderScreen(); renderInsp(); }   // v9.55.0: 장인
     else if (ALL_HEROES().includes(d.token)){ heroPick = d.token; fieldPick = null; foePick = null; slotPick = null; renderScreen(); renderInsp(); }   // v7.13.2 · v9.24.0 · v9.74.2: 누구든
+    else if (S.tab === 'party' && ppSlotNow() && slotTakes(ppSlot, d.token)){ dropOnSlot(ppSlot, d.token); }   // v11.4.0: 탭하면 바로 낀다
     else { inspType = d.token; selected = null; heroPick = null; slotPick = null; renderScreen(); renderInsp(); }   // v6.6.0: 목표 탭 카드도 골라짐
     return;
   }
