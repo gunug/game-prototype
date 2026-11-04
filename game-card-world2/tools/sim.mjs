@@ -438,6 +438,9 @@ function play(ai, note){
     const st = ai.state();
     const sig = `${st.lv}|${st.cleared.length}|${st.seen}|${Object.keys(st.cards).length}|${st.goal}`;
     stuck = sig === lastSig ? stuck + 1 : 0;
+    // v11.9.0: 가렛의 길이 도구를 가르치는 걸음이면 사람처럼 한 번 써 본다 (콜렉터북 열기 · 생산 칸에 올렸다 내리기)
+    g(`(function(){ if (questOn('book')) hintDone('book');
+      if (questOn('prod')){ const t = prodCandidates()[0]; if (t){ setProd(t); S.prod = null; } } })()`);
     lastSig = sig;
     if (stuck > 200){
       if (VERBOSE) console.log('   막힘 상태:', JSON.stringify(st), '| 할 일:', JSON.stringify(st.goal ? ai.todo(st.goal) : []).slice(0, 400));

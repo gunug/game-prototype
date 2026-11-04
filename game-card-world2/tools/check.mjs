@@ -124,7 +124,7 @@ try {
     bookTier = TREE_TAB;
     for (const id in TREES){ bookTree = id; renderBook(); }
     S.goal = CRAFT_TYPES.find(t => CRAFT_RECIPES.some(r => (r.out || []).includes(t))) || null;
-    goalRowHtml(); goalPlanHtml(); opNote(); renderQuest();
+    goalRowHtml(); goalPlanHtml(); renderQuest();
     for (const tab of ['aim', 'battle', 'gearup', 'inn']){ S.tab = tab; screenRows(); screenTokens(); }
     // v9.55.0: 여관 — 등록 전 · 세 걸음 각각 · 정보 칸(장인 다섯 + 여관 주인)
     S.tab = 'inn';
@@ -354,6 +354,19 @@ try {
   if (bad.length) report('장인 걸음', new Error(bad.join(' | ')));
   else console.log('✓ 장인 걸음이 닿는다 (소문의 땅 · 물건 재료 · 증명할 놈이 그 시점에 다 있다)');
 } catch (e){ report('장인 걸음', e); }
+
+// v11.9.0: 가렛의 길 — 걸음마다 퀘스트가 있고, 이야기 걸음 16개가 차례대로 한 번씩, 없앤 사냥 퀘스트(곰 · 돌가죽 주인 · 무덤 주인)는 길에 없다
+try {
+  const bad = JSON.parse(vm.runInContext(`JSON.stringify((() => { const out = [];
+    for (const id of GARRET_PATH) if (!QUESTS[id]) out.push('퀘스트 없음: ' + id);
+    if (new Set(GARRET_PATH).size !== GARRET_PATH.length) out.push('길에 같은 걸음 둘');
+    const g = GARRET_PATH.filter(id => (QUESTS[id] || {}).story).map(id => QUESTS[id].story);
+    if (g.join() !== STORY.knight.map((_, i) => i + 1).join()) out.push('이야기 걸음 차례: ' + g.join());
+    for (const id of ['bear', 'stonelord', 'tombkeeper']) if (QUESTS[id]) out.push('겹친 사냥 퀘스트 남음: ' + id);
+    return out; })())`, ctx));
+  if (bad.length) report('가렛의 길', new Error(bad.join(' | ')));
+  else console.log('✓ 가렛의 길 (걸음마다 퀘스트 · 이야기 16걸음 차례대로 · 겹친 사냥 없음)');
+} catch (e){ report('가렛의 길', e); }
 
 // v9.139.0: 카드 번호 — 모든 카드에 번호가 있고 겹치지 않는다 (사이에 끼울 땐 빈 번호를 쓴다)
 try {

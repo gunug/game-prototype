@@ -2431,7 +2431,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.8.0';
+const VERSION = 'v11.9.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2492,7 +2492,9 @@ const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24
 //        ② 하나가 끝나면 **바로 다음이 붙는다** — 할 일이 빈 순간을 만들지 않는다
 //        ③ 한 번에 한 줄. key 하나로 판정한다
 const QUESTS = {
-  gomountain: { name:'첫 걸음',      text:'⛰️ 산에 올라 보자',        goal:1, key:'exp-end:mountain',   // v9.120.0: 첫 메인 퀘스트 (들머리 없앰)
+  // v11.9.0: **조작은 가렛의 걸음이 가르친다** — 👆 조작 안내 줄을 없애고, 처음 하는 조작이면 걸음 글이 그 손짓을 말한다 (H = S.hints)
+  gomountain: { name:'첫 걸음',      text:() => hintOn('sortie') ? '⛰️ 산에 올라 보자' : '⛰️ 산 옆의 🚩 출전을 눌러 산에 올라 보자',
+                goal:1, key:'exp-end:mountain',   // v9.120.0: 첫 메인 퀘스트 (들머리 없앰)
                 say:'할 수 있는 게 없네… 일단 산에 올라 보자' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
@@ -2502,30 +2504,31 @@ const QUESTS = {
                 // v3.0.3: 목표에 올릴 게 없으면 먼저 재료를 발견해야 한다는 걸 퀘스트가 말한다
                 // v3.2.5: 한마디는 없음 — 이 퀘스트는 보스에게 지고 돌아온 직후에 붙어서,
                 //   그때 하는 '맨손으론 저 이빨을…' 한마디에 묻힌다
-                text:() => aimUseCandidates('근접무기').length ? '🎯 목표에 만들 무기를 등록하자'
+                text:() => aimUseCandidates('근접무기').length ? (hintOn('aim') ? '🎯 목표에 만들 무기를 등록하자'
+                    : `🎯 목표 탭에서 ${objP(DEFS[aimUseCandidates('근접무기')[0]].name)} 목표 칸에 끌어다 놓자`)
                   : '⛰️ 산에서 무기가 될 재료를 더 모으자' },        // v9.98.0: 들머리는 깨면 사라진다
-  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? '만든 무기를 손에 쥐자' : '🔨 조합에서 목표를 만들자',
+  arm:        { name:'맨손으론 무리', text:() => haveWeapon() ? equipText('만든 무기를 손에 쥐자') : craftText('🔨 조합에서 목표를 만들자'),
                 goal:1, key:'equip:weapon' },
   wolf:       { name:'길을 막는 것',  text:'⚔ 늑대를 넘자',        goal:1, key:'kill:wolf',
                 say:'맨손이지만 — 늑대부터 넘어 보자' },          // v9.98.0: 무기 장인보다 먼저 (합류 사이에 가렛의 걸음 둘)
   // v0.72.0: 이 대사는 퀘스트를 받을 때가 아니라 **곰에게 지고 돌아온 뒤**에 한다 (expEnd)
   aimbetter:  { name:'더 센 것을 고르자', goal:1, key:'aim-atk2',
-                text:() => aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? '🎯 목표에 더 센 무기를 등록하자'
+                text:() => aimCandidates().some(t => (DEFS[t].atk || 0) >= 2) ? (hintOn('aim') ? '🎯 목표에 더 센 무기를 등록하자'
+                    : `🎯 목표 탭에서 ${objP(DEFS[aimCandidates().find(t => (DEFS[t].atk || 0) >= 2)].name)} 목표 칸에 끌어다 놓자`)
                   : '⛰️ 더 센 무기가 될 재료를 발견하자' },
-  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 ? '🔨 조합에서 목표를 만들자' : '더 센 무기를 쥐자',
+  better:     { name:'이걸론 부족해', text:() => S.goal && (DEFS[S.goal].atk || 0) >= 2 && !have(S.goal) ? craftText('🔨 조합에서 목표를 만들자') : equipText('더 센 무기를 쥐자'),
                 goal:1, key:'equip:atk2' },
-  bear:       { name:'산의 주인',     text:'👑 곰을 쓰러뜨리자',         goal:1, key:'kill:bear',
-                say:'이 정도면 곰을 만나러 가도 되겠지' },
+  // v11.9.0: 곰(산의 주인) · 돌가죽 주인 · 무덤 주인은 **가렛 이야기 걸음**이 맡는다 (같은 사냥을 두 줄로 시키지 않는다)
+  // v11.9.0: 콜렉터북 · 생산 — 처음 쓰는 도구를 가렛의 걸음으로
+  book:       { name:'모은 것을 적어 두자', text:'📖 콜렉터북을 열어 새 카드를 끼우자', goal:1, key:'hint:book' },
+  prod:       { name:'같은 것을 또',  goal:1, key:'prod-set',
+                text:'⚒ 생산 탭에서 만들어 본 것을 ⚒ 칸에 끌어다 놓자' },
   // v4.3.0: 🪨 돌가죽 굴 — 한 번 막혀 본 뒤에 길이 열린다
   pierce:     { name:'돌을 가르는 것', text:'🎯 목표에 방어를 무시하는 무기를 등록하자', goal:1, key:'aim-pierce',
                 say:'그 검은 돌을 쪼개면 날이 서겠지' },
   // v6.0.0: 🍄 늪지 무덤 — 회복을 끊는 길
   bleed:      { name:'피를 흐르게', text:'🎯 목표에 출혈이 붙은 무기를 등록하자', goal:1, key:'aim-bleed',
                 say:'아물기 전에 다시 베면 된다' },
-  tombkeeper: { name:'무덤의 주인',   text:'👑 무덤 주인을 넘자',   goal:1, key:'kill:tombkeeper',
-                say:'이 날이면 아물 틈이 없다' },
-  stonelord:  { name:'굴의 주인',     text:'👑 돌가죽 주인을 넘자',   goal:1, key:'kill:stonelord',
-                say:'이 날이면 돌가죽도 갈린다' },
   grass:      { name:'다음 땅',       text:'🌾 초원으로 가 보자',      goal:1, key:'exp-start:grassland',
                 say:'산 너머에 다른 땅이 열렸군' },
   // v2.0.0: 🌾 초원 사슬 — 공통 질문 '어떻게 강해지지?'의 초원 답 = 방어(갑옷). 그 전에 무기 하나 더
@@ -2543,9 +2546,17 @@ const QUESTS = {
   forest:     { name:'숲으로',          text:'🌲 숲으로 가 보자',      goal:1, key:'exp-start:forest',
                 say:'초원 너머로 숲이 보인다' },
 };
+// v11.9.0: **가렛의 길** — 메인 퀘스트 한 줄. 가렛 이야기 걸음(gst1 ~ gst16)을 길 사이에 끼운다 (이야기 차례는 그대로).
+//   합류(join_*)는 오르반 · 두르간만 길 안에, 나머지는 메인 둘마다 하나씩 (giveJoinQuests). 갈래(pierce · bleed)는 막혀 본 뒤에 곁에 붙는다
+const GARRET_PATH = ['gomountain', 'join_peddler', 'gst1', 'wolf', 'gst2', 'join_weaponsmith', 'gst3',
+  'aimweapon', 'arm', 'book', 'aimbetter', 'better', 'prod', 'gst4',            // gst4 = 곰 (산의 주인)
+  'grass', 'gweapon', 'boar', 'innarmor', 'garmor', 'bison', 'forest',
+  'gst5', 'gst6', 'gst7', 'gst8', 'gst9', 'gst10', 'gst11', 'gst12', 'gst13', 'gst14', 'gst15', 'gst16'];
 // 끝나면 바로 이어지는 다음 퀘스트
-const QUEST_NEXT = { pierce:'stonelord', bleed:'tombkeeper', gomountain:'join_peddler', join_peddler:'wolf',   /* v9.120.0: 산에서 시작 */ wolf:'join_weaponsmith', join_weaponsmith:'aimweapon', aimweapon:'arm', arm:'aimbetter', aimbetter:'better', better:'bear', bear:'grass',
-  grass:'gweapon', gweapon:'boar', boar:'innarmor', innarmor:'garmor', garmor:'bison', bison:'forest' };   // v2.0.0 초원 · v9.55.0 여관
+const QUEST_NEXT = Object.fromEntries(GARRET_PATH.slice(0, -1).map((id, i) => [id, GARRET_PATH[i + 1]]));
+const hintOn = k => !!(S.hints || {})[k];
+const craftText = t => hintOn('craft') ? t : '🔨 조합에서 카드를 끌어 다른 카드 위에 놓아 합치자';
+const equipText = t => hintOn('equip') ? t : '편성 탭에서 무기를 가렛의 무기 칸으로 끌어다 놓자';
 // 받는 순간 이미 충족된 퀘스트는 바로 끝낸다 (장착처럼 상태로 판정되는 것)
 //   — 퀘스트를 받기 전에 먼저 해 버려도 사슬이 멈추지 않게
 function questSelfCheck(){
@@ -2570,15 +2581,32 @@ function questSelfCheck(){
   for (const k of (S.killed || [])) questHit(`kill:${k}`);         // v0.66.0: 퀘스트를 받기 전에 이미 잡았어도 인정
   for (const id of ((S.inn || {}).done || [])) questHit(`smith:${id}`);   // v9.55.0: 이미 찾아 둔 장인
   for (const id in (S.marks || {})) questHit(`exp-end:${id}`);
+  for (const id in (S.marks || {})) questHit(`exp-start:${id}`);   // v11.9.0: 다녀온 땅은 가 본 땅 (숲 · 초원 걸음이 길 가운데로 왔다)
+  for (const k in (S.hints || {})) if (S.hints[k]) questHit(`hint:${k}`);   // v11.9.0: 이미 해 본 조작
+  if (S.prod) questHit('prod-set');
+  // v11.9.0: 가렛 이야기 걸음 — 받기 전에 이미 잡았거나 만들어 두었어도 인정 (메인 퀘스트와 같게). 물건은 다 있으면 저절로 건넨다
+  const ks = knightOn() && storyNow('knight');
+  if (ks && ((ks.kill && (S.killed || []).includes(ks.kill)) || (ks.make && have(ks.make) > 0))) storyAdvance('knight');
+  else if (ks && ks.give) innAutoGive();
 }
 // 사슬이 끊긴 채로 저장됐으면 (끝냈는데 다음을 못 받은 경우) 다시 이어 준다
+// v11.9.0: 가렛의 길에 지금 걸음이 없으면 **끝내지 않은 첫 걸음**을 준다 (옛 저장도 이 길 위 제자리로)
 function questResume(){
-  if ((S.quests || []).length) return questSelfCheck();
+  garretMigrate();
   const done = S.questDone || [];
-  for (let i = done.length - 1; i >= 0; i--){
-    const next = QUEST_NEXT[done[i]];
-    if (next && !done.includes(next)){ giveQuest(next); return; }
-  }
+  if (!done.length && !(S.quests || []).length) return;           // 새 판 — 첫 걸음은 시작 연출이 준다
+  // 길은 늘 **끝내지 않은 첫 걸음**에 선다 — 옛 저장이 앞 걸음(새로 생긴 콜렉터북 · 생산 · 이야기)을 건너뛰고 있으면 거기로 돌아간다
+  const first = GARRET_PATH.find(x => !done.includes(x));
+  S.quests = (S.quests || []).filter(q => q.done || !GARRET_PATH.includes(q.id) || q.id === first);
+  if (first) giveQuest(first);
+  questSelfCheck();
+}
+// v11.9.0: 옛 저장 — 가렛은 여관 등록 칸에서 내려오고, 이미 한 이야기 걸음은 길에서도 끝낸 것으로 친다
+function garretMigrate(){
+  if (S.inn && Array.isArray(S.inn.regs)) S.inn.regs = S.inn.regs.filter(x => x !== 'knight');
+  S.questDone = S.questDone || [];
+  for (let i = 1; i <= storyStep('knight'); i++) if (!S.questDone.includes(`gst${i}`)) S.questDone.push(`gst${i}`);
+  S.quests = (S.quests || []).filter(q => !(QUESTS[q.id] || {}).story || !S.questDone.includes(q.id));
 }
 // 일어난 일 하나로 지금 퀘스트를 판정 — 맞는 게 없으면 아무 일도 안 함
 function questHit(key){
@@ -2819,7 +2847,10 @@ function traceAckAll(){
 const innStepKey = () => '';                                      // v9.61.0: 저절로 미는 걸음은 없다 — 물건을 내야 끝난다
 // v9.81.0: **등록은 셋까지** — `S.inn.regs` (합류 퀘스트 · 이야기 섞어서). 칸 차례 그대로 담는다
 const INN_MAX = 1;                                                 // v11.0.3: 셋 → 하나
-const innRegs = () => ((innSt() || {}).regs || []).slice(0, INN_MAX);   // v11.0.3: 옛 저장의 둘째 · 셋째는 쉰다
+const innRegs = () => ((innSt() || {}).regs || []).filter(x => x !== 'knight').slice(0, INN_MAX);   // v11.0.3: 옛 저장의 둘째 · 셋째는 쉰다 · v11.9.0: 가렛은 등록하지 않는다
+// v11.9.0: **이야기가 걸려 있는 사람** — 가렛의 길이 이야기 걸음에 와 있으면 가렛 + 여관에 등록한 사람
+const knightOn = () => typeof S !== 'undefined' && !!S && (S.quests || []).some(q => !q.done && (QUESTS[q.id] || {}).story);
+const storyRegs = () => (knightOn() ? ['knight'] : []).concat(innRegs());
 const innGiven = id => ((innSt() || {}).given || {})[id] || {};
 const innGiveNeed = (type, who) => {                              // 그 장인에게 이 카드가 몇 장 더 필요한가 (who 없으면 등록한 장인 가운데 첫 사람)
   if (who == null){ for (const w of innRegs()){ const k = innGiveNeed(type, w); if (k > 0) return k; } return 0; }
@@ -2948,7 +2979,7 @@ function innAutoGive(){
   innAutoBusy = true;
   let moved = false;
   try {
-    for (const id of innRegs().slice()){
+    for (const id of storyRegs()){
       const story = storyCan(id), st = story ? storyNow(id) : null;
       if (!story && !(SMITH_BY_ID[id] && !smithDone(id) && smithStep(id) === 0)) continue;
       const give = story ? (st && st.give) : SMITH_BY_ID[id].give;
@@ -3157,6 +3188,13 @@ const STORY_TRACES = {                                          // v9.117.0: 모
   trinketsmith: [['st_trinketsmith_01', '여관 값'], ['st_trinketsmith_02', '흙구슬 값'], ['st_trinketsmith_03', '닦던 손'], ['st_trinketsmith_04', '금빛이 돌면'], ['st_trinketsmith_05', '아직 아니야'], ['st_trinketsmith_06', '모으는 손'], ['st_trinketsmith_07', '마지막 하나'], ['st_trinketsmith_08', '환호']],
   herbalist: [['st_herbalist_01', '닫힌 문'], ['st_herbalist_02', '무릎'], ['st_herbalist_03', '약이 먼저'], ['st_herbalist_04', '흉터'], ['st_herbalist_05', '계단'], ['st_herbalist_06', '동생'], ['st_herbalist_07', '한 사람 몫'], ['st_herbalist_08', '꿰맨 자리']],
 };
+// v11.9.0: **가렛 이야기 걸음 = 가렛의 길 걸음** (gst1 ~ gst16). 끝 판정은 이야기가 한다 (storyAdvance → questStep)
+//   곰 · 돌가죽 주인 · 무덤 주인은 메인 퀘스트 이름을 물려받는다 (그 퀘스트는 없앴다)
+const GST_NAME = { 4: '산의 주인', 8: '굴의 주인', 10: '무덤의 주인' };
+STORY.knight.forEach((st, i) => {
+  QUESTS[`gst${i + 1}`] = { name: GST_NAME[i + 1] || '가렛 이야기', goal: 1, key: `story:knight:${i + 1}`, story: i + 1, html: true,
+    text: () => storyNow('knight') ? qNowStory('knight') : '' };
+});
 // v9.124.0: **흔적 1 = 합류 흔적** — 그 사람이 합류하기 직전에 뜬다 (카드를 닫으면 합류).
 //   세리나 · 보른은 첫 산 원정에서 돌아오면 차례로, 장인은 여관 합류 퀘스트를 마치면. 이야기 1걸음을 마쳐도 새 카드는 없다 (글은 같다)
 const JOIN_TRACE_KEY = who => who === 'knight' ? null : who === 'ally' || who === 'keeper' ? 'exp-end:mountain' : `smith:${who}`;   // 나머지는 모두 여관 장인
@@ -3175,8 +3213,8 @@ const storyCan = id => !!STORY[id] && (id === 'knight' || (id === 'ally' && ally
 const storyNow = id => storyDone(id) ? null : STORY[id][storyStep(id)];
 const storyGiven = id => ((innSt() || {}).sgiven || {})[id] || {};
 const storyGiveNeed = (type, who) => {                            // 그 사람 이야기 걸음에 이 카드가 몇 장 더 필요한가
-  if (who == null){ for (const w of innRegs()){ const k = storyGiveNeed(type, w); if (k > 0) return k; } return 0; }
-  const st = innRegs().includes(who) && storyCan(who) && storyNow(who);
+  if (who == null){ for (const w of storyRegs()){ const k = storyGiveNeed(type, w); if (k > 0) return k; } return 0; }
+  const st = storyRegs().includes(who) && storyCan(who) && storyNow(who);
   if (!st || !st.give) return 0;
   const g = st.give.find(x => x[0] === type);
   return g ? Math.max(0, g[1] - (storyGiven(who)[type] || 0)) : 0;
@@ -3206,7 +3244,7 @@ function storyStepText(st, id, html, onlyLeft){
 }
 function n0everReg(id){ const n = S.inn; n.everReg = n.everReg || []; if (!n.everReg.includes(id)) n.everReg.push(id); }
 function storyRegister(id, slot){
-  if (!storyCan(id) || storyDone(id)) return false;
+  if (id === 'knight' || !storyCan(id) || storyDone(id)) return false;   // v11.9.0: 가렛은 늘 수첩에
   if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지
   logEv('story-reg', { who: id, step: storyStep(id) });
   n0everReg(id);                                                  // v9.112.0: 이야기로 등록해 본 사람 — 진행 기록
@@ -3237,24 +3275,28 @@ function storyAdvance(id){
   const st = storyNow(id);
   if (!st) return;
   n.story = n.story || {};
-  qDoneShow(id, `${pName(id)} 이야기`);                           // v11.0.12: 완료 줄 먼저
+  const knight = id === 'knight';                                  // v11.9.0: 가렛은 가렛의 길 줄이 완료를 말한다
+  if (!knight) qDoneShow(id, `${pName(id)} 이야기`);               // v11.0.12: 완료 줄 먼저
   n.story[id] = storyStep(id) + 1;
   if (n.sgiven) delete n.sgiven[id];                              // 건넨 물건은 그 걸음 몫 — 다음 걸음은 새로 센다
   logEv('story-step', { who: id, step: n.story[id] });
-  if (storyDone(id)){
-    n.regs = (n.regs || []).filter(x => x !== id);
-    toast(`🏨 ${pName(id)} 이야기 끝`);
-  } else toast(`🏨 ${pName(id)} 이야기 ${n.story[id]}/${storyLen(id)}`);
+  if (!knight){
+    if (storyDone(id)){
+      n.regs = (n.regs || []).filter(x => x !== id);
+      toast(`🏨 ${pName(id)} 이야기 끝`);
+    } else toast(`🏨 ${pName(id)} 이야기 ${n.story[id]}/${storyLen(id)}`);
+  }
   const key = `story:${id}:${n.story[id]}`;
   if (TRACES.some(t => t.key === key)) traceHit(key);
   for (const sc of SCENES) if (String(sc.key).startsWith('story-sum:') && traceReached(sc)) traceHit(sc.key);   // v9.118.0: 동탑 시나리오 카드
+  if (knight){ const q = (S.quests || []).find(x => !x.done && (QUESTS[x.id] || {}).story); if (q) questStep(q.id); }
   // v9.94.0: 흔적 카드가 있으면 그것으로 (같은 글을 말풍선으로 또 말하지 않는다)
   // /* v9.100.0: 말풍선 대사 끔 */ else setTimeout(() => knightSay(st.say), 400);   // 그 걸음의 한 줄 — 정보 칸에 남는다
   renderAll(); renderInsp(); renderQuest(); save();
 }
 // 보통 놀이 사건(questHit 열쇠)으로 이야기 걸음을 민다 — 등록한 사람 모두 (같은 놈이면 함께 넘는다)
 function storyHit(key){
-  for (const id of innRegs().slice()){
+  for (const id of storyRegs()){
     if (!storyCan(id)) continue;
     const st = storyNow(id);
     if (st && ((st.kill && key === `kill:${st.kill}`) || (st.make && key === `make:${st.make}`))) storyAdvance(id);
@@ -3262,19 +3304,20 @@ function storyHit(key){
 }
 // 다 건넨 걸음은 등록하자마자 넘긴다 (손에 쥔 것을 저절로 내지는 않는다 — 건네는 손맛은 남긴다)
 function storySelfCheck(id){
-  if (innRegs().includes(id) && storyGiveDone(id)) storyAdvance(id);
+  if (storyRegs().includes(id) && storyGiveDone(id)) storyAdvance(id);
   innAutoGive();                                                  // v10.17.0: 이미 다 가졌으면 바로 끝
 }
 // 정보 칸 — 다섯 걸음. 마친 걸음은 ✔ + 그 한 줄, 지금 걸음은 할 일, 뒤 걸음은 가린다
 function storyInspHtml(id){
   if (!STORY[id]) return '';
-  const s = storyStep(id), can = storyCan(id), reg = innRegs().includes(id);
+  const s = storyStep(id), can = storyCan(id), reg = storyRegs().includes(id);
   const rows = STORY[id].map((st, i) => i < s
     ? `<div class="st-row done">✔ ${esc(st.say)}</div>`
     : i === s && can ? `<div class="st-row">${reg ? '▶' : '·'} ${storyStepText(st, id, true)}${st.make ? ' ' + aimMakeBtn(st.make) : ''}</div>`
     : '<div class="st-row">· <span class="i-muted">???</span></div>').join('');
   const tail = !can ? '<div class="i-muted">합류하면 이야기가 열린다</div>'
     : s >= storyLen(id) || reg ? ''
+    : id === 'knight' ? '<div class="i-muted">가렛의 길이 닿으면 이어진다</div>'   // v11.9.0: 메인 퀘스트
     : S.tab === 'inn' ? `<button class="reset story-reg" data-story-reg="${id}">🏨 등록 — 이야기 이어 하기${innRegs().length ? ` (${esc(pName(innRegs()[0]))} 대신)` : ''}</button>`   // v9.80.1 · v11.0.3: 칸이 하나라 바꿔 앉힌다
     : '<div class="i-muted">🏨 퀘스트 등록 칸에 올리면 이어서 한다</div>';
   return `<div class="i-sect">이야기 <span class="i-muted">${s}/${storyLen(id)}${reg ? ' (등록함)' : ''}</span>${reg && s < storyLen(id) ? editDoneBtn('story', id) : ''}</div>${rows}${tail}`;
@@ -3672,6 +3715,10 @@ function giveJoinQuests(){
   const open = (S.quests || []).filter(q => !q.done && isJoinQuest(q.id));
   if (open.length) return;                                        // 이미 찾는 중인 사람이 있다
   if (!CHAIN_JOINS.every(id => smithOk(id))) return;              // 가렛의 첫 길(오르반 · 두르간)이 먼저
+  // v11.9.0: 가렛의 지금 걸음이 그 장인의 손을 바라면 (만들기 걸음) 차례를 기다리지 않고 그 사람부터
+  const ks = knightOn() && storyNow('knight'), kr = ks && ks.make && CRAFT_RECIPES.find(r => (r.out || []).includes(ks.make));
+  const need = kr && recipeSmith(kr);
+  if (need && SMITH_BY_ID[need] && !SMITH_BY_ID[need].free && !smithOk(need) && !smithLocked(need)){ giveQuest(joinQuestId(need)); return; }
   if ((S.mainSinceJoin || 0) < JOIN_GAP) return;                  // 메인 퀘스트 둘을 끝낸 뒤에
   for (const sm of SMITHS){
     if (sm.free || CHAIN_JOINS.includes(sm.id) || smithOk(sm.id) || smithLocked(sm.id)) continue;
@@ -6515,6 +6562,7 @@ function checkProdDone(){
 function setProd(t){
   S.prod = t;
   logEv('prodSet', { type: t });
+  questHit('prod-set');                                           // v11.9.0
   toast(`⚒ 생산 — ${DEFS[t].name}`);
   renderScreen(); renderInsp(); renderQuest(); save();
   setTimeout(checkProdDone, 0);                                   // 이미 다 가졌으면 바로 끝
@@ -6739,7 +6787,7 @@ function screenTokens(){
     }
     // v11.0.3: '납품' 묶음 없앰 — 재료는 가방에 다 모이면 저절로 건넨다 (v10.17.0)
     // v9.80.0: 합류한 사람은 **이야기가 남았으면 끌 수 있다** — 등록 칸에 올리면 이야기를 잇는다
-    const tok = id => storyCan(id) && !storyDone(id) && !regs.includes(id);
+    const tok = id => id !== 'knight' && storyCan(id) && !storyDone(id) && !regs.includes(id);   // v11.9.0: 가렛은 끌어 등록하지 않는다
     const stTag = id => STORY[id] ? `이야기 ${storyStep(id)}/${storyLen(id)}` : '';
     // v9.71.0: 늘 함께인 사람들도 〈합류〉에 선다 — 여관 주인 · 만물상 · 기사 · 궁수
     const always = ALWAYS_PEOPLE.filter(personIn).map(id => ({ id, html: beingCardHtml({
@@ -7061,7 +7109,7 @@ function slotTakes(id, token){
   const { key: slotKey, who } = slotId(id);                        // v9.24.2
   if (S.tab === 'inn'){                                           // v9.55.0
     // v9.72.0: 등록 칸은 **사람**, 재료 슬롯은 **그 재료**만 받는다
-    if (/^reg\d$/.test(slotKey)) return !innRegs().includes(token)   // v9.81.0: 등록 칸 셋 · 찬 칸에 올리면 바꿔 앉힌다
+    if (/^reg\d$/.test(slotKey)) return token !== 'knight' && !innRegs().includes(token)   // v9.81.0: 등록 칸 셋 · 찬 칸에 올리면 바꿔 앉힌다
       && ((!!SMITH_BY_ID[token] && !smithOk(token) && !smithLocked(token)) || (storyCan(token) && !storyDone(token)));
     if (slotKey.startsWith('g-')){
       const [who, t] = slotKey.slice(2).split('-');
@@ -9980,25 +10028,14 @@ const hasJong = w => (w.charCodeAt(w.length - 1) - 0xAC00) % 28 > 0;   // 받침
 const objP = w => w + (hasJong(w) ? '을' : '를');                 // v3.2.2: 을/를
 const subP2 = w => w + (hasJong(w) ? '이' : '가');                // v3.5.1: 이/가
 const withP = w => w + (hasJong(w) ? '과' : '와');                // v3.5.1: 과/와
-// 지금 처음 해 보는 조작 하나 — 다 해 봤으면 없음
-function opNote(){
-  const H = S.hints || {};
-  if (!H.sortie) return '땅 옆의 🚩 출전을 누른다';                 // v10.12.1: 출전 칸은 없어졌다 (v10.7.0)
-  if (!H.aim && (questOn('aimweapon') || questOn('aimbetter'))){   // v3.2.2: 무엇을 고를지 이름으로 짚어 줌
-    const pick2 = questOn('aimbetter') ? aimCandidates().find(t => (DEFS[t].atk || 0) >= 2) : aimUseCandidates('근접무기')[0];
-    return pick2 ? `🎯 목표 탭에서 ${objP(DEFS[pick2].name)} 골라 목표 칸에 끌어다 놓는다`
-      : '🎯 목표 탭에서 만들 것을 골라 목표 칸에 끌어다 놓는다';
-  }
-  if (!H.craft && S.cards.length >= 2) return '🔨 조합에서 카드를 끌어 다른 카드 위에 놓으면 합쳐진다';   // v11.0.0 · v11.0.1
-  if (!H.equip && haveWeapon()) return '편성 탭에서 무기를 가렛의 무기 칸으로 끌어다 놓는다';   // v10.7.0
-  if (!H.book && (S.newCards.length + (S.newTraces || []).length) >= 3) return '📖 콜렉터북을 열면 새 카드가 끼워진다';
-  return null;
-}
+// v11.9.0: 👆 조작 안내(opNote) 없앰 — 처음 하는 조작은 가렛의 걸음 글이 말한다 (QUESTS 의 hintOn · craftText · equipText)
 function hintDone(key){
   if ((S.hints || {})[key]) return;
   S.hints = S.hints || {};
   S.hints[key] = true;
   renderHint(); save();
+  questHit(`hint:${key}`);                                        // v11.9.0: 조작을 가르치는 가렛의 걸음
+  renderQuest();
 }
 function renderQuest(){
   setTimeout(syncHeadH, 0);                                       // v3.6.0: 수첩이 늘고 줄면 아래 화면도 따라 내려감
@@ -10019,12 +10056,10 @@ function renderQuest(){
   }
   clearTimeout(questClear);
   // v2.2.0: 퀘스트 줄 = 기사의 수첩 — 할 일은 게임의 지시가 아니라 기사가 스스로 적은 메모
-  const note = opNote();                                          // v3.2.0: 처음 해 보는 조작만 작은 글씨로
-  el.innerHTML = '<div class="q-book">📓 기사의 수첩</div>' + list.map(q => {
+  el.innerHTML = '<div class="q-book">📓 가렛의 수첩</div>' + list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
-  }).join('') + innRow + goalRow
-    + (note ? `<div class="q-op">👆 ${esc(note)}</div>` : '');
+  }).join('') + innRow + goalRow;
   linkTabs(el);                                                   // v7.8.0: 수첩 글 속 탭 이름은 눌러서 간다
   paintIcons(el);                                                 // v3.5.0
   if (innRow && innStepKeyNow() !== lastInnStep){                 // v9.55.2: 걸음이 하나 끝나면 새 줄처럼 올라온다
@@ -10137,7 +10172,7 @@ function editDone(kind, id){
     if (!SMITH_BY_ID[id] || smithDone(id)) return;
     innFinish(id);
   } else if (kind === 'story'){
-    if (!innRegs().includes(id) || !storyNow(id)) return;
+    if (!storyRegs().includes(id) || !storyNow(id)) return;
     storyAdvance(id);
   }
   renderAll(); renderInsp(); renderQuest();
@@ -10185,12 +10220,17 @@ const QUEST_PIC = {
   gweapon: () => '<span class="q-pic emo">🔧</span>', garmor: () => '<span class="q-pic emo">🛡</span>',
   lv5: () => '<span class="q-pic emo">⬆</span>',
 };
+// v11.9.0: 가렛 이야기 걸음 — 사냥이면 그 놈 얼굴(만나 봤을 때), 아니면 가렛 얼굴
+const storyPic = i => () => { const st = STORY.knight[i - 1] || {};
+  return st.kill && foeKnown(st.kill) ? foePic(st.kill)
+    : `<img class="q-pic" src="images/icon/${personPic('knight')}.png" alt="" draggable="false">`; };
 function questRowHtml(q, def){
   const goal = questGoal(def);
   // v9.55.3: 진행 수(3/5)는 **제목 바로 옆** — 할 일 글 끝에 붙으면 글과 숫자가 붙어 읽혔다
   const prog = def.steps || q.done || goal <= 1 ? '' : `<span class="q-prog">(${Math.min(q.n, goal)}/${goal})</span>`;
-  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${(QUEST_PIC[q.id] || (() => ''))()}<b class="q-name">${esc(def.name)}</b>${prog}`
-    + `<span class="q-text">${esc(q.done ? '했다' : questText(def, q))}</span>`
+  const pic = (QUEST_PIC[q.id] || (def.story ? storyPic(def.story) : () => ''))();
+  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${pic}<b class="q-name">${esc(def.name)}</b>${prog}`
+    + `<span class="q-text">${q.done ? '했다' : def.html ? questText(def, q) : esc(questText(def, q))}</span>`
     + (!q.done && String(def.key || '').startsWith('make:') ? aimMakeBtn(def.key.slice(5)) : '')   // v9.109.0
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
 }
@@ -10415,7 +10455,10 @@ let questQuiet = false;                                           // v9.123.0: �
 let questFlashPending = null;                                     // v0.43.0: 대사 중에 받은 퀘스트는 대사가 끝난 뒤에 알림
 function giveQuest(id){
   if (!QUESTS[id] || (S.quests || []).some(q => q.id === id)) return;
-  if (S.questDone && S.questDone.includes(id)) return;             // v0.60.0: 한 번 끝낸 메인 퀘스트는 다시 안 줌
+  if (S.questDone && S.questDone.includes(id)){                    // v0.60.0: 한 번 끝낸 메인 퀘스트는 다시 안 줌
+    if (QUEST_NEXT[id]) giveQuest(QUEST_NEXT[id]);                 // v11.9.0: 길 위 끝낸 걸음은 건너뛴다 (옛 저장 · 미리 한 이야기)
+    return;
+  }
   S.quests.push(newQuest(id));
   if (isJoinQuest(id)) S.mainSinceJoin = 0;                       // v9.98.0: 합류 퀘스트를 받으면 다시 센다
   // /* v9.100.0: 말풍선 대사 끔 */ if (QUESTS[id].say && !knightLine) knightSay(QUESTS[id].say);    // v0.60.0: 목표를 기사 입으로 한 줄
