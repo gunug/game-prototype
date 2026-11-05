@@ -1469,9 +1469,10 @@ const FIELDS = [                                                  // v0.9.1: 순
     exp:'기사는 물가를 훑으며 젖은 흙과 모래를 퍼내고, 여울에서 물고기를 노린다.' },
   // v9.127.0: ⚡ 벼락 들판 — 그날 벼락이 떨어진 자리 (까닭은 적지 않는다). 강가 다음 (4등급). **화상** — 맞으면 3초 동안 불에 탄다
   //   해법은 **불 막음** — 갑옷이나 방패가 불을 막으면 타지 않는다
-  { id:'scorched', name:'벼락 들판', emoji:'⚡', desc:'모래가 녹아 유리가 된 들판. 풀은 잿빛으로 자라고, 짐승들은 불씨를 달고 다닌다.',
-    exp:'기사는 발밑에서 바삭거리는 유리를 밟으며 걷는다. 그을린 것들이 몸에 불씨를 단 채 달려든다.' },
-  // v9.42.0: 🗼 부서진 탑 — **첫 보스 레이드.** 길목도 잡졸도 없다. 탑 하나와 그 꼭대기의 눈뿐이다.
+  // v11.14.0: ⚡ 벼락 들판 — **첫 레이드** (필드에서 옮김 · 지하 창고를 깨면 열림). 잡졸 · 채집 없이 그을린 사슴 하나 — 벼락 들판 재료는 모두 그가 떨군다
+  { id:'scorched', name:'벼락 들판', emoji:'⚡', raid:true, desc:'모래가 녹아 유리가 된 들판. 풀은 잿빛으로 자라고, 짐승들은 불씨를 달고 다닌다.',
+    exp:'기사는 발밑에서 바삭거리는 유리를 밟으며 걷는다. 들판 한가운데, 뿔에 불씨를 단 사슴이 기다린다.' },
+  // v9.42.0: 🗼 부서진 탑 — **첫 보스 레이드.** (v11.14.0: 둘째 — 벼락 들판 다음) 길목도 잡졸도 없다. 탑 하나와 그 꼭대기의 눈뿐이다.
   //   주인은 움직이지 않는다. 대신 **열다섯 칸 밖에서** 빛을 모아 **다섯 번 연달아** 꽂는다.
   //   그래서 이곳은 '붙어서 버티는 싸움'이 아니라 '닿기까지 버티는 싸움'이다
   { id:'towerruin', name:'부서진 탑', emoji:'🗼', raid:true,
@@ -1510,7 +1511,7 @@ const FIELD_YIELDS = {
   spidernest:['silkweb', 'cocoon', 'mothwing', 'stickysap'],        // v9.53.0: 줄과 고치 · v9.101.0 줄에 걸린 나방 날개 · 끈끈이
   shellcave: ['shellpiece', 'nacreshard', 'barnacle', 'saltcrystal'],   // v9.53.0 · v9.101.0 모래 → 소금 결정
   quarry:    ['ironstone', 'slab', 'gravel', 'wedge'],              // v9.127.0: ⛏ 옛 채석장
-  scorched:  ['fulgurite', 'charroot', 'cinder', 'ashgrass'],       // v9.127.0: ⚡ 벼락 들판
+  scorched:  [],                                                    // v9.127.0: ⚡ 벼락 들판 · v11.14.0: 레이드 — 줍는 것 없음 (벼락 유리 · 그을린 뿌리 · 잉걸돌 · 잿빛 풀은 사슴이 떨군다)
   cellar:    ['rustchain', 'hoop', 'oldsilk', 'oldwine'],           // v9.127.0: 🍷 지하 창고
   goldtower: ['dullgold', 'feastfloor'],                            // v9.104.0: 빛을 잃은 황금 (조합식 없음) · 연회장 바닥재
   towerruin: ['ash', 'burntbrick', 'scrapiron', 'glassshard'],      // v9.53.0: 그을린 벌판에서 줍는 것 · v9.101.0 돌 → 녹은 유리 조각
@@ -2432,7 +2433,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.13.1';
+const VERSION = 'v11.14.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2480,7 +2481,7 @@ let CW = 70, CH = 95;
 // v0.24.0: 에디터 모드 — 설정(⚙)에서 켬. 저장하지 않음 (새로고침하면 꺼짐)
 //   켜면 모든 잠금이 풀린 것처럼 보임: 필드 · 화면(도구·무기·정비) · 콜렉터북
 let editMode = false;
-const START_FIELDS = ['mountain', 'towerruin'];   // v9.120.0: 들머리 없앰 — 산에서 시작
+const START_FIELDS = ['mountain'];                                // v11.14.0: 부서진 탑도 처음엔 잠김 (레이드는 던전 다섯 뒤)   // v9.120.0: 들머리 없앰 — 산에서 시작
 //                    // v9.43.2: 첫 레이드는 처음부터 열려 있다                                // v3.1.0: 튜토리얼 필드부터                               // v0.13.0: 갓을 뺌 — 처음부터 산만 열려 있음
 const freshFields = () => Object.fromEntries(FIELDS.map(f => [f.id, { locked: !START_FIELDS.includes(f.id) }]));
 const fieldLocked = id => !editMode && !!(S.fields[id] || {}).locked;   // v0.24.0
@@ -7869,8 +7870,9 @@ const ENEMIES = {
     loot: [['charhide', 45, 1], ['bone', 30, 1], ['cinder', 25, 1]] },
   ashboar:     { name:'잿불 멧돼지', spd:4, aps:0.8, portrait:'portrait_ashboar', atk:11, def:4, hp:48, burn:3,
     loot: [['tusk', 45, 1], ['charhide', 35, 1], ['toughmeat', 25, 1]] },
-  scorchstag:  { name:'그을린 사슴', spd:4, aps:0.9, portrait:'portrait_scorchstag', atk:12, def:5, hp:75, burn:5,
-    loot: [['charhide', 60, 2], ['tusk', 40, 1], ['fulgurite', 30, 1], ['bone', 20, 1], ['stagantler', 10, 1]] },
+  // v11.14.0: 벼락 들판 레이드의 주인 — 들판에서 나던 것을 모두 떨군다 (한 번에 한 가지). 레이드라 크게 · 더 질기게 (75 → 120)
+  scorchstag:  { name:'그을린 사슴', spd:4, aps:0.9, size:2, portrait:'portrait_scorchstag', atk:12, def:6, hp:120, burn:5,
+    loot: [['charhide', 20, 2], ['tusk', 15, 2], ['fulgurite', 15, 2], ['charroot', 15, 2], ['cinder', 15, 2], ['ashgrass', 15, 2], ['stagantler', 5, 1]] },
   // ── v9.127.0: 🍷 지하 창고 · v9.137.0: `drain` = **흡혈** — 때릴 때마다 그만큼 찬다 (어둠은 뺐다) ──
   cellarrat:   { name:'창고 쥐', spd:4, aps:1.2, portrait:'portrait_cellarrat', atk:10, def:4, hp:26, drain:1,
     loot: [['smalltooth', 40, 1], ['oldsilk', 35, 1], ['hoop', 25, 1]] },
@@ -8548,7 +8550,7 @@ const EXP_PLAN = {
   forest:    lanePlan('fox', 'wolfleader', 'forestbear'),         // v2.1.0
   river:     lanePlan('crayfish', 'crocodile', 'catfish'),        // v2.1.0
   quarry:    lanePlan('rockmole', 'cragram', 'bigcentipede'),     // v9.127.0
-  scorched:  lanePlan('cinderhound', 'ashboar', 'scorchstag'),    // v9.127.0
+  scorched:  [{ fight:'scorchstag', boss:true, at:0.90 }],        // v9.127.0 · v11.14.0: 레이드 — 사슴 하나
 };
 const planOf = id => EXP_PLAN[id] || EXP_PLAN.mountain;
 // v0.18.1: 트랙 양 끝에 여백을 두고 그 안쪽에만 세움 (기사·보스가 가장자리에서 잘리던 것)
@@ -10305,7 +10307,8 @@ function questStep(id){
 // v9.43.1: **열리는 조건은 표 하나로.** 자물쇠에 적는 글과 실제 해금이 같은 것을 본다.
 //   전엔 적는 쪽만 `FIELDS` 차례의 바로 앞 땅을 집어, 강가에 '늪지 무덤 클리어'라고 잘못 적혔다
 //   (해금은 바깥 땅끼리 이어지는 `OUT_FIELDS` 차례를 따르므로 실제로는 숲을 깨면 열렸다)
-const UNLOCK_AFTER = { stonehide:'mountain', swamptomb:'stonehide', spidernest:'swamptomb', shellcave:'spidernest', cellar:'shellcave' };   // v9.127.0: 지하 창고
+// v11.14.0: **필드 다섯 → 던전 다섯 → 레이드** — 강가를 깨면 첫 던전(돌가죽 굴), 지하 창고를 깨면 첫 레이드(벼락 들판). 레이드는 앞 레이드를 깨면 다음
+const UNLOCK_AFTER = { scorched:'cellar', stonehide:'river', swamptomb:'stonehide', spidernest:'swamptomb', shellcave:'spidernest', cellar:'shellcave' };   // v9.127.0: 지하 창고
 const UNLOCK_SAY = { stonehide:'산이 무너진 자리에 굴이 있다',
   swamptomb:'굴 아래로 물 흐르는 소리가 난다',
   spidernest:'무덤 너머 나무 사이가 줄로 덮여 있다',
