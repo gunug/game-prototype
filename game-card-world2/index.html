@@ -2454,7 +2454,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.26.0';
+const VERSION = 'v11.27.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -6832,7 +6832,9 @@ function screenRows(){
         + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic))
         + ` ${lab}</span>${lock && list[0] ? `<span class="fs-need">${esc(fieldNeed(list[0].id))}</span>` : ''}</div>` }]
         .concat(lock ? [] : list.map(fieldRow)); };
-    return sect('battle', '필드', 'field', OUT_FIELDS().filter(f => f.id !== 'prelude' || !preludeGone()))
+    // v11.27.0: 필드는 **열린 곳 + 그다음 둘까지만** 미리 보인다 (그 뒤는 숨김)
+    const peek2 = list => { let last = -1; list.forEach((f, i) => { if (!fieldLocked(f.id)) last = i; }); return list.filter((f, i) => i <= last + 2); };
+    return sect('battle', '필드', 'field', peek2(OUT_FIELDS().filter(f => f.id !== 'prelude' || !preludeGone())))
       .concat(sect('dungeon', '던전', 'dungeon', DUNGEONS()), sect('raid', '레이드', 'raid', RAIDS()));
   }
   function fieldRow(f){
