@@ -1184,10 +1184,15 @@
   .mini-cards .cw{position:relative;width:var(--cw);height:var(--ch);}
   .mini-cards.lost{filter:grayscale(.55) brightness(.85);}
   .bpanel .b-empty{font-size:12px;color:var(--muted);}
-  .bpanel .b-res{font-size:20px;font-weight:900;text-align:center;}
-  .bpanel .b-res.fail{color:#ff7a66;}
-  .bpanel .b-res.win{color:var(--brand-yellow);}
-  .bpanel .b-sub{text-align:center;font-size:13px;color:var(--muted);}
+  .bres .cfm-box{max-width:min(380px,92vw);display:flex;flex-direction:column;gap:10px;}   /* v11.12.0: 결과 모달 */
+  .bres .b-res{font-size:20px;font-weight:900;text-align:center;}
+  .bres .b-res.fail{color:#ff7a66;}
+  .bres .b-res.win{color:var(--brand-yellow);}
+  .bres .b-sub{text-align:center;font-size:13px;color:var(--muted);}
+  .bres .mini-cards{justify-content:center;max-height:40vh;overflow-y:auto;}
+  .bres .cfm-b{justify-content:center;margin-top:4px;}
+  .bres .cfm-b button{min-height:44px;padding:0 18px;}
+  .bres .cfm-b .cfm-ok{background:var(--brand-yellow);border-color:var(--brand-yellow);color:#1d1a14;}
   .bctl{flex-direction:row !important;justify-content:center !important;gap:10px !important;padding:8px 12px !important;}
   .bctl button{flex:1;max-width:200px;padding:10px 8px;border-radius:10px;font:inherit;font-size:14px;font-weight:800;border:1px solid var(--hairline);background:rgba(255,255,255,.06);color:inherit;}
   .bctl button.go{background:#e8b84a;color:#1a1408;border-color:#f3d27a;}
@@ -2426,7 +2431,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.11.0';
+const VERSION = 'v11.12.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7265,14 +7270,14 @@ document.getElementById('subnav').addEventListener('click', e => {
 let battleEnd = null;                                             // 끝난 원정의 결과 — 땅 목록으로 돌아갈 때까지 (저장하지 않는다)
 let battleSpeed = 1;                                              // 배속 (저장하지 않는다)
 const battleE = () => isFieldTab(S.tab) ? EXPS[0] || null : null;   // v10.12.0: 원정은 하나 — 전투 페이지면 어느 칩이든
-const battleMode = () => isFieldTab(S.tab) && (!!battleE() || !!battleEnd);
+const battleMode = () => isFieldTab(S.tab) && !!battleE();      // v11.12.0: 결과는 땅 목록 위 모달 (전투 화면이 아니다)
 const miniCards = (list, lost) => { const n = {}; for (const t of list) n[t] = (n[t] || 0) + 1;
   return `<div class="mini-cards${lost ? ' lost' : ''}">` + Object.keys(n).sort((a, b) => itemNo(a) - itemNo(b)).map(t =>
     `<div class="cw framed f-${frameOf(DEFS[t])}"><div class="emoji">${iconHtml(t)}</div><div class="name">${esc(DEFS[t].name)}</div><div class="cnt">${n[t]}</div></div>`).join('') + '</div>'; };
 function renderBattle(){
   const E = battleE(), live = E && E.phase !== 'end';
   let top = '', bot = '';
-  if (live || (E && !battleEnd)){
+  if (E){
     top = '<div class="b-sec"><div class="b-lab">파티</div>' + E.party.map(k => {
       const g = ['weapon', 'armor', 'shield'].map(key => equipped(key, k)).filter(Boolean);
       return `<div class="b-hero" data-bhero="${k}"><img class="face" src="images/icon/${hCard(k)}.png" alt="" draggable="false">`
@@ -7281,14 +7286,6 @@ function renderBattle(){
       + '<div class="b-sec"><div class="b-lab" data-bhaul-lab></div><div data-bhaul></div></div>';
     bot = `<button type="button" data-bhome${live ? '' : ' disabled'}>돌아가기 — 짐은 잃는다</button>`
       + `<button type="button" class="spd" data-bspeed>×${battleSpeed}</button>`;
-  } else {
-    const R = battleEnd, f = FIELD_BY_ID[R.fid] || {}, win = R.kind === 'clear' || R.kind === 'boss';   // v10.9.1
-    const title = R.kind === 'boss' ? (R.first ? '처음으로 넘었다' : '보스를 넘었다') : R.kind === 'clear' ? '끝까지 다녀왔다'
-      : R.kind === 'home' ? '돌아왔다' : R.kind === 'retreat' ? '이길 수 없어 물러났다' : '쓰러졌다';
-    top = `<div class="b-res ${win ? 'win' : 'fail'}">${esc(f.name || '')} — ${title}</div>`
-      + `<div class="b-sub">${win ? (R.items.length ? `가져온 것 ${R.items.length}개` : '가져온 것 없음') : `잃은 것 ${R.items.length}개 — 끝까지 가거나 보스를 넘어야 가져온다`}</div>`
-      + (R.items.length ? miniCards(R.items, !win) : '');
-    bot = `<button type="button" class="go" data-bagain="${R.fid}">같은 땅 다시</button><button type="button" data-bdone>땅 목록</button>`;
   }
   gatherEl.innerHTML = `<div class="toplist bpanel">${top}</div><div class="botarea bctl">${bot}</div>`;
   paintIcons(gatherEl);
@@ -7297,8 +7294,7 @@ function renderBattle(){
 function paintBattle(force){
   if (!battleMode()) return;
   const E = battleE();
-  if (!E){ if (!force && !gatherEl.querySelector('.b-res')) renderBattle(); return; }
-  if (E.phase === 'end' && !gatherEl.querySelector('.b-res') && battleEnd){ renderBattle(); return; }
+  if (!E) return;
   for (const row of gatherEl.querySelectorAll('[data-bhero]')){
     const k = row.dataset.bhero, hp = Math.max(0, hSt(k).hp), max = hMax(k), p = Math.max(0, Math.min(1, hp / max));
     const bar = row.querySelector('.b-bar i'); bar.style.width = (p * 100).toFixed(1) + '%'; bar.classList.toggle('low', p <= 0.34);
@@ -7315,8 +7311,7 @@ function paintBattle(force){
 }
 gatherEl.addEventListener('click', e => {                         // v10.9.0: 전투 화면 단추
   const home = e.target.closest('[data-bhome]'), spd = e.target.closest('[data-bspeed]');
-  const again = e.target.closest('[data-bagain]'), done = e.target.closest('[data-bdone]');
-  if (!home && !spd && !again && !done) return;
+  if (!home && !spd) return;
   e.stopPropagation();
   if (home){ const E = battleE(); if (!E || E.phase === 'end') return;   // v10.11.1: 한 번 묻는다
     const n = (E.haul || []).length;
@@ -7326,10 +7321,35 @@ gatherEl.addEventListener('click', e => {                         // v10.9.0: �
       renderScreen(); renderInsp(); });
     return; }
   else if (spd){ battleSpeed = battleSpeed === 1 ? 2 : 1; spd.textContent = `×${battleSpeed}`; return; }
-  else if (again){ const fid = again.dataset.bagain; battleEnd = null; sortieGo(fid); }
-  else if (done){ battleEnd = null; }
-  renderScreen(); renderInsp();
 });
+// v11.12.0: **전투 결과는 딤드 모달** — 원정을 걷어 내 땅 목록으로 돌아온 뒤 그 위에 띄운다. [땅 목록]은 닫기, [같은 땅 다시]는 바로 출전
+//   (cfm 창이라 흔적 · 언락은 닫힌 뒤에 뜨고, 뒤로 가기 · 바깥 누르기 · Esc 는 닫기)
+function battleResModal(){
+  const R = battleEnd;
+  if (!R || FAST || document.querySelector('.tmodal.bres')) return;
+  relay({ run: done => {
+    if (battleEnd !== R){ done(); return; }
+    const f = FIELD_BY_ID[R.fid] || {}, win = R.kind === 'clear' || R.kind === 'boss';   // v10.9.1
+    const title = R.kind === 'boss' ? (R.first ? '처음으로 넘었다' : '보스를 넘었다') : R.kind === 'clear' ? '끝까지 다녀왔다'
+      : R.kind === 'home' ? '돌아왔다' : R.kind === 'retreat' ? '이길 수 없어 물러났다' : '쓰러졌다';
+    const m = document.createElement('div');
+    m.className = 'tmodal cfm bres';
+    m.innerHTML = `<div class="cfm-box" role="dialog" aria-modal="true"><div class="b-res ${win ? 'win' : 'fail'}">${esc(f.name || '')} — ${title}</div>`
+      + `<div class="b-sub">${win ? (R.items.length ? `가져온 것 ${R.items.length}개` : '가져온 것 없음') : `잃은 것 ${R.items.length}개 — 끝까지 가거나 보스를 넘어야 가져온다`}</div>`
+      + (R.items.length ? miniCards(R.items, !win) : '')
+      + `<div class="cfm-b"><button type="button" data-cfm="no">땅 목록</button><button type="button" class="cfm-ok go" data-cfm="ok">같은 땅 다시</button></div></div>`;
+    const close = again => { removeEventListener('keydown', key); m.remove(); if (battleEnd === R) battleEnd = null;
+      if (again && !EXPS.length) sortieGo(R.fid);
+      renderScreen(); renderInsp(); done(); };
+    const key = e => { if (e.key === 'Escape') close(false); };
+    m.addEventListener('pointerdown', e => e.stopPropagation());
+    m.addEventListener('click', e => { const b = e.target.closest('[data-cfm]'); if (b) close(b.dataset.cfm === 'ok'); else if (!e.target.closest('.cfm-box')) close(false); });
+    addEventListener('keydown', key);
+    document.body.appendChild(m);
+    paintIcons(m);
+    m.querySelector('[data-cfm="no"]').focus();
+  } }, true);
+}
 // v10.7.1: 확인 창 — [그만두기] [ok]. 바깥을 누르거나 Esc 면 그만둔다
 function askSure(title, desc, okLab, onOk){
   const m = document.createElement('div');
@@ -8634,6 +8654,7 @@ function expSweep(){
   const el = document.getElementById('exp');
   if (el) el._key = null;
   renderGather(); renderInsp(); save(); renderHint(); renderMiniExp();   // v2.4.5 · v3.13.0
+  if (battleEnd && !EXPS.some(E => E.id === battleEnd.fid)) battleResModal();   // v11.12.0: 땅 목록으로 돌아온 뒤 결과 모달
 }
 // v9.68.1: 원정 중 회복 — 장신구의 `regenFight` 만큼 초당 (쓰러진 사람은 안 찬다)
 function expRegen(dt){
