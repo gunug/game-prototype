@@ -2454,7 +2454,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.27.0';
+const VERSION = 'v11.28.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4296,6 +4296,7 @@ function syncCards(){
     if (isRowScreen(S.tab)) renderScreen();                       // 전투·정비 줄의 카드·장비 칸
     innAutoGive();                                                // v10.17.0: 여관 걸음 — 다 모였으면 저절로 건넨다
     keeperCrewCheck();                                            // v11.26.0
+    prodUnlockCheck();                                            // v11.28.0
     questCheckBlocks(); renderQuest();
     renderMeta(); renderInsp(); renderBook();
     save();
@@ -6617,6 +6618,16 @@ addEventListener('pointercancel', e => mixDragEnd(e, true));
 //   중간 조합을 건너뛰고 **줍는 재료**만 모으면 된다. 다 모이면 그 재료가 가방에서 빠지고 결과물이 들어온다 (퀘스트 줄도 사라짐)
 const prodMade = t => CRAFT_RECIPES.some(r => (r.out || []).includes(t) && (S.madeRecipes || []).includes(r.id));
 const prodCandidates = () => CRAFT_TYPES.filter(t => t !== S.prod && aimGoalOk(t) && prodMade(t)).sort((a, b) => itemNo(a) - itemNo(b));
+// v11.27.0 → v11.28.0: **생산은 잠겨 있다가** 목표로 완성품을 처음 만들어 생산할 것이 생기면 열린다 (열림 연출 한 번)
+const prodOpen = () => editMode || !!S.prodOpen || !!S.prod;
+let prodBoot = true;                                              // 불러온 첫 검사는 조용히 (옛 저장은 연출 없이 열어 둔다)
+function prodUnlockCheck(){
+  const quiet = prodBoot; prodBoot = false;
+  if (prodOpen() || !prodCandidates().length) return;
+  S.prodOpen = true;
+  if (!quiet) unlockShow('images/icon/ui_forge.png', '⚒ 생산 열림', '이제 조합해 본 물건은 재료를 구하면 생산에서 만들 수 있습니다', { pause: true });
+  renderScreen(); save();
+}
 const prodRecipe = t => CRAFT_RECIPES.find(r => (r.out || []).includes(t));   // v10.15.0: 결과 하나에 조합식은 하나
 const prodSmith = t => { const r = prodRecipe(t); return r ? recipeSmith(r) : null; };   // v10.17.1: 완성품의 갈래 장인
 const prodLeafy = t => !CRAFT_RECIPES.some(r => (r.out || []).includes(t)) || gatherFieldsAll(t).length > 0;   // 땅에서 나오면 거기서 멈춘다
@@ -7409,8 +7420,9 @@ const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS
 const CRAFT_CHIPS = [['aim', '목표', 'aim'], ['mix', '조합', 'craft'], ['prod', '생산', 'forge']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const isCraftTab = tab => CRAFT_CHIPS.some(c => c[0] === tab);
 const craftTarget = () => isCraftTab(S.tab) ? S.tab : isCraftTab(S.craftTab) ? S.craftTab : 'aim';
-const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) =>
-  `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div>' });
+const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) => { const lock = id === 'prod' && !prodOpen();   // v11.28.0
+  return `<button type="button" data-craftchip="${id}" class="${S.tab === id ? 'on' : ''}${lock ? ' locked' : ''}">`
+    + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic)) + ` ${lab}</button>`; }).join('') + '</div>' });
 document.getElementById('subnav').addEventListener('click', e => {
   if (e.target.closest('[data-preset-add]')){                       // v11.22.0: 편성 하나 더 (다섯까지)
     const n = presetShown(); if (n >= PRESET_MAX) return;
@@ -7424,6 +7436,7 @@ document.getElementById('subnav').addEventListener('click', e => {
   const c = e.target.closest('[data-craftchip]');
   if (!c) return;
   e.stopPropagation();
+  if (c.dataset.craftchip === 'prod' && !prodOpen()){ toast('🔒 목표로 완성품을 처음 만들면 생산이 열린다'); return; }   // v11.28.0
   if (c.dataset.craftchip !== S.tab) setTab(c.dataset.craftchip);
 });
 document.getElementById('subnav').addEventListener('click', e => {
@@ -7875,6 +7888,7 @@ function setTab(tab){
   if (tab === 'gearup') tab = 'party';                            // v10.7.0: 정비는 편성으로
   if (tab === 'dungeon' || tab === 'raid') tab = 'battle';        // v11.24.0: 던전 · 레이드는 전투 한 쪽의 섹션
   if (BOARD_BY_ID[tab]) tab = 'mix';                              // v11.0.0: 옛 조합 탭은 모두 🔨 조합으로
+  if (tab === 'prod' && !prodOpen()) tab = 'aim';                 // v11.28.0: 생산은 열린 뒤에
   if (tab !== 'book' && tab !== 'settings') lastPlayTab = tab;    // v11.8.0: 뒤로 가기로 📖 · ⚙ 에서 돌아갈 곳
   if (tab === 'mix'){ mixPick = null; mixDealNow(); }             // v11.0.0: 들어올 때마다 판을 새로 깐다
   if (isFieldTab(tab)) S.fightTab = tab;                          // v10.12.0: 마지막에 고른 칩
@@ -10942,6 +10956,7 @@ measure();
 syncUnlocks(null);                                                // v4.1.2: 저장을 불러온 뒤 잠금 상태를 맞춤
 paintIcons(document.body);                                        // v3.5.0: 고정 HTML(안내문 · 던전 판) 속 이모지도 그림으로
 if (!S.tab) S.tab = 'battle';
+prodUnlockCheck();                                                // v11.28.0: 불러온 저장 — 조용히 (옛 저장은 열어 둔다)
 renderAll();
 setTab(S.tab);
 try {                                                             // v0.32.1: 지난번에 켜 뒀으면 그대로 에디터 모드로
