@@ -492,6 +492,9 @@
   .cw.being .hpbar.down .barlab{color:#ff8a8a;}
   .cw.lift{position:fixed;left:0;top:0;z-index:2147483060;pointer-events:none;box-shadow:var(--sh-lg);cursor:grabbing;}
   /* v9.39.0: 칸에 **스냅**된 동안엔 손가락을 따라오지 않고 칸 가운데로 미끄러져 들어가 앉는다 */
+  .pp-three .cw{transition:transform .16s ease-out, opacity .16s;}   /* v11.25.0: 편성 미리 옮기기 */
+  .pp-three .cw.pv-move{position:relative;z-index:30;pointer-events:none;}
+  .pp-three .cw.pv-out{opacity:.3;transform:scale(.82);}
   .cw.lift.snap{transition:transform .1s ease-out;box-shadow:0 0 0 2px var(--brand-yellow), var(--sh-lg);}
   .pslot.filled{border-style:solid;border-color:var(--hairline);padding:0;}
   .pslot .cw{position:relative;width:100%;height:100%;--cf:calc(var(--cw) / .7 * .8 * .8);}   /* 칸에 들어간 카드도 카드 비율 그대로 */
@@ -2451,7 +2454,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.24.1';
+const VERSION = 'v11.25.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7338,7 +7341,43 @@ addEventListener('pointermove', e => {
     d.el.style.transform = `translate(${fx}px, ${fy}px)`;
   }
   for (const b of gatherEl.querySelectorAll('[data-slot-id]')) b.classList.toggle('hot', !!hit && b.dataset.slotId === hit);
+  if (S.tab === 'party') ppPreview(d, hit);                       // v11.25.0: 바뀔 사람 · 장비가 미리 옮겨 간다
 });
+// v11.25.0: **편성 미리 옮기기** — 끄는 카드가 찬 칸에 걸리면, 그 칸의 것이 놓은 뒤 갈 자리로 먼저 옮겨 가 보인다
+//   사람: 끈 사람의 원래 칸으로 (장비 줄도 서로 바뀌어 보임) · 장비: 끈 장비의 원래 칸으로 (못 끼는 칸이면 가방 = 흐려짐)
+//   가방에서 끌어왔으면 바뀔 것은 가방으로 = 흐려짐. 다른 칸으로 옮기거나 놓지 않으면 제자리로 돌아온다
+function ppPreview(d, hit){
+  hit = hit && hit !== d.fromSlot ? hit : null;
+  if (d.pvHit === hit) return;
+  d.pvHit = hit;
+  for (const el of d.pv || []){ el.style.transform = ''; el.classList.remove('pv-move', 'pv-out'); }
+  d.pv = [];
+  if (!hit) return;
+  const box = id => gatherEl.querySelector(`[data-slot-id="${id}"]`);
+  const cardIn = b => b && b.querySelector('.cw');
+  const move = (el, from, to) => { if (!el || el === d.el) return;
+    const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    el.classList.add('pv-move');
+    el.style.transform = `translate(${(b.left - a.left).toFixed(1)}px, ${(b.top - a.top).toFixed(1)}px)`; d.pv.push(el); };
+  const out = el => { if (!el || el === d.el) return; el.classList.add('pv-out'); d.pv.push(el); };
+  const t = slotId(hit), tb = box(hit), occ = cardIn(tb);
+  const f = d.fromSlot ? slotId(d.fromSlot) : null;
+  if (t.key === 'h'){
+    const ti = ppRow(t), gearOf = i => [...gatherEl.querySelectorAll(`[data-slot-id^="pp${i}:"]`)].filter(b => slotId(b.dataset.slotId).key !== 'h');
+    if (f && f.key === 'h'){                                      // 줄끼리 자리 바꿈 — 사람 + 장비 줄이 통째로
+      const fi = ppRow(f), fb = box(d.fromSlot);
+      if (occ) move(occ, tb, fb);
+      for (const [a, b] of [[ti, fi], [fi, ti]]) for (const g of gearOf(a)){
+        const k = slotId(g.dataset.slotId).key, dst = box(`pp${b}:${k}`), c = cardIn(g);
+        if (!c) continue; dst ? move(c, g, dst) : out(c); }
+    } else if (occ){ out(occ); for (const g of gearOf(ti)) out(cardIn(g)); }   // 가방에서 — 있던 사람은 장비째 가방으로
+    return;
+  }
+  if (!occ) return;
+  const old = presetToken(t);
+  if (f && f.key !== 'h' && old && slotTakes(d.fromSlot, old)) move(occ, tb, box(d.fromSlot));   // 장비끼리 맞바꿈
+  else out(occ);                                                   // 가방으로
+}
 // v10.12.0: **전투 페이지 하나** — 메뉴엔 '전투' 단추 하나, 안에서 칩으로 필드 · 던전 · 레이드 (속은 지금처럼 battle · dungeon · raid 탭)
 const FIGHT_CHIPS = [['battle', '필드', 'field'], ['dungeon', '던전', 'dungeon'], ['raid', '레이드', 'raid']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const fightLocked = id => id === 'dungeon' ? DUNGEONS().every(f => fieldLocked(f.id)) : id === 'raid' ? RAIDS().every(f => fieldLocked(f.id)) : false;
@@ -7566,7 +7605,11 @@ addEventListener('pointerup', e => {
     else {
       if (d.fromSlot && isFieldTab(S.tab)){ const f = slotId(d.fromSlot); lineupDrop(f.row, +f.key); }   // v9.131.0
       else if (d.fromSlot && S.tab === 'party'){ const f = slotId(d.fromSlot);   // v10.6.0: 사람은 자리 바꿈(장비가 따라감) · 장비는 뺐다 다시
-        if (f.key !== 'h') presetUnequip(presetPick, presetOf(presetPick).heroes[ppRow(f)], f.key); }
+        if (f.key !== 'h'){ const old = presetToken(slotId(hit)), fw = presetOf(presetPick).heroes[ppRow(f)];
+          const back = old && slotTakes(d.fromSlot, old);           // v11.25.0: 장비끼리 맞바꿈 — 있던 장비는 끈 장비의 원래 칸으로
+          presetUnequip(presetPick, fw, f.key); dropOnSlot(hit, d.token);
+          if (back) presetEquip(presetPick, fw, f.key, old);
+          renderScreen(); renderInsp(); return; } }
       else if (d.fromSlot){ const f = slotId(d.fromSlot); unequipSlot(f.sl, f.who); }   // v9.24.2
       dropOnSlot(hit, d.token);
     }
