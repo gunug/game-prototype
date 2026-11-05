@@ -233,6 +233,13 @@
   /* v9.131.0: 출전 단추 — 출전 칸 왼쪽 */
   .lrow.fieldrow{align-self:stretch;justify-content:flex-start;padding-left:calc(var(--cw) * .2);}   /* 줄마다 칸이 같은 자리에 (크리처가 없는 잠긴 줄도) */
   /* v11.7.1: 필드 · 던전 · 레이드 줄은 **가운데** · v11.7.2: 줄마다 내용(땅 카드 · 재료)을 가운데 — 잠긴 줄의 땅 카드도 가운데 */
+  .lrow.fsect{align-self:stretch;justify-content:space-between;gap:8px;margin:6px 10px 0;padding:4px 2px;border-bottom:1px solid var(--hairline);   /* v11.24.0: 전투 섹션 머리 */
+    font-size:14px;font-weight:900;color:var(--brand-yellow);letter-spacing:.04em;}
+  .lrow.fsect:first-child{margin-top:0;}
+  .lrow.fsect .fs-lab{display:inline-flex;align-items:center;gap:4px;}
+  .lrow.fsect .fs-lab .icon{height:1.2em;width:auto;}
+  .lrow.fsect.locked{color:var(--muted);}
+  .lrow.fsect .fs-need{font-size:12px;font-weight:700;color:var(--muted);}
   .lrow.fieldrow{align-self:center;justify-content:center;padding-left:0;padding-right:0;box-sizing:border-box;max-width:100%;}
   .lrow.fieldrow .rowslots:empty{display:none;}
   .sortie-btns{flex:none;display:flex;flex-direction:column;gap:6px;width:calc(var(--cw) * .9);}
@@ -2443,7 +2450,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.23.0';
+const VERSION = 'v11.24.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3948,6 +3955,7 @@ function load(){
     s.joined = Array.isArray(s.joined) ? s.joined.filter(id => Object.values(PERSON_TRACE).includes(id)) : [];
     for (const [tid, who] of Object.entries(PERSON_TRACE)) if (s.traces.includes(tid) && !s.joined.includes(who)) s.joined.push(who);
     if (s.tab === 'inn' && !s.joined.includes('keeper')) s.tab = 'battle';
+    if (s.tab === 'dungeon' || s.tab === 'raid') s.tab = 'battle'; // v11.24.0: 전투 한 쪽
     s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
     s.hints = s.hints && typeof s.hints === 'object' ? s.hints : {};   // v2.2.0: 본 조작 안내
     const eq = {};                                                // v0.23.0: 장착한 장비
@@ -6794,12 +6802,16 @@ function screenRows(){
   }
   if (isFieldTab(S.tab)){                                         // v4.0.0 던전 · v9.42.0 레이드도 같은 줄 화면
     // v10.12.0: **전투 페이지** — 맨 위 칩으로 필드 · 던전 · 레이드를 고른다 (못 가는 곳은 자물쇠)
-    const chips = '<div class="gchips">' + FIGHT_CHIPS.map(([id, lab, ic]) => { const lock = fightLocked(id);
-      return `<button type="button" data-fightchip="${id}" class="${S.tab === id ? 'on' : ''}${lock ? ' locked' : ''}">`
-        + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic)) + ` ${lab}</button>`; }).join('') + '</div>';
-    return [{ sub: chips }].concat(
-      (S.tab === 'dungeon' ? DUNGEONS() : S.tab === 'raid' ? RAIDS() : OUT_FIELDS())
-      .filter(f => f.id !== 'prelude' || !preludeGone()).map(f => {
+    // v11.24.0: **칩 없이 한 쪽** — 필드 · 던전 · 레이드를 섹션으로 나눠 위아래로 굴린다. 다 잠긴 섹션은 머리줄(자물쇠 · 여는 조건)만
+    const sect = (id, lab, ic, list) => { const lock = fightLocked(id) || !list.some(f => !fieldLocked(f.id));
+      return [{ raw: `<div class="lrow fsect${lock ? ' locked' : ''}" data-fsect="${id}"><span class="fs-lab">`
+        + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic))
+        + ` ${lab}</span>${lock && list[0] ? `<span class="fs-need">${esc(fieldNeed(list[0].id))}</span>` : ''}</div>` }]
+        .concat(lock ? [] : list.map(fieldRow)); };
+    return sect('battle', '필드', 'field', OUT_FIELDS().filter(f => f.id !== 'prelude' || !preludeGone()))
+      .concat(sect('dungeon', '던전', 'dungeon', DUNGEONS()), sect('raid', '레이드', 'raid', RAIDS()));
+  }
+  function fieldRow(f){
       // v3.12.0: 필드 카드 = 그림 + 이름(위). 나오는 것 아이콘은 뺌(인스펙터에서 본다).
       //   잠긴 곳도 **이름은 보이고**, 자물쇠와 여는 조건은 카드 아래쪽에
       const locked = fieldLocked(f.id);
@@ -6823,7 +6835,6 @@ function screenRows(){
           + `<div class="emoji">${iconHtml(t)}</div><div class="pct">${p}%</div><div class="name">${esc(aimName(t))}</div></div>`; }).join('')}</div>`;
       // v10.7.0: **출전 칸 없음** — ⚔ 출전 하나. 나가는 것은 늘 메인 편성 (v10.16.1: 단추는 땅 카드 안)
       return { card: card + foeCards, slots: [], pre: '', slotsFirst: true };
-    }));
   }
   // 정비 — 캐릭터마다 한 줄 + 맨 아래 **거점 줄** (v0.66.0: 거점은 캐릭터 장비가 아니라 모두에게 공통)
   const slotOf = (row, sl) => {
@@ -7331,7 +7342,7 @@ addEventListener('pointermove', e => {
 const FIGHT_CHIPS = [['battle', '필드', 'field'], ['dungeon', '던전', 'dungeon'], ['raid', '레이드', 'raid']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const fightLocked = id => id === 'dungeon' ? DUNGEONS().every(f => fieldLocked(f.id)) : id === 'raid' ? RAIDS().every(f => fieldLocked(f.id)) : false;
 const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS[0])
-  : battleEnd ? fieldTab(FIELD_BY_ID[battleEnd.fid] || {}) : (isFieldTab(S.fightTab) && !fightLocked(S.fightTab) ? S.fightTab : 'battle');   // 마지막에 고른 칩
+  : 'battle';                                                     // v11.24.0: 전투는 한 쪽
 // v11.1.0: **제작 페이지** — 메뉴엔 '제작' 하나, 맨 위 칩으로 목표 · 조합 · 생산을 고른다. 마지막에 고른 칩을 기억
 const CRAFT_CHIPS = [['aim', '목표', 'aim'], ['mix', '조합', 'craft'], ['prod', '생산', 'forge']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const isCraftTab = tab => CRAFT_CHIPS.some(c => c[0] === tab);
@@ -7796,6 +7807,7 @@ function setTab(tab){
   if (tab === 'raid') setTimeout(raidFirstLook, 0);                // v9.138.0
   if (tab !== S.tab) logEv('tab', { to: tab });                   // v7.6.0
   if (tab === 'gearup') tab = 'party';                            // v10.7.0: 정비는 편성으로
+  if (tab === 'dungeon' || tab === 'raid') tab = 'battle';        // v11.24.0: 던전 · 레이드는 전투 한 쪽의 섹션
   if (BOARD_BY_ID[tab]) tab = 'mix';                              // v11.0.0: 옛 조합 탭은 모두 🔨 조합으로
   if (tab !== 'book' && tab !== 'settings') lastPlayTab = tab;    // v11.8.0: 뒤로 가기로 📖 · ⚙ 에서 돌아갈 곳
   if (tab === 'mix'){ mixPick = null; mixDealNow(); }             // v11.0.0: 들어올 때마다 판을 새로 깐다
