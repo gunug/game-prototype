@@ -2454,7 +2454,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.25.0';
+const VERSION = 'v11.26.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3800,13 +3800,31 @@ const JOIN_GAP = 2;
 const CHAIN_JOINS = ['peddler', 'weaponsmith'];
 // v11.21.0: 가렛 길 위의 합류 걸음(join_* · innarmor) — 그 장인은 길이 줄 때만
 const PATH_SMITHS = () => GARRET_PATH.map(id => String((QUESTS[id] || {}).key || '')).filter(k => k.startsWith('smith:')).map(k => k.slice(6));
-const isJoinQuest = id => String((QUESTS[id] || {}).key || '').startsWith('smith:');
+const isJoinQuest = id => /^(smith|crew):/.test(String((QUESTS[id] || {}).key || ''));   // v11.26.0: 보른 합류(crew:keeper)도
+// v11.26.0: **보른 합류** — 여관 주인 보른이 편성에 서려면 물건을 건넨다 (길 밖 합류 줄). 다 모이면 저절로 건넨다
+const KEEPER_GIVE = [['meat', 3], ['hide', 2]];                     // 산의 고기 · 가죽 — 여관 부엌과 앞치마
+const keeperCrew = () => editMode || !!(typeof S !== 'undefined' && S && S.keeperCrew);
+QUESTS.join_keeper = { name: '보른 합류', goal: 1, key: 'crew:keeper',
+  text: () => keeperCrew() ? '보른이 함께한다'
+    : KEEPER_GIVE.map(([t, k]) => `${DEFS[t].name} ${Math.min(have(t), k)}/${k}`).join(' · ') + ' 모아 오자',
+  say: '보른이 앞치마를 벗어 걸었다. "부엌만 채워 주면 나도 나간다."' };
+function keeperCrewCheck(){
+  if (keeperCrew() || !(S.quests || []).some(q => q.id === 'join_keeper' && !q.done)) return;
+  if (!KEEPER_GIVE.every(([t, k]) => have(t) >= k)) return;
+  for (const [t, k] of KEEPER_GIVE) for (let i = 0; i < k; i++){ const c = cardOf(t); if (c && c.n > 0) useOne(c); }
+  S.keeperCrew = true;
+  logEv('person-join', { who: 'keeper', crew: true });
+  unlockShow('images/portrait/bust_innkeeper.png', `${pName('keeper')} 합류`, '편성에 설 수 있다', { first: true, pause: true });
+  questHit('crew:keeper');
+  renderAll(); renderInsp(); save();
+}
 function giveJoinQuests(){
   const open = (S.quests || []).filter(q => !q.done && isJoinQuest(q.id));
   if (open.length) return;                                        // 이미 찾는 중인 사람이 있다
   if (!CHAIN_JOINS.every(id => smithOk(id))) return;              // 가렛의 첫 길(오르반 · 두르간)이 먼저
   // v11.21.0: 나무 방패 걸음의 '그 사람부터' 예외는 없앰 — 토른 합류가 가렛 길 위에 있다
   if ((S.mainSinceJoin || 0) < JOIN_GAP) return;                  // 메인 퀘스트 둘을 끝낸 뒤에
+  if (personIn('keeper') && !keeperCrew() && !(S.questDone || []).includes('join_keeper')){ giveQuest('join_keeper'); setTimeout(keeperCrewCheck, QUEST_SHOW_MS + 60); return; }   // v11.26.0: 보른 먼저 · 이미 다 가졌으면 곧 끝
   for (const sm of SMITHS){
     if (sm.free || CHAIN_JOINS.includes(sm.id) || PATH_SMITHS().includes(sm.id) || smithOk(sm.id) || smithLocked(sm.id)) continue;   // v11.21.0: 길 위 장인은 길이 준다
     if (S.questDone && S.questDone.includes(joinQuestId(sm.id))) continue;
@@ -3909,7 +3927,7 @@ let selected = null;
 function fresh(){ return { cards: [], seen: [], newCards: [], nextId: 1, fields: freshFields(), quests: [], lootSeen: {}, cleared: [], boards: ['tool', 'weapon', 'armor', 'shield', 'trinket', 'food', 'potion', 'toolbox', 'build'], questDone: [], marks: {}, killed: [], equip: {}, metBoss: false, said: [], traces: [], newTraces: [], newLands: [], seenLands: [], newFoes: [], seenFoes: [], hints: {}, tab: 'battle', intro: 'done',   // v7.13.0   // v0.18.2: 크리처별로 받아 본 전리품
   inn: freshInn(),                                                                // v9.55.0: 여관 — 무기 장인은 처음부터
   knight: { hp: KNIGHT.hp, lv: 1, xp: 0 },
-  ally: { hp: ARCHER.hp, lv: 1, xp: 0 }, allyJoin: false, joined: [] }; }                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
+  ally: { hp: ARCHER.hp, lv: 1, xp: 0 }, allyJoin: false, joined: [], keeperCrew: false }; }   // v11.26.0: 보른은 합류 퀘스트 뒤에 편성으로                                    // v9.20.0: 궁수                                 // v0.13.0: 기사 (공 1 · 방 0 · 체 10)
 function load(){
   try {
     // v9.102.0: 카드 이름이 바뀐 것 — 조약돌(pebble) → 화강암(granite) · 뗀돌 조각(sharpchip) → 규암(quartzite)
@@ -3959,6 +3977,7 @@ function load(){
     s.joined = Array.isArray(s.joined) ? s.joined.filter(id => Object.values(PERSON_TRACE).includes(id)) : [];
     for (const [tid, who] of Object.entries(PERSON_TRACE)) if (s.traces.includes(tid) && !s.joined.includes(who)) s.joined.push(who);
     if (s.tab === 'inn' && !s.joined.includes('keeper')) s.tab = 'battle';
+    if (typeof s.keeperCrew !== 'boolean') s.keeperCrew = s.joined.includes('keeper');   // v11.26.0: 옛 저장 — 이미 온 보른은 편성에 그대로
     if (s.tab === 'dungeon' || s.tab === 'raid') s.tab = 'battle'; // v11.24.0: 전투 한 쪽
     s.newTraces = (Array.isArray(s.newTraces) ? s.newTraces : []).filter(id => s.traces.includes(id));
     s.hints = s.hints && typeof s.hints === 'object' ? s.hints : {};   // v2.2.0: 본 조작 안내
@@ -4276,6 +4295,7 @@ function syncCards(){
     renderNew();
     if (isRowScreen(S.tab)) renderScreen();                       // 전투·정비 줄의 카드·장비 칸
     innAutoGive();                                                // v10.17.0: 여관 걸음 — 다 모였으면 저절로 건넨다
+    keeperCrewCheck();                                            // v11.26.0
     questCheckBlocks(); renderQuest();
     renderMeta(); renderInsp(); renderBook();
     save();
@@ -8066,7 +8086,8 @@ const foeRange = e => e.range || BASE_RANGE;
 const CREW = { keeper: { name:'여관 주인', art:'innkeeper' }, peddler: { name:'만물상', art:'peddler' } };
 for (const sm of SMITHS) CREW[sm.id] = { name: sm.name, art: sm.id };
 const isCrew = k => !!CREW[k];
-const crewJoined = k => k === 'keeper' || k === 'peddler' ? personIn(k) : smithOk(k);   // v9.91.0: 여관 주인 · 만물상도 합류해야
+const crewJoined = k => k === 'keeper' ? personIn(k) && keeperCrew()   // v11.26.0: 보른은 여관 주인으로 오고, 편성엔 합류 퀘스트를 마쳐야 선다
+  : k === 'peddler' ? personIn(k) : smithOk(k);   // v9.91.0: 여관 주인 · 만물상도 합류해야
 const HERO_BASE = k => Object.assign({}, k === 'ally' ? ARCHER : k === 'knight' ? KNIGHT : CREW_BASE, kitOf(k).body, CREW[k] ? { name: CREW[k].name } : {});   // v9.129.0: 몸은 HERO_KIT
 // 싸울 수 있는 몸인가 — 기사 · 궁수만 전투요원이다
 const isFighter = k => true;                                     // v9.129.0: 모두 싸운다
@@ -10399,10 +10420,11 @@ const storyPic = i => () => { const st = STORY.knight[i - 1] || {};
     : `<img class="q-pic" src="images/icon/${personPic('knight')}.png" alt="" draggable="false">`; };
 function questRowHtml(q, def){
   if (isJoinQuest(q.id) && !GARRET_PATH.includes(q.id)){          // v11.21.0: 길 밖 합류 — 가렛 줄이 아니다
-    const sid = String(def.key).slice(6), sm = SMITH_BY_ID[sid];
+    const sid = String(def.key).split(':')[1], sm = SMITH_BY_ID[sid];   // v11.26.0: crew:keeper 도
+    const card = sm ? sm.card : personPic(sid);
     return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">🏨</span>`
-      + (sm ? `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">` : '')
-      + `<b class="q-name">${esc(smithName(sid))} 합류</b><span class="q-text">${q.done ? '했다' : def.html ? questText(def, q) : esc(questText(def, q))}</span>`
+      + (card ? `<img class="q-pic" src="images/icon/${card}.png" alt="" draggable="false">` : '')
+      + `<b class="q-name">${esc(sm ? smithName(sid) : pName(sid))} 합류</b><span class="q-text">${q.done ? '했다' : def.html ? questText(def, q) : esc(questText(def, q))}</span>`
       + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
   }
   const goal = questGoal(def);
