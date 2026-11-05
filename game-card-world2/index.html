@@ -2454,7 +2454,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.28.0';
+const VERSION = 'v11.28.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7420,9 +7420,8 @@ const fightTarget = () => isFieldTab(S.tab) ? S.tab : EXPS.length ? expHome(EXPS
 const CRAFT_CHIPS = [['aim', '목표', 'aim'], ['mix', '조합', 'craft'], ['prod', '생산', 'forge']];   // 글 속 탭 링크로 바뀌지 않게 그림은 따로
 const isCraftTab = tab => CRAFT_CHIPS.some(c => c[0] === tab);
 const craftTarget = () => isCraftTab(S.tab) ? S.tab : isCraftTab(S.craftTab) ? S.craftTab : 'aim';
-const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) => { const lock = id === 'prod' && !prodOpen();   // v11.28.0
-  return `<button type="button" data-craftchip="${id}" class="${S.tab === id ? 'on' : ''}${lock ? ' locked' : ''}">`
-    + (lock ? '<img class="icon inline lockm" src="images/icon/ui_lock.png" alt="잠김" draggable="false">' : uiIcon(ic)) + ` ${lab}</button>`; }).join('') + '</div>' });
+const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.filter(([id]) => id !== 'prod' || prodOpen()).map(([id, lab, ic]) =>   // v11.28.1: 생산 칩은 열리기 전엔 숨김
+  `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div>' });
 document.getElementById('subnav').addEventListener('click', e => {
   if (e.target.closest('[data-preset-add]')){                       // v11.22.0: 편성 하나 더 (다섯까지)
     const n = presetShown(); if (n >= PRESET_MAX) return;
