@@ -2441,7 +2441,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.16.0';
+const VERSION = 'v11.17.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3178,6 +3178,9 @@ const storyLen = id => (STORY[id] || []).length || STORY_LEN;
   TRACES.push(t); TRACE_BY_ID[t.id] = t;
 });
 // v9.138.0: **장소 흔적** — 땅이 열릴 때 카드를 먼저 띄우고, 닫으면 '○○ 열림'. 열쇠 land:<땅>
+// v11.17.0: **장소 흔적은 쓰지 않는다** (사용자 결정) — 땅마다 큰 서사가 없고 사람 흔적 사이에 끼어 이야기가 헷갈렸다.
+//   글은 남겨 두고 등록만 안 한다 (traceHit('land:…') 은 아무것도 안 띄운다). 땅이 열리면 '○○ 열림' 연출만
+const PLACE_TRACES_OFF = true;
 [
   ['mountain', '산', '올라갈수록 돌이 많아진다. 바위 틈에서 무언가 지켜본다. 첫걸음은 여기부터.'],
   ['grassland', '초원', '바람이 풀을 쓰다듬는다. 풀이 흔들리면, 바람이 아닐 때가 있다.'],
@@ -3192,7 +3195,7 @@ const storyLen = id => (STORY[id] || []).length || STORY_LEN;
   ['cellar', '지하 창고', '무너진 탑 밑에 반쯤 묻힌 연회 창고. 술통 사이로 날개 소리가 난다.'],
   ['towerruin', '부서진 탑', '벼락에 허리가 꺾인 망루. 꼭대기의 눈은 아직 감기지 않았다.'],
   ['goldtower', '무너진 금탑', '누워 버린 연회장. 빛을 잃은 금이 굴러다닌다. 문 앞에 무언가 서 있다.'],
-].forEach(([id, name, text]) => { const t = { id: `pl_${id}`, who: 'place', pic: `scene_pl_${id}`, key: `land:${id}`, name, text }; TRACES.push(t); TRACE_BY_ID[t.id] = t; });
+].forEach(([id, name, text]) => { if (PLACE_TRACES_OFF) return; const t = { id: `pl_${id}`, who: 'place', pic: `scene_pl_${id}`, key: `land:${id}`, name, text }; TRACES.push(t); TRACE_BY_ID[t.id] = t; });
 const STORY_TRACES = {                                          // v9.117.0: 모두 — id st_<사람>_<걸음>, 그림 scene_st_<사람>_<걸음>
   knight: [['st_knight_01', '문지방'], ['st_knight_02', '잠자리'], ['st_knight_03', '저절로'], ['st_knight_04', '물러서지 않음'], ['st_knight_05', '막힌 문'], ['st_knight_06', '긁힌 자리'], ['st_knight_07', '설 자리'], ['st_knight_08', '문틀'], ['st_knight_09', '가렛의 방패'], ['st_knight_10', '남의 이름'], ['st_knight_11', '망루 문'], ['st_knight_12', '같은 문양'], ['st_knight_13', '그 바닥'], ['st_knight_14', '안감'], ['st_knight_15', '이 빛'], ['st_knight_16', '같은 자리']],
   ally: [['st_ally_01', '지어준 이름'], ['st_ally_02', '날아간 깃털'], ['st_ally_03', '숟가락'], ['st_ally_04', '세 번이나'], ['st_ally_05', '무릎'], ['st_ally_06', '솔기'], ['st_ally_07', '한 입'], ['st_ally_08', '값'], ['st_ally_09', '머리 위 방패'], ['st_ally_10', '세 칸'], ['st_ally_11', '문 앞'], ['st_ally_12', '몰래 둔 약'], ['st_ally_13', '사람 수'], ['st_ally_14', '반짝이'], ['st_ally_15', '하얀 얼굴'], ['st_ally_16', '아빠 손']],
@@ -5656,6 +5659,7 @@ function traceBookHtml(){
   // v9.86.0: **흔적도 카드** — 시나리오 카드와 같은 꼴 (그림 한 장 · 탭하면 정보 칸에서 읽는다). 못 겪은 것은 ???
   for (const who of Object.keys(TRACE_WHO)){
     const list = TRACES.filter(t => t.who === who);
+    if (!list.length) continue;                                   // v11.17.0: 장소 흔적을 끄면 그 칸째 없다
     // v9.134.0: 시간 차례대로 — **합류 흔적(흔적 1)이 여관 등록 흔적(배경)보다 먼저**
     const bi = list.findIndex(t => t.id === `bg_${who}`), ji = list.findIndex(t => t.id === `st_${who}_01`);
     if (bi >= 0 && ji > bi){ const [j] = list.splice(ji, 1); list.splice(bi, 0, j); }
@@ -6883,7 +6887,8 @@ function knightIntro(){
     relay({ pause: true, run: titleShow });                       // v9.121.0: 그 다음 게임 타이틀 — 그리고 '빈손'
   }
   traceHit('start');                                              // v2.2.0: 첫 흔적 '빈손'
-  if (!(S.traces || []).includes('pl_mountain')){ unlockField(FIELD_BY_ID.mountain); traceHit('land:mountain'); }   // v9.138.0: 첫 땅 — 산
+  if (!(S.traces || []).includes('pl_mountain') && !S.said.includes('open:mountain')){ S.said.push('open:mountain'); unlockField(FIELD_BY_ID.mountain); }   // v9.138.0: 첫 땅 — 산 · v11.17.0: 장소 흔적 없이 열림 연출만 (한 번)
+  if (PLACE_TRACES_OFF && S.newTraces) S.newTraces = S.newTraces.filter(id => !String(id).startsWith('pl_'));   // v11.17.0: 옛 저장의 '새' 표시도 걷는다
   if (S.said.includes('start') || (S.quests || []).length) return;
   S.said.push('start');
   save();
@@ -7709,6 +7714,7 @@ function renderFieldInsp(){
       }).join('');
 }
 function raidFirstLook(){                                          // v9.138.0: 부서진 탑 — 처음부터 열린 레이드라 탭을 처음 열 때
+  return;                                                         // v11.17.0: 장소 흔적 없음 · 레이드도 이제 잠겨 시작 (열릴 때 '열림' 연출이 따로 뜬다)
   if (S.raidSeen) return; S.raidSeen = true;
   if (!(S.traces || []).includes('pl_towerruin')){ unlockField(FIELD_BY_ID.towerruin); traceHit('land:towerruin'); }
   save();
