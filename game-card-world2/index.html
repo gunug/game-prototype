@@ -1190,7 +1190,7 @@
   .mini-cards .cw{position:relative;width:var(--cw);height:var(--ch);}
   .mini-cards.lost{filter:grayscale(.55) brightness(.85);}
   .bpanel .b-empty{font-size:12px;color:var(--muted);}
-  .bres .cfm-box{max-width:min(720px,100%);max-height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;}   /* v11.12.0: 결과 모달 · v11.14.1: 화면을 다 덮을 만큼 커져도 된다 */
+  .bres .cfm-box{width:min(360px,100%);max-width:min(360px,100%);max-height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;}   /* v11.12.0: 결과 모달 · v11.14.1: 화면을 다 덮을 만큼 커져도 된다 */
   .bres .b-res{font-size:20px;font-weight:900;text-align:center;}
   .bres .b-res.fail{color:#ff7a66;}
   .bres .b-res.win{color:var(--brand-yellow);}
@@ -1217,7 +1217,10 @@
     animation:tmPop .28s cubic-bezier(.2,.9,.3,1.2);}
   @keyframes tmPop{from{transform:scale(.86) translateY(12px)}to{transform:none}}
   .tm-pic img{width:100%;height:auto;max-height:calc(100vh - 260px);display:block;aspect-ratio:3/4;object-fit:cover;}   /* 글까지 한 화면에 */
-  .tm-body{padding:12px 16px 16px;}
+  .tm-body{padding:12px 16px 16px;position:relative;}
+  .tm-face{float:right;width:56px;height:56px;margin:0 0 6px 10px;border-radius:8px;object-fit:cover;object-position:top center;
+    border:1px solid rgba(255,212,0,.45);background:rgba(0,0,0,.3);}   /* v11.16.0: 흔적 대상 얼굴 */
+  .tm-text{clear:both;}
   .tm-tag{font-size:11px;font-weight:800;color:var(--brand-yellow);letter-spacing:.04em;}
   .tm-name{font-size:18px;font-weight:900;color:#f3e6bf;margin-top:2px;}
   .tm-from{font-size:12px;color:var(--muted);margin-top:2px;}
@@ -2438,7 +2441,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.15.0';
+const VERSION = 'v11.16.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2674,7 +2677,7 @@ const TRACES = [
     text:'눈을 떴을 때 손엔 아무것도 없었다. 어디서 왔는지 흐리다. 우선 걷는다.' },
   // v9.124.0: 합류 흔적(가렛 · 쉴 곳 · 조합 · 날)은 기사 흔적에서 뺐다 — 사람마다 **흔적 1 = 합류 흔적** (그 사람 성격이 보이는 한 장)
   { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
-    text:'곰 등에 박힌 쇳조각. 손잡이의 문양을 나는 안다. 이건 우리 것이다.' },
+    text:'곰 등에 박힌 쇳조각. 손잡이의 문양을 가렛은 안다. 이건 가렛네 것이다.' },
   { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
     text:'산 너머 바람 냄새가 다르다. 저 문양의 답을 초원이 줄지도 모른다.' },
   { id:'hornmark', pic:'scene_t_hornmark', who:'knight', key:'kill:bison',       name:'뿔에 긁힌 문양',
@@ -2798,6 +2801,14 @@ function traceModal(t){
   joinBefore(t);                                                  // v9.143.0: 합류 흔적이면 합류 표시가 먼저
   relay({ t, pause: true, run: done => afterQuestShow(() => traceCard(t, done)) });   // v11.0.12
 }
+// v11.16.0: 흔적의 **대상 얼굴** — 사람은 카드 얼굴, 장소는 땅 카드, 황금 골렘은 크리처 얼굴. 팝업 오른쪽 위
+function traceFaceHtml(t){
+  const land = String(t.key || '').startsWith('land:') ? t.key.slice(5) : null;
+  const src = t.who === 'place' ? (land && FIELD_BY_ID[land] ? `images/icon/card_${land}.png` : '')
+    : ENEMIES[t.who] ? foeFacePic(t.who)
+    : personPic(t.who) ? `images/icon/${personPic(t.who)}.png` : '';
+  return src ? `<img class="tm-face" src="${src}" alt="" draggable="false">` : '';
+}
 function traceCard(t, done){
   const isScene = !!SCENE_BY_ID[t.id];
   const from = isScene ? (t.from || '이야기') : `${TRACE_WHO[t.who] || ''} · 흔적`;
@@ -2807,7 +2818,7 @@ function traceCard(t, done){
   el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
     + '<button class="tm-x" type="button" aria-label="닫기">✕</button>'
     + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
-    + `<div class="tm-body"><div class="tm-tag">${isScene ? '📜 이야기' : '📜 새 흔적'}</div><div class="tm-name">${esc(t.name)}</div>`
+    + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-tag">${isScene ? '📜 이야기' : '📜 새 흔적'}</div><div class="tm-name">${esc(t.name)}</div>`
     + `<div class="tm-from">${esc(from)}</div>`
     + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`;
   const close = () => {
@@ -3023,35 +3034,35 @@ const STORY = {
     { kill:'bear',                             say:'곰이 달려들자 몸이 먼저 섰다. 문 앞의 사람처럼 한 걸음도 안 물러섰다.' },
     { give:[['herb', 4]],                      say:'약초를 들고 갔더니 실바가 문을 막았다. "갑옷 입은 사람은 안 받아."' },
     { kill:'forestbear',                       say:'숲곰 발톱에 갑옷이 긁혔다. 긁힌 자리 아래로 금빛이 비쳤다. 실바가 봤다.' },
-    { give:[['meat', 5]],                      say:'올가가 연회 상을 그렸다. 그 둘레에 설 자리를 나도 모르게 셌다.' },
+    { give:[['meat', 5]],                      say:'올가가 연회 상을 그렸다. 가렛은 저도 모르게 그 둘레에 설 자리를 셌다.' },
     { kill:'stonelord',                        say:'굴 깊은 곳 무너진 문틀 앞에서 발이 멈추고 등이 곧게 섰다. 몸이 안다.' },
-    { make:'woodshield',                       say:'토른이 내 방에도 방패를 걸었다. 고맙다 하니 대답 없이 돌아섰다.' },
-    { kill:'tombkeeper',                       say:'무덤 주인이 쓰러지며 누군가의 이름을 불렀다. 내 이름은 아니었다.' },
+    { make:'woodshield',                       say:'토른이 가렛의 방에도 방패를 걸었다. 고맙다 하니 대답 없이 돌아섰다.' },
+    { kill:'tombkeeper',                       say:'무덤 주인이 쓰러지며 누군가의 이름을 불렀다. 가렛의 이름은 아니었다.' },
     { kill:'nestkeeper',                       say:'동탑 망루 문 앞에 섰다. 지나는 사람을 손님인지 아닌지 가르고 있었다.' },
-    { kill:'cavekeeper',                       say:'네이라의 금붙이에 쇳조각과 같은 문양이 있었다. 이건 우리 것이다.' },
+    { kill:'cavekeeper',                       say:'네이라의 금붙이에 쇳조각과 같은 문양이 있었다. 이건 가렛네 것이다.' },
     { give:[['feastfloor', 2]],                say:'연회 바닥재를 밟자 다리가 떨렸다. 이 바닥 위에 서 본 적이 있다.' },
     { give:[['tallow', 3]],                    say:'마르그가 갑옷을 뒤집어 안감을 한참 쓰다듬었다. 말없이 돌려줬다.' },
     { kill:'towereye',                         say:'동탑이 금빛으로 빛났다. 이 빛을 안다. 이 빛 아래서 문을 지켰다.' },
-    { kill:'goldgolem',                        say:'황금 골렘도 문 앞에 서 있었다. 나와 같은 자리. 이번엔 누굴 막지?' },
+    { kill:'goldgolem',                        say:'황금 골렘도 문 앞에 서 있었다. 가렛과 같은 자리. 이번엔 누굴 막지?' },
   ],
   // v9.117.0: 세리나 — 동탑을 쌓아 가며 어른마다 동탑에 무엇을 하는지 아이 눈으로 본다 (§31)
   ally: [
-    { give:[['stone', 4]],                     say:'숲에서 갑옷 입은 사람을 주웠다. 이름을 모른대서 내가 지어 줬다. 가렛.' },
+    { give:[['stone', 4]],                     say:'숲에서 갑옷 입은 사람을 주웠다. 이름을 모른대서 세리나가 지어 줬다. 가렛.' },
     { give:[['feather', 6]],                   say:'깃털을 불며 놀다 반은 잃어버렸다. 그래도 화살 깃은 다 채웠다.' },
-    { give:[['flint', 3]],                     say:'두르간 아저씨한테 다녀오니 내 숟가락까지 날이 서 있었다.' },
-    { give:[['coal', 3]],                      say:'할아버지는 숯으로 벽에 조합법을 그렸다. 내가 까먹자 세 번이나 다시.' },
-    { give:[['herb', 4]],                      say:'실바 언니는 나를 보자 무릎부터 봤다. 다친 데 없냐고 세 번 물었다.' },
-    { give:[['limerock', 3]],                  say:'마르그 할머니가 내 망토를 고쳐 줬다. 솔기만 한참 보고 겉은 안 봤다.' },
+    { give:[['flint', 3]],                     say:'두르간 아저씨한테 다녀오니 세리나의 숟가락까지 날이 서 있었다.' },
+    { give:[['coal', 3]],                      say:'할아버지는 숯으로 벽에 조합법을 그렸다. 세리나가 까먹자 세 번이나 다시.' },
+    { give:[['herb', 4]],                      say:'실바 언니는 세리나를 보자 무릎부터 봤다. 다친 데 없냐고 세 번 물었다.' },
+    { give:[['limerock', 3]],                  say:'마르그 할머니가 세리나의 망토를 고쳐 줬다. 솔기만 한참 보고 겉은 안 봤다.' },
     { give:[['honeycomb', 3]],                 say:'올가 아줌마는 다 만든 걸 꼭 먼저 먹었다. 맛없다면서 남은 것까지 다.' },
     { give:[['shellpiece', 3]],                say:'네이라 언니는 조개 무게를 재고 값을 말했다. 그러고는 손끝을 문질렀다.' },
     { make:'shieldboard',                      say:'방패를 머리에 쓰고 다니니 다들 웃었다. 토른 아저씨만 잘 쓰라고 했다.' },
     { make:'plank',                            say:'헤이든 아저씨는 사다리를 한 칸씩 두드리며 올랐다. 세 칸 넘게는 안 갔다.' },
     { kill:'wolfleader',                       say:'가렛은 여관에 오자마자 문부터 등지고 섰다. 잘 때도 갑옷을 안 벗는다.' },
     { make:'salve',                            say:'실바 언니는 가렛을 노려봤다. 그래 놓고 밤엔 가렛 방 앞에 약을 뒀다.' },
-    { give:[['silkweb', 4]],                   say:'토른 아저씨는 밤마다 손가락으로 여관 사람 수를 셌다. 나도 들어 있었다.' },
-    { give:[['nacreshard', 3]],                say:'네이라 언니가 그릇 굽에 반짝이를 넣었다. 나한테만 비밀이라 했다.' },
+    { give:[['silkweb', 4]],                   say:'토른 아저씨는 밤마다 손가락으로 여관 사람 수를 셌다. 세리나도 들어 있었다.' },
+    { give:[['nacreshard', 3]],                say:'네이라 언니가 그릇 굽에 반짝이를 넣었다. 세리나한테만 비밀이라 했다.' },
     { give:[['cavecrystal', 3]],               say:'동탑이 금빛으로 반짝였다. 예뻤다. 그런데 어른들 얼굴이 하얬다.' },
-    { make:'crystalneck',                      say:'언니는 소리 지르며 좋아했다. 아빠는 주저앉았다. 나는 아빠 손을 잡았다.' },
+    { make:'crystalneck',                      say:'언니는 소리 지르며 좋아했다. 아빠는 주저앉았다. 세리나는 아빠 손을 잡았다.' },
   ],
   // v9.117.0: 보른 — 동탑을 쌓는 이야기. 모두의 탑 → 완성 날 황금으로 빛난다 (§29 · §31)
   keeper: [
@@ -3071,7 +3082,7 @@ const STORY = {
     { make:'cord',                             say:'금빛 대장간은 기술을 닫아 두었다가 함께 묻혔다. "그게 그들의 실수였어."' },
     { make:'clay',                             say:'동탑 쌓는 법을 문 밖 벽에도 그렸다. 문 안에만 있으면 함께 묻힌다.' },
     { give:[['glowcap', 3]],                   say:'오르반의 눈이 흐려진다. "나도 언젠가 잊는다. 그 전에 다 넘겨야 해."' },
-    { give:[['silkweb', 4]],                   say:'매듭마다 조합법을 묶은 줄을 사람 수만큼 나눴다. "내가 없어도 남는다."' },
+    { give:[['silkweb', 4]],                   say:'오르반은 매듭마다 조합법을 묶은 줄을 사람 수만큼 나눴다. "내가 없어도 남는다."' },
     { make:'fishhook',                         say:'동탑이 금빛으로 빛났다. 오르반은 매듭 줄을 쥐었다. "법은 남았어."' },
   ],
   weaponsmith: [
@@ -3110,7 +3121,7 @@ const STORY = {
     { give:[['limerock', 3]],                  say:'벽돌 사이를 손톱으로 긁었다. 반죽이 고왔다. 잘 쌓은 벽이다.' },
     { give:[['toughhide', 4]],                 say:'동탑 벽 이음새에서 반짝이는 부스러기가 나왔다. 마르그는 다시 덮었다.' },
     { make:'leatherstrap',                     say:'기사단 갑옷도 쇠판은 못 만졌다. 안감만 댔다. 그 버릇이 손에 남았다.' },
-    { make:'boneneedle',                       say:'네이라에게 말했다. "속을 보는 사람이 나 하나는 아니야." 웃기만 했다.' },
+    { make:'boneneedle',                       say:'마르그가 네이라에게 말했다. "속을 보는 사람이 나 하나는 아니야." 네이라는 웃기만 했다.' },
     { give:[['stonepelt', 4]],                 say:'갑옷을 기사에게 입혀 보고 두 번 고쳤다. 맞는 쪽은 역시 기사였다.' },
     { make:'leatherarmor',                     say:'동탑이 금빛으로 빛났다. 마르그는 처음으로 겉을 봤다. "속이 이랬지."' },
   ],
@@ -3131,7 +3142,7 @@ const STORY = {
     { give:[['cavecrystal', 3]],               say:'굴 수정을 불빛에 비춰 봤다. 금빛이 돌자 숨을 삼켰다.' },
     { make:'claynecklace',                     say:'흙 목걸이를 세리나 목에 걸어 보고 바로 벗겼다. 아직 아니라고.' },
     { give:[['dullgold', 2]],                  say:'빛 잃은 금붙이를 몰래 모았다. 아무도 모르게 하나씩 숨겼다.' },
-    { give:[['dullgold', 3]],                  say:'마지막 금붙이를 동탑 꼭대기에 넣었다. "이번엔 우리가 받을 차례야."' },
+    { give:[['dullgold', 3]],                  say:'네이라는 마지막 금붙이를 동탑 꼭대기에 넣었다. "이번엔 우리가 받을 차례야."' },
     { make:'glowcharm',                        say:'동탑이 금빛으로 빛났다. 네이라는 두 팔을 들고 소리쳤다. 수혜자다.' },
   ],
   herbalist: [
@@ -3139,10 +3150,10 @@ const STORY = {
     { make:'salve',                            say:'누가 오든 무릎부터 봤다. 무릎이 성하면 그제야 얼굴을 봤다.' },
     { give:[['glowcap', 3]],                   say:'동탑에 약방을 두라 했다. "이번엔 약이 먼저 내려와야 해."' },
     { give:[['cavemush', 3]],                  say:'"일꾼은 흉터로 알아봐. 위의 사람들은 흉터가 없었지. 한 번도."' },
-    { give:[['bogmoss', 4]],                   say:'"의원은 위층에 있었어. 계단은 기사가 지켰지. 우린 문 앞에서 돌아섰어."' },
+    { give:[['bogmoss', 4]],                   say:'실바가 말했다. "의원은 위층에 있었어. 계단은 기사가 지켰지. 우린 문 앞에서 돌아섰어."' },
     { kill:'tombkeeper',                       say:'공터 끝 이름 없는 돌. 동생은 일꾼이었다. 무너진 날 무릎 아래가 깔렸다.' },
     { give:[['sinew', 3]],                     say:'남은 약은 한 사람 몫. 숨이 더 붙은 건 끌려 온 기사였다. 기사를 꿰맸다.' },
-    { make:'boneneedle',                       say:'가렛 옆구리의 흉터를 봤다. 내 바늘 자국. "살린 걸 후회하게 하지 마."' },
+    { make:'boneneedle',                       say:'실바는 가렛 옆구리의 흉터를 봤다. 실바의 바늘 자국. "살린 걸 후회하게 하지 마."' },
   ],
 };
 const STORY_LEN = 5;                                              // 기본 걸음 수 (v9.114.0: 사람마다 다를 수 있다 — storyLen)
@@ -3183,14 +3194,14 @@ const storyLen = id => (STORY[id] || []).length || STORY_LEN;
   ['goldtower', '무너진 금탑', '누워 버린 연회장. 빛을 잃은 금이 굴러다닌다. 문 앞에 무언가 서 있다.'],
 ].forEach(([id, name, text]) => { const t = { id: `pl_${id}`, who: 'place', pic: `scene_pl_${id}`, key: `land:${id}`, name, text }; TRACES.push(t); TRACE_BY_ID[t.id] = t; });
 const STORY_TRACES = {                                          // v9.117.0: 모두 — id st_<사람>_<걸음>, 그림 scene_st_<사람>_<걸음>
-  knight: [['st_knight_01', '문지방'], ['st_knight_02', '잠자리'], ['st_knight_03', '저절로'], ['st_knight_04', '물러서지 않음'], ['st_knight_05', '막힌 문'], ['st_knight_06', '긁힌 자리'], ['st_knight_07', '설 자리'], ['st_knight_08', '문틀'], ['st_knight_09', '내 방패'], ['st_knight_10', '남의 이름'], ['st_knight_11', '망루 문'], ['st_knight_12', '같은 문양'], ['st_knight_13', '그 바닥'], ['st_knight_14', '안감'], ['st_knight_15', '이 빛'], ['st_knight_16', '같은 자리']],
-  ally: [['st_ally_01', '내가 지은 이름'], ['st_ally_02', '날아간 깃털'], ['st_ally_03', '숟가락'], ['st_ally_04', '세 번이나'], ['st_ally_05', '무릎'], ['st_ally_06', '솔기'], ['st_ally_07', '한 입'], ['st_ally_08', '값'], ['st_ally_09', '머리 위 방패'], ['st_ally_10', '세 칸'], ['st_ally_11', '문 앞'], ['st_ally_12', '몰래 둔 약'], ['st_ally_13', '사람 수'], ['st_ally_14', '반짝이'], ['st_ally_15', '하얀 얼굴'], ['st_ally_16', '아빠 손']],
+  knight: [['st_knight_01', '문지방'], ['st_knight_02', '잠자리'], ['st_knight_03', '저절로'], ['st_knight_04', '물러서지 않음'], ['st_knight_05', '막힌 문'], ['st_knight_06', '긁힌 자리'], ['st_knight_07', '설 자리'], ['st_knight_08', '문틀'], ['st_knight_09', '가렛의 방패'], ['st_knight_10', '남의 이름'], ['st_knight_11', '망루 문'], ['st_knight_12', '같은 문양'], ['st_knight_13', '그 바닥'], ['st_knight_14', '안감'], ['st_knight_15', '이 빛'], ['st_knight_16', '같은 자리']],
+  ally: [['st_ally_01', '지어준 이름'], ['st_ally_02', '날아간 깃털'], ['st_ally_03', '숟가락'], ['st_ally_04', '세 번이나'], ['st_ally_05', '무릎'], ['st_ally_06', '솔기'], ['st_ally_07', '한 입'], ['st_ally_08', '값'], ['st_ally_09', '머리 위 방패'], ['st_ally_10', '세 칸'], ['st_ally_11', '문 앞'], ['st_ally_12', '몰래 둔 약'], ['st_ally_13', '사람 수'], ['st_ally_14', '반짝이'], ['st_ally_15', '하얀 얼굴'], ['st_ally_16', '아빠 손']],
   keeper: [['st_keeper_01', '외상은 안 된다'], ['st_keeper_02', '빈 그릇'], ['st_keeper_03', '이불'], ['st_keeper_04', '위아래 없는 장부'], ['st_keeper_05', '줄지 않는 숫자'], ['st_keeper_06', '모두의 탑'], ['st_keeper_07', '위층 불빛'], ['st_keeper_08', '떨어진 장부']],
   peddler: [['st_peddler_01', '돌과 이빨'], ['st_peddler_02', '벽의 그림'], ['st_peddler_03', '하나만'], ['st_peddler_04', '닫힌 문'], ['st_peddler_05', '문 밖 벽'], ['st_peddler_06', '흐린 눈'], ['st_peddler_07', '매듭 줄'], ['st_peddler_08', '남은 것']],
   weaponsmith: [['st_weaponsmith_01', '가르기'], ['st_weaponsmith_02', '숫돌'], ['st_weaponsmith_03', '열리지 않은 문'], ['st_weaponsmith_04', '아직'], ['st_weaponsmith_05', '모서리'], ['st_weaponsmith_06', '문 안쪽'], ['st_weaponsmith_07', '결'], ['st_weaponsmith_08', '버린 열쇠']],
   cook: [['st_cook_01', '먼저 한 입'], ['st_cook_02', '그날의 불'], ['st_cook_03', '한 줌'], ['st_cook_04', '비밀'], ['st_cook_05', '이 맛'], ['st_cook_06', '금잔 자리'], ['st_cook_07', '밤샘'], ['st_cook_08', '멈춘 숟가락']],
   carpenter: [['st_carpenter_01', '마룻바닥'], ['st_carpenter_02', '굴러 보기'], ['st_carpenter_03', '세 칸'], ['st_carpenter_04', '묶였던 줄'], ['st_carpenter_05', '문턱 없이'], ['st_carpenter_06', '다시 그 숲'], ['st_carpenter_07', '마지막 판자'], ['st_carpenter_08', '그날의 바닥']],
-  armorsmith: [['st_armorsmith_01', '인사 대신'], ['st_armorsmith_02', '장갑 안감'], ['st_armorsmith_03', '고운 반죽'], ['st_armorsmith_04', '부스러기'], ['st_armorsmith_05', '쇠판은 못 만진 손'], ['st_armorsmith_06', '나 하나'], ['st_armorsmith_07', '맞는 쪽'], ['st_armorsmith_08', '처음 본 겉']],
+  armorsmith: [['st_armorsmith_01', '인사 대신'], ['st_armorsmith_02', '장갑 안감'], ['st_armorsmith_03', '고운 반죽'], ['st_armorsmith_04', '부스러기'], ['st_armorsmith_05', '쇠판은 못 만진 손'], ['st_armorsmith_06', '혼자가 아냐'], ['st_armorsmith_07', '맞는 쪽'], ['st_armorsmith_08', '처음 본 겉']],
   shieldsmith: [['st_shieldsmith_01', '사람 수'], ['st_shieldsmith_02', '대답 없이'], ['st_shieldsmith_03', '그냥'], ['st_shieldsmith_04', '사람 수'], ['st_shieldsmith_05', '방마다'], ['st_shieldsmith_06', '돌비늘'], ['st_shieldsmith_07', '길목'], ['st_shieldsmith_08', '껍질']],
   trinketsmith: [['st_trinketsmith_01', '여관 값'], ['st_trinketsmith_02', '흙구슬 값'], ['st_trinketsmith_03', '닦던 손'], ['st_trinketsmith_04', '금빛이 돌면'], ['st_trinketsmith_05', '아직 아니야'], ['st_trinketsmith_06', '모으는 손'], ['st_trinketsmith_07', '마지막 하나'], ['st_trinketsmith_08', '환호']],
   herbalist: [['st_herbalist_01', '닫힌 문'], ['st_herbalist_02', '무릎'], ['st_herbalist_03', '약이 먼저'], ['st_herbalist_04', '흉터'], ['st_herbalist_05', '계단'], ['st_herbalist_06', '동생'], ['st_herbalist_07', '한 사람 몫'], ['st_herbalist_08', '꿰맨 자리']],
