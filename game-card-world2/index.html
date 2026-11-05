@@ -2431,7 +2431,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.9.1';
+const VERSION = 'v11.10.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2659,7 +2659,7 @@ function stepFrom(goals, depth){
 // ── 흔적 (v2.2.0) ─────────────────────────────────
 // 캐릭터마다 이야기 조각. 게임 속 사건(퀘스트와 같은 열쇠)으로 하나씩 드러나고, 콜렉터북 📜 흔적 탭에서 읽는다
 //   조합 재료가 아니라 기록이라 카드 자리에는 안 나옴
-const TRACE_WHO = { place: '🗺 장소', knight: '🛡 기사', ally: '🏹 세리나', keeper: '🏨 보른',   // v9.94.0 세리나 · v9.95.0 보른
+const TRACE_WHO = { place: '🗺 장소', knight: '🛡 가렛', ally: '🏹 세리나', keeper: '🏨 보른',   // v9.94.0 세리나 · v9.95.0 보른
   peddler: '🎯 오르반', weaponsmith: '⚔ 두르간', cook: '🍖 올가', carpenter: '🏠 헤이든', armorsmith: '🛡 마르그',   // v9.110.0: 사람마다 배경 흔적
   shieldsmith: '🛡 토른', trinketsmith: '📿 네이라', herbalist: '🧪 실바', goldgolem: '🏛 황금 골렘' };   // v9.105.0: 황금 골렘   // v9.94.0: 세리나 · v9.95.0: 보른
 const TRACES = [
@@ -2909,7 +2909,7 @@ function innRegister(id, slot){
   if (smithLocked(id)){ toast(`🔒 ${smithNeed(id)}`); return false; }
   if (!innSeat(id, slot)) return false;                           // v9.81.0: 셋까지 · 찬 칸에 올리면 앞사람이 내려온다
   logEv('inn-reg', { smith: id });
-  toast(smithFound(id) ? `🏨 ${sm.name} 찾기` : '🏨 소문을 쫓는다');
+  toast(smithFound(id) ? `🏨 ${sm.name} 합류` : '🏨 소문을 쫓는다');
   innSelfCheck();
   renderAll(); renderInsp(); save();
   return true;
@@ -2948,7 +2948,7 @@ function innAdvance(id){
 }
 function innFinish(id){
   const n = S.inn, sm = SMITH_BY_ID[id];
-  qDoneShow(id, `${smithName(id)} 찾기`);                          // v11.0.12: 완료 줄 먼저
+  qDoneShow(id, `${smithName(id)} 합류`);                          // v11.0.12: 완료 줄 먼저
   if (!n.done.includes(id)) n.done.push(id);
   if (!n.found.includes(id)) n.found.push(id);
   n.regs = (n.regs || []).filter(x => x !== id);                  // v9.81.0: 합류하면 칸을 비운다
@@ -3812,7 +3812,7 @@ const boardFor = type => (BOARDS.find(b => b.dyn && boardOpen(b) && (onBoard(typ
 // v9.55.0: 탭을 여는 것도 장인 — 갑옷 장인을 못 찾았으면 갑옷 탭에서 아무것도 만들 수 없다
 const boardOpen = b => editMode || ((!b.needs || (S.boards || []).includes(b.id)) && (!b.smith || smithOk(b.smith)));
 const boardNeed = b => b && b.smith && !smithOk(b.smith)
-  ? (smithLocked(b.smith) ? smithNeed(b.smith) : `${smithName(b.smith)} 찾기`) : '';
+  ? (smithLocked(b.smith) ? smithNeed(b.smith) : `${smithName(b.smith)} 합류`) : '';
 const visibleCards = () => S.cards.filter(c => onBoard(c.type, S.tab));
 let S = load() || fresh();
 reconcileTraces();                                                // v9.112.0: 이미 지나온 일의 흔적은 열어 둔다
@@ -6691,7 +6691,7 @@ function screenRows(){
       const gs = who ? slotsFor(who).map(sl => { const ok = slotOpen(sl.key, who), t = ok ? g[sl.key] : null;
         return { id: `pp${i}:${sl.key}`, open: ok, card: !!t, type: t, icon: t ? iconHtml(t) : '',
           cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood', lab: slotName(sl, who),
-          need: ok || !sl.smith ? '' : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` }; }) : [];
+          need: ok || !sl.smith ? '' : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 합류` }; }) : [];
       rows.push({ raw: `<div class="lrow preset-row pp-three">${hs}<div class="pp-grid">${gs.map(slotHtmlOf).join('')}</div></div>` });   // v10.15.1: 상반신 + 오른쪽 3열 × 2행
     });
     return rows;
@@ -6764,7 +6764,7 @@ function screenRows(){
       cardName: t ? DEFS[t].name : '', frame: t ? frameOf(DEFS[t]) : 'wood',
       // v9.55.0: 조건은 레벨이 아니라 사람 — 땅이 잠겨 그 장인부터 못 찾으면 땅 조건을 적는다
       lab: slotName(sl, row), need: open || !sl.smith ? ''
-        : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 찾기` };
+        : smithLocked(sl.smith) ? smithNeed(sl.smith) : `${smithName(sl.smith)} 합류` };
   };
   // v9.73.0: 합류한 사람은 모두 제 줄을 갖는다 (비전투요원은 칸 셋)
   return ALL_HEROES().map(k => ({ card: heroCardHtml(k), slots: slotsFor(k).map(sl => slotOf(k, sl)) }));
@@ -10056,7 +10056,8 @@ function renderQuest(){
   }
   clearTimeout(questClear);
   // v2.2.0: 퀘스트 줄 = 기사의 수첩 — 할 일은 게임의 지시가 아니라 기사가 스스로 적은 메모
-  el.innerHTML = '<div class="q-book">📓 가렛의 수첩</div>' + list.map(q => {
+  // v11.10.0: 머리글('가렛의 수첩') 없앰 — 목표 · 생산 · 여관 줄까지 덮어서. 메인 줄은 줄마다 '가렛 이야기'
+  el.innerHTML = list.map(q => {
     const def = QUESTS[q.id];
     return def.groups ? questBlockHtml(q, def) : questRowHtml(q, def);
   }).join('') + innRow + goalRow;
@@ -10102,7 +10103,7 @@ function qNowStep(st){                                            // goalLeft �
 }
 function qNowMake(t){                                             // 그것을 만들려면 지금 무엇을
   const r = CRAFT_RECIPES.find(x => (x.out || []).includes(t)), sm = r && recipeSmith(r);
-  if (sm && !smithOk(sm)) return esc(`🏨 ${smithName(sm)} 찾기`);  // 완성품인데 장인이 없다 → 사람부터
+  if (sm && !smithOk(sm)) return esc(`🏨 ${smithName(sm)} 합류`);  // 완성품인데 장인이 없다 → 사람부터
   const st = goalLeft(t)[0];
   return st ? qNowStep(st) : esc(`🔨 조합에서 ${objP(nameShown(t) ? DEFS[t].name : '???')} 만들자`);
 }
@@ -10137,7 +10138,7 @@ function innRowOf(id){
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
   const body = qNowGive(sm.give || [], innGiven(id));              // v11.0.6: 지금 모을 것 하나만
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
-    + `<b class="q-name">${esc(smithName(id))} 찾기</b>`
+    + `<b class="q-name">${esc(smithName(id))} 합류</b>`   // v11.10.0: 찾기 → 합류 (퀘스트: 이야기 · 합류 · 목표 · 생산)
     + `<span class="q-text">${body}</span>`
     + editDoneBtn('join', id) + '<span class="q-n"></span></div>';
 }
@@ -10229,7 +10230,10 @@ function questRowHtml(q, def){
   // v9.55.3: 진행 수(3/5)는 **제목 바로 옆** — 할 일 글 끝에 붙으면 글과 숫자가 붙어 읽혔다
   const prog = def.steps || q.done || goal <= 1 ? '' : `<span class="q-prog">(${Math.min(q.n, goal)}/${goal})</span>`;
   const pic = (QUEST_PIC[q.id] || (def.story ? storyPic(def.story) : () => ''))();
-  return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">✎</span>${pic}<b class="q-name">${esc(def.name)}</b>${prog}`
+  // v11.10.0: 메인 줄 이름은 늘 **가렛 이야기** (다른 사람 이야기 줄과 같은 꼴 — 얼굴 · 이름 · 지금 할 것). 걸음 이름은 줄에 올리면 보인다
+  const face = `<img class="q-pic" src="images/icon/${personPic('knight')}.png" alt="" draggable="false">`;
+  return `<div class="q-row${q.done ? ' done' : ''}" title="${esc(def.name)}"><span class="q-tag">✎</span>${face}<b class="q-name">가렛 이야기</b>${prog}`
+    + (pic && pic !== face ? pic : '')
     + `<span class="q-text">${q.done ? '했다' : def.html ? questText(def, q) : esc(questText(def, q))}</span>`
     + (!q.done && String(def.key || '').startsWith('make:') ? aimMakeBtn(def.key.slice(5)) : '')   // v9.109.0
     + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
