@@ -2431,7 +2431,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.12.0';
+const VERSION = 'v11.13.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -7033,7 +7033,7 @@ function renderScreen(){
     + (S.tab === 'aim' && !S.goal ? goalPlanHtml() : '')          // v3.0.0 · v5.4.0: 목표가 있으면 차례는 인스펙터에서
     + (S.tab === 'aim' && !aimCandidates().length && !S.goal                        // v3.0.3: 올릴 게 없을 때
       ? '<div class="aim-empty">아직 만들 줄 아는 게 없어요 — 🗡️ 필드로 나가 재료를 발견하면 여기에 쌓입니다.</div>' : '')
-    + `<div class="gather-hint">${isFieldTab(S.tab)
+    + (HIDE_TIPS ? '' : `<div class="gather-hint">${isFieldTab(S.tab)
       ? (EXPS.length ? `🏃 ${EXPS.map(E => esc(FIELD_BY_ID[E.id].name)).join(' · ')} 원정 중`
         : mainHeroes().length ? `🚩 출전 — 편성 ${mainPreset() + 1}(메인) ${mainHeroes().map(w => esc(pName(w))).join(' · ')}이 나간다`   // v10.7.0
         : `편성 ${mainPreset() + 1}(메인)이 비었다 — 편성 탭에서 사람을 넣자`)
@@ -7048,7 +7048,7 @@ function renderScreen(){
       : S.tab === 'party' ? (EXPS.some(E => E.preset === presetPick) ? `편성 ${presetPick + 1}은 원정 중 — 지금 고친 것은 다음 출전부터`   // v10.10.0
         : ppSlotNow() ? `${esc(pName(ppSlotNow().who))}의 ${esc(slotName(ppSlotNow().sl, ppSlotNow().who))} 칸 — ${toks.length ? '끌거나 탭해서 낀다 · ' : ''}칸을 다시 누르면 사람 목록`   // v11.4.0
         : `사람을 전열 · 중열 · 후열에 — 장비 칸을 누르면 낄 것이 나온다 · 출전은 늘 메인(편성 ${mainPreset() + 1})`)   // v10.6.0 · v10.7.0
-      : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div></div>`;
+      : '장비를 캐릭터 줄의 칸에 끌어다 놓으세요'}</div>`) + '</div>';
   linkTabs(gatherEl);                                             // v7.8.0
   paintIcons(gatherEl);                                           // v3.5.0
   syncDockH();                                                    // v10.3.0
@@ -7058,6 +7058,8 @@ function renderScreen(){
   expBuild();                                                     // v3.14.0: 원정 줄은 수첩 아래 고정 자리
 }
 const renderGather = renderScreen;                                // 옛 이름
+// v11.13.0: 바닥 팁 줄(.gather-hint — '출전 — 편성 1(메인) …' · '카드를 끌어 …' 등) 모두 끔 (사용자 요청). 글은 남겨 둔다
+var HIDE_TIPS = true;
 const renderSlots = () => {};                                     // v0.29.0: 줄 목록이 화면에 들어옴
 // 칸에 놓았을 때
 function dropOnSlot(id, token){
