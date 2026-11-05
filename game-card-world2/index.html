@@ -2441,7 +2441,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.20.0';
+const VERSION = 'v11.21.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2556,12 +2556,46 @@ const QUESTS = {
   forest:     { name:'숲으로',          text:'🌲 숲으로 가 보자',      goal:1, key:'exp-start:forest',
                 say:'초원 너머로 숲이 보인다' },
 };
+// v11.21.0: **새 여는 차례에 맞춘 땅 걸음** — 그 땅으로 가기(go_*) · 그 땅 주인 넘기(boss_*). 이야기 걸음이 맡지 않는 땅만
+const roP = w => w + (!hasJong(w) || (w.charCodeAt(w.length - 1) - 0xAC00) % 28 === 8 ? '로' : '으로');   // 로/으로 (ㄹ 받침은 '로')
+const landLab = id => { const f = FIELD_BY_ID[id]; return f ? `${f.emoji} ${f.name}` : id; };
+const landGo = (id, name, before) => ({ name, goal:1, key:`exp-start:${id}`,
+  text:() => (before ? before + ' ' : '') + `${roP(landLab(id))} 가 보자` });
+const landBoss = (id, foe, name) => ({ name, goal:1, key:`kill:${foe}`,
+  text:() => `👑 ${objP((ENEMIES[foe] || {}).name || foe)} 넘자` });
+Object.assign(QUESTS, {
+  go_quarry:     landGo('quarry', '숲 너머'),
+  boss_quarry:   landBoss('quarry', 'bigcentipede', '채석장의 주인'),
+  go_river:      landGo('river', '물소리'),
+  boss_river:    landBoss('river', 'catfish', '강가의 주인'),
+  go_stonehide:  landGo('stonehide', '굴 입구'),
+  go_swamptomb:  landGo('swamptomb', '굴 아래 물소리'),
+  go_spidernest: landGo('spidernest', '줄 덮인 숲'),
+  go_shellcave:  landGo('shellcave', '물 냄새 나는 굴'),
+  go_cellar:     landGo('cellar', '묻힌 창고'),
+  boss_cellar:   landBoss('cellar', 'cellarkeeper', '창고의 주인'),
+  go_scorched:   landGo('scorched', '벼락 맞은 들판'),
+  boss_scorched: landBoss('scorched', 'scorchstag', '들판의 주인'),
+  go_towerruin:  landGo('towerruin', '꺾인 망루'),
+  boss_towerruin: landBoss('towerruin', 'towereye', '망루의 눈'),   // 이야기 ⑮(탑의 눈)는 뒤에 오지만 금탑을 열려면 먼저 넘어야 한다 — ⑮는 그때 바로 끝난다
+  go_goldtower:  landGo('goldtower', '누운 연회장'),
+});
 // v11.9.0: **가렛의 길** — 메인 퀘스트 한 줄. 가렛 이야기 걸음(gst1 ~ gst16)을 길 사이에 끼운다 (이야기 차례는 그대로).
 //   합류(join_*)는 오르반 · 두르간만 길 안에, 나머지는 메인 둘마다 하나씩 (giveJoinQuests). 갈래(pierce · bleed)는 막혀 본 뒤에 곁에 붙는다
+// v11.21.0: **새 여는 차례(필드 다섯 → 던전 다섯 → 레이드)에 맞춰 다시 짬.** 땅마다 '가기 · 주인 넘기'를 길에 넣고,
+//   막혀 봐야 붙던 갈래(방어 무시 · 출혈 무기)와 나무 방패를 만들 토른 합류도 길 위 제자리로. 가렛 줄은 늘 하나
 const GARRET_PATH = ['gomountain', 'join_peddler', 'gst1', 'wolf', 'gst2', 'join_weaponsmith', 'gst3',
-  'aimweapon', 'arm', 'book', 'aimbetter', 'better', 'prod', 'gst4',            // gst4 = 곰 (산의 주인)
-  'grass', 'gweapon', 'boar', 'innarmor', 'garmor', 'bison', 'forest',
-  'gst5', 'gst6', 'gst7', 'gst8', 'gst9', 'gst10', 'gst11', 'gst12', 'gst13', 'gst14', 'gst15', 'gst16'];
+  'aimweapon', 'arm', 'book', 'aimbetter', 'better', 'prod', 'gst4',            // ⛰️ 산 — gst4 = 곰 (산의 주인)
+  'grass', 'gweapon', 'boar', 'innarmor', 'garmor', 'bison',                  // 🌾 초원
+  'forest', 'gst5', 'gst6', 'gst7',                                           // 🌲 숲 — gst6 = 숲곰 · gst7 = 고기 (산)
+  'go_quarry', 'boss_quarry', 'go_river', 'boss_river',                       // ⛏ 채석장 · 🏞️ 강가
+  'go_stonehide', 'pierce', 'gst8',                                           // 던전 ① 돌가죽 굴 — gst8 = 돌가죽 주인
+  'join_shieldsmith', 'gst9',                                                 // 토른 → 나무 방패
+  'go_swamptomb', 'bleed', 'gst10',                                           // ② 늪지 무덤 — gst10 = 무덤 주인
+  'go_spidernest', 'gst11', 'go_shellcave', 'gst12',                          // ③ 거미 둥지 · ④ 껍질 동굴
+  'go_cellar', 'boss_cellar',                                                 // ⑤ 지하 창고
+  'go_scorched', 'boss_scorched', 'go_towerruin', 'boss_towerruin', 'go_goldtower',             // 레이드 — 벼락 들판 · 부서진 탑 · 무너진 금탑
+  'gst13', 'gst14', 'gst15', 'gst16'];                                        // 바닥재(금탑) · 기름 · 탑의 눈(이미 넘음) · 황금 골렘
 // 끝나면 바로 이어지는 다음 퀘스트
 const QUEST_NEXT = Object.fromEntries(GARRET_PATH.slice(0, -1).map((id, i) => [id, GARRET_PATH[i + 1]]));
 const hintOn = k => !!(S.hints || {})[k];
@@ -3732,18 +3766,17 @@ Object.assign(QUESTS[joinQuestId('weaponsmith')], { name: '날을 세우는 사�
 //   오르반 · 두르간은 메인 사슬(QUEST_NEXT) 안에 있어 여기서 주지 않는다. 그 뒤 장인들은 메인 둘을 끝낼 때마다 하나씩
 const JOIN_GAP = 2;
 const CHAIN_JOINS = ['peddler', 'weaponsmith'];
+// v11.21.0: 가렛 길 위의 합류 걸음(join_* · innarmor) — 그 장인은 길이 줄 때만
+const PATH_SMITHS = () => GARRET_PATH.map(id => String((QUESTS[id] || {}).key || '')).filter(k => k.startsWith('smith:')).map(k => k.slice(6));
 const isJoinQuest = id => String((QUESTS[id] || {}).key || '').startsWith('smith:');
 function giveJoinQuests(){
   const open = (S.quests || []).filter(q => !q.done && isJoinQuest(q.id));
   if (open.length) return;                                        // 이미 찾는 중인 사람이 있다
   if (!CHAIN_JOINS.every(id => smithOk(id))) return;              // 가렛의 첫 길(오르반 · 두르간)이 먼저
-  // v11.9.0: 가렛의 지금 걸음이 그 장인의 손을 바라면 (만들기 걸음) 차례를 기다리지 않고 그 사람부터
-  const ks = knightOn() && storyNow('knight'), kr = ks && ks.make && CRAFT_RECIPES.find(r => (r.out || []).includes(ks.make));
-  const need = kr && recipeSmith(kr);
-  if (need && SMITH_BY_ID[need] && !SMITH_BY_ID[need].free && !smithOk(need) && !smithLocked(need)){ giveQuest(joinQuestId(need)); return; }
+  // v11.21.0: 나무 방패 걸음의 '그 사람부터' 예외는 없앰 — 토른 합류가 가렛 길 위에 있다
   if ((S.mainSinceJoin || 0) < JOIN_GAP) return;                  // 메인 퀘스트 둘을 끝낸 뒤에
   for (const sm of SMITHS){
-    if (sm.free || CHAIN_JOINS.includes(sm.id) || smithOk(sm.id) || smithLocked(sm.id)) continue;
+    if (sm.free || CHAIN_JOINS.includes(sm.id) || PATH_SMITHS().includes(sm.id) || smithOk(sm.id) || smithLocked(sm.id)) continue;   // v11.21.0: 길 위 장인은 길이 준다
     if (S.questDone && S.questDone.includes(joinQuestId(sm.id))) continue;
     giveQuest(joinQuestId(sm.id));
     return;
@@ -6172,6 +6205,7 @@ function checkGoalDone(){
 // v3.2.4: **튜토리얼 동안**에는 목표을 무기가 아닌 것으로 바꾸면 '무엇을 쥘까'로 되돌아간다
 //   (튜토리얼이 끝나면 무엇을 걸든 자유 — 되돌리지 않음)
 function questRegress(){
+  return;                                                         // v11.21.0: 가렛 길은 한 줄 — 되돌려 옆에 붙이지 않는다
   if ((S.cleared || []).includes('mountain')) return;            // v9.120.0: 튜토리얼 = 산
   if (haveWeapon() || equipped('weapon')) return;
   if (S.goal && useOf(S.goal).includes('근접무기')) return;
@@ -9162,10 +9196,7 @@ function expEnd(kind){
   const lossId = E.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
   if (bearLoss){ traceHit(`lose-boss:${E.id}`); traceHit('lose-boss'); }   // v2.2.0: 흔적 '무릎'. v7.13.1: 어느 보스든
   // v3.2.5: 진 소감을 **먼저** 말한다 — 다음 퀘스트 한마디(0.9초 뒤)에 밀려 순서가 꼬이던 것
-  if (bearLoss && lossId === 'stonehide' && !(S.questDone || []).includes('pierce'))
-    setTimeout(() => giveQuest('pierce'), 1800);                  // v4.3.0: 막혀 본 뒤에 길을 준다
-  if (bearLoss && lossId === 'swamptomb' && !(S.questDone || []).includes('bleed'))
-    setTimeout(() => giveQuest('bleed'), 1800);                   // v6.0.0
+  // v11.21.0: 갈래(pierce · bleed)는 이제 가렛 길 위 제자리 걸음 — 지고 돌아와도 따로 붙이지 않는다
   const lossKey = `bossloss:${lossId}`;
   if (bearLoss && !S.said.includes(lossKey)){
     S.said.push(lossKey);
@@ -10259,6 +10290,10 @@ const fieldPic = id => { const f = FIELD_BY_ID[id]; if (!f) return '';
   return FIELD_NO_ICON.includes(id) ? `<span class="q-pic emo">${f.emoji}</span>`
     : `<img class="q-pic" src="images/icon/card_${id}.png" alt="" draggable="false">`; };
 const QUEST_PIC = {
+  ...Object.fromEntries(Object.keys(QUESTS).filter(id => id.startsWith('go_')).map(id => [id, () => fieldPic(id.slice(3))])),   // v11.21.0
+  boss_quarry: () => foePic('bigcentipede'), boss_river: () => foePic('catfish'),
+  boss_cellar: () => foePic('cellarkeeper'), boss_scorched: () => foePic('scorchstag'), boss_towerruin: () => foePic('towereye'),
+  pierce: () => '<span class="q-pic emo">🎯</span>', bleed: () => '<span class="q-pic emo">🎯</span>',
   gomountain: () => fieldPic('mountain'),
   grass: () => fieldPic('grassland'),     forest: () => fieldPic('forest'),
   wolf: () => foePic('wolf'), bear: () => foePic('bear'),
@@ -10273,6 +10308,13 @@ const storyPic = i => () => { const st = STORY.knight[i - 1] || {};
   return st.kill && foeKnown(st.kill) ? foePic(st.kill)
     : `<img class="q-pic" src="images/icon/${personPic('knight')}.png" alt="" draggable="false">`; };
 function questRowHtml(q, def){
+  if (isJoinQuest(q.id) && !GARRET_PATH.includes(q.id)){          // v11.21.0: 길 밖 합류 — 가렛 줄이 아니다
+    const sid = String(def.key).slice(6), sm = SMITH_BY_ID[sid];
+    return `<div class="q-row${q.done ? ' done' : ''}"><span class="q-tag">🏨</span>`
+      + (sm ? `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">` : '')
+      + `<b class="q-name">${esc(smithName(sid))} 합류</b><span class="q-text">${q.done ? '했다' : def.html ? questText(def, q) : esc(questText(def, q))}</span>`
+      + `<span class="q-n">${q.done ? '✓' : ''}</span></div>`;
+  }
   const goal = questGoal(def);
   // v9.55.3: 진행 수(3/5)는 **제목 바로 옆** — 할 일 글 끝에 붙으면 글과 숫자가 붙어 읽혔다
   const prog = def.steps || q.done || goal <= 1 ? '' : `<span class="q-prog">(${Math.min(q.n, goal)}/${goal})</span>`;
@@ -10328,7 +10370,7 @@ function questStep(id){
     renderQuest();
     questFade(q);                                                  // v0.38.0: 반짝 뒤 줄에서 사라짐
     const next = QUEST_NEXT[q.id];                                 // v0.60.0: 빈 순간이 없도록 바로 이어 붙임
-    if (next) setTimeout(() => giveQuest(next), 900);
+    if (next) setTimeout(() => giveQuest(next), QUEST_SHOW_MS + 60);   // v11.21.0: 900 → 완료 줄이 걷힌 뒤 (가렛 줄이 둘 보이지 않게)
     if (!isJoinQuest(q.id)){ S.mainSinceJoin = (S.mainSinceJoin || 0) + 1; setTimeout(giveJoinQuests, 1300); }   // v9.98.0: 메인 둘마다 합류 하나
     save();
     return;
