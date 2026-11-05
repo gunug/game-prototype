@@ -2443,7 +2443,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.21.1';
+const VERSION = 'v11.22.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3549,6 +3549,9 @@ const presets = () => {
 const mainPreset = () => { presets(); const m = S.mainPreset; return Number.isInteger(m) && m >= 0 && m < PRESET_MAX ? m : 0; };
 const mainHeroes = () => presetOf(mainPreset()).heroes.filter(w => w && ALL_HEROES().includes(w));   // 지금 나갈 사람 (전열부터)
 const presetOf = p => presets()[p] || null;
+// v11.22.0: **보이는 편성 수** — 처음엔 하나. '+' 칩으로 다섯까지 늘린다. 사람이 든 편성 · 메인 편성은 늘 보인다 (옛 저장)
+const presetShown = () => { const a = presets(); let n = Math.max(1, S.presetN | 0, mainPreset() + 1);
+  a.forEach((P, i) => { if (P.heroes.some(Boolean)) n = Math.max(n, i + 1); }); return Math.min(PRESET_MAX, n); };
 const presetGear = (p, who) => { const P = presetOf(p); return (P.gear[who] = P.gear[who] || {}); };
 const presetEmpty = p => !presetOf(p).heroes.some(Boolean);
 let presetPick = 0;                                               // 편성 탭에서 보고 있는 벌 (저장하지 않는다)
@@ -6724,8 +6727,9 @@ function screenRows(){
   }
   if (S.tab === 'party'){                                         // v10.6.0: 편성 — 위 칩 + 세 줄(사람 칸 + 그 사람의 장비 칸)
     const P = presetOf(presetPick);
-    const chips = '<div class="gchips">' + presets().map((x, i) => `<button type="button" data-preset="${i}" class="${i === presetPick ? 'on' : ''}">`
-      + `${i === mainPreset() ? uiIcon('flag', 'mainflag') : ''}편성 ${i + 1}</button>`).join('') + '</div>';   // v11.3.1: 칩엔 번호만 · v11.3.2: 메인엔 깃발
+    const chips = '<div class="gchips">' + presets().slice(0, presetShown()).map((x, i) => `<button type="button" data-preset="${i}" class="${i === presetPick ? 'on' : ''}">`
+      + `${i === mainPreset() ? uiIcon('flag', 'mainflag') : ''}편성 ${i + 1}</button>`).join('')   // v11.3.1: 칩엔 번호만 · v11.3.2: 메인엔 깃발
+      + (presetShown() < PRESET_MAX ? '<button type="button" class="pp-add" data-preset-add title="편성 더하기">+</button>' : '') + '</div>';   // v11.22.0: + 로 다섯까지
     const rows = [{ sub: chips }, { raw: `<div class="lrow preset-head">`
       + `<button type="button" class="pp-main" data-preset-main${presetPick === mainPreset() ? ' disabled' : ''}>${uiIcon('flag', 'goflag')}${presetPick === mainPreset() ? '메인 편성' : '메인으로'}</button>`   // v10.7.0
       + `<button type="button" class="pp-clear" data-preset-clear${presetEmpty(presetPick) ? ' disabled' : ''}>편성 지우기</button></div>` }];
@@ -7312,6 +7316,11 @@ const craftTarget = () => isCraftTab(S.tab) ? S.tab : isCraftTab(S.craftTab) ? S
 const craftChipsRow = () => ({ sub: '<div class="gchips">' + CRAFT_CHIPS.map(([id, lab, ic]) =>
   `<button type="button" data-craftchip="${id}"${S.tab === id ? ' class="on"' : ''}>${uiIcon(ic)} ${lab}</button>`).join('') + '</div>' });
 document.getElementById('subnav').addEventListener('click', e => {
+  if (e.target.closest('[data-preset-add]')){                       // v11.22.0: 편성 하나 더 (다섯까지)
+    const n = presetShown(); if (n >= PRESET_MAX) return;
+    S.presetN = n + 1; presetPick = n; heroPick = null; inspType = null; slotPick = null; ppSlot = null;
+    save(); toast(`편성 ${n + 1}을 만들었다`); renderScreen(); renderInsp(); return;
+  }
   const p = e.target.closest('[data-preset]');
   if (p){ presetPick = +p.dataset.preset; heroPick = null; inspType = null; slotPick = null; ppSlot = null; renderScreen(); renderInsp(); }
 });
