@@ -643,24 +643,29 @@
   @keyframes dunAtkR{0%{transform:translateX(0);}35%{transform:translateX(-22%);}60%{transform:translateX(32%);}100%{transform:translateX(0);}}
   @keyframes dunAtkF{0%{transform:scaleX(-1) translateX(0);}35%{transform:scaleX(-1) translateX(22%);}60%{transform:scaleX(-1) translateX(-32%);}100%{transform:scaleX(-1) translateX(0);}}
   .exp-lane .tok.hurt .pic{filter:brightness(1.7) sepia(1) saturate(8) hue-rotate(-35deg) drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  .exp-lane .dmg.heal{color:#9cf5a8;font-weight:900;font-size:calc(var(--cf) * .22);   /* v6.0.0 · v9.48.9: 더 크고 밝게 */
+  .dmg-fx .dmg.heal{color:#9cf5a8;font-weight:900;font-size:calc(var(--cf) * .22);   /* v6.0.0 · v9.48.9: 더 크고 밝게 */
     text-shadow:0 0 4px rgba(0,0,0,.95), 0 0 10px rgba(80,230,90,.9), 0 2px 6px rgba(0,0,0,.8);}
-  .exp-lane .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
-  .exp-lane .dmg.thornhit{color:#ffb0e0;text-shadow:0 0 6px rgba(255,120,200,.6);font-weight:900;}   /* v9.50.0: 되받음 */
-  .exp-lane .dmg.short{color:#d8d8d0;font-weight:800;font-size:calc(var(--cf) * .14);opacity:.9;}   /* v11.7.0: 사거리 부족 */
-  .exp-lane .dmg.shellhit{color:#cfe3ff;text-shadow:0 0 6px rgba(150,190,255,.6);font-weight:900;}   /* v9.50.0: 껍질 */
-  .exp-lane .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
+  .dmg-fx .dmg.bleedhit{color:#ff6b6b;text-shadow:0 0 6px rgba(255,60,60,.55);font-weight:900;}
+  .dmg-fx .dmg.thornhit{color:#ffb0e0;text-shadow:0 0 6px rgba(255,120,200,.6);font-weight:900;}   /* v9.50.0: 되받음 */
+  .dmg-fx .dmg.short{color:#d8d8d0;font-weight:800;font-size:calc(var(--cf) * .14);opacity:.9;}   /* v11.7.0: 사거리 부족 */
+  .dmg-fx .dmg.shellhit{color:#cfe3ff;text-shadow:0 0 6px rgba(150,190,255,.6);font-weight:900;}   /* v9.50.0: 껍질 */
+  .dmg-fx .dmg.blocked{color:#ff9a8a;text-shadow:0 0 6px rgba(255,60,40,.6);font-weight:900;}   /* v4.3.0 */
   /* v9.29.0: 숫자는 **떠오르며 사라진다**. `floatUp` 키프레임이 없어서 그대로 겹쳐 쌓여 안 읽혔다 */
-  .exp-lane .dmg{position:absolute;z-index:6;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
+  /* v11.15.0: 떠오르는 숫자 · 얻은 것은 **화면 맨 위 겹** — 원정 줄(카메라 밖을 자른다) · 틀 밖으로 나가도 읽힌다 (확인 창 · 흔적 카드 아래) */
+  .dmg-fx{position:fixed;inset:0;z-index:8500;pointer-events:none;overflow:visible;}
+  .dmg-fx .dmg.loot{display:flex;align-items:center;gap:6px;}
+  .dmg-fx .dmg.loot .it{display:inline-flex;align-items:center;gap:2px;}
+  .dmg-fx .dmg.loot .it img{width:1.5em;height:1.5em;object-fit:contain;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9));}
+  .dmg-fx .dmg{position:fixed;z-index:6;pointer-events:none;white-space:nowrap;font-weight:800;font-size:calc(var(--cf) * .18);
     transform:translateX(-50%);color:#ff8f8f;text-shadow:0 2px 6px rgba(0,0,0,.75);
     opacity:0;}   /* v9.32.0: 움직임은 JS 가 준다 */
   @keyframes floatUp{
     0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(.9);}
     18%{opacity:1;transform:translateX(-50%) translateY(0) scale(1.05);}
     100%{opacity:0;transform:translateX(-50%) translateY(-26px) scale(1);}}
-  .exp-lane .dmg.lvup{color:var(--brand-yellow);text-shadow:0 0 8px rgba(255,212,0,.7);font-weight:900;}   /* v9.29.0 */
-  .exp-lane .dmg.burn{color:#ffb347;text-shadow:0 0 6px rgba(255,140,40,.7);font-weight:900;}   /* v9.127.0: 화상 */
-  .exp-lane .dmg.pierce{color:#ffd0a0;text-shadow:0 0 6px rgba(255,170,90,.6);font-weight:900;}   /* v9.29.0: 방어 무시 */
+  .dmg-fx .dmg.lvup{color:var(--brand-yellow);text-shadow:0 0 8px rgba(255,212,0,.7);font-weight:900;}   /* v9.29.0 */
+  .dmg-fx .dmg.burn{color:#ffb347;text-shadow:0 0 6px rgba(255,140,40,.7);font-weight:900;}   /* v9.127.0: 화상 */
+  .dmg-fx .dmg.pierce{color:#ffd0a0;text-shadow:0 0 6px rgba(255,170,90,.6);font-weight:900;}   /* v9.29.0: 방어 무시 */
   /* v9.30.0: 근접 — 쥔 무기를 호를 그리며 휘두른다 */
   .exp-lane .swing{position:absolute;bottom:calc(var(--ch) * .28);z-index:5;pointer-events:none;
     height:calc(var(--ch) * .3 * var(--tokz,1));width:auto;image-rendering:pixelated;
@@ -2433,7 +2438,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.14.1';
+const VERSION = 'v11.15.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -9173,7 +9178,7 @@ function dropLoot(def, foeIdx){
 // v10.8.0: **원정 짐** — 주운 것 · 떨군 것은 바로 가방에 들지 않는다. 땅을 끝까지 가거나 보스를 넘으면 가방으로, 지거나 물러나면 잃는다
 function haulAdd(list, tok){
   (exp.haul = exp.haul || []).push(...list);
-  if (tok && !FAST) floatText(tok, list.map(t => `+${DEFS[t].name}`).join(' '), 'heal', 900);
+  if (tok && !FAST) floatText(tok, list.map(t => `<span class="it">+${iconHtml(t, true)}${esc(DEFS[t].name)}</span>`).join(''), 'heal loot', 1300, true);   // v11.15.0: 그림과 함께 · 조금 더 오래
 }
 // 재료 줍기 — 기사 자리에서 카드가 튀어나와 크래프팅 탭으로 날아감
 function expLoot(){
@@ -9703,19 +9708,26 @@ function fxTween(ms, step, done){
   setTimeout(end, ms + 500);                                      // 프레임이 멈춰도(숨은 탭 등) 찌꺼기를 남기지 않는다
 }
 // v9.29.0: 뜨는 글씨 한 군데서 — 같은 토큰에 여럿이면 **한 칸씩 위로 쌓는다** (겹쳐서 안 읽히던 것)
-function floatText(tok, text, cls, ms){                            // v9.48.9: ms 를 주면 그만큼 머문다
+// v11.15.0: 글은 **화면 맨 위 겹(.dmg-fx)** 에 띄운다 — 줄 안에 두면 줄이 잘라서 위로 오른 글이 틀에 가렸다.
+//   자리는 토큰의 화면 자리에서 잡고, 줄이 커져 있으면(전투 화면 zoom) 글도 같은 만큼 키운다. html 이면 그림을 섞어 넣는다
+let dmgLayer = null;
+function floatText(tok, text, cls, ms, html){                      // v9.48.9: ms 를 주면 그만큼 머문다
   if (!tok || !tok.parentElement) return;
+  const r = tok.getBoundingClientRect();
+  if (!r.width) return;                                           // 안 보이는 줄 (다른 탭)
+  if (!dmgLayer || !dmgLayer.isConnected){ dmgLayer = document.createElement('div'); dmgLayer.className = 'dmg-fx'; document.body.appendChild(dmgLayer); }
+  const k = tok.offsetWidth ? r.width / tok.offsetWidth : 1;      // 줄의 확대 배율
   tok._fl = (tok._fl || 0) + 1;
   const slot = (tok._fl - 1) % 5;                                 // 다섯 층까지 쌓고 되돌아온다
   const f = document.createElement('div');
   f.className = 'dmg' + (cls ? ' ' + cls : '');
-  f.textContent = text;
-  f.style.left = tok.style.left || '5%';
-  f.style.bottom = `calc(var(--ch) * .7 + ${slot * 17}px)`;
-  tok.parentElement.appendChild(f);
+  if (html) f.innerHTML = text; else f.textContent = text;
+  f.style.left = (r.left + r.width / 2).toFixed(1) + 'px';
+  f.style.top = (r.top + r.height * 0.3 - slot * 17 * k).toFixed(1) + 'px';
+  dmgLayer.appendChild(f);
   fxTween(ms || 1000, p => {                                      // v9.32.0: 떠오르며 사라진다 (JS)
     f.style.opacity = p < 0.18 ? (p / 0.18) : (1 - (p - 0.18) / 0.82);
-    f.style.transform = `translateX(-50%) translateY(${(-26 * p).toFixed(1)}px)`;
+    f.style.transform = `translate(-50%, -100%) translateY(${(-26 * k * p).toFixed(1)}px) scale(${k.toFixed(3)})`;
   }, () => { f.remove(); tok._fl = Math.max(0, (tok._fl || 1) - 1); });
 }
 // v6.0.0: 회복 숫자 (초록 +N) — 크리처의 재생
