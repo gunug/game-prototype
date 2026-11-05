@@ -1294,16 +1294,11 @@
   /* 4-1 할 일 띠 — 폰은 아래 메뉴 바로 위. 접히면 첫 줄만, 탭하면 위로 펼쳐 필드를 덮는다 */
   .qdock{position:fixed;z-index:7990;overflow:visible;}
   .qdock .quest{position:absolute;left:0;right:0;top:0;transition:none;border-top:0;border-bottom:1px solid var(--hairline);background:rgb(34,31,20);}   /* v11.9.1: 화면 맨 위 — 펼치면 아래로 */
-  .qdock .quest.show{max-height:none;padding:4px 12px;overflow:hidden;}
-  .qdock:not(.open) .quest > *{display:none;}
-  .qdock:not(.open) .quest > .q-row,.qdock:not(.open) .quest > .q-op{display:flex;}
-  .qdock:not(.open) .quest > .q-row ~ .q-row{display:none;}
-  .qdock:not(.open) .quest > .q-row{min-height:32px;}
-  .qdock:not(.open) .quest > .q-op{padding:0 0 2px 18px;}
+  /* v11.11.0: 접고 펴기 없음 — 늘 다 펼쳐 두고 그만큼 필드가 내려간다. 너무 길면(화면 40%) 띠 안에서 굴린다 */
+  .qdock .quest.show{max-height:40vh;padding:4px 12px;overflow-y:auto;}
+  .qdock .quest > .q-row{min-height:32px;}
   .qdock .quest .q-row{overflow:hidden;}
   .qdock .quest .q-row .q-text{min-width:0;flex:1 1 auto;}
-  .qdock:not(.open) .quest:has(> .q-row ~ .q-row, .q-mid, .q-sub)::after{content:'⌄';position:absolute;right:8px;top:2px;font-size:14px;color:var(--muted);pointer-events:none;}
-  .qdock.open .quest.show{max-height:calc(var(--fh) * .5);overflow-y:auto;box-shadow:0 8px 18px rgba(0,0,0,.45);border-bottom-color:rgba(255,212,0,.35);}
   /* 4-1 아래 메뉴 — 📖 · ⚙ 도 여기 (폰) */
   .botnav{gap:8px;}
   .botnav .navbig{min-height:44px;}
@@ -2431,7 +2426,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.10.0';
+const VERSION = 'v11.11.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -4091,29 +4086,18 @@ if (typeof ResizeObserver === 'function'){                        // v3.6.0: 머
 }
 // v11.8.0: 폰 — 할 일 띠는 **접힌 높이(대개 한 줄)** 만 자리를 차지한다. 탭하면 펼쳐 필드를 덮는다 (자리는 그대로) · v11.9.1: 화면 맨 위, 아래로 펼침
 var qdH = 0;
-function qDockH(){
-  const d = document.getElementById('qdock'), q = document.getElementById('quest');
-  if (!d.classList.contains('open')) qdH = q.offsetHeight;
+function qDockH(){                                                // v11.11.0: 늘 펼친 높이 그대로
+  qdH = document.getElementById('quest').offsetHeight;
   return qdH;
 }
 if (typeof ResizeObserver === 'function'){
   new ResizeObserver(() => {
     const d = document.getElementById('qdock'), q = document.getElementById('quest');
-    if (d.hidden || d.classList.contains('open')) return;
+    if (d.hidden) return;
     const h = q.classList.contains('show') ? q.offsetHeight : 0;
     if (h !== Math.round(parseFloat(d.style.height) || 0)) layout();
   }).observe(document.getElementById('quest'));
 }
-document.getElementById('qdock').addEventListener('click', e => {
-  if (e.target.closest('button, a, .go-tab, .go-card, .rcp-jump, [data-tab]')) return;   // 띠 속 단추 · 고리는 제 일을 한다
-  const d = document.getElementById('qdock');
-  if (!d.classList.contains('open') && document.getElementById('quest').scrollHeight <= qdH + 2 && !d.querySelector('.quest > .q-row ~ .q-row, .q-mid, .q-sub')) return;
-  d.classList.toggle('open');
-});
-document.addEventListener('pointerdown', e => {                   // 펼친 띠는 바깥을 누르면 접힌다
-  const d = document.getElementById('qdock');
-  if (d.classList.contains('open') && !d.contains(e.target)) d.classList.remove('open');
-}, true);
 function measure(){
   layout();
   CW = Math.round(Math.max(44, Math.min(87, FS / 6.4)));         // v0.16.0 · v5.0.0: 필드의 **짧은 변** 기준
