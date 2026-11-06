@@ -2481,7 +2481,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.29.2';
+const VERSION = 'v11.30.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2891,7 +2891,6 @@ function traceCard(t, done){
   const el = document.createElement('div');
   el.id = 'traceModal'; el.className = 'tmodal';
   el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
-    + '<button class="tm-x" type="button" aria-label="닫기">✕</button>'
     + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
     + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-tag">${isScene ? '📜 이야기' : '📜 새 흔적'}</div><div class="tm-name">${esc(t.name)}</div>`
     + `<div class="tm-from">${esc(from)}</div>`
@@ -2908,7 +2907,9 @@ function traceCard(t, done){
     }, 220);
   };
   const onKey = e => { if (e.key === 'Escape') close(); };
-  el.addEventListener('click', e => { if (e.target === el || e.target.closest('.tm-x')) close(); });   // 바깥 · X
+  const t0 = Date.now();                                           // v11.30.0: ✕ 없음 — **아무 데나 누르면 넘어간다** (뜨자마자 0.3초는 받지 않음 — 앞 탭이 새 카드를 넘기지 않게)
+  el.addEventListener('click', () => { if (Date.now() - t0 > 300) close(); });
+  el.style.cursor = 'pointer';
   addEventListener('keydown', onKey);
   document.body.appendChild(el);
   paintIcons(el);
@@ -7615,7 +7616,7 @@ function backClose(){
   const cfm = document.querySelector('.tmodal.cfm');
   if (cfm){ cfm.querySelector('[data-cfm="no"]').click(); return true; }
   const tm = document.getElementById('traceModal');
-  if (tm){ tm.querySelector('.tm-x').click(); return true; }
+  if (tm){ tm.click(); return true; }                             // v11.30.0: ✕ 없음 — 카드를 누른 것과 같다
   const mr = document.querySelector('.mix-result:not(.out)');
   if (mr){ mr.dispatchEvent(new Event('pointerdown')); return true; }
   const un = document.getElementById('unlock');
