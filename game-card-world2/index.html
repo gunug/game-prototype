@@ -1220,12 +1220,15 @@
   /* v9.121.0: 게임 타이틀 — 이야기 다섯 장 뒤 · '빈손' 앞. 아래에서 위로 떠오르며 페이드 인 → 머물다 → 위로 페이드 아웃 (3초) */
   .title-show{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;
     background:rgba(8,10,14,.92);cursor:pointer;}
+  .title-show.out{animation:tmOut .25s ease-in forwards;pointer-events:none;}
   .title-show img{width:min(640px,88vw);height:auto;animation:titleUp 3s ease-in-out forwards;pointer-events:none;}
   @keyframes titleUp{0%{opacity:0;transform:translateY(48px);} 28%{opacity:1;transform:translateY(0);}
     72%{opacity:1;transform:translateY(-10px);} 100%{opacity:0;transform:translateY(-52px);}}
   /* v11.29.0: 프롤로그 컷신 — 금빛 시대 다섯 장을 한 화면에서 (그림 + 두 줄 · 저절로 넘김) */
   .pro-show{position:fixed;inset:0;z-index:9000;background:#07080b;cursor:pointer;animation:tmIn .4s ease-out;overflow:hidden;}
-  .pro-show.out{animation:tmOut .3s ease-in forwards;}
+  /* v11.30.2: 끝날 때 **딤드는 끄지 않는다** — 카드 · 점 · 건너뛰기만 사라지고 바탕은 타이틀 바탕 색으로 옮겨 간 뒤 타이틀에 넘긴다 */
+  .pro-show.out{background:rgba(8,10,14,.92);transition:background .3s ease-in;}
+  .pro-show.out>*{animation:tmOut .3s ease-in forwards;}
   .pro-stack{position:absolute;left:50%;top:calc(50% - 10px);width:min(300px,76vw,calc((100vh - 250px) * .75));transform:translate(-50%,-50%);}
   .pro-pg.tm-card{position:absolute;left:0;top:0;width:100%;max-height:none;overflow:hidden;animation:none;pointer-events:none;
     transition:transform .45s ease, opacity .45s ease, filter .45s ease;transform-origin:50% 100%;}
@@ -2481,7 +2484,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.30.1';
+const VERSION = 'v11.30.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2921,7 +2924,7 @@ function titleShow(done){
   el.id = 'titleShow'; el.className = 'title-show';
   el.innerHTML = '<img src="images/title/title_logo.png" alt="빈손의 기사" draggable="false">';
   let ended = false;
-  const end = () => { if (ended) return; ended = true; el.remove(); done(); };
+  const end = () => { if (ended) return; ended = true; done(); el.classList.add('out'); setTimeout(() => el.remove(), 250); };   // v11.30.2: '빈손'을 먼저 띄우고 겹쳐 사라진다 — 딤드가 비지 않게
   el.querySelector('img').addEventListener('animationend', end);
   el.addEventListener('click', end);
   setTimeout(end, 3400);                                          // 그림이 안 떠도 넘어간다
@@ -2942,7 +2945,7 @@ function prologueShow(done){
       + `<div class="tm-text">${(Array.isArray(sc.text) ? sc.text : [sc.text]).map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`).join('') + '</div>'
     + `<div class="pro-dots">${list.map(() => '<i></i>').join('')}</div>`;
   let i = -1, t = 0, ended = false;
-  const end = () => { if (ended) return; ended = true; clearTimeout(t); el.classList.add('out'); setTimeout(() => { el.remove(); done(); }, 300); };
+  const end = () => { if (ended) return; ended = true; clearTimeout(t); el.classList.add('out'); setTimeout(() => { done(); el.remove(); }, 300); };   // v11.30.2: 타이틀을 먼저 깔고 치운다 — 딤드가 한 번 꺼지며 깜박이던 것
   const go = () => {
     if (ended) return;
     if (++i >= list.length){ end(); return; }
