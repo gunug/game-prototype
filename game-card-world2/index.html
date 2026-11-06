@@ -2484,7 +2484,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.30.2';
+const VERSION = 'v11.30.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2944,7 +2944,7 @@ function prologueShow(done){
       + `<div class="tm-body"><div class="tm-tag">📜 이야기</div><div class="tm-name">${esc(sc.name)}</div><div class="tm-from">${esc(sc.from || '')}</div>`
       + `<div class="tm-text">${(Array.isArray(sc.text) ? sc.text : [sc.text]).map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`).join('') + '</div>'
     + `<div class="pro-dots">${list.map(() => '<i></i>').join('')}</div>`;
-  let i = -1, t = 0, ended = false;
+  let i = -1, t = 0, ended = false, autoAt = 0;
   const end = () => { if (ended) return; ended = true; clearTimeout(t); el.classList.add('out'); setTimeout(() => { done(); el.remove(); }, 300); };   // v11.30.2: 타이틀을 먼저 깔고 치운다 — 딤드가 한 번 꺼지며 깜박이던 것
   const go = () => {
     if (ended) return;
@@ -2956,9 +2956,9 @@ function prologueShow(done){
       else pg.classList.add('b' + Math.min(3, k - i));
     });
     el.querySelectorAll('.pro-dots i').forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('past', k < i); });
-    clearTimeout(t); t = setTimeout(go, i ? PROLOGUE_MS : PROLOGUE_MS - 350);   // v11.29.2: 첫 장은 넘김(0.75초) 대신 뜨기(0.4초)라 그만큼 덜 — 다 앉은 뒤 머무는 시간을 맞춘다
+    clearTimeout(t); t = setTimeout(() => { autoAt = Date.now(); go(); }, i ? PROLOGUE_MS : PROLOGUE_MS - 350);   // v11.29.2: 첫 장은 넘김(0.75초) 대신 뜨기(0.4초)라 그만큼 덜 — 다 앉은 뒤 머무는 시간을 맞춘다
   };
-  el.addEventListener('click', e => { if (e.target.closest('.pro-skip')) end(); else go(); });
+  el.addEventListener('click', e => { if (e.target.closest('.pro-skip')) end(); else if (Date.now() - autoAt > 500) go(); });   // v11.30.3: **저절로 넘긴 직후 0.5초**의 누름은 받지 않는다 — 넘기려던 탭이 한 장 더 넘기지 않게 (누를 때마다 시계는 처음부터 · 연달아 눌러 넘기기는 그대로)
   document.body.appendChild(el);
   paintIcons(el);
   go();
