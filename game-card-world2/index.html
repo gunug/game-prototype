@@ -1226,17 +1226,24 @@
   /* v11.29.0: 프롤로그 컷신 — 금빛 시대 다섯 장을 한 화면에서 (그림 + 두 줄 · 저절로 넘김) */
   .pro-show{position:fixed;inset:0;z-index:9000;background:#07080b;cursor:pointer;animation:tmIn .4s ease-out;overflow:hidden;}
   .pro-show.out{animation:tmOut .3s ease-in forwards;}
-  .pro-pg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px 56px;
-    opacity:0;transition:opacity .7s ease;pointer-events:none;text-align:center;}
-  .pro-pg.on{opacity:1;}
-  .pro-pic{width:min(340px,82vw,calc((100vh - 260px) * .75));aspect-ratio:3/4;overflow:hidden;border-radius:10px;
-    border:1px solid rgba(201,185,138,.5);box-shadow:0 10px 40px rgba(0,0,0,.7);}
-  .pro-pic img{width:100%;height:100%;object-fit:cover;display:block;transform:scale(1.02);}
-  .pro-pg.on .pro-pic img{animation:proZoom 4.6s ease-out forwards;}
-  @keyframes proZoom{from{transform:scale(1.02)}to{transform:scale(1.1)}}
-  .pro-from{margin-top:14px;font-size:11px;font-weight:800;color:var(--brand-yellow);letter-spacing:.08em;}
-  .pro-name{font-size:18px;font-weight:900;color:#f3e6bf;margin-top:2px;}
-  .pro-text p{margin:6px 0 0;font-size:14px;line-height:1.6;color:#e8dcb5;}
+  .pro-stack{position:absolute;left:50%;top:calc(50% - 10px);width:min(300px,76vw,calc((100vh - 250px) * .75));transform:translate(-50%,-50%);}
+  .pro-pg.tm-card{position:absolute;left:0;top:0;width:100%;max-height:none;overflow:hidden;animation:none;pointer-events:none;
+    transition:transform .45s ease, opacity .45s ease, filter .45s ease;transform-origin:50% 100%;}
+  .pro-stack .pro-pg:first-child{position:relative;}                /* 첫 장이 쌓임의 키를 정한다 */
+  .pro-pg .tm-pic img{max-height:none;}
+  .pro-pg .tm-body{min-height:118px;}
+  .pro-pg.on{z-index:10;transform:none;filter:none;}
+  .pro-pg.b1{z-index:3;transform:translate(7px,-7px) rotate(1.6deg) scale(.97);filter:brightness(.55);}
+  .pro-pg.b2{z-index:2;transform:translate(13px,-13px) rotate(3deg) scale(.94);filter:brightness(.4);}
+  .pro-pg.b3{z-index:1;transform:translate(18px,-18px) rotate(4.2deg) scale(.91);filter:brightness(.3);}
+  .pro-pg.gone{z-index:9;opacity:0;transform:translateY(10px) scale(.96);filter:brightness(.5);transition-delay:.38s;}   /* 넘긴 카드는 새 카드가 덮은 뒤에 가라앉는다 */
+  /* 뒤 카드가 옆으로 빠졌다가 → 맨 위로 들어온다 */
+  .pro-pg.on.shuffle{animation:proShuffle .75s cubic-bezier(.3,.7,.3,1) both;}
+  @keyframes proShuffle{
+    0%{transform:translate(7px,-7px) rotate(1.6deg) scale(.97);filter:brightness(.55);z-index:3;}
+    45%{transform:translate(64%,-12px) rotate(9deg) scale(.98);filter:brightness(.8);z-index:3;}
+    50%{z-index:10;}
+    100%{transform:none;filter:none;z-index:10;}}
   .pro-dots{position:absolute;left:0;right:0;bottom:22px;display:flex;justify-content:center;gap:8px;}
   .pro-dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);transition:background .3s, transform .3s;}
   .pro-dots i.past{background:rgba(255,212,0,.5);}
@@ -2474,7 +2481,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.29.0';
+const VERSION = 'v11.29.1';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2927,21 +2934,29 @@ function prologueShow(done){
   const el = document.createElement('div');
   el.id = 'prologueShow'; el.className = 'pro-show';
   el.innerHTML = '<button type="button" class="pro-skip">건너뛰기 ›</button>'
-    + list.map((sc, i) => `<div class="pro-pg" data-i="${i}"><div class="pro-pic"><img src="images/scene/${sc.pic}.png" alt="" draggable="false"></div>`
-      + `<div class="pro-from">${esc(sc.from || '')}</div><div class="pro-name">${esc(sc.name)}</div>`
-      + `<div class="pro-text">${(Array.isArray(sc.text) ? sc.text : [sc.text]).map(x => `<p>${esc(x)}</p>`).join('')}</div></div>`).join('')
+    // v11.29.1: **흔적 카드 모양 그대로** 다섯 장을 겹쳐 쌓고, 넘길 때 뒤 카드가 옆으로 살짝 빠졌다가 맨 위로 올라온다
+    + '<div class="pro-stack">' + list.map((sc, i) => `<div class="pro-pg tm-card" data-i="${i}">`
+      + `<div class="tm-pic"><img src="images/scene/${sc.pic}.png" alt="" draggable="false"></div>`
+      + `<div class="tm-body"><div class="tm-tag">📜 이야기</div><div class="tm-name">${esc(sc.name)}</div><div class="tm-from">${esc(sc.from || '')}</div>`
+      + `<div class="tm-text">${(Array.isArray(sc.text) ? sc.text : [sc.text]).map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`).join('') + '</div>'
     + `<div class="pro-dots">${list.map(() => '<i></i>').join('')}</div>`;
   let i = -1, t = 0, ended = false;
   const end = () => { if (ended) return; ended = true; clearTimeout(t); el.classList.add('out'); setTimeout(() => { el.remove(); done(); }, 300); };
   const go = () => {
     if (ended) return;
     if (++i >= list.length){ end(); return; }
-    el.querySelectorAll('.pro-pg').forEach((pg, k) => pg.classList.toggle('on', k === i));
+    el.querySelectorAll('.pro-pg').forEach((pg, k) => {
+      pg.classList.remove('on', 'gone', 'shuffle', 'b1', 'b2', 'b3');
+      if (k === i) pg.classList.add('on', ...(i > 0 ? ['shuffle'] : []));
+      else if (k < i) pg.classList.add('gone');
+      else pg.classList.add('b' + Math.min(3, k - i));
+    });
     el.querySelectorAll('.pro-dots i').forEach((d, k) => { d.classList.toggle('on', k === i); d.classList.toggle('past', k < i); });
     clearTimeout(t); t = setTimeout(go, PROLOGUE_MS);
   };
   el.addEventListener('click', e => { if (e.target.closest('.pro-skip')) end(); else go(); });
   document.body.appendChild(el);
+  paintIcons(el);
   go();
 }
 function traceAckAll(){
