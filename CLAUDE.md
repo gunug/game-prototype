@@ -48,7 +48,7 @@ ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크�
 
 - 시트는 맨손이다. 장면에서 쥐는 것(활 · 칼 · 망치 …)은 **그 시점 이야기에 맞게** 글로 더한다 (예: 세리나는 무기 상인 전엔 맨손, 가렛은 두르간 전엔 칼 없음).
 - 사용: `python tools/make_scene.py --name scene_<id> --ref knight,ally --seed N --prompt "<장면 · 손에 든 것>"` — `--ref` 에 시트 id 를 **둘까지** (첫째 · 둘째 기준). 글 속에선 가렛 = Garret, 세리나 = Serina 로 부른다. `--ref` 를 주면 차림 문구(`--knight` · `--serina` · `--cast`)는 붙지 않는다 (시트가 맡음).
-- 워크플로우: KREA2 Turbo + LoRA `Krea2/krea2_identity_edit_v1_2` + 노드 `Krea2EditModelPatch` · `Krea2EditGroundedEncode` (comfyui-krea2edit) · 10스텝 · cfg 1 · euler · `--ref-boost 4` (1 = 끔, 10 넘으면 지나침). 셋 이상 나오는 장면은 아직 안 됨 — 둘만 시트로, 나머지는 글로.
+- 워크플로우: KREA2 Turbo + LoRA `Krea2/krea2_identity_edit_v1_2` + 노드 `Krea2EditModelPatch` · `Krea2EditGroundedEncode` (comfyui-krea2edit) · 10스텝 · cfg 1 · euler · `--ref-boost 1` (기본). **4 로 올리면 표정 · 자세까지 시트(무표정 A포즈)에 굳는다** — 장면 그림은 1. 표정은 글에 사람마다 적는다 (눈썹 · 눈 · 입). 시트에 없는 옷(망토 등)은 글에 꺼내지 않는다 — 'his cape' 라고 쓰면 망토가 생긴다. 셋 이상 나오는 장면은 아직 안 됨 — 둘만 시트로, 나머지는 글로.
 - 새 사람이 생기면 `tools/make_apose.py` 의 `APOSE` 표에 더해 시트부터 뽑는다.
 
 ### 캐릭터 그림 — 세 장 한 벌 (2026-10-06 확정)

@@ -133,7 +133,7 @@ def main():
     ap.add_argument("--dongtap", type=int, default=0, help="동탑이 보이는 장면 — 지금 몇 층까지 올랐나 (1~7)")
     ap.add_argument("--glow", action="store_true", help="--dongtap 과 함께 — 완성 날 황금으로 빛나는 동탑")
     ap.add_argument("--ref", default="", help="기준 캐릭터 시트 id (쉼표, 둘까지) — images/ref/apose_<id>.png. 예: knight,ally")
-    ap.add_argument("--ref-boost", type=float, default=4.0, help="기준 그림을 얼마나 따르나 (1 = 끔, 4 권장, 10 넘으면 지나침)")
+    ap.add_argument("--ref-boost", type=float, default=1.0, help="기준 그림을 얼마나 따르나 — 1 (기본: 생김새는 지키고 표정 · 자세는 장면대로) · 4 면 표정 · 자세까지 시트에 굳는다")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--gen-w", type=int, default=768)
     ap.add_argument("--gen-h", type=int, default=1024)
@@ -166,8 +166,10 @@ def main():
         # 기준 그림이 생김새를 맡는다 — 차림 문구(--knight · --serina · --cast)는 붙이지 않고, 장면 글은 '이 사람을 이 장면에' 꼴로
         who = " and ".join(f"{REF_NAME.get(x, x)} (the {'first' if i == 0 else 'second'} reference character)" for i, x in enumerate(refs))
         text = ((f"{GLOW}. " if a.glow else "")
-                + f"Draw {who} in a new scene, keeping {'their' if len(refs) > 1 else 'the'} exact face, hair, outfit, colors and "
-                + "stylized proportions from the reference sheet. " + a.prompt.rstrip(" .") + "."
+                + f"Draw {who} in a new scene. Keep {'their' if len(refs) > 1 else 'the'} identity from the reference sheet — face shape, "
+                + "hair, outfit, colors and stylized proportions — but give them NEW lively facial expressions and natural poses "
+                + "that fit this moment, not the neutral sheet expression or the stiff A-pose. "   # v2: 'exact face' 는 표정까지 시트에 묶었다
+                + a.prompt.rstrip(" .") + "."
                 + (f" The tower: {TOWER}." if a.tower else "")
                 + (f" {DONGTAP_GOLD}." if a.glow else f" {DONGTAP}, {a.dongtap} tier{'s' if a.dongtap > 1 else ''} tall so far." if a.dongtap else "")
                 + f" {STYLE}.")
