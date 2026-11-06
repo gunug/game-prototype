@@ -45,6 +45,10 @@ POSE = ("character reference sheet, one single character alone, full body from h
         "plain flat light grey studio background, even soft lighting")
 BODY = ("drawn with stylized deformed proportions: a large expressive head about one fifth of the body height, "
         "compact sturdy body, small hands and feet")
+# 머리가 너무 크게 나온 사람 — 어른 몸 비율에 가깝게 (2026-11-06: 네이라 · 실바 · 마르그)
+BODY_SMALL_HEAD = ("drawn with slightly stylized but adult proportions: a modest head about one sixth of the body height, "
+                   "a slim adult body with long legs, normal-sized hands and feet")
+SMALL_HEAD = {"trinketsmith", "herbalist", "armorsmith"}
 
 
 def main():
@@ -61,7 +65,7 @@ def main():
         dest = REF_DIR / f"apose_{cid}.png"
         if dest.exists() and not (a.all or a.only):
             continue
-        text = f"{POSE}. The character: {desc}. {BODY}. {STYLE}. {NOT}."
+        text = f"{POSE}. The character: {desc}. {BODY_SMALL_HEAD if cid in SMALL_HEAD else BODY}. {STYLE}. {NOT}."
         seed = a.seed if a.seed is not None else random.randint(0, 2**31)
         out = run_workflow(a.url, graph(text, seed, 768, 1024, f"apose_{cid}"))
         im = Image.open(BytesIO(fetch_image(a.url, out["save"]["images"][0]))).convert("RGB")
