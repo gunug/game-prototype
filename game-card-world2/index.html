@@ -1262,8 +1262,10 @@
   @keyframes tmPop{from{transform:scale(.86) translateY(12px)}to{transform:none}}
   .tm-pic img{width:100%;height:auto;max-height:calc(100vh - 260px);display:block;aspect-ratio:3/4;object-fit:cover;}   /* 글까지 한 화면에 */
   .tm-body{padding:12px 16px 16px;position:relative;}
-  .tm-face{float:right;width:56px;height:56px;margin:0 0 6px 10px;border-radius:8px;object-fit:cover;object-position:top center;
-    border:1px solid rgba(255,212,0,.45);background:rgba(0,0,0,.3);}   /* v11.16.0: 흔적 대상 얼굴 */
+  .tm-face{float:right;width:56px;margin:0 0 6px 10px;text-align:center;}
+  .tm-face img{display:block;width:56px;height:56px;border-radius:8px;object-fit:cover;object-position:top center;
+    border:1px solid rgba(255,212,0,.45);background:rgba(0,0,0,.3);}
+  .tm-face span{display:block;margin-top:3px;font-size:11px;font-weight:800;color:#e8dcb5;line-height:1.2;word-break:keep-all;}   /* v11.31.0: 초상화 밑 이름 */   /* v11.16.0: 흔적 대상 얼굴 */
   .tm-text{clear:both;}
   .tm-tag{font-size:11px;font-weight:800;color:var(--brand-yellow);letter-spacing:.04em;}
   .tm-name{font-size:18px;font-weight:900;color:#f3e6bf;margin-top:2px;}
@@ -2485,7 +2487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.30.5';
+const VERSION = 'v11.31.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2886,18 +2888,18 @@ function traceFaceHtml(t){
   const src = t.who === 'place' ? (land && FIELD_BY_ID[land] ? `images/icon/card_${land}.png` : '')
     : ENEMIES[t.who] ? foeFacePic(t.who)
     : personPic(t.who) ? `images/icon/${personPic(t.who)}.png` : '';
-  return src ? `<img class="tm-face" src="${src}" alt="" draggable="false">` : '';
+  // v11.31.0: 카드 위 '📜 새 흔적' · 'OO · 흔적' 줄을 없앤 대신 **초상화 밑에 이름**
+  const nm = t.who === 'place' ? ((land && FIELD_BY_ID[land]?.name) || '장소') : String(TRACE_WHO[t.who] || ENEMIES[t.who]?.name || '').replace(/^\S+\s+/, '');
+  return src ? `<div class="tm-face"><img src="${src}" alt="" draggable="false">${nm ? `<span>${esc(nm)}</span>` : ''}</div>` : '';
 }
 function traceCard(t, done){
   const isScene = !!SCENE_BY_ID[t.id];
-  const from = isScene ? (t.from || '이야기') : `${TRACE_WHO[t.who] || ''} · 흔적`;
   const text = Array.isArray(t.text) ? t.text : [t.text];
   const el = document.createElement('div');
   el.id = 'traceModal'; el.className = 'tmodal';
   el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
     + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
-    + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-tag">${isScene ? '📜 이야기' : '📜 새 흔적'}</div><div class="tm-name">${esc(t.name)}</div>`
-    + `<div class="tm-from">${esc(from)}</div>`
+    + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-name">${esc(t.name)}</div>`   // v11.31.0: '📜 이야기/새 흔적' 줄 · 시대(금빛 시대 · 둘)/'OO · 흔적' 줄 없앰
     + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`;
   const close = () => {
     if (el.classList.contains('out')) return;
@@ -2942,7 +2944,7 @@ function prologueShow(done){
     // v11.29.1: **흔적 카드 모양 그대로** 다섯 장을 겹쳐 쌓고, 넘길 때 뒤 카드가 옆으로 살짝 빠졌다가 맨 위로 올라온다
     + '<div class="pro-stack">' + list.map((sc, i) => `<div class="pro-pg tm-card" data-i="${i}">`
       + `<div class="tm-pic"><img src="images/scene/${sc.pic}.png" alt="" draggable="false"></div>`
-      + `<div class="tm-body"><div class="tm-tag">📜 이야기</div><div class="tm-name">${esc(sc.name)}</div><div class="tm-from">${esc(sc.from || '')}</div>`
+      + `<div class="tm-body"><div class="tm-name">${esc(sc.name)}</div>`
       + `<div class="tm-text">${(Array.isArray(sc.text) ? sc.text : [sc.text]).map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`).join('') + '</div>'
     + `<div class="pro-dots">${list.map(() => '<i></i>').join('')}</div>`;
   let i = -1, t = 0, ended = false, autoAt = 0;
