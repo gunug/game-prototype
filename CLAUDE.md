@@ -36,6 +36,20 @@ ComfyUI(`http://127.0.0.1:8188`) 아이콘은 **그릴 대상에 따라 스크�
 | 캐릭터 정면 A포즈 기준 그림 (identity edit 용) | `game-card-world2/tools/make_apose.py` | **KREA2** · 집 결 · 정면 · 두 팔 내림 · 맨손 · 회색 배경 · 768×1024 그대로. 생김새는 스크립트의 `APOSE` 표 (손에 든 것 없이). **마네킹 위에 그린다** (`apose_mannequin.py` — 어른 4.5등신 · 세리나 전용 아이 3.6등신, img2img denoise 0.7) — 머리 크기를 맞추려고. 0.8 이상이면 틀이 무너진다. 결과 `images/ref/apose_<id>.png` · `--only <id>` · `--all` |
 | 시나리오 카드 (콜렉터북 📜 흔적의 큰 그림) | `game-card-world2/tools/make_scene.py` | **KREA2** · 집 결(deform) · 원본 색 · 장면 그림 360×480. 탑이 보이면 `--tower`, 사람이 나오면 `--people`, 기사 가렛 `--knight` · 세리나 `--serina` (게임 그림과 같은 차림). 그 밖의 사람은 `--cast cook,shieldsmith` (생김새는 `roster_characters.py`). 무기를 갖기 전 장면은 `--knight --unarmed` (칼 · 칼집 없음 — 뽑은 뒤 허리를 확대해 확인). 보른의 동탑이 보이면 `--dongtap N`(N 층까지), 완성 날은 `--dongtap 7 --glow`. **빼고 싶은 것은 부정어로 적지 않는다** — "no tower" 를 넣으면 오히려 탑이 생긴다. 탑이 없어야 하는 장면은 탑 관련 말을 아예 하지 않는다 (플래그도 빼고). 결과 `images/scene/scene_<id>.png`, 표는 `index.html` 의 `SCENES` |
 
+### 흔적 · 장면 그림의 사람은 A포즈 캐릭터 시트를 기준으로 (2026-11-06 확정)
+
+흔적(시나리오 카드) 그림에 사람이 나오면 **`images/ref/apose_<id>.png` (정면 A포즈 캐릭터 시트)를 기준 그림으로 넣어 KREA2 Turbo identity edit 로** 뽑는다 — 얼굴 · 머리 · 옷 · 머리 크기(데포르메 비율)가 장마다 같게. 글 묘사(`--knight` · `--serina` · `--cast`)만으로 뽑지 않는다.
+
+| 사람 | 시트 |
+|---|---|
+| 가렛 | `apose_knight.png` |
+| 세리나 (가렛보다 어린 아이) | `apose_ally.png` |
+| 보른 · 오르반 · 두르간 · 올가 · 헤이든 · 마르그 · 토른 · 네이라 · 실바 | `apose_innkeeper` · `apose_peddler` · `apose_weaponsmith` · `apose_cook` · `apose_carpenter` · `apose_armorsmith` · `apose_shieldsmith` · `apose_trinketsmith` · `apose_herbalist` |
+
+- 시트는 맨손이다. 장면에서 쥐는 것(활 · 칼 · 망치 …)은 **그 시점 이야기에 맞게** 글로 더한다 (예: 세리나는 무기 상인 전엔 맨손, 가렛은 두르간 전엔 칼 없음).
+- **아직 `make_scene.py` 에 기준 그림 넣기가 없다** — 처음 쓰는 세션이 KREA2 identity edit 워크플로우를 붙이고 이 줄을 고친다. 붙기 전엔 사용자에게 말하고 묻는다 (글만으로 몰래 뽑지 않는다).
+- 새 사람이 생기면 `tools/make_apose.py` 의 `APOSE` 표에 더해 시트부터 뽑는다.
+
 ### 캐릭터 그림 — 세 장 한 벌 (2026-10-06 확정)
 
 사람이든 크리처든 **`make_character_sheet.py` 하나로만** 뽑는다. 한 번 돌리면 세 장이 제 자리에 들어간다.
