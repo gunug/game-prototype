@@ -226,6 +226,8 @@ function makeAI({ ctx, clock }){
       if (before) return 'busy';
       this.spend(COST.sortie);
       const party = SOLO ? ['knight'] : this.party(field);
+      // v11.34.0: 나가는 줄을 메인 편성에도 적는다 — 사람처럼 편성에 넣어야 끝나는 걸음('세리나 편성')이 있다
+      g(`presetOf(mainPreset()).heroes = ${JSON.stringify(party.concat([null, null, null]).slice(0, 3))}; if (S.allyJoin && mainHeroes().includes('ally')) questHit('party:ally')`);
       for (const w of party) call('expStart', field, ctx.document.createElement('div'), w);   // 전열부터 (먼저 나간 사람이 맨 앞)
       if (g('!!exp')) for (const w of party) g(`SIMP.sorties[${JSON.stringify(w)}] = (SIMP.sorties[${JSON.stringify(w)}] || 0) + 1`);
       if (g('!!exp') && party[0]) g(`SIMP.fronts = SIMP.fronts || {}; SIMP.fronts[${JSON.stringify(party[0])}] = (SIMP.fronts[${JSON.stringify(party[0])}] || 0) + 1`);   // D: 누가 맨 앞에 섰나

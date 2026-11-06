@@ -2487,7 +2487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.33.0';
+const VERSION = 'v11.34.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2552,6 +2552,11 @@ const QUESTS = {
   gomountain: { name:'첫 걸음',      text:() => hintOn('sortie') ? '⛰️ 산에 올라 보자' : '⛰️ 산의 출전을 눌러 산으로',   // v11.32.0: 짧게 · v11.32.1: '⛰️ 산' 은 눌러서 가는 단추 (그림은 줄 앞과 겹쳐 지워진다)
                 goal:1, key:'exp-end:mountain',   // v9.120.0: 첫 메인 퀘스트 (들머리 없앰)
                 say:'할 수 있는 게 없네… 일단 산에 올라 보자' },
+  // v11.34.0: 첫 산 뒤 — 세리나를 편성에 넣고(흔적 '등 뒤') 다시 산으로
+  party_ally: { name:'세리나 편성', goal:1, key:'party:ally', html:true,
+                text:() => '<span class="go-tab" data-gotab="party">편성</span>에서 세리나를 파티에 넣자' },
+  remountain: { name:'다시 산으로', goal:1, key:'exp-again:mountain',   // exp-end 는 이미 다녀온 산이라 받자마자 끝나 버린다 — 이번에 다녀온 것만 센다
+                text:() => '⛰️ 산의 출전을 눌러 다시 산으로' },
   // v0.62.0: 한 줄이 상태를 따라 말을 바꾼다 — 가진 게 없으면 '모으기', 재료가 차면 '만들기', 만들었으면 '장착하기'
   //   조합식은 알려주지 않는다. 지금 할 수 있는 **다음 한 걸음**만 가리킨다
   // v3.0.1: **퀘스트는 무엇을 할지만 말하고, 어떻게는 🎯 목표이 안내한다**
@@ -2630,7 +2635,7 @@ Object.assign(QUESTS, {
 //   합류(join_*)는 오르반 · 두르간만 길 안에, 나머지는 메인 둘마다 하나씩 (giveJoinQuests). 갈래(pierce · bleed)는 막혀 본 뒤에 곁에 붙는다
 // v11.21.0: **새 여는 차례(필드 다섯 → 던전 다섯 → 레이드)에 맞춰 다시 짬.** 땅마다 '가기 · 주인 넘기'를 길에 넣고,
 //   막혀 봐야 붙던 갈래(방어 무시 · 출혈 무기)와 나무 방패를 만들 토른 합류도 길 위 제자리로. 가렛 줄은 늘 하나
-const GARRET_PATH = ['gomountain', 'join_peddler', 'gst1', 'wolf', 'gst2', 'join_weaponsmith', 'gst3',
+const GARRET_PATH = ['gomountain', 'party_ally', 'remountain', 'join_peddler', 'gst1', 'wolf', 'gst2', 'join_weaponsmith', 'gst3',
   'aimweapon', 'arm', 'book', 'aimbetter', 'better', 'prod', 'gst4',            // ⛰️ 산 — gst4 = 곰 (산의 주인)
   'grass', 'gweapon', 'boar', 'innarmor', 'garmor', 'bison',                  // 🌾 초원
   'forest', 'gst5', 'gst6', 'gst7',                                           // 🌲 숲 — gst6 = 숲곰 · gst7 = 고기 (산)
@@ -2674,6 +2679,7 @@ function questSelfCheck(){
   for (const id in (S.marks || {})) questHit(`exp-start:${id}`);   // v11.9.0: 다녀온 땅은 가 본 땅 (숲 · 초원 걸음이 길 가운데로 왔다)
   for (const k in (S.hints || {})) if (S.hints[k]) questHit(`hint:${k}`);   // v11.9.0: 이미 해 본 조작
   if (S.prod) questHit('prod-set');
+  if (S.allyJoin && mainHeroes().includes('ally')) questHit('party:ally');   // v11.34.0: 세리나가 메인 편성에
   // v11.9.0: 가렛 이야기 걸음 — 받기 전에 이미 잡았거나 만들어 두었어도 인정 (메인 퀘스트와 같게). 물건은 다 있으면 저절로 건넨다
   const ks = knightOn() && storyNow('knight');
   if (ks && ((ks.kill && (S.killed || []).includes(ks.kill)) || (ks.make && have(ks.make) > 0))) storyAdvance('knight');
@@ -2756,6 +2762,9 @@ const TRACES = [
   { id:'wake', pic:'scene_t_wake',     who:'knight', key:'start',            name:'빈손',
     text:'눈을 떴을 때 손엔 아무것도 없었다. 어디서 왔는지 흐리다. 우선 걷는다.' },
   // v9.124.0: 합류 흔적(가렛 · 쉴 곳 · 조합 · 날)은 기사 흔적에서 뺐다 — 사람마다 **흔적 1 = 합류 흔적** (그 사람 성격이 보이는 한 장)
+  // v11.34.0: 세리나를 처음 편성에 넣었을 때 (메인 퀘스트 '세리나 편성')
+  { id:'hide', pic:'scene_t_hide',      who:'knight', key:'party:ally',       name:'등 뒤',
+    text:'세리나가 같이 다니겠다고 했다. 아직 무기도 없는 세리나를 가렛은 제 등 뒤에 숨겼다.' },
   { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
     text:'곰 등에 박힌 쇳조각. 손잡이의 문양을 가렛은 안다. 이건 가렛네 것이다.' },
   { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
@@ -2831,6 +2840,7 @@ function traceReached(t){
     case 'meet': return (S.metFoes || []).includes(a) || (S.killed || []).includes(a);
     case 'exp-end': case 'exp-start': return !!(S.marks || {})[a] || (S.cleared || []).includes(a);
     case 'smith': return (n.done || []).includes(a);
+    case 'party': return (S.questDone || []).includes('party_ally') || (!!S.allyJoin && mainHeroes().includes(a));   // v11.34.0
     case 'story-reg': return (n.everReg || []).includes(a) || ((n.story || {})[a] | 0) > 0 || (n.regs || []).includes(a);
     case 'story': return ((n.story || {})[a] | 0) >= (+b || 0);
     case 'story-sum': return storySum() >= (+a || 0);
@@ -3588,8 +3598,7 @@ function joinBefore(t){
 function allyJoinNow(quiet, first = true){
   if (S.allyJoin) return;
   S.allyJoin = true;
-  S.cards.find(x => x.type === ARCHER.weapon) ? S.cards.find(x => x.type === ARCHER.weapon).n++   // v10.7.0: 나무 활은 가방으로 (편성에서 쥐여 준다)
-    : S.cards.push({ id: (S.nextId = (S.nextId || 1) + 1), type: ARCHER.weapon, x: 0, y: 0, n: 1 });
+  // v11.34.0: **맨손으로 합류** — 나무 활을 주지 않는다 (나중에 무기 상인을 만난 뒤 세리나 이야기로 만든다 · 조합: 장작 + 힘줄)
   logEv('ally-join', {});
   if (!quiet) unlockShow(`images/portrait/${bustOf(hPic('ally'))}.png`, `${pName('ally')} 합류`, hName('ally'), { first, pause: true });
   renderTabs(); renderAll(); renderInsp(); renderBook(); save();
@@ -3645,6 +3654,7 @@ function presetPutHero(p, i, who){
   if (from === i) return;
   if (from >= 0){ P.heroes[from] = P.heroes[i]; P.heroes[i] = who; }   // 같은 벌 안에서 자리 바꿈 — 장비는 사람을 따라간다
   else { if (P.heroes[i]) presetGiveBack(p, P.heroes[i]); P.heroes[i] = who; }
+  if (who === 'ally' && S.allyJoin && mainHeroes().includes('ally')) questHit('party:ally');   // v11.34.0: 세리나 편성 → 흔적 '등 뒤'
   save();
 }
 function presetDropHero(p, i){
@@ -4365,6 +4375,7 @@ function syncCards(){
     if (isRowScreen(S.tab)) renderScreen();                       // 전투·정비 줄의 카드·장비 칸
     innAutoGive();                                                // v10.17.0: 여관 걸음 — 다 모였으면 저절로 건넨다
     keeperCrewCheck();                                            // v11.26.0
+    if (S.allyJoin && mainHeroes().includes('ally')) questHit('party:ally');   // v11.34.0
     prodUnlockCheck();                                            // v11.28.0
     questCheckBlocks(); renderQuest();
     renderMeta(); renderInsp(); renderBook();
@@ -9392,6 +9403,7 @@ function expEnd(kind){
   E.beatMark = E.fail && E.t > best + 0.02 && best > 0.02;
   if (E.t > best) S.marks[E.id] = E.t;
   questHit(`exp-end:${E.id}`);                                  // v0.60.0: 다녀오기만 해도 끝나는 퀘스트
+  questHit(`exp-again:${E.id}`);                                // v11.34.0: '다시 산으로' — 받은 뒤에 다녀온 것만 (questSelfCheck 에 없음)
   expPaint();
   const bearLoss = E.fail && E.killer && E.killer.boss;     // v0.72.0: 그 필드 보스에게 지고 돌아옴
   const lossId = E.id;                                          // v3.2.5: 어느 땅 보스에게 졌나 (대사가 달라진다)
@@ -10505,7 +10517,8 @@ const QUEST_PIC = {
   boss_quarry: () => foePic('bigcentipede'), boss_river: () => foePic('catfish'),
   boss_cellar: () => foePic('cellarkeeper'), boss_scorched: () => foePic('scorchstag'), boss_towerruin: () => foePic('towereye'),
   pierce: () => '<span class="q-pic emo">🎯</span>', bleed: () => '<span class="q-pic emo">🎯</span>',
-  gomountain: () => fieldPic('mountain'),
+  gomountain: () => fieldPic('mountain'), remountain: () => fieldPic('mountain'),
+  party_ally: () => `<img class="q-pic" src="images/icon/${personPic('ally')}.png" alt="" draggable="false">`,
   grass: () => fieldPic('grassland'),     forest: () => fieldPic('forest'),
   wolf: () => foePic('wolf'), bear: () => foePic('bear'),
   boar: () => foePic('boar'),             bison: () => foePic('bison'),
