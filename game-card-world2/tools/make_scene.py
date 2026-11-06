@@ -90,7 +90,7 @@ def upload(url, path):
     return r.json()["name"]
 
 
-def graph_ref(text, seed, w, h, name, refs, boost=4.0, steps=10):
+def graph_ref(text, seed, w, h, name, refs, boost=4.0, steps=10, boost_a=None):
     g = {
         "unet": {"class_type": "UNETLoader", "inputs": {"unet_name": "krea2_turbo_fp8_scaled.safetensors", "weight_dtype": "default"}},
         "lora": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["unet", 0], "lora_name": "Krea2\\krea2_identity_edit_v1_2.safetensors", "strength_model": 1.0}},
@@ -100,7 +100,7 @@ def graph_ref(text, seed, w, h, name, refs, boost=4.0, steps=10):
         "ref_a": {"class_type": "LoadImage", "inputs": {"image": refs[0]}},
         "enc_a": {"class_type": "VAEEncode", "inputs": {"pixels": ["ref_a", 0], "vae": ["vae", 0]}},
         "patch": {"class_type": "Krea2EditModelPatch", "inputs": {"model": ["lora", 0], "source_latent": ["enc_a", 0], "ref_boost": boost,
-                  "ref_boost_a": boost if len(refs) > 1 else 1.0, "fit_mode": "fit", "vae": ["vae", 0], "source_image": ["ref_a", 0],
+                  "ref_boost_a": (boost_a if boost_a is not None else boost) if len(refs) > 1 else 1.0, "fit_mode": "fit", "vae": ["vae", 0], "source_image": ["ref_a", 0],
                   "target_latent": ["latent", 0]}},
         "pos": {"class_type": "Krea2EditGroundedEncode", "inputs": {"clip": ["clip", 0], "prompt": text, "image": ["ref_a", 0], "grounding_px": 768, "system_prompt": ""}},
         "neg": {"class_type": "Krea2EditGroundedEncode", "inputs": {"clip": ["clip", 0], "prompt": "", "image": ["ref_a", 0], "grounding_px": 768, "system_prompt": ""}},
@@ -134,6 +134,8 @@ def main():
     ap.add_argument("--glow", action="store_true", help="--dongtap 과 함께 — 완성 날 황금으로 빛나는 동탑")
     ap.add_argument("--ref", default="", help="기준 캐릭터 시트 id (쉼표, 둘까지) — images/ref/apose_<id>.png. 예: knight,ally")
     ap.add_argument("--ref-boost", type=float, default=1.0, help="기준 그림을 얼마나 따르나 — 1 (기본: 생김새는 지키고 표정 · 자세는 장면대로) · 4 면 표정 · 자세까지 시트에 굳는다")
+    ap.add_argument("--base", default="", help="장면 그림(png) — 이 그림의 구도 · 사람 수를 그대로 두고 --ref 한 사람의 생김새만 시트로 바꾼다 (장면 + 인물 두 그림 모드)")
+    ap.add_argument("--role", default="", help="--base 와 함께 — 바꿀 사람을 그림 속에서 부르는 말 (예: 'the young knight in armor')")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--gen-w", type=int, default=768)
     ap.add_argument("--gen-h", type=int, default=1024)
@@ -173,9 +175,26 @@ def main():
                 + (f" The tower: {TOWER}." if a.tower else "")
                 + (f" {DONGTAP_GOLD}." if a.glow else f" {DONGTAP}, {a.dongtap} tier{'s' if a.dongtap > 1 else ''} tall so far." if a.dongtap else "")
                 + f" {STYLE}.")
+    if a.base:
+        # 2026-11-06: 시트만 주고 새로 그리면 시트 사람이 한 번 더 나오거나 둘레 사람(손님 · 마을 사람)까지 그 얼굴이 됐다 —
+        #   원래 그림을 장면(첫째)으로, 시트를 인물(둘째)로 넣고 '그 사람만 시트처럼' 고친다. 구도 · 사람 수 · 표정은 원래 그림
+        if len(refs) != 1:
+            sys.exit("--base 는 --ref 하나와 함께")
+        nm = REF_NAME.get(refs[0], refs[0])
+        text = (f"Edit the first image: change {a.role or 'the main character'} so that he or she looks exactly like {nm}, the character "
+                f"in the second image — same face, hair, outfit, colors and stylized proportions. Keep {nm}'s pose, expression, position "
+                "and size, and keep the composition, background, lighting and every other person in the first image unchanged. "
+                + a.prompt.rstrip(" .") + "." + f" {STYLE}.")
     seed = a.seed if a.seed is not None else random.randint(0, 2**31)
     print(f"seed={seed}")
-    if refs:
+    if a.base:
+        bp = Path(a.base)
+        big = Image.open(bp).convert("RGB").resize((a.gen_w, a.gen_h), Image.LANCZOS)
+        tmp = SCENE_DIR.parent.parent / "tools" / "__pycache__" / f"base_{a.name}.png"
+        tmp.parent.mkdir(exist_ok=True); big.save(tmp)
+        names = [upload(a.url, tmp), upload(a.url, REF_DIR / f"apose_{refs[0]}.png")]
+        out = run_workflow(a.url, graph_ref(text, seed, a.gen_w, a.gen_h, a.name, names, a.ref_boost, boost_a=1.0))
+    elif refs:
         names = [upload(a.url, REF_DIR / f"apose_{x}.png") for x in refs]
         out = run_workflow(a.url, graph_ref(text, seed, a.gen_w, a.gen_h, a.name, names, a.ref_boost))
     else:
@@ -184,7 +203,7 @@ def main():
     im = im.resize((a.out_w, a.out_h), Image.LANCZOS)               # 원본 색 그대로 — 색 줄이기 없음
     SCENE_DIR.mkdir(parents=True, exist_ok=True)
     im.save(dest, optimize=True)
-    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else []) + ([f"--cast {a.cast}"] if a.cast else []) + ([f"--dongtap {a.dongtap}"] if a.dongtap else []) + (["--glow"] if a.glow else []) + ([f"--ref {a.ref}", f"--ref-boost {a.ref_boost}"] if refs else [])
+    opts = ["(scene-krea2)", f"--out-w {a.out_w}", f"--out-h {a.out_h}"] + (["--tower"] if a.tower else []) + (["--people"] if a.people else []) + (["--knight"] if a.knight else []) + (["--unarmed"] if a.unarmed else []) + (["--serina"] if a.serina else []) + ([f"--cast {a.cast}"] if a.cast else []) + ([f"--dongtap {a.dongtap}"] if a.dongtap else []) + (["--glow"] if a.glow else []) + ([f"--ref {a.ref}", f"--ref-boost {a.ref_boost}"] if refs else []) + (["--base (원래 그림)"] if a.base else [])
     record(a.name, a.label, a.prompt, seed, opts, file=f"images/scene/{a.name}.png")
     print(f"scene {dest}  {im.size[0]}x{im.size[1]}")
 
