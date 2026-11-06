@@ -2487,7 +2487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.32.2';
+const VERSION = 'v11.32.3';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -10342,8 +10342,13 @@ function renderQuest(){
   paintIcons(el);                                                 // v3.5.0
   // v11.32.0: 줄 앞 그림(q-pic)과 **같은 그림이 글 속에 또 있으면** 글 속 것은 지운다 (산 그림이 두 번 보이던 것)
   el.querySelectorAll('.q-row').forEach(row => {
-    const pics = new Set([...row.querySelectorAll('img.q-pic')].map(i => i.getAttribute('src')));
-    row.querySelectorAll('.q-text img').forEach(i => { if (!pics.has(i.getAttribute('src'))) return; const n = i.nextSibling; i.remove(); if (n && n.nodeType === 3) n.nodeValue = n.nodeValue.replace(/^\s+/, ''); });   // v11.32.1: 단추 글 앞 빈칸도
+    // v11.32.3: 겹친 그림이 **단추(go-tab) 속**이면 단추 쪽을 남기고 줄 앞 그림을 지운다 (산 단추 = 산 그림 + 산)
+    const pics = [...row.querySelectorAll(':scope > img.q-pic')];
+    row.querySelectorAll('.q-text img').forEach(i => {
+      const same = pics.filter(p => p.isConnected && p.getAttribute('src') === i.getAttribute('src'));
+      if (!same.length) return;
+      if (i.closest('.go-tab')) same.forEach(p => p.remove()); else i.remove();
+    });
   });
   if (innRow && innStepKeyNow() !== lastInnStep){                 // v9.55.2: 걸음이 하나 끝나면 새 줄처럼 올라온다
     lastInnStep = innStepKeyNow();
