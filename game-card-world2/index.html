@@ -2487,7 +2487,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.32.3';
+const VERSION = 'v11.33.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -3564,7 +3564,9 @@ function personJoinNow(id, quiet, first = true){
   (S.joined = S.joined || []).push(id);
   logEv('person-join', { who: id });
   const bust = id === 'keeper' ? 'bust_innkeeper' : `bust_${id}`;
-  if (!quiet) unlockShow(`images/portrait/${bust}.png`, `${pName(id)} 합류`, personJob(id), { first, pause: true });   // v9.96.0: 그 카드 바로 다음
+  // v11.33.0: **'합류' 표시는 싸울 수 있게 된 때** — 보른은 여기서 여관(퀘스트 탭)만 열고, 합류 표시는 합류 퀘스트를 마친 뒤(keeperCrewCheck)
+  if (!quiet && id === 'keeper') unlockShow('images/icon/ui_inn.png', '🏨 퀘스트 열림', `${pName(id)}의 여관에서 사람들의 이야기를 이어 갈 수 있습니다`, { first, pause: true });
+  else if (!quiet) unlockShow(`images/portrait/${bust}.png`, `${pName(id)} 합류`, personJob(id), { first, pause: true });   // v9.96.0: 그 카드 바로 다음
   renderTabs(); renderAll(); renderInsp(); renderBook(); renderQuest(); save();
 }
 // 흔적 카드를 닫았을 때 — 그 흔적에 걸린 합류를 한다
