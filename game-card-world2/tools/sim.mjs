@@ -372,7 +372,7 @@ function makeAI({ ctx, clock }){
         if (!reg || smithStep(reg) !== 0) return 0;
         let k = 0;
         for (const [t2] of (SMITH_BY_ID[reg].give || [])){
-          for (let i = 0; i < 9 && innGiveNeed(t2, reg) > 0 && have(t2) > 0; i++){ innGive(t2, reg); k++; }
+          for (let i = 0; i < 9 && innGiveNeed(t2, reg) > 0 && have(t2) > 0; i++){ if (!innGive(t2, reg)) break; k++; }   // v11.35.0: 받은 뒤 모은 것만 — 못 건네면 그만
         }
         return k;
       })()`);

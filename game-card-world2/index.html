@@ -1260,6 +1260,12 @@
     background:#1d1913;border:2px solid rgba(201,185,138,.7);box-shadow:0 12px 40px rgba(0,0,0,.6),0 0 0 1px rgba(255,216,74,.25);
     animation:tmPop .28s cubic-bezier(.2,.9,.3,1.2);}
   @keyframes tmPop{from{transform:scale(.86) translateY(12px)}to{transform:none}}
+  /* v11.35.0: **연달아 얻은 흔적은 한 더미** — 프롤로그처럼 뒤 카드가 비쳐 보이고, 누르면 넘겨 다음 카드가 위로 올라온다 */
+  .tm-stack{position:relative;width:min(340px,100%);}
+  .tm-stack .pro-pg.tm-card{max-height:calc(100vh - 32px);}
+  .tm-stack .pro-pg.on{position:relative;}
+  .tm-stack .pro-pg.on.pop{animation:tmPop .28s cubic-bezier(.2,.9,.3,1.2);}
+  .tm-stack .pro-pg .tm-pic img{max-height:calc(100vh - 260px);}
   .tm-pic img{width:100%;height:auto;max-height:calc(100vh - 260px);display:block;aspect-ratio:3/4;object-fit:cover;}   /* 글까지 한 화면에 */
   .tm-body{padding:12px 16px 16px;position:relative;}
   .tm-face{float:left;width:56px;margin:0 10px 6px 0;text-align:center;}   /* v11.32.2: 왼쪽으로 */
@@ -2487,7 +2493,7 @@ const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.34.7';
+const VERSION = 'v11.35.0';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2765,7 +2771,10 @@ const TRACES = [
   // v11.34.0: 세리나를 처음 편성에 넣었을 때 (메인 퀘스트 '세리나 편성')
   { id:'hide', pic:'scene_t_hide',      who:'knight', key:'party:ally',       name:'등 뒤',
     text:'세리나가 같이 다니겠다고 했다. 아직 무기도 없는 세리나를 가렛은 제 등 뒤에 숨겼다.' },
-  { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝',
+  // v11.35.0: 둘이서 맨손으로 산을 넘은 날 — 가렛이 거의 다 잡은 곰을 세리나가 마무리 (첫 곰은 세리나 막타 · bearSpare)
+  { id:'did', pic:'scene_t_did',        who:'knight', key:'kill:bear',        name:'해냈다',
+    text:'곰이 쓰러졌다. 마지막 한 대는 세리나였다. 세리나는 펄쩍펄쩍 뛰었고, 만신창이가 된 가렛은 멋쩍게 웃었다.' },
+  { id:'shard', pic:'scene_t_shard',    who:'knight', key:'kill:bear',        name:'부러진 검 끝', after:'did',   // v11.35.0: '해냈다' 바로 다음
     text:'곰 등에 박힌 쇳조각. 손잡이의 문양을 가렛은 안다. 이건 가렛네 것이다.' },
   { id:'beyond', pic:'scene_t_beyond',   who:'knight', key:'exp-start:grassland', name:'너머의 바람',
     text:'산 너머 바람 냄새가 다르다. 저 문양의 답을 초원이 줄지도 모른다.' },
@@ -2902,33 +2911,67 @@ function traceFaceHtml(t){
   const nm = t.who === 'place' ? ((land && FIELD_BY_ID[land]?.name) || '장소') : String(TRACE_WHO[t.who] || ENEMIES[t.who]?.name || '').replace(/^\S+\s+/, '');
   return src ? `<div class="tm-face"><img src="${src}" alt="" draggable="false">${nm ? `<span>${esc(nm)}</span>` : ''}</div>` : '';
 }
-function traceCard(t, done){
+function traceCardEl(t, cls){
   const isScene = !!SCENE_BY_ID[t.id];
   const text = Array.isArray(t.text) ? t.text : [t.text];
+  const c = document.createElement('div');
+  c.className = 'tm-card pro-pg ' + cls;
+  c.setAttribute('role', 'dialog'); c.setAttribute('aria-modal', 'true');
+  c.innerHTML = `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
+    + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-name">${esc(t.name)}</div>`   // v11.31.0: '📜 이야기/새 흔적' 줄 · 시대(금빛 시대 · 둘)/'OO · 흔적' 줄 없앰
+    + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div>`;
+  c._t = t;
+  return c;
+}
+// v11.35.0: 줄 맨 앞에 이어 서 있는 흔적 카드들 (합류 표시 같은 다른 것이 끼면 거기서 끊긴다)
+const traceRun = () => { const out = []; for (const x of showQ){ if (!(x.t && x.t.pic)) break; out.push(x); } return out; };
+function traceCard(t, done){
   const el = document.createElement('div');
   el.id = 'traceModal'; el.className = 'tmodal';
-  el.innerHTML = '<div class="tm-card" role="dialog" aria-modal="true">'
-    + `<div class="tm-pic"><img src="images/scene/${t.pic}.png" alt="" draggable="false"></div>`
-    + `<div class="tm-body">${isScene ? '' : traceFaceHtml(t)}<div class="tm-name">${esc(t.name)}</div>`   // v11.31.0: '📜 이야기/새 흔적' 줄 · 시대(금빛 시대 · 둘)/'OO · 흔적' 줄 없앰
-    + `<div class="tm-text">${text.map(x => `<p>${esc(x)}</p>`).join('')}</div></div></div>`;
+  const stack = document.createElement('div');
+  stack.className = 'tm-stack';
+  el.appendChild(stack);
+  let cur = t, t0 = 0, fin = done;
+  // 뒤에 기다리는 흔적을 b1 · b2 · b3 로 깐다 (프롤로그 더미와 같은 모양)
+  const backs = () => {
+    stack.querySelectorAll('.b1,.b2,.b3').forEach(x => x.remove());
+    traceRun().slice(0, 3).forEach((x, i) => stack.appendChild(traceCardEl(x.t, 'b' + (i + 1))));
+  };
+  const put = (tt, first) => {
+    const old = stack.querySelector('.pro-pg.on');
+    const back = stack.querySelector('.b1');                       // 뒤에 깔려 있던 그 카드를 그대로 올린다
+    const c = back && back._t === tt ? back : traceCardEl(tt, '');
+    c.className = 'tm-card pro-pg on' + (first ? ' pop' : ' shuffle');
+    if (old){ old.classList.remove('on', 'pop', 'shuffle'); old.classList.add('gone'); setTimeout(() => old.remove(), 900); }
+    if (c.parentNode !== stack) stack.appendChild(c);
+    backs();
+    paintIcons(c);
+    t0 = Date.now();
+  };
   const close = () => {
     if (el.classList.contains('out')) return;
+    if (!showing || showing.t !== cur){ el.remove(); return; }       // traceAckAll 이 먼저 치웠다
+    traceDone(cur);                                                // 합류 표시가 줄 맨 앞에 들어갈 수 있다
+    const nx = showQ[0];
+    if (nx && nx.t && nx.t.pic){                                   // v11.35.0: 다음도 흔적 카드면 **넘긴다** (닫았다 다시 뜨지 않게)
+      showQ.shift();
+      showing = nx;
+      cur = nx.t;
+      fin = () => { if (showing === nx){ showing = null; showNext(); } };
+      put(cur, false);
+      return;
+    }
     el.classList.add('out');
     removeEventListener('keydown', onKey);
-    setTimeout(() => {
-      el.remove();
-      if (!showing || showing.t !== t) return;                     // traceAckAll 이 먼저 치웠다
-      traceDone(t);                                                // 합류 표시가 줄 맨 앞에 들어간다
-      done();
-    }, 220);
+    setTimeout(() => { el.remove(); fin(); }, 220);
   };
   const onKey = e => { if (e.key === 'Escape') close(); };
-  const t0 = Date.now();                                           // v11.30.0: ✕ 없음 — **아무 데나 누르면 넘어간다** (뜨자마자 0.3초는 받지 않음 — 앞 탭이 새 카드를 넘기지 않게)
+  // v11.30.0: ✕ 없음 — **아무 데나 누르면 넘어간다** (뜨자마자 0.3초는 받지 않음 — 앞 탭이 새 카드를 넘기지 않게)
   el.addEventListener('click', () => { if (Date.now() - t0 > 300) close(); });
   el.style.cursor = 'pointer';
   addEventListener('keydown', onKey);
   document.body.appendChild(el);
-  paintIcons(el);
+  put(t, true);
 }
 // 떠 있는 흔적 카드를 모두 닫은 것으로 친다 (AI 시험에서 씀) — 합류 표시도 기다리지 않는다
 // v9.121.0: **게임 타이틀** '빈손의 기사' — 3초 (아래에서 위로 떠오르며 나타났다 사라진다). 누르면 바로 넘긴다
@@ -2995,6 +3038,26 @@ const innRegs = () => ((innSt() || {}).regs || []).filter(x => x !== 'knight').s
 const knightOn = () => typeof S !== 'undefined' && !!S && (S.quests || []).some(q => !q.done && (QUESTS[q.id] || {}).story);
 const storyRegs = () => (knightOn() ? ['knight'] : []).concat(innRegs());
 const innGiven = id => ((innSt() || {}).given || {})[id] || {};
+// v11.35.0: **받은 시점의 기준선** — 걸음이 열려(등록 · 다음 걸음) 처음 볼 때 그때까지 얻은 수를 적어 둔다.
+//   낼 수 있는 수 = min(가진 수, 그 뒤로 얻은 수 − 이미 낸 수). 받자마자 끝나 버리지 않게 (가방에 있던 것은 안 친다)
+const joinKey = id => `j:${id}`;
+const storyKey = id => `s:${id}:${storyStep(id)}`;
+function giveArm(){                                               // 지금 열려 있는 '건네기' 걸음마다 기준선을 (없으면) 적는다
+  if (!S || !S.inn) return;
+  const base = S.giveBase = S.giveBase || {};
+  for (const id of storyRegs()){
+    const story = storyCan(id), st = story ? storyNow(id) : null;
+    const key = story ? (st && st.give ? storyKey(id) : null)
+      : (SMITH_BY_ID[id] && !smithDone(id) && smithStep(id) === 0 && SMITH_BY_ID[id].give ? joinKey(id) : null);
+    if (key && !base[key]) base[key] = Object.assign({}, S.gotN || {});
+  }
+}
+function giveHave(t, key, given){
+  if (!(S.giveBase || {})[key]) giveArm();
+  const b = (S.giveBase || {})[key];
+  if (!b) return 0;                                               // 아직 받지 않은 걸음 — 낼 것이 없다
+  return Math.max(0, Math.min(have(t), ((S.gotN || {})[t] | 0) - (b[t] | 0) - (given | 0)));
+}
 const innGiveNeed = (type, who) => {                              // 그 장인에게 이 카드가 몇 장 더 필요한가 (who 없으면 등록한 장인 가운데 첫 사람)
   if (who == null){ for (const w of innRegs()){ const k = innGiveNeed(type, w); if (k > 0) return k; } return 0; }
   const sm = SMITH_BY_ID[who];
@@ -3012,7 +3075,7 @@ function innStepNote(sm){                                         // 칸에 들�
 // v9.55.4: 물건 걸음은 사실 **두 토막**이다 — ① 구하기(어디서 나는지까지) ② 제출하기(물건 칸에 건네기)
 //   손에 다 쥐기 전에는 '어디로 가야 하나'가, 다 쥔 뒤에는 '어디에 내야 하나'가 궁금하다
 const innHandReady = id => (SMITH_BY_ID[id].give || [])
-  .every(([t, n]) => (innGiven(id)[t] || 0) + have(t) >= n);
+  .every(([t, n]) => (innGiven(id)[t] || 0) + giveHave(t, joinKey(id), innGiven(id)[t]) >= n);
 // v9.55.6: 어디서 나는가 — **땅 이름으로만** 말한다.
 //   떨구는 놈 이름을 수첩이 먼저 불러 버리면, 가서 만나 보는 재미(크리처 카드가 ??? 에서 열리는 일)를 앗아간다.
 //   줍는 것이면 '산에서 주움', 짐승이 떨구는 것이면 '초원에서 나옴' — 어디로 갈지는 알려 주고 무엇이 사는지는 가서 본다
@@ -3030,8 +3093,9 @@ function innWhereShort(t){
 }
 function innGetBody(sm, onlyLeft){                                // 구하기 — 모자란 것마다 '몇/몇 · 어디서'
   const got = innGiven(sm.id);
-  return (sm.give || []).filter(([t, n]) => !onlyLeft || (got[t] || 0) + have(t) < n).map(([t, n]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
-    const mine = Math.min((got[t] || 0) + have(t), n);
+  const hv = t => giveHave(t, joinKey(sm.id), got[t]);           // v11.35.0
+  return (sm.give || []).filter(([t, n]) => !onlyLeft || (got[t] || 0) + hv(t) < n).map(([t, n]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
+    const mine = Math.min((got[t] || 0) + hv(t), n);
     const where = mine >= n ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`;
     return `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${n}</b>${where}`;
   }).join(' · ');
@@ -3071,7 +3135,9 @@ function innGive(type, who){
   if (need <= 0) return false;
   const c = cardOf(type);
   if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
-  const give = Math.min(need, c.n), n = S.inn, id = who;
+  const can = giveHave(type, joinKey(who), innGiven(who)[type]);  // v11.35.0
+  if (can <= 0){ toast(`🏨 퀘스트를 받은 뒤 모은 ${DEFS[type].name}만 건넬 수 있다`); return false; }
+  const give = Math.min(need, c.n, can), n = S.inn, id = who;
   n.given[id] = n.given[id] || {};
   n.given[id][type] = (n.given[id][type] || 0) + give;
   for (let i = 0; i < give; i++) useOne(cardOf(type) || c);       // 다 쓰면 카드가 사라지므로 그때그때 다시 집는다
@@ -3129,7 +3195,8 @@ function innAutoGive(){
       if (!give) continue;
       const box = story ? ((S.inn.sgiven = S.inn.sgiven || {})[id] = S.inn.sgiven[id] || {})
         : ((S.inn.given = S.inn.given || {})[id] = S.inn.given[id] || {});
-      if (!give.every(([t, k]) => (box[t] || 0) + have(t) >= k)) continue;
+      const key = story ? storyKey(id) : joinKey(id);              // v11.35.0: 받은 뒤 새로 모은 것만
+      if (!give.every(([t, k]) => (box[t] || 0) + giveHave(t, key, box[t]) >= k)) continue;
       for (const [t, k] of give){
         const n = Math.max(0, k - (box[t] || 0));
         for (let i = 0; i < n; i++){ const c = cardOf(t); if (c && c.n > 0) useOne(c); }
@@ -3380,9 +3447,9 @@ function storyStepText(st, id, html, onlyLeft){
     return e(`⚔ ${objP(nm)} 넘자${f ? ` — ${f.emoji} ${f.name}에서` : ''}`);
   }
   if (st.make) return e(`🔨 ${objP(nameShown(st.make) ? DEFS[st.make].name : '???')} 만들자`);
-  const got = storyGiven(id);
-  return st.give.filter(([t, k]) => !onlyLeft || (got[t] || 0) + have(t) < k).map(([t, k]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
-    const mine = Math.min((got[t] || 0) + have(t), k);
+  const got = storyGiven(id), hv = t => giveHave(t, storyKey(id), got[t]);   // v11.35.0
+  return st.give.filter(([t, k]) => !onlyLeft || (got[t] || 0) + hv(t) < k).map(([t, k]) => {   // v9.107.0 · v10.17.0: 수첩엔 다 모인 것은 뺀다
+    const mine = Math.min((got[t] || 0) + hv(t), k);
     return html ? `${iconHtml(t, true)} ${esc(DEFS[t].name)} <b>${mine}/${k}</b>`
       + (mine >= k ? '' : ` <span class="i-muted">${esc(innWhereShort(t))}</span>`)
       : `${DEFS[t].name} ${mine}/${k}`;
@@ -3405,7 +3472,9 @@ function storyGive(type, who){
   if (need <= 0) return false;
   const c = cardOf(type);
   if (!c || c.n <= 0){ toast(`${DEFS[type].name}이 없다`); return false; }
-  const n = S.inn, id = who, give = Math.min(need, c.n);
+  const can = giveHave(type, storyKey(who), storyGiven(who)[type]);   // v11.35.0
+  if (can <= 0){ toast(`🏨 퀘스트를 받은 뒤 모은 ${DEFS[type].name}만 건넬 수 있다`); return false; }
+  const n = S.inn, id = who, give = Math.min(need, c.n, can);
   n.sgiven = n.sgiven || {};
   n.sgiven[id] = n.sgiven[id] || {};
   n.sgiven[id][type] = (n.sgiven[id][type] || 0) + give;
@@ -3646,7 +3715,7 @@ const presetEmpty = p => !presetOf(p).heroes.some(Boolean);
 let presetPick = 0;                                               // 편성 탭에서 보고 있는 벌 (저장하지 않는다)
 function presetGiveBack(p, who){                                  // 그 사람의 편성 장비를 가방으로
   const g = presetOf(p).gear[who] || {};
-  for (const k of Object.keys(g)){ if (g[k] && DEFS[g[k]]) addCard(g[k], 0, 0); }
+  for (const k of Object.keys(g)){ if (g[k] && DEFS[g[k]]) addBack(g[k]); }
   delete presetOf(p).gear[who];
 }
 function presetPutHero(p, i, who){
@@ -3668,7 +3737,7 @@ function presetEquip(p, who, key, type){
   const g = presetGear(p, who), old = g[key];
   if (old === type) return;
   g[key] = type; useOne(c);                                       // 편성에 넣으면 가방에서 빠진다
-  if (old) addCard(old, 0, 0);
+  if (old) addBack(old);
   if (p === mainPreset()){                                        // v10.7.0: 튜토리얼 '쥐자 · 걸치자' — 메인 편성에 끼우면 친다
     const base = key.replace(/\d+$/, '');
     questHit(`equip:${base}`); hintDone('equip');
@@ -3680,7 +3749,7 @@ function presetEquip(p, who, key, type){
 function presetUnequip(p, who, key){
   const g = presetGear(p, who), t = g[key];
   if (!t) return;
-  g[key] = null; addCard(t, 0, 0); save();
+  g[key] = null; addBack(t); save();
 }
 function presetClear(p){
   const P = presetOf(p);
@@ -4581,7 +4650,11 @@ function unlockBoards(){
     save();
   }
 }
+// v11.35.0: **퀘스트에 내는 재료는 받은 뒤에 새로 모은 것만** — 카드를 얻을 때마다 그 종류의 '얻은 수'를 센다 (장비를 빼 가방으로 돌아오는 것은 빼고)
+let cardBack = false;
+const addBack = (t, x = 0, y = 0) => { cardBack = true; try { return addCard(t, x, y); } finally { cardBack = false; } };
 function addCard(type, x, y, anim, from, made){
+  if (!cardBack){ S.gotN = S.gotN || {}; S.gotN[type] = (S.gotN[type] | 0) + 1; }
   if (type === S.goal) setTimeout(checkGoalDone, 0);              // v3.0.6: 주워서 채워지는 목표도 끝남
   if (S.prod && type !== S.prod) setTimeout(checkProdDone, 0);    // v10.14.0: 재료가 다 모였나
   if (DEFS[type]){                                                // v3.2.1: 목표에 안 걸고 먼저 만들어 버려도 사슬이 멈추지 않게
@@ -6856,7 +6929,8 @@ function screenRows(){
       const got = story ? storyGiven(id) : innGiven(id);
       // v11.0.3: **내려놓는 칸 없음** — 모을 재료는 보기만 하는 작은 카드(가진 수/필요 수). 다 모이면 저절로 건넨다
       let info = '';
-      if (give) info = give.map(([t, k]) => { const g = Math.min((got[t] || 0) + have(t), k);
+      const gk = story ? storyKey(id) : joinKey(id);               // v11.35.0
+      if (give) info = give.map(([t, k]) => { const g = Math.min((got[t] || 0) + giveHave(t, gk, got[t]), k);
         return `<div class="cw framed f-${frameOf(DEFS[t])} matc${g >= k ? ' full' : ''}" data-peek="${t}" title="${esc(DEFS[t].name)}">`
           + `<div class="emoji">${iconHtml(t)}</div><div class="pct">${g}/${k}</div><div class="name">${esc(DEFS[t].name)}</div></div>`; }).join('');
       else if (st) info = `<div class="inn-task"><b>${st.kill ? '사냥' : '만들기'}</b> ${esc(st.kill ? (foeKnown(st.kill) ? ENEMIES[st.kill].name : '???') : (nameShown(st.make) ? DEFS[st.make].name : '???'))}</div>`;
@@ -7358,7 +7432,7 @@ function equipCard(sl, type, who){
   logEv('equip', { who, slot: sl.key, type, was: old || null });  // v7.6.0
   gearMap(who)[sl.key] = type;
   useOne(c);                                                      // 한 장만 칸으로
-  if (old) addCard(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
+  if (old) addBack(old, c ? c.x : 0, c ? c.y : 0);                // 있던 장비는 보유로 돌아옴
   questHit(`equip:${sl.key}`);                                    // v0.60.0: 무기를 끼움
   hintDone('equip');                                              // v2.2.0
   if (sl.key === 'weapon' && (DEFS[type].atk || 0) >= 2) questHit('equip:atk2');   // 더 센 무기
@@ -7370,7 +7444,7 @@ function unequipSlot(sl, who){
   const t = equipped(sl.key, who);
   if (!t) return;
   gearMap(who)[sl.key] = null;
-  addCard(t, 0, 0);
+  addBack(t);
   renderAll(); renderInsp(); save();
 }
 // ── 끌기 (v0.29.0) — 아래 카드를 원본 그대로 들어 올려 칸에 놓음. 칸의 카드를 끌어내면 빼기
@@ -9114,6 +9188,7 @@ function expShotsTick(dt){
     f.hp -= sh.dmg;
     f.awake = true;                                                // v9.36.0: 맞으면 깨어난다
     if (sh.bleed && f.hp > 0) f.hp -= sh.bleed;
+    if (bearSpare(f, sh.by)) f.hp = Math.max(1, f.hp);            // v11.35.0
   }
 }
 // v9.43.0: 빔 한 줄기 — 연타가 끝날 때까지 적과 캐릭터를 잇는다
@@ -9216,6 +9291,9 @@ function expFoes(dt){
 }
 // v9.36.0: 싸움이 끝나면 — 뒤지던 자리가 남아 있으면 **선 자리에서 마저 뒤진다** (채집은 없어지지 않는다)
 //   뒤지는 이는 채집 칸에 서 있고 적은 그 칸을 못 밟으니(칸 점유), 싸워도 자리를 뜨지 않는다
+// v11.35.0: **첫 곰은 세리나가 마무리한다** (흔적 '해냈다') — 세리나가 함께 싸우는 동안은 다른 이의 한 대로 곰이 쓰러지지 않는다 (1 남김)
+const bearSpare = (e, k) => e.key === 'bear' && k !== 'ally' && !!exp && exp.party.includes('ally') && exp.P.ally && !exp.P.ally.out
+  && hAlive('ally') && !(S.killed || []).includes('bear');
 function expAfterFight(){
   exp.foe = -1;
   exp.phase = exp.spot >= 0 && exp.spots[exp.spot] && !exp.spots[exp.spot].done ? 'search' : 'run';
@@ -9273,14 +9351,15 @@ function expFight(dt){
       if (hRanged(k)){                                            // v9.35.0: 활은 **닿을 때** 들어간다 (깨우는 것도 그때)
         const fly = flyMsOf(g) + lateMs;
         exp.shots = exp.shots || [];
-        exp.shots.push({ to: exp.foe, dmg, bleed: i === 0 ? bleed : 0, t: fly });
+        exp.shots.push({ to: exp.foe, dmg, bleed: i === 0 ? bleed : 0, t: fly, by: k });
         expSwing(k, exp.foe, dmg, blocked, kindTxt, fly);
         if (bleed && i === 0) expSwing(k, exp.foe, bleed, false, 'bleed', fly);
       } else {
         e.hp -= dmg;
+        if (bearSpare(e, k)) e.hp = Math.max(1, e.hp);            // v11.35.0: 첫 곰의 마지막 한 대는 세리나 몫
         e.awake = true;                                            // v9.36.0: 맞으면 깨어난다
         expSwing(k, exp.foe, dmg, blocked, kindTxt, lateMs);       // v9.29.0: 방어 무시도 표시
-        if (bleed && i === 0 && e.hp > 0){ e.hp -= bleed; expSwing(k, exp.foe, bleed, false, 'bleed', lateMs); }
+        if (bleed && i === 0 && e.hp > 0){ e.hp -= bleed; if (bearSpare(e, k)) e.hp = Math.max(1, e.hp); expSwing(k, exp.foe, bleed, false, 'bleed', lateMs); }
         // v9.50.0: **되돌려받기** — 붙어서 친 쪽이 그만큼 아프다 (활로 쏘면 안 돌아온다)
         const back = def.thorns || 0;
         if (back > 0){
@@ -10408,13 +10487,14 @@ function qNowMake(t){                                             // 그것을 �
   const st = goalLeft(t)[0];
   return st ? qNowStep(st) : esc(`🔨 조합에서 ${objP(nameShown(t) ? DEFS[t].name : '???')} 만들자`);
 }
-function qNowGive(give, given){                                   // 아직 모자란 첫 재료 하나
-  const x = give.find(([t, k]) => (given[t] || 0) + have(t) < k);
+function qNowGive(give, given, key){                              // 아직 모자란 첫 재료 하나
+  const hv = t => giveHave(t, key, given[t]);                     // v11.35.0: 받은 뒤 새로 모은 것만
+  const x = give.find(([t, k]) => (given[t] || 0) + hv(t) < k);
   if (!x) return '<span class="i-muted">다 모였다</span>';
   const [t, k] = x;
   if (!aimSeen(t)){ const st = goalLeft(t)[0]; if (st && st.kind === 'scout') return qNowStep(st); }   // 못 본 재료 → 탐색 · 잠김
   if (CRAFT_RECIPES.some(r => (r.out || []).includes(t)) && !gatherFieldsAll(t).length) return qNowMake(t);   // 만드는 것 → 만드는 차례
-  return qMat(t, Math.min((given[t] || 0) + have(t), k), k);
+  return qMat(t, Math.min((given[t] || 0) + hv(t), k), k);
 }
 function qNowStory(id){
   const st = storyNow(id);
@@ -10424,7 +10504,7 @@ function qNowStory(id){
     return esc(`${f ? f.name + '에서 ' : ''}⚔ ${objP(foeKnown(st.kill) ? (ENEMIES[st.kill] || {}).name : '???')} 넘자`);
   }
   if (st.make) return qNowMake(st.make);
-  return qNowGive(st.give || [], storyGiven(id));
+  return qNowGive(st.give || [], storyGiven(id), storyKey(id));
 }
 function innRowOf(id){
   if (storyCan(id)){                                              // v9.80.0: 사람 이야기
@@ -10437,7 +10517,7 @@ function innRowOf(id){
   const sm = SMITH_BY_ID[id];
   if (!sm || smithStep(id) >= INN_STEPS.length) return '';
   const pic = `<img class="q-pic" src="images/icon/${sm.card}.png" alt="" draggable="false">`;
-  const body = qNowGive(sm.give || [], innGiven(id));              // v11.0.6: 지금 모을 것 하나만
+  const body = qNowGive(sm.give || [], innGiven(id), joinKey(id));              // v11.0.6: 지금 모을 것 하나만
   return `<div class="q-row inn"><span class="q-tag">🏨</span>${pic}`
     + `<b class="q-name">${esc(smithName(id))} 합류</b>`   // v11.10.0: 찾기 → 합류 (퀘스트: 이야기 · 합류 · 목표 · 생산)
     + `<span class="q-text">${body}</span>`
