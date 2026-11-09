@@ -227,6 +227,20 @@ def build(a, texts):
             "denoise": a.denoise_face}},
         "dec_face": {"class_type": "VAEDecode", "inputs": {"samples": ["ks_face", 0], "vae": ["vae", 0]}},
     }
+    if a.ref_image:                                              # 1단을 **A포즈 시트 기준 identity edit** 로 (2026-11-09)
+        g["lora"] = {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["unet", 0],
+                     "lora_name": "Krea2\krea2_identity_edit_v1_2.safetensors", "strength_model": 1.0}}
+        g["ref"] = {"class_type": "LoadImage", "inputs": {"image": a.ref_image}}
+        g["enc_ref"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["ref", 0], "vae": ["vae", 0]}}
+        g["latent"] = {"class_type": "EmptySD3LatentImage", "inputs": {"width": a.width, "height": a.height, "batch_size": 1}}
+        g["patch"] = {"class_type": "Krea2EditModelPatch", "inputs": {"model": ["lora", 0], "source_latent": ["enc_ref", 0],
+                      "ref_boost": a.ref_boost, "ref_boost_a": 1.0, "fit_mode": "fit", "vae": ["vae", 0],
+                      "source_image": ["ref", 0], "target_latent": ["latent", 0]}}
+        g["pos_full"] = {"class_type": "Krea2EditGroundedEncode", "inputs": {"clip": ["clip", 0], "prompt": texts["full"],
+                         "image": ["ref", 0], "grounding_px": 768, "system_prompt": ""}}
+        g["neg_ref"] = {"class_type": "Krea2EditGroundedEncode", "inputs": {"clip": ["clip", 0], "prompt": "",
+                        "image": ["ref", 0], "grounding_px": 768, "system_prompt": ""}}
+        g["ks_full"]["inputs"].update(model=["patch", 0], negative=["neg_ref", 0], steps=10, sampler_name="euler")
     # ── 색보정은 **저장 쪽 가지에만** 건다 (다음 단계의 크롭 입력은 원본 그대로) ──
     for stage, dec in (("full", "dec_full"), ("upper", "dec_upper"), ("face", "dec_face")):
         g[f"cc_{stage}"] = {"class_type": "LayerColor: BrightnessContrastV2", "inputs": {
@@ -290,6 +304,9 @@ def main():
     ap.add_argument("--only", default="", help="일부만 저장 — face,upper,full 중 쉼표로 (그림은 체인이라 어차피 다 돌린다)")
     ap.add_argument("--card-from", choices=("face", "upper", "full"), default="face",
                     help="카드에 쓸 그림. 얼굴이랄 것이 없어 얼굴 검출이 빗나가는 것(바위 등껍질 · 거미 …)은 full 로 — 통째로 담아야 읽힌다")
+    ap.add_argument("--ref", default="", help="기준 A포즈 시트 id — images/ref/apose_<id>.png. 주면 1단(전신)을 identity edit 로 그린다")
+    ap.add_argument("--ref-name", default="", help="--ref 와 함께 — 글 속에서 부를 이름 (예: Garret)")
+    ap.add_argument("--ref-boost", type=float, default=1.0, help="시트를 얼마나 따르나 (1: 생김새만 · 4: 표정 · 자세까지 굳음)")
     ap.add_argument("--force", action="store_true", help="같은 파일이 있으면 덮어씀")
     ap.add_argument("--out-dir", default="", help="시험용 — 게임 폴더 대신 이 폴더에 저장한다 (기록도 남기지 않음)")
     ap.add_argument("--url", default="http://127.0.0.1:8188")
@@ -312,12 +329,22 @@ def main():
         a.seed = random.randrange(2 ** 31)
 
     texts = {s: prompt_of(a.kind, s, a.desc, a.bg, a.style, not a.no_prop, a.body) for s in ("full", "upper", "face")}
+    a.ref_image = ""
+    if a.ref:                                                    # 시트 기준 — 생김새는 시트, 자세 · 표정 · 손에 든 것은 글
+        from make_apose import upload
+        sheet = ROOT / "images" / "ref" / f"apose_{a.ref}.png"
+        if not sheet.exists():
+            sys.exit(f"no sheet: {sheet}")
+        a.ref_image = upload(a.url, sheet)
+        nm = a.ref_name or a.ref
+        texts["full"] = (f"Draw {nm}, the character in the image, with the same face, hair, outfit, colors and body proportions, "
+                         f"but in a new pose and expression as described. " + texts["full"])
     for s in ("full", "upper", "face"):
         print(f"\n[{s}] {texts[s]}")
     print(f"\nseed {a.seed} · {a.kind} · {a.width}x{a.height}")
     outs = C.run_workflow(a.url, build(a, texts), timeout=1800)
 
-    opts = [f"--kind {a.kind}", f"--style {a.style}", f"--body {a.body}"] + (["--no-prop"] if a.no_prop else []) + [ f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
+    opts = ([f"--ref {a.ref}", f"--ref-boost {a.ref_boost}"] if a.ref else []) + [f"--kind {a.kind}", f"--style {a.style}", f"--body {a.body}"] + (["--no-prop"] if a.no_prop else []) + [ f"--card-from {a.card_from}", f"--seg-text {a.seg_text}",
             f"--denoise-upper {a.denoise_upper}", f"--denoise-face {a.denoise_face}",
             f"--upper-pad {a.upper_pad}", f"--upper-down {a.upper_down}",
             f"--face-pad {a.face_pad}", f"--face-down {a.face_down}"]
