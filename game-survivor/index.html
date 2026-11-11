@@ -52,13 +52,13 @@
 
 <div class="overlay" id="start">
   <h2>서바이버</h2>
-  <div class="hint">WASD 로 피하고, 공격은 저절로. 레벨업하면 A · S · D 로 고른다.</div>
+  <div class="hint">WASD 로 피하고, 공격은 저절로. 레벨업하면 1 · 2 · 3 으로 고른다.</div>
   <button id="startBtn">시작 (Space)</button>
 </div>
 <div class="overlay" id="levelup" hidden>
   <h2>레벨 업!</h2>
   <div class="cards" id="cards"></div>
-  <div class="hint">A · S · D 또는 클릭</div>
+  <div class="hint">1 · 2 · 3 또는 클릭</div>
 </div>
 <div class="overlay" id="pause" hidden>
   <h2>일시정지</h2>
@@ -138,7 +138,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (!G) { if (e.code === 'Space' || e.code === 'Enter') newGame(); return; }
   if (G.mode === 'levelup') {
-    const i = {KeyA: 0, KeyS: 1, KeyD: 2}[e.code];
+    const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];   // 이동 키(WASD)와 겹치지 않게 숫자
     if (i !== undefined && !e.repeat) choose(i);
   } else if (G.mode === 'over') {
     if (e.code === 'KeyR') newGame();
@@ -147,11 +147,14 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (G && G.mode === 'play') togglePause(); });
+// 창을 벗어나면 멈추고, 돌아오면 다시 간다. P 로 직접 멈춘 것은 돌아와도 그대로
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; if (G && G.mode === 'play') { togglePause(); G.autoPaused = true; } });
+addEventListener('focus', () => { if (G && G.mode === 'pause' && G.autoPaused) togglePause(); });
 $('startBtn').onclick = () => newGame();
 $('retryBtn').onclick = () => newGame();
 
 function togglePause() {
+  G.autoPaused = false;
   if (G.mode === 'play') { G.mode = 'pause'; $('pause').hidden = false; }
   else if (G.mode === 'pause') { G.mode = 'play'; $('pause').hidden = true; }
 }
@@ -178,7 +181,7 @@ function openLevelUp() {
     const lv = G.ups[u.id];
     let ds = u.ds;
     if (u.id === 'splash') ds = `반경 ${splashR(lv + 1)} · 피해 ${Math.round(splashPct(lv + 1) * 100)}%`;
-    d.innerHTML = `<div class="key">${'ASD'[i]}</div><div class="nm">${u.nm}</div>
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
       <div class="lv">Lv ${lv} → ${lv + 1}${u.max < 99 ? ' / ' + u.max : ''}</div><div class="ds">${ds}</div>${u.ext ? '<div class="tag">확장</div>' : ''}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
