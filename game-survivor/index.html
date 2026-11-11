@@ -166,7 +166,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.15.0';
+const VERSION = '0.15.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -847,30 +847,50 @@ function beamLine(bm) {
   });
   return out;
 }
-// 굴곡 레이저 — 늘 켜진 빔. 총구에서 가장 가까운 적으로 **천천히 뻗어 가고**, 닿으면 그 적 둘레(hop)의 다음 적으로 또 뻗는다 (최대 chain)
+// 굴곡 레이저 — 늘 켜진 빔. 마디(node)마다 겨누는 적(e)과 **그려지는 자리(x, y)** 가 따로 있다
+// 처음엔 총구에서 첫 적으로 천천히 뻗어 가고(prog), 닿으면 그 적 둘레(hop)의 다음 적으로 또 뻗는다 (최대 chain)
+// 겨누던 적이 죽거나 멀어지면 **빔을 거두지 않고** 그 마디가 지금 자리에서 새 적으로 미끄러져 옮겨 간다 (LASER_MOVE)
 // 맞힘: 쿨다운마다 **빔이 지나는 길 위의 적 모두** 한 번씩 (연쇄 대상이 아니어도)
-// 첫 적이 죽거나 사거리 밖이면 빔을 거두고 새로 뻗는다. 중간 적이 죽으면 거기까지 잘리고 다시 이어 뻗는다
+const LASER_MOVE = 700;               // 마디가 새 적으로 옮겨 가는 빠르기 (px/초)
 function updateLaser(w, wi, st, dt) {
   const p = G.p, W = WEAPONS[w.id], hop = W.hop * st.range / W.range;
   let bm = w.beam;
-  if (bm && (bm.pts[0].dead || Math.hypot(bm.pts[0].x - p.x, bm.pts[0].y - p.y) > st.range * 1.15)) bm = w.beam = null;
+  const before = k => new Set(bm.nodes.slice(0, k).map(n => n.e));   // 앞 마디들이 겨눈 적 (뒤 마디의 적은 가져와도 됨)
+  if (bm) {
+    // 마디마다 겨눌 적 다시 확인 — 죽었거나 멀어졌으면 새 적으로 (자리는 그대로, 아래에서 미끄러져 감)
+    for (let k = 0; k < bm.nodes.length; k++) {
+      const n = bm.nodes[k], from = k ? bm.nodes[k - 1].e : p, lim = k ? hop * 1.3 : st.range * 1.15;
+      if (!n.e.dead && Math.hypot(n.e.x - from.x, n.e.y - from.y) <= lim) continue;
+      const nx = nearestEnemy(from.x, from.y, k ? hop : st.range, before(k));
+      if (nx) {
+        n.e = nx;
+        const dup = bm.nodes.findIndex((q, j) => j > k && q.e === nx);   // 뒤 마디의 적을 가져왔으면 그 마디는 빠진다
+        if (dup > 0) { bm.nodes.splice(dup, 1); bm.prog = Math.min(bm.prog, bm.nodes.length); }
+        continue;
+      }
+      bm.nodes.length = k; bm.prog = Math.min(bm.prog, k);   // 이을 적이 없으면 거기서 잘림
+      break;
+    }
+    if (!bm.nodes.length) bm = w.beam = null;
+  }
   if (!bm) {
     const f = nearestEnemy(p.x, p.y, st.range);
     if (!f) { w.cdT = Math.max(0, w.cdT - dt); return; }
-    bm = w.beam = {pts: [f], prog: 0, ph: Math.random(), segs: []};
+    bm = w.beam = {nodes: [{e: f, x: f.x, y: f.y}], prog: 0, ph: Math.random(), segs: []};
   }
-  for (let k = 1; k < bm.pts.length; k++) {
-    const e = bm.pts[k], q = bm.pts[k - 1];
-    if (e.dead || Math.hypot(e.x - q.x, e.y - q.y) > hop * 1.3) { bm.pts.length = k; bm.prog = Math.min(bm.prog, k); break; }
+  // 마디 자리를 겨누는 적 쪽으로 옮긴다 (붙어 있으면 그대로 따라감)
+  for (const n of bm.nodes) {
+    const dx = n.e.x - n.x, dy = n.e.y - n.y, d = Math.hypot(dx, dy), mv = LASER_MOVE * dt;
+    if (d <= mv) { n.x = n.e.x; n.y = n.e.y; } else { n.x += dx / d * mv; n.y += dy / d * mv; }
   }
   const m = weaponPose(w, wi);
-  bm.segs = laserSegs([{x: m.mx, y: m.my}, ...bm.pts]);
-  // 뻗기
+  bm.segs = laserSegs([{x: m.mx, y: m.my}, ...bm.nodes]);
+  // 뻗기 (새 마디만 — 이미 그려진 마디는 옮겨 갈 뿐 다시 뻗지 않는다)
   const k = Math.floor(bm.prog);
-  if (k < bm.pts.length) bm.prog = Math.min(bm.pts.length, bm.prog + dt * LASER_SPEED / Math.max(20, bm.segs[k].len));
-  if (bm.prog >= bm.pts.length && bm.pts.length < st.chain) {
-    const last = bm.pts[bm.pts.length - 1], nx = nearestEnemy(last.x, last.y, hop, new Set(bm.pts));
-    if (nx) bm.pts.push(nx);
+  if (k < bm.nodes.length) bm.prog = Math.min(bm.nodes.length, bm.prog + dt * LASER_SPEED / Math.max(20, bm.segs[k].len));
+  if (bm.prog >= bm.nodes.length && bm.nodes.length < st.chain) {
+    const last = bm.nodes[bm.nodes.length - 1].e, nx = nearestEnemy(last.x, last.y, hop, new Set(bm.nodes.map(q => q.e)));
+    if (nx) bm.nodes.push({e: nx, x: nx.x, y: nx.y});
   }
   // 맞힘
   w.cdT -= dt;
@@ -1148,7 +1168,7 @@ function draw() {
     ctx.strokeStyle = `rgba(120,240,255,${0.55 * fl})`; ctx.lineWidth = 4; ctx.stroke();
     ctx.strokeStyle = `rgba(235,255,255,${0.95 * fl})`; ctx.lineWidth = 1.6; ctx.stroke();
     ctx.fillStyle = `rgba(160,245,255,${0.6 * fl})`;
-    bm.pts.forEach((e, k) => { if (k < Math.floor(bm.prog)) { ctx.beginPath(); ctx.arc(e.x, e.y, 5, 0, Math.PI * 2); ctx.fill(); } });
+    bm.nodes.forEach((n, k) => { if (k < Math.floor(bm.prog)) { ctx.beginPath(); ctx.arc(n.x, n.y, 5, 0, Math.PI * 2); ctx.fill(); } });
     const tip = line[line.length - 1];
     ctx.fillStyle = `rgba(220,255,255,${0.9 * fl})`; ctx.beginPath(); ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(200,250,255,${0.8 * fl})`; ctx.beginPath(); ctx.arc(m.mx, m.my, 3.5, 0, Math.PI * 2); ctx.fill();
