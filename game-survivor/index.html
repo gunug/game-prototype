@@ -38,7 +38,7 @@
   #worldSel h2{margin-top:8px}
   #startHint{padding:0 16px;text-align:center}
   .hscroll{display:flex;gap:12px;width:100%;overflow-x:auto;overflow-y:hidden;padding:6px 16px 12px;
-           scroll-snap-type:x mandatory;scroll-padding:0 16px;touch-action:pan-x;-webkit-overflow-scrolling:touch;
+           scroll-snap-type:x mandatory;scroll-padding:0 16px;touch-action:none;-webkit-overflow-scrolling:touch;
            scrollbar-width:thin;scrollbar-color:#3a3f55 transparent}
   .hscroll>*{flex:0 0 auto;scroll-snap-align:start}
   .hscroll::after{content:'';flex:0 0 4px;margin-right:auto}   /* 끝 칸 오른쪽 여백 */
@@ -70,6 +70,12 @@
   .btns button.sub{background:#3a3f55}
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
+  /* 고르는 테두리 · 선택 창 조이스틱 */
+  .focus{outline:3px solid #fff;outline-offset:3px}
+  .up.focus{transform:translateY(-3px)}
+  #mjoy{position:fixed;width:92px;height:92px;margin:-46px 0 0 -46px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);pointer-events:none;z-index:2147483646}
+  #mjoy>i{position:absolute;left:24px;top:24px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.45)}
+  #mjoy[hidden]{display:none}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
   @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
@@ -95,7 +101,7 @@
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
-  <div class="hint" id="startHint">캐릭터와 월드를 고르면 무기를 고른다. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
+  <div class="hint" id="startHint">캐릭터와 월드를 고르면 무기를 고른다. 방향키로 고르고 Enter. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
   <div class="sec">월드</div>
   <div class="hscroll" id="worldList"></div>
   <div class="charSec">
@@ -117,7 +123,7 @@
 <div class="overlay" id="pause" hidden>
   <h2>일시정지</h2>
   <div class="hint" id="pauseHint">P / Esc 로 계속</div>
-  <div class="btns"><button class="sub" id="pauseExit">나가기</button></div>
+  <div class="btns"><button id="pauseGo">계속</button><button class="sub" id="pauseExit">나가기</button></div>
 </div>
 <div class="overlay" id="over" hidden>
   <h2>쓰러졌다</h2>
@@ -130,12 +136,13 @@
   <div class="btns"><button class="sub" id="clearExit">나가기</button><button class="sub" id="clearRetry">다시하기 (R)</button><button id="clearNext">다음 월드 (N)</button></div>
 </div>
 
+<div id="mjoy" hidden><i></i></div>
 <div id="ver"></div>
 
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.9.0';
+const VERSION = '0.10.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -262,7 +269,7 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // 터치 기기면 안내 글을 바꾼다
 if (matchMedia('(pointer: coarse)').matches) {
-  document.getElementById('startHint').textContent = '캐릭터와 월드를 고르면 무기를 고른다. 화면을 누른 채 끌면 움직이고, 총은 저절로 쏜다.';
+  document.getElementById('startHint').textContent = '눌러서 고르거나, 끌어서 테두리를 옮기고 그 칸을 누른다. 판 중엔 누른 채 끌면 움직이고, 총은 저절로 쏜다.';
   document.getElementById('luHint').textContent = '카드를 누른다';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
   document.getElementById('wpnHint').textContent = '시작할 무기를 누른다';
@@ -369,6 +376,12 @@ function newGame(wi, weaponId) {
 const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
+  const scr = navSync();
+  if (scr) {                                                    // 선택 창: 방향키 · WASD 로 테두리, Enter · Space 로 결정
+    const d = {ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', KeyA: 'L', KeyD: 'R', KeyW: 'U', KeyS: 'D'}[e.code];
+    if (d) { e.preventDefault(); if (!(scr === 'levelup' && e.repeat)) navStep(d); }   // 레벨업: 누르고 있던 이동 키는 무시
+    if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') { e.preventDefault(); if (!e.repeat) navConfirm(); return; }
+  }
   if (!G) {                                                     // 월드 · 무기 선택: 숫자
     const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];
     if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showWorlds(); }
@@ -403,6 +416,145 @@ function togglePause() {
   G.autoPaused = false;
   if (G.mode === 'play') { G.mode = 'pause'; $('pause').hidden = false; }
   else if (G.mode === 'pause') { G.mode = 'play'; $('pause').hidden = true; }
+}
+
+// ───── 고르는 테두리 (커서) — 키보드 · 게임패드 · 화면 조이스틱 공통 ─────
+// 창마다 줄(행) 목록. 위아래 = 줄 바꿈, 좌우 = 줄 안에서 옆 칸. 결정 = 그 칸을 누른 것과 같다
+const NAV_ROWS = {
+  worldSel: ['#worldList > button', '#charList > button'],
+  wpnSel:   ['#wpnCards > .up', '#wpnBack'],
+  levelup:  ['#cards > .up'],
+  pause:    ['#pause .btns button'],
+  over:     ['#over .btns button'],
+  clear:    ['#clear .btns button'],
+};
+const NAV_ORDER = ['levelup', 'pause', 'over', 'clear', 'wpnSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
+const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
+const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled));
+function navSync() {
+  const scr = navScreen();
+  if (scr === nav.scr) return scr;
+  nav.scr = scr; nav.dir = null; nav.needNeutral = true;        // 새 창: 스틱을 한 번 놓아야 움직인다 (피하던 스틱이 그대로 고르지 않게)
+  const rows = navRows();
+  nav.r = 0; nav.cs = rows.map(() => 0);
+  if (scr === 'worldSel') { nav.cs[0] = pickWi; nav.cs[1] = charIdx; }
+  if (scr === 'over' || scr === 'clear') nav.cs[0] = rows[0].length - 1;   // 다시하기 · 다음 월드
+  return scr;
+}
+function navCur() {
+  const rows = navRows(), row = rows[nav.r];
+  if (!row || !row.length) return null;
+  nav.cs[nav.r] = Math.max(0, Math.min(row.length - 1, nav.cs[nav.r] || 0));
+  return row[nav.cs[nav.r]];
+}
+function navStep(dir) {
+  if (!navSync()) return;
+  const rows = navRows();
+  if (dir === 'U' || dir === 'D') {
+    for (let r = nav.r + (dir === 'D' ? 1 : -1); r >= 0 && r < rows.length; r += dir === 'D' ? 1 : -1)
+      if (rows[r].length) { nav.r = r; break; }
+  } else nav.cs[nav.r] = (nav.cs[nav.r] || 0) + (dir === 'R' ? 1 : -1);
+  navPaint();
+}
+function navConfirm() {
+  if (!navSync()) return;
+  const el = navCur(); if (!el) return;
+  const pickedChar = nav.scr === 'worldSel' && nav.r === 1;
+  el.click();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  if (pickedChar) nav.r = 0;                                    // 캐릭터를 고르면 월드 줄로
+  navPaint();
+}
+function navBack() {
+  const scr = navSync();
+  if (scr === 'wpnSel' || scr === 'over' || scr === 'clear') showWorlds();
+  else if (scr === 'pause') togglePause();
+}
+function navPaint() {
+  const el = nav.scr ? navCur() : null;
+  if (el === nav.el && (!el || el.classList.contains('focus'))) return;
+  if (nav.el) nav.el.classList.remove('focus');
+  nav.el = el;
+  if (el) { el.classList.add('focus'); el.scrollIntoView({block: 'nearest', inline: 'center', behavior: 'smooth'}); }
+}
+// 스틱(패드 · 화면 조이스틱) → 한 칸씩. 계속 기울이면 0.35초 뒤부터 0.13초마다
+function navAxis(v, dt) {
+  const m = Math.hypot(v.x, v.y);
+  if (nav.needNeutral) { if (m < 0.3) nav.needNeutral = false; return; }
+  const dir = m < 0.5 ? null : Math.abs(v.x) > Math.abs(v.y) ? (v.x > 0 ? 'R' : 'L') : (v.y > 0 ? 'D' : 'U');
+  if (!dir) { nav.dir = null; return; }
+  if (dir !== nav.dir) { nav.dir = dir; nav.hold = 0.35; navStep(dir); }
+  else if ((nav.hold -= dt) <= 0) { nav.hold = 0.13; navStep(dir); }
+}
+
+// ───── 게임패드 (Gamepad API) ─────
+// 왼쪽 스틱 · 십자키 = 이동 / 고르기, A = 결정, B = 뒤로, Start = 일시정지
+const pad = {v: {x: 0, y: 0}, prev: [], on: false};
+function pollPad() {
+  const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(g => g && g.connected);
+  if (!gp) { pad.v = {x: 0, y: 0}; pad.prev = []; return; }
+  const b = i => !!(gp.buttons[i] && gp.buttons[i].pressed), down = i => b(i) && !pad.prev[i];
+  let x = gp.axes[0] || 0, y = gp.axes[1] || 0;
+  if (Math.hypot(x, y) < 0.2) x = y = 0;                        // 데드존
+  const dx = (b(15) ? 1 : 0) - (b(14) ? 1 : 0), dy = (b(13) ? 1 : 0) - (b(12) ? 1 : 0);
+  if (dx || dy) { x = dx; y = dy; }                             // 십자키가 먼저
+  pad.v = {x, y};
+  if (!pad.on) { pad.on = true; setPadHints(); }
+  const scr = navSync();
+  if (scr) {
+    if (down(0)) navConfirm();
+    else if (down(1)) navBack();
+    else if (down(9) && scr === 'pause') togglePause();
+  } else if (G && G.mode === 'play' && down(9)) togglePause();
+  pad.prev = gp.buttons.map(x => x.pressed);
+}
+function setPadHints() {
+  $('startHint').textContent = '패드: 스틱 · 십자키로 고르고 A 로 정한다 (B 뒤로). 판 중엔 왼쪽 스틱으로 움직이고 Start 로 멈춘다.';
+  $('luHint').textContent = '스틱으로 고르고 A';
+  $('pauseHint').textContent = 'Start 로 계속';
+  $('wpnHint').textContent = '스틱으로 고르고 A (B 뒤로)';
+}
+addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
+
+// ───── 화면 조이스틱으로 고르기 (선택 창 위에서 끌기) ─────
+// 누른 곳이 중심, 끈 방향으로 테두리가 한 칸씩. 끌지 않고 떼면 그냥 누른 것 (탭)
+const MJ_R = 46, MJ_MOVE = 14;
+const mj = {id: null, bx: 0, by: 0, x: 0, y: 0, sx: 0, sy: 0, moved: false};
+let mjSuppress = 0;
+const mjVec = () => {
+  if (mj.id === null || !mj.moved) return {x: 0, y: 0};
+  const dx = mj.x - mj.bx, dy = mj.y - mj.by, d = Math.hypot(dx, dy);
+  return d ? {x: dx / d * Math.min(1, d / MJ_R), y: dy / d * Math.min(1, d / MJ_R)} : {x: 0, y: 0};
+};
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('pointerdown', e => {
+  if (mj.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  Object.assign(mj, {id: e.pointerId, bx: e.clientX, by: e.clientY, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false});
+}));
+addEventListener('pointermove', e => {
+  if (e.pointerId !== mj.id) return;
+  mj.x = e.clientX; mj.y = e.clientY;
+  if (Math.hypot(mj.x - mj.sx, mj.y - mj.sy) > MJ_MOVE) mj.moved = true;
+  const dx = mj.x - mj.bx, dy = mj.y - mj.by, d = Math.hypot(dx, dy);
+  if (d > MJ_R) { mj.bx = mj.x - dx / d * MJ_R; mj.by = mj.y - dy / d * MJ_R; }   // 중심이 손가락을 따라온다
+});
+const mjEnd = e => { if (e.pointerId !== mj.id) return; if (mj.moved) mjSuppress = performance.now(); mj.id = null; };
+addEventListener('pointerup', mjEnd); addEventListener('pointercancel', mjEnd);
+// 끈 뒤에 따라오는 클릭은 버린다 (끌다 뗀 자리의 카드가 눌리지 않게)
+addEventListener('click', e => { if (performance.now() - mjSuppress < 400) { mjSuppress = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+function mjPaint() {
+  const el = $('mjoy'), on = mj.id !== null && mj.moved;
+  el.hidden = !on;
+  if (!on) return;
+  const v = mjVec();
+  el.style.left = mj.bx + 'px'; el.style.top = mj.by + 'px';
+  el.firstElementChild.style.transform = `translate(${v.x * MJ_R}px,${v.y * MJ_R}px)`;
+}
+function navTick(dt) {
+  pollPad();
+  if (!navSync()) { mj.id = null; mjPaint(); return; }
+  navAxis(mj.id !== null ? mjVec() : pad.v, dt);
+  navPaint(); mjPaint();
 }
 
 // ───── 레벨업 ─────
@@ -534,6 +686,7 @@ function update(dt) {
   let mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), my = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
   if (mx || my) { const l = Math.hypot(mx, my); mx /= l; my /= l; }
   else if (joy.id !== null) { const v = joyVec(); mx = v.x; my = v.y; }   // 조이스틱은 끌어낸 만큼 (0~1)
+  else if (pad.v.x || pad.v.y) { const l = Math.max(1, Math.hypot(pad.v.x, pad.v.y)); mx = pad.v.x / l; my = pad.v.y / l; }   // 패드 왼쪽 스틱
   const amt = Math.hypot(mx, my);
   p.x += mx * p.speed * dt; p.y += my * p.speed * dt;
   if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);              // 겨눌 적이 있으면 아래 조준에서 덮어씀
@@ -814,6 +967,7 @@ function hud() {
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  navTick(dt);
   if (G) {
     if (G.mode === 'play') update(dt);
     if (G.mode === 'levelup') G.inputLock -= dt;
@@ -824,6 +978,7 @@ function loop(now) {
 showWorlds();
 requestAnimationFrame(loop);
 window.__G = () => G;   // 디버그
+window.__nav = () => ({scr: nav.scr, r: nav.r, cs: nav.cs.slice(), el: nav.el && (nav.el.id || nav.el.innerText.split('\n')[0])});
 window.__sim = sec => { for (let i = 0; i < sec * 60 && G.mode === 'play'; i++) update(1 / 60); return G.mode; };
 </script>
 </body>
