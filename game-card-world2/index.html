@@ -1097,24 +1097,11 @@
   .dungeon .dg-t{font-size:calc(var(--cw) * .28);font-weight:900;color:var(--ink);}
   .dungeon .dg-s{font-size:calc(var(--cw) * .17);color:var(--muted);line-height:1.6;max-width:26em;}
   /* v0.96.0: 필드(1:1 네모) 안에 붙는다. 예전엔 body 바로 밑이라 가로 화면에서 UI 뒤로 숨었음 */
-  .trow{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:3px 0;font-size:12px;}   /* v2.8.1: 재료 이름이 길면 줄바꿈 */
-  .trow .tpad{flex:none;color:var(--muted);opacity:.55;white-space:pre;font-variant-numeric:tabular-nums;}
-  .trow .tname{font-weight:800;white-space:nowrap;}
-  .trow.plan .tname{color:var(--muted);}
-  .trow .tmake{color:var(--muted);flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;}   /* v2.8.1: 재료 이름을 … 로 자르지 않음 */
-  .trow .tchips{display:flex;flex:none;gap:3px;flex-wrap:wrap;margin-left:auto;}
-  .trow .tchip{font-size:10px;padding:1px 6px;border-radius:var(--r-pill);border:1px solid var(--hairline);color:var(--muted);}
-  .trow .tchip.atk{border-color:rgba(255,212,0,.45);color:#ffe08a;}
-  .trow .tchip.plan{border-style:dashed;}
   /* v2.9.1: 상태 한 벌 — 보유(초록) · 지금 가능(노랑) · 모자람(흐림) · 못 봄(점선) */
   .tchip.have{border-color:rgba(120,220,140,.45);color:#9fe0ad;}
   .tchip.can{border-color:rgba(255,212,0,.55);color:var(--brand-yellow);background:rgba(255,212,0,.08);}
   .tchip.lack{color:var(--muted);}
   .tchip.unk{border-style:dotted;color:var(--muted);}
-  .trow.st-unknown .tname{opacity:.55;}
-  .rcp-line[data-totree], .combo-row[data-totree]{cursor:pointer;}
-  .trow[data-tnode]{cursor:pointer;}
-  .book-row.treepicks{flex-wrap:wrap;gap:4px;}
   /* v3.0.0: 🎯 목표 */
   .aim-plan{margin:6px 10px 0;padding:8px 10px;border:1px solid var(--hairline);border-radius:var(--r-md);background:rgba(255,255,255,.03);}
   .aim-t{font-size:12px;color:var(--muted);margin-bottom:4px;}
@@ -1134,10 +1121,6 @@
   .cw.aim-can{box-shadow:0 0 0 1px rgba(255,212,0,.5);}          /* v3.0.7: 지금 만들 수 있는 것만 살짝 빛남 */
   .cw.unseen .name{color:var(--muted);}
   .cw.unseen .emoji .icon, .cw.unseen .emoji img{filter:brightness(0) opacity(.45);}   /* v9.37.0: 못 본 것은 검은 실루엣 (목표의 ??? 후보) */
-  .tpin{background:none;border:0;padding:0 4px 0 0;font-size:12px;opacity:.28;cursor:pointer;line-height:1;}
-  .tpin:hover{opacity:.7;}
-  .tpin.on{opacity:1;filter:drop-shadow(0 0 4px rgba(255,212,0,.8));}
-  .trow.tflash{background:rgba(255,212,0,.18);}
   .rcp-line.now{border-left:2px solid var(--brand-yellow);padding-left:6px;background:rgba(255,212,0,.06);}
   .combo-row.now{background:rgba(255,212,0,.1);}
   .tnote{font-size:11px;color:var(--muted);margin:2px 0 10px;line-height:1.5;}
@@ -2474,26 +2457,12 @@ function stateChip(t){
   return '';
 }
 const recipeNow = x => sideHave(x.a) && sideHave(x.b);            // 지금 두 재료가 다 있는 조합
-// v2.9.2: 세 화면을 오갈 수 있게 — 조합 줄 → 그 결과가 실린 🌳 트리, 트리 줄 → 인스펙터
-function treeOf(t){                                               // 그 카드가 어느 트리에 실려 있나
-  for (const id in TREES)
-    if (TREES[id].branches.some(b => b.nodes.some(n => n.id === t))) return id;
-  return null;
-}
-const treeAttr = x => {
-  const t = (x.out || []).find(o => treeOf(o));
-  return t ? ` data-totree="${t}" title="🌳 트리에서 보기"` : '';
-};
-function openTreeAt(t){                                           // v3.4.0: 콜렉터북 🌳 길 탭의 그 줄로
-  const id = treeOf(t);
-  if (id) openBookTree(id, t);
-}
 // ── 공용 도우미 ───────────────────────────────────────
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
 
 // ── 크래프팅 탭 (world2 v0.1.0) ───────────────────────
-const VERSION = 'v11.35.1';
+const VERSION = 'v11.35.2';
 const SAVE_KEY = 'card-world2.v1';                              // 레거시(card-world-rpg.v1)와 따로
 // 크래프팅 탭에 올라오는 카드 = 단계가 있는 카드 (v0.3.0: 1단계 12장)
 const craftable = t => !!DEFS[t] && !!DEFS[t].step;
@@ -2533,8 +2502,6 @@ inspEl.addEventListener('click', e => {                           // v1.1.0: 조
   if (goalJumpClick(e)) return;                                   // v5.4.0: 목표 차례의 장소 · 재료
   const j = e.target.closest('[data-jump]');
   if (j) return jumpTo(j.dataset.jump);
-  const tr = e.target.closest('[data-totree]');                   // v2.9.2: 조합 줄 → 🌳 트리
-  if (tr) openTreeAt(tr.dataset.totree);
 });
 let CW = 70, CH = 95;
 // v0.17.0: 필드 고갈 없앰 — 몇 번이든 원정을 보낼 수 있음 (잠금만 남음)
@@ -5188,8 +5155,6 @@ const bookEl = document.getElementById('book');
 let bookTier = 'mat';                                             // v4.1.0 · v7.4.0                                            // v2.2.0: 콜렉터북 탭 = 게임 탭 (조합 · 무기 · 갑옷) + 조합법 + 흔적
 const COMBO_TAB = 'combo';                                        // v0.46.0: 콜렉터북의 조합 탭 (v2.2.0: 이름 '조합법')
 const TRACE_TAB = 'trace';                                        // v2.2.0: 흔적
-const TREE_TAB = 'tree';                                          // v2.9.4: 🌳 길 — 트리를 콜렉터북 안에서도 (🌳 버튼은 도구·무기 탭에만 있어 못 찾던 것)
-let bookTree = 'weapon';
 // v3.7.0: 콜렉터북 탭 = 🗂 카드(전부, 단계로 나눔) · ⚔️ 무기(무기만) · 🛡 갑옷(몸에 걸치는 것만)
 //   무기 · 갑옷 탭에서 **재료는 빼고** 완성품만 보인다. 재료는 카드 탭에서 단계별로 본다
 // v4.1.0: 콜렉터북 큰 갈래 다섯 — 필드 · 던전 · 조합 · 무기 · 갑옷
@@ -5425,249 +5390,7 @@ function clearNew(key){
 }
 // v3.3.2: 카드를 고르면 **인스펙터**가 바뀐다 — 책 위 한 줄에 정보를 겹쳐 쓰지 않음
 // v7.15.0: '슬리브를 탭하면 …' 안내는 없앰 (한 번 보면 그만인 말 — 자리만 먹었다)
-// ── 무기 트리 · 도구 트리 (v0.80.0, 전부 가상 계획) ─────────────────
-// 규칙 ① 조합식은 늘 `이전 것 + 새 재료 = 다음 것` — 쓰던 걸 버리지 않고 덧댄다
-//      ② 큰 갈래가 그 물건의 **성격**을 정하고, 그 성격은 가지 끝까지 간다
-//      ③ 갈래가 또 나뉘면 성격 위에 **세부 특징이 하나씩 쌓인다**
-//      ④ 뿌리는 여럿이다 (모두 뗀석기에서 시작하지 않는다)
-// `id`가 있으면 지금 게임에 있는 카드, 없으면 아직 계획뿐인 것
-const TREES = {
-  // v1.3.0: **부품 기준**으로 다시 짬 — 무기 = 날 부품 + 자루 부품, 강화 = 무기 + 새 부품
-  //   맨 위 '부품' 묶음에 무기에 들어가는 부품을 모아 두고, 갈래마다 조립 순서를 보인다
-  weapon: { name:'무기 트리', icon:'⚔️', note:'무기는 날과 자루를 조립해 만들고, 만든 무기에 부품을 하나씩 더 달아 강해진다. 근접이든 원거리든 ⚔️ 무기 탭에서 만들지만 기사는 근접무기만 든다. 부품은 🔨 조합 탭에서. 회색은 아직 없는 것.', branches: [
-    { name:'🔩 부품', kind:'날 · 자루 · 줄', nodes: [
-      { d:0, id:'blade',       role:'날' },
-      { d:0, id:'smalltooth',  role:'날' },
-      { d:0, id:'fang',        role:'창날' },
-      { d:0, id:'firewood',    role:'짧은 자루' },
-      { d:0, id:'longhandle',   role:'긴 자루' },
-      { d:0, name:'뼈 손잡이',   make:'가벼운 자루 — 뼈 + 뗀석기' },
-      { d:0, name:'흑요석 날',   make:'날 — 흑요석 + 뗀석기' },
-      { d:0, name:'활대',        make:'줄 — 나무 자루 + 뗀석기' },
-      { d:0, name:'시위',        make:'줄 — 섬유끈 + 수액' },
-      { d:0, name:'구리 원석',   make:'광석 + 석탄 — 광석이 나오는 곳이 아직 없어 길이 막혀 있음' },
-    ] },
-    { name:'🗡 날붙이', kind:'베기 · 짧은 자루', nodes: [
-      { d:0, id:'stoneknife' },
-      { d:1, id:'handaxe',   tags:['묵직'] },
-      { d:2, name:'전투 도끼',   make:'손도끼 + 흑요석 날',      atk:4, tags:['묵직','방어 무시'] },
-      { d:1, name:'뼈자루 단검', make:'이빨 단검 + 뼈 손잡이',   atk:3, tags:['예리','가벼움'] },
-      { d:1, name:'흑요석 칼',   make:'이빨 단검 + 흑요석 날',   atk:4, tags:['예리','출혈'] },
-    ] },
-    { name:'🔱 자루', kind:'찌르기 · 긴 자루', nodes: [
-      { d:2, name:'삼지창',      make:'긴 창 + 송곳니',  atk:6, tags:['방어 무시','연타'] },
-      { d:1, name:'투창',        make:'송곳니 창 + 깃털',        atk:4, tags:['던지기','선제'] },
-    ] },
-    { name:'🏹 줄', kind:'원거리무기 · 기사는 못 씀', nodes: [
-      { d:0, name:'사냥활',      make:'활대 + 시위',            atk:3, tags:['원거리','선제'] },
-      { d:1, name:'뼈살 활',     make:'사냥활 + 작은 이빨',      atk:4, tags:['원거리','방어 무시'] },
-      { d:1, name:'흑요석 살 활', make:'사냥활 + 흑요석 날',      atk:5, tags:['원거리','출혈'] },
-    ] },
-    { name:'🦴 뼈', kind:'때리기 · 묵직함', nodes: [
-      { d:0, name:'뼈 몽둥이',   make:'뼈 + 나무 손잡이',        atk:2, tags:['묵직'] },
-      { d:1, name:'가시 몽둥이', make:'뼈 몽둥이 + 작은 이빨',   atk:3, tags:['묵직','출혈'] },
-    ] },
-  ] },
-  // v1.6.0: **부품 기준**으로 다시 짬 — 도구 = 몸 부품 + 쓰임 부품, 강화 = 도구 + 새 부품
-  tool: { name:'도구 트리', icon:'🔨', note:'도구는 몸이 되는 부품에 쓰임을 정하는 부품을 붙여 만들고, 만든 도구에 부품을 더해 나아간다. 부품은 🔨 조합 탭에서 만든다 — 숫돌처럼 만든 연장이 다시 부품(미늘)이 되고, 그걸로 ⚔️ 무기 탭에서 작살을 만든다. 회색은 아직 없는 것.', branches: [
-    { name:'🔩 부품', kind:'판 · 줄 · 불 · 담기 · 연장', nodes: [
-      { d:0, id:'blade',      role:'손질 연장', tags:['날붙이'] },
-      { d:0, id:'plank',      role:'판' },
-      { d:0, id:'cord',       role:'줄' },
-      { d:0, id:'ember',      role:'불' },
-      { d:0, id:'hide',       role:'주머니감' },
-      { d:0, id:'smalltooth', role:'걸이' },
-      { d:0, id:'sand',       role:'연마재' },
-      { d:0, id:'fang',       role:'갈고리 날감' },
-      { d:0, name:'흑요석 날',  make:'톱날 — 흑요석 + 뗀석기' },
-    ] },
-    { name:'🔨 다듬기 · 갈기', kind:'판 + 손질 · 연마 → 작살', nodes: [
-      { d:0, id:'workbench' },
-      { d:1, name:'톱',        make:'작업대 + 흑요석 날',   tags:['정밀'] },
-      { d:0, id:'whetstone',           tags:['연마'] },
-      { d:1, name:'가는 숫돌', make:'숫돌 + 무른 가죽', tags:['연마+'] },
-    ] },
-    { name:'🔥 불', kind:'불씨 + 나무', nodes: [
-      { d:1, name:'화덕',      make:'모닥불 + 점토',      tags:['요리'] },
-      { d:2, name:'가마',      make:'화덕 + 돌',          tags:['굽기'] },
-    ] },
-    { name:'🪢 줄', kind:'걸이 + 줄', nodes: [
-      { d:0, id:'fishhook' },
-      { d:1, name:'낚싯대',    make:'낚싯바늘 + 나무 손잡이',  tags:['낚시'] },
-      { d:2, name:'그물',      make:'낚싯대 + 섬유끈',    tags:['한꺼번에'] },
-    ] },
-    { name:'🎒 담기', kind:'주머니감 + 끈', nodes: [
-      { d:0, id:'pouch' },
-      { d:1, name:'등짐',      make:'가죽 주머니 + 억센 가죽', tags:['많이'] },
-    ] },
-  ] } };
-const dungeonEl = document.getElementById('dungeon');             // v0.91.0
-dungeonEl.innerHTML = '<div class="dg-t">🏚 던전</div>'
-  + '<div class="dg-s">아직 들어갈 수 있는 던전이 없다.<br>'
-  + '던전의 주인은 <b>수치로는 넘을 수 없는 장치</b>를 하나씩 가지고 있다 — 맞는 <b>성격</b>의 장비를 갖춰야 한다.<br>'
-  + '오른쪽 위 <b>🌳 던전 트리</b>에 무엇이 기다리는지 적어 두었다.</div>';
-// 필드 트리 · 던전 트리 (v0.91.0) — 확정 55: 필드는 수치로, 던전은 기믹으로 막는다
-// v1.8.0: **부품 기준**으로 다시 짬 — 필드마다 '여기서 얻는 것 → 그걸로 만드는 부품'과 관문
-//   필드는 수치로 막는다(확정 55). 부품이 어느 땅에서 나오는지가 곧 어디까지 갈 수 있는지다
-TREES.battle = { name:'필드 트리', icon:'🗡️',
-  note:'필드마다 줍는 것과 떨어지는 것, 그걸로 만드는 부품, 그리고 넘어야 할 적. 필드는 수치로 막는다 — 세지기만 하면 깬다.', branches: [
-  { field:'mountain', name:'⛰️ 산', kind:'첫 땅 · 열려 있음', nodes: [
-    { d:0, name:'🧺 줍는 것',    make:'돌 · 부싯돌 · 석탄 · 나무', on:true },
-    { d:1, id:'blade',          role:'날' },
-    { d:1, id:'firewood',       role:'짧은 자루' },
-    { d:1, id:'ember',          role:'불' },
-    { d:1, id:'plank',          role:'판' },
-    { d:2, id:'shieldboard',    role:'방패 몸' },
-    { d:0, name:'🐾 떨어지는 것', make:'토끼 · 늑대 · 곰', on:true },
-    { d:1, id:'smalltooth',     role:'날 · 걸이' },
-    { d:1, id:'hide',           role:'안감 · 주머니감' },
-    { d:1, id:'toughhide',      role:'덧댐' },
-    { d:2, id:'curedleather',   role:'겉감' },
-    { d:1, id:'fang',           role:'창날' },
-    { d:1, id:'bearclaw',       note:'쓰임은 아직' },
-    { d:0, name:'⚔ 늑대',       make:'중간보스 체6 · 공2', on:true, tags:['뗀석기 도끼부터'] },
-    { d:0, name:'👑 곰',         make:'필드보스 체9 · 공3 → 🌾 초원이 열림', on:true, tags:['이빨 단검부터'] },
-    { d:0, name:'🛠 여기서 다 되는 것', make:'뗀석기 도끼 · 이빨 단검 · 송곳니 창 · 가죽 갑옷 · 나무 방패 · 작업대 · 모닥불', on:true },
-  ] },
-  { field:'grassland', name:'🌾 초원', kind:'두 번째 땅 · 답: 방어(갑옷)', nodes: [
-    { d:0, name:'🧺 줍는 것',    make:'풀 · 씨앗 · 벌집 · 깃털', on:true },
-    { d:1, id:'cord',           role:'줄' },
-    { d:2, id:'longhandle',     role:'긴 자루' },
-    { d:1, id:'feather',        role:'🔑 던지기', note:'그대로 부품' },
-    { d:0, name:'🐾 떨어지는 것', make:'들개 · 멧돼지 · 들소', on:true },
-    { d:1, id:'toughhide',      role:'덧댐 · 겉감' },
-    { d:1, id:'fang',           role:'창날' },
-    { d:1, id:'bisonhorn',      note:'쓰임은 아직' },
-    { d:1, id:'hide',           role:'안감' },
-    { d:0, name:'⚔ 멧돼지',     make:'중간보스 체10 · 공3', on:true, tags:['손도끼부터'] },
-    { d:0, name:'👑 들소',       make:'필드보스 체14 · 공4 · 방1 → 🌲 숲이 열림', on:true, tags:['5레벨 + 갑옷'] },
-    { d:0, name:'🛠 새로 되는 것', make:'손도끼 · 가죽 주머니 · 낚싯바늘 — 섬유끈이 풀려서', on:true },
-    { d:0, name:'진행',          make:'약 7판 · 클리어 5레벨 (갑옷 칸이 열리는 때와 맞춤)', on:true },
-  ] },
-  { field:'forest', name:'🌲 숲', kind:'세 번째 땅 · 답: 막기(방패)', nodes: [
-    { d:0, name:'🧺 줍는 것',    make:'나무 · 열매 · 수액 · 약초', on:true },
-    { d:1, id:'sap',            role:'붙이기', note:'그대로 부품' },
-    { d:2, id:'shieldrim',      role:'테두리' },
-    { d:0, name:'🐾 떨어지는 것', make:'여우 · 늑대 두목 · 숲곰', on:true },
-    { d:1, id:'fang',           role:'창날' },
-    { d:1, id:'hide',           role:'안감' },
-    { d:1, id:'toughhide',      role:'덧댐' },
-    { d:1, id:'mosspelt',       note:'쓰임은 아직' },
-    { d:0, name:'⚔ 늑대 두목',  make:'중간보스 체22 · 공4 · 방1', on:true, tags:['긴 창부터'] },
-    { d:0, name:'👑 숲곰',       make:'필드보스 체30 · 공6 · 방2 → 🏞️ 강가가 열림', on:true, tags:['10레벨 + 방패'] },
-    { d:0, name:'🛠 새로 되는 것', make:'긴 창 · 테 방패', on:true },
-    { d:0, name:'진행',          make:'약 9판 · 클리어 10레벨 (방패 칸이 열리는 때와 맞춤)', on:true },
-  ] },
-  { field:'riverside', name:'🏞️ 강가', kind:'네 번째 땅 · 답: 장신구', nodes: [
-    { d:0, name:'🧺 줍는 것',    make:'물 · 흙 · 모래 · 물고기', on:true },
-    { d:1, id:'sand',           role:'연마재' },
-    { d:1, id:'clay' },
-    { d:2, id:'claybead',       role:'꾸밈' },
-    { d:0, name:'🐾 떨어지는 것', make:'가재 · 악어 · 큰 메기', on:true },
-    { d:1, id:'fillet' },
-    { d:1, id:'toughhide' },
-    { d:1, id:'fang',           role:'창날' },
-    { d:1, id:'catfishwhisker', note:'쓰임은 아직' },
-    { d:0, name:'⚔ 악어',       make:'중간보스 체44 · 공7 · 방3', on:true, tags:['작살부터'] },
-    { d:0, name:'👑 큰 메기',    make:'필드보스 체60 · 공9 · 방3', on:true, tags:['15레벨 + 장신구'] },
-    { d:0, name:'🛠 새로 되는 것', make:'작살 · 흙 목걸이 · 숫돌 · 점토 · 생선살', on:true },
-    { d:0, name:'진행',          make:'약 10판 · 클리어 15레벨 (장신구 칸이 열리는 때와 맞춤)', on:true },
-  ] },
-  { name:'정할 것', kind:'미정', nodes: [
-    { d:0, name:'보스 전리품',    make:'곰의 발톱 · 들소 뿔 · 이끼 가죽 · 메기 수염 — 어디에 쓸지' },
-    { d:0, name:'흑요석',        make:'어느 땅에서 나올지 — 흑요석 날이 던전 열쇠 둘을 맡음' },
-  ] },
-] };
-// v1.7.0: **부품 기준**으로 다시 짬 — 던전 보스의 기믹 → 그걸 푸는 무기 → 그 무기에 성격을 주는 **열쇠 부품**
-//   이 트리는 아래로 갈수록 '무엇이 필요한가'를 따라 내려간다 (무기 · 갑옷 · 도구 트리의 '무엇으로 만드는가'와 반대 방향)
-TREES.dungeon = { name:'던전 트리', icon:'🏚',
-  note:'던전은 기믹으로 막는다 — 아무리 노가다를 해도 안 뚫린다. 보스 아래에 그걸 푸는 무기, 그 아래에 무기에 성격을 주는 열쇠 부품. 🪨 돌가죽 굴은 만들어졌고 나머지는 계획.', branches: [
-  { name:'🔑 열쇠 부품', kind:'성격을 주는 부품', nodes: [
-    { d:0, name:'흑요석 날',  make:'방어 무시 · 출혈 — 흑요석 + 뗀석기', tags:['돌가죽 굴','늪지 무덤'] },
-    { d:0, id:'fang',        role:'방어 무시',               tags:['껍질 동굴'] },
-    { d:0, name:'나무 자루',  make:'긴 자루 — 나무 손잡이 + 섬유끈',          tags:['껍질 동굴'] },
-    { d:0, name:'활대 · 시위', make:'원거리 — 나무 자루 + 뗀석기 / 섬유끈 + 수액', tags:['거미 둥지'] },
-    { d:0, id:'feather',     role:'던지기',                   tags:['거미 둥지'] },
-  ] },
-  { field:'stonehide', name:'🪨 돌가죽 굴', kind:'첫 던전 · 방어가 무지막지', nodes: [
-    { d:0, name:'돌벌레',      make:'체6 · 공4 · 방4 — 흑요석을 떨굼', on:true },
-    { d:0, name:'⚔ 바위 등껍질', make:'체16 · 공8 · 방9', on:true },
-    { d:0, name:'👑 돌가죽 주인', make:'체30 · 공10 · 방11 — 방어 무시가 없으면 한 대에 1', on:true, tags:['해법: 방어 무시'] },
-    { d:1, id:'battleaxe',     role:'해법',  tags:['방어 무시'] },
-    { d:2, id:'obsidianblade', role:'🔑 열쇠' },
-    { d:3, id:'obsidian',      role:'굴 안에서만' },
-  ] },
-  { field:'spidernest', name:'🕸 거미 둥지', kind:'셋째 던전 · 가까이 가면 반격', nodes: [
-    { d:0, name:'거미',        make:'체12 · 공5 · 방2 — 되받음 2', on:true },
-    { d:0, name:'⚔ 거미 어미',  make:'체20 · 공7 · 방3 — 되받음 4', on:true },
-    { d:0, name:'👑 둥지 주인',  make:'체34 · 공9 · 방4 — 되받음 8', on:true, tags:['해법: 원거리'] },
-    { d:1, name:'사냥활',      make:'활대 + 시위',          tags:['원거리'] },
-    { d:2, name:'🔑 활대 · 시위', make:'나무 자루 + 뗀석기 / 섬유끈 + 수액' },
-    { d:1, name:'투창',        make:'송곳니 창 + 깃털',      tags:['던지기'] },
-    { d:2, id:'feather' },
-  ] },
-  { field:'swamptomb', name:'🍄 늪지 무덤', kind:'둘째 던전 · 계속 회복', nodes: [
-    { d:0, name:'이끼 두꺼비',  make:'체12 · 공6 · 방2 — 박자마다 1 회복', on:true },
-    { d:0, name:'⚔ 수렁 팔',    make:'체20 · 공9 · 방4 — 박자마다 3 회복', on:true },
-    { d:0, name:'👑 무덤 주인',  make:'체30 · 공10 · 방3 — 박자마다 10 회복', on:true, tags:['해법: 출혈'] },
-    { d:1, id:'obsidianknife', role:'해법', tags:['출혈'] },
-    { d:2, id:'obsidianblade', role:'🔑 열쇠' },
-  ] },
-  { field:'shellcave', name:'🐚 껍질 동굴', kind:'넷째 던전 · 단단한 껍질', nodes: [
-    { d:0, name:'소라게',      make:'체14 · 공6 · 방3 — 껍질 3', on:true },
-    { d:0, name:'⚔ 큰 집게',    make:'체22 · 공8 · 방4 — 껍질 6', on:true },
-    { d:0, name:'👑 동굴 주인',  make:'체34 · 공10 · 방5 — 껍질 14 (한 대에 한 겹)', on:true, tags:['해법: 빠른 공속'] },
-    { d:1, name:'삼지창',      make:'긴 창 + 송곳니', tags:['방어 무시','연타'] },
-    { d:2, id:'fang' },
-    { d:2, name:'🔑 나무 자루', make:'나무 손잡이 + 섬유끈 (긴 창을 만들 때)' },
-  ] },
-  { name:'정할 것', kind:'미정', nodes: [
-    { d:0, name:'흑요석',      make:'어디서 나올지 — 흑요석 날이 열쇠 둘을 맡음' },
-    { d:0, name:'전투 규칙',   make:'지금은 피해 = 공격 − 방어 한 줄뿐 — 성격이 실제로 듣게 하려면 규칙이 붙어야 함' },
-    { d:0, name:'가장 싼 시작', make:"'방어 무시' 하나만 넣고 첫 던전 보스를 방어 5로 세우기" },
-    { d:0, name:'그 밖',       make:'던전 수 · 층 구조 · 실패했을 때 무엇을 알려 줄지 · 전리품' },
-  ] },
-] };
-// v1.5.0: **부품 기준**으로 다시 짬 — 갑옷 = 겉감 + 안감, 방패 = 방패 몸 + 덧댐, 강화 = 만든 것 + 새 부품
-TREES.armor = { name:'갑옷 트리', icon:'🛡',
-  note:'갑옷은 겉감과 안감, 방패는 방패 몸과 덧댐을 조립해 만들고, 만든 것에 부품을 하나씩 더해 단단해진다. 부품은 🔨 조합 탭에서 만든다. 회색은 아직 없는 것.', branches: [
-  { name:'🔩 부품', kind:'겉감 · 안감 · 방패 몸 · 덧댐', nodes: [
-    { d:0, id:'curedleather', role:'겉감' },
-    { d:0, id:'hide',         role:'안감' },
-    { d:0, id:'shieldboard',  role:'방패 몸' },
-    { d:0, id:'toughhide',    role:'덧댐' },
-    { d:0, id:'claybead',     role:'꾸밈' },
-    { d:0, name:'면 직물',     make:'안감 — 풀 + 섬유끈' },
-    { d:0, name:'뼈 비늘',     make:'덧댐 — 뼈 + 뗀석기' },
-    { d:0, id:'shieldrim',     role:'테두리' },
-  ] },
-  { name:'🧥 가죽옷', kind:'겉감 + 안감', nodes: [
-    { d:0, id:'leatherarmor' },
-    { d:1, name:'덧댄 갑옷',   make:'가죽 갑옷 + 손질된 가죽', tags:['방어 +2','묵직'] },
-    { d:2, name:'비늘 갑옷',   make:'덧댄 갑옷 + 뼈 비늘',     tags:['방어 +3','단단'] },
-    { d:1, name:'누빈 갑옷',   make:'가죽 갑옷 + 면 직물',     tags:['방어 +2','가벼움'] },
-  ] },
-  { name:'🛡 방패', kind:'방패 몸 + 덧댐', nodes: [
-    { d:0, id:'woodshield' },
-    { d:1, id:'rimshield' },
-    { d:2, name:'큰 방패',     make:'테 방패 + 방패판',    tags:['방어 +3','묵직'] },
-    { d:1, name:'가벼운 방패', make:'나무 방패 + 면 직물',      tags:['방어 +1','가벼움','선제'] },
-  ] },
-  { name:'📿 장신구', kind:'꾸밈 + 끈', nodes: [
-    { d:0, id:'claynecklace' },
-  ] },
-  { name:'🦴 뼈', kind:'단단함', nodes: [
-    { d:0, name:'뼈 흉갑',     make:'뼈 비늘 + 무른 가죽', tags:['방어 +1','묵직'] },
-    { d:1, name:'뼈 갑주',     make:'뼈 흉갑 + 손질된 가죽',   tags:['방어 +3','묵직'] },
-  ] },
-  { name:'정할 것', kind:'미정', nodes: [
-    { d:0, name:'갑옷 칸',     make:'5레벨에 열림 — 그 전에 만들어 두기만 함', on:true },
-    { d:0, name:'방패 칸',     make:'10레벨에 열림', on:true },
-    { d:0, name:'장신구 칸',   make:'15레벨에 열림 — 장신구도 갑옷 탭에서 만듦', on:true },
-    { d:0, name:'성격',        make:'가벼움 · 묵직 · 선제가 실제로 무엇을 바꾸는지 미정' },
-    { d:0, name:'손질lv2',     make:'더 좋은 연장이 있어야 만들 수 있는 단계를 둘지' },
-  ] },
-] };
+const dungeonEl = document.getElementById('dungeon');             // v0.91.0 (v4.0.0 부터 늘 숨김 — 안내판 글은 v11.35.2 에 트리와 함께 뺌)
 const sideLabel = sd => sd.card ? (DEFS[sd.card] ? DEFS[sd.card].name : sd.card)
   : `🏷️ ${sd.use || sd.tag || ''}`;
 // v9.70.0: 크리처가 **사는 땅** — 들머리는 뺀다 (튜토리얼이 끝나면 사라지는 땅이라, 거기 사는 굶주린 들개는
@@ -5694,53 +5417,6 @@ function dropHtml(t){                                             // 떨구는 �
     .join('<span class="i-muted"> · </span>') + (hit.length > 3 ? ' …' : '');
 }
 const gatherHtml = t => gatherFields(t).map(landBtn).join(' · ');  // 줍는 땅 단추
-function autoMake(t, field){
-  if (!DEFS[t]) return null;
-  const drop = dropText(t, field);
-  if (field && drop) return drop;                                 // 필드 트리에선 그 땅에서 나오는 길이 먼저
-  const rs = RECIPES.filter(x => (x.out || []).includes(t));
-  if (rs.length) return rs.slice(0, 2).map(x => `${sideLabel(x.a)} + ${sideLabel(x.b)}`).join(' 또는 ');
-  if (drop) return drop;
-  const where = gatherText(t);
-  return where ? `${where}에서 주움` : null;
-}
-function treeRowHtml(n, ctx){
-  const d = n.id ? DEFS[n.id] : null;
-  const on = !!d || n.on;                                         // v0.91.0: 카드가 아닌 것(필드·적)도 '있음'으로 칠 수 있게
-  const name = d ? d.name : n.name;
-  const atk = d ? d.atk : n.atk;
-  const auto = n.id ? autoMake(n.id, ctx && ctx.field) : null;    // v2.9.0
-  const make = auto ? (n.role ? `${n.role} — ${auto}` : auto) + (n.note ? ` · ${n.note}` : '')
-    : (n.make || n.note || '');
-  const pad = n.d ? '   '.repeat(n.d - 1) + '└ ' : '';
-  const st = d ? cardState(n.id) : '';                             // v2.9.1: 같은 상태 표기
-  const chips = (d ? [stateChip(n.id)].filter(Boolean) : [])
-    .concat(atk ? [`<span class="tchip atk">${statImg('atk')}${atk}</span>`] : [])
-    .concat((n.tags || []).map(x => `<span class="tchip">${esc(x)}</span>`))
-    .concat(on ? [] : ['<span class="tchip plan">아직 없음</span>']);
-  const pin = d && CRAFT_RECIPES.some(x => (x.out || []).includes(n.id))   // v2.9.3: 만들 수 있는 것만 목표로 찍을 수 있음
-    ? `<button class="tpin${S.goal === n.id ? ' on' : ''}" data-pin="${n.id}" title="목표로 찍기">📌</button>` : '';
-  return `<div class="trow${on ? '' : ' plan'}${st ? ' st-' + st : ''}"${d ? ` data-tnode="${n.id}"` : ''}>`
-    + pin
-    + `<span class="tpad">${pad}</span>`
-    + (d ? `<span class="tname">${iconHtml(n.id, true)} ${esc(name)}</span>` : `<span class="tname">${esc(name)}</span>`)
-    + `<span class="tmake">${esc(make)}</span><span class="tchips">${chips.join('')}</span></div>`;
-}
-// v3.4.0: 🌳 트리 팝업 없앰 — 콜렉터북의 '🌳 길' 탭이 같은 내용을 보여 준다
-//   🌳 단추는 그 탭으로 데려다 주는 지름길
-// v3.12.1: 🌳 트리 단추 삭제 — 트리는 📖 콜렉터북의 '🌳 길' 탭에서만 본다
-function renderTreeBtn(){}
-// 콜렉터북 🌳 길 탭 열기 (필요하면 그 줄로 스크롤 + 잠깐 밝힘)
-function openBookTree(treeId, node){
-  bookTier = TREE_TAB;
-  bookTree = treeId || bookTree;
-  setTab('book');
-  if (!node) return;
-  setTimeout(() => {
-    const el = bookEl.querySelector(`[data-tnode="${node}"]`);
-    if (el){ el.scrollIntoView({ block:'center' }); flash(el, 'tflash', 1200); }
-  }, 40);
-}
 // v0.46.0: 조합 탭.
 // v0.59.0: 가리는 단위를 **재료 한 장씩**으로 바꿈 — 발견한 재료는 이름이 보이고 못 찾은 재료만 ???.
 //   결과는 **그 조합을 해 보기 전까지 늘 ???**. 그래서 재료를 다 모으면 `재료 + 재료 = ???`가 되어
@@ -5764,7 +5440,7 @@ function comboRowHtml(r){
   const on = comboDone(r);
   const now = recipeNow(r);                                       // v2.9.1: 지금 두 재료가 다 있음
   const where = `<span class="combo-where">${recipeBoards(r).map(boardLabel).join(' · ')}에서</span>`;
-  return `<div class="combo-row${now ? ' now' : ''}${on ? '' : comboReady(r) ? ' ready' : ' locked'}"${treeAttr(r)}>`
+  return `<div class="combo-row${now ? ' now' : ''}${on ? '' : comboReady(r) ? ' ready' : ' locked'}">`
     + `${rcpLine(r, false)}${where}${now ? '<span class="tchip can">지금 가능</span>' : ''}</div>`;   // v0.63.0: 인스펙터와 같은 표기
 }
 // 재료를 둘 다 알고 있는데 아직 안 해 본 조합
@@ -5782,31 +5458,28 @@ function renderCombos(){
 }
 function renderBook(){
   if (!bookOpen) return;
-  const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB, isTree = bookTier === TREE_TAB;
-  const inTab = isCombo || isTrace || isTree ? [] : bookCardsOf(bookTier);
+  if (bookTier === 'tree') bookTier = 'mat';                    // v11.35.2: 🌳 길 탭 없앰
+  const isCombo = bookTier === COMBO_TAB, isTrace = bookTier === TRACE_TAB;
+  const inTab = isCombo || isTrace ? [] : bookCardsOf(bookTier);
   const combos = isCombo ? renderCombos() : null;
   const isHero = bookTier === 'hero';                             // v9.25.0
   const found = isCombo ? combos.done : isTrace ? (S.traces || []).length
     : isHero ? HEROES_ALL.filter(k => k !== 'ally' || allyIn()).length + peopleFound() : inTab.filter(shownSeen).length;   // v9.56.0: 여관 사람들도 센다
   const total = isCombo ? combos.total : isTrace ? TRACES.length
     : isHero ? HEROES_ALL.length + BOOK_PEOPLE().length : inTab.length;
-  const tre = isTree ? (TREES[bookTree] || TREES.weapon) : null;
   let h = '<div class="book-grip"></div><div class="book-head"><span class="book-title">📖 콜렉터북</span>'
     + '<div class="book-tabs">'
     + BOOK_BOARDS().map(b => `<button class="tabbtn${b.id === bookTier ? ' on' : ''}" data-btab="${b.id}">${bookBoardLabel(b)}</button>`).join('')
     + `<button class="tabbtn${isCombo ? ' on' : ''}" data-btab="${COMBO_TAB}">🧪 조합법</button>`
-    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-btab="${TRACE_TAB}">📜 흔적</button>`
-    + `<button class="tabbtn${isTree ? ' on' : ''}" data-btab="${TREE_TAB}">🌳 길</button></div>`
-    + `<span class="meta">${isTree ? '계획 — 아직 만들 수 없는 것이 섞여 있음' : `발견 ${found}/${total}`}</span></div>`
+    + `<button class="tabbtn${isTrace ? ' on' : ''}" data-btab="${TRACE_TAB}">📜 흔적</button></div>`   // v11.35.2: 🌳 길 탭 없앰
+    + `<span class="meta">발견 ${found}/${total}</span></div>`
     // v7.15.0: 설명 줄은 카드 갈래에선 없앰 — '슬리브를 탭하면…' 은 한 번 보면 그만인 말이었다.
     //   조합법 · 흔적 · 길 갈래만 그 갈래가 무엇인지 한 줄로 남긴다
-    + (isCombo || isTrace || isTree
+    + (isCombo || isTrace
       ? `<div class="book-detail">${isCombo ? '<span class="i-muted">해 본 조합만 보입니다. 새 조합은 재료를 끌 때 <b>새로운 발견!</b> 으로 알려 줍니다.</span>'
-        : isTrace ? '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'
-        : `<span class="i-muted">${esc(tre.note)}</span>`}</div>` : '')
+        : '<span class="i-muted">캐릭터의 이야기 조각. 무언가를 겪을 때마다 하나씩 드러납니다.</span>'}</div>` : '')
     + '<div class="book-body"><div class="book-inner">';
   if (isCombo) h += combos.html;
-  else if (isTree) h += treeBookHtml(tre);                        // v2.9.4
   else if (isTrace) h += traceBookHtml();
   else {
     // v7.4.0: 재료는 **나오는 곳 → 만드는 곳**, 완성품은 **쓰는 칸**. 카드는 한 자리에만 실린다
@@ -5885,14 +5558,6 @@ function renderBook(){
   fitFinTrees();                                                  // v9.136.0
   bookEl.querySelector('.book-body').scrollTop = keep;
 }
-// v2.9.4: 🌳 길 탭 — 위에 트리 고르는 줄, 아래는 트리 화면과 같은 줄(같은 함수라 늘 같은 내용)
-function treeBookHtml(t){
-  return '<div class="book-field"><div class="book-row treepicks">'
-    + Object.keys(TREES).map(id => `<button class="tabbtn${id === bookTree ? ' on' : ''}" data-treepick="${id}">${TREES[id].icon} ${esc(TREES[id].name.replace(' 트리', ''))}</button>`).join('')
-    + '</div></div>'
-    + t.branches.map(b => `<div class="book-field"><div class="book-fname">${esc(b.name)} <span class="i-muted">— ${esc(b.kind)}</span></div>`
-        + b.nodes.map(n => treeRowHtml(n, b)).join('') + '</div>').join('');
-}
 // v2.2.0: 흔적 탭 — 캐릭터마다 묶어서, 드러난 조각은 이름과 이야기, 아닌 건 ???
 function traceBookHtml(){
   // v9.83.0: 시나리오 카드 — 큰 그림. 탭하면 정보 칸에서 이야기를 읽는다
@@ -5917,32 +5582,6 @@ function traceBookHtml(){
   }
   return h;
 }
-bookEl.addEventListener('click', e => {                           // v2.9.2: 조합법 줄 → 🌳 트리
-  if (paused) return;
-  const pick = e.target.closest('[data-treepick]');               // v2.9.4: 길 탭에서 트리 고르기
-  if (pick){ bookTree = pick.dataset.treepick; return renderBook(); }
-  const p = e.target.closest('[data-pin]');                        // v2.9.4: 책 안에서도 목표 찍기
-  if (p){
-    S.goal = S.goal === p.dataset.pin ? null : p.dataset.pin;
-    toast(S.goal ? `🎯 목표 — ${DEFS[S.goal].name}` : '목표를 풀었다');
-    renderBook(); renderHint(); save();
-    return;
-  }
-  const row = e.target.closest('[data-tnode]');                   // 길 탭 줄 → 인스펙터
-  if (row){
-    openBook(false);
-    inspType = row.dataset.tnode; selected = null; heroPick = null; slotPick = null;
-    return renderInsp();
-  }
-  const tr = e.target.closest('[data-totree]');
-  if (!tr) return;
-  bookTier = TREE_TAB; bookTree = treeOf(tr.dataset.totree) || bookTree;   // v2.9.4: 책을 닫지 않고 길 탭으로
-  renderBook();
-  setTimeout(() => {
-    const el = bookEl.querySelector(`[data-tnode="${tr.dataset.totree}"]`);
-    if (el){ el.scrollIntoView({ block:'center' }); flash(el, 'tflash', 1200); }
-  }, 30);
-});
 // v3.3.0: 📖 콜렉터북은 **탭**이다 — 필드(1:1) 안에 그대로 펼쳐지고 팝업·뒷배경이 없다
 let lastTab = 'battle';                                           // 책에서 나올 때 돌아갈 탭
 function openBook(open){
@@ -8085,7 +7724,7 @@ function setTab(tab){
   fieldEl.classList.toggle('gear-tab', tab === 'gearup' || tab === 'party');   // v7.5.0: 정비도 같은 배치 · v10.6.0 편성도
   fieldEl.classList.toggle('list-tab', isFieldTab(tab) || tab === 'mix');   // v11.2.0: 목록이 화면을 끝까지 쓴다
   fieldEl.classList.toggle('inn-tab', tab === 'inn');             // v9.68.0: 여관은 두 묶음으로 줄을 내린다
-  renderScreen(); renderTopGrid(); renderTreeBtn();               // v0.80.0: 트리 버튼은 도구·무기에서만
+  renderScreen(); renderTopGrid();
   renderAll();                                                    // v0.20.0: 화면마다 보이는 카드가 다름
   if (!table.hidden) spreadCards();                               // v0.31.0: 카드 화면으로 오면 가운데에서 퍼짐
   renderGather(); renderInsp(); save();

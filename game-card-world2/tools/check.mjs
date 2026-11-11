@@ -120,9 +120,7 @@ try {
   vm.runInContext(`(function(){
     S.seen = CRAFT_TYPES.slice(0, 8); S.cards = [{ id:1, type:CRAFT_TYPES[0], n:2, x:0, y:0 }];
     bookOpen = true;
-    for (const t of BOOK_BOARDS().map(b => b.id).concat([COMBO_TAB, TRACE_TAB, TREE_TAB])){ bookTier = t; renderBook(); }
-    bookTier = TREE_TAB;
-    for (const id in TREES){ bookTree = id; renderBook(); }
+    for (const t of BOOK_BOARDS().map(b => b.id).concat([COMBO_TAB, TRACE_TAB])){ bookTier = t; renderBook(); }
     S.goal = CRAFT_TYPES.find(t => CRAFT_RECIPES.some(r => (r.out || []).includes(t))) || null;
     goalRowHtml(); goalPlanHtml(); renderQuest();
     for (const tab of ['aim', 'battle', 'gearup', 'inn']){ S.tab = tab; screenRows(); screenTokens(); }
