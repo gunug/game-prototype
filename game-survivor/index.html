@@ -33,6 +33,16 @@
   .up .tag{font-size:11px;color:#c9f}
   .result{font-size:16px;line-height:1.8;text-align:center}
   .hint{font-size:13px;color:#9ab}
+  .worlds{display:flex;flex-direction:column;gap:10px;width:min(86vw,340px)}
+  .world{padding:14px 16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;text-align:left;cursor:pointer}
+  .world:hover:not(:disabled){border-color:#7cf}
+  .world:disabled{opacity:.45;cursor:default}
+  .world .wn{font-size:18px;font-weight:700}
+  .world .wd{font-size:12px;color:#9ab;margin-top:4px}
+  .world .ok{color:#7e7;font-size:12px;margin-left:6px}
+  .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .btns button.sub{background:#3a3f55}
+  button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
   @media (max-width:700px){.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
@@ -56,10 +66,10 @@
 </div>
 <div class="stats" id="stats"></div>
 
-<div class="overlay" id="start">
+<div class="overlay" id="worldSel">
   <h2>서바이버</h2>
   <div class="hint" id="startHint">WASD 로 피하고, 공격은 저절로. 레벨업하면 1 · 2 · 3 으로 고른다.</div>
-  <button id="startBtn">시작 (Space)</button>
+  <div class="worlds" id="worldList"></div>
 </div>
 <div class="overlay" id="levelup" hidden>
   <h2>레벨 업!</h2>
@@ -69,11 +79,17 @@
 <div class="overlay" id="pause" hidden>
   <h2>일시정지</h2>
   <div class="hint" id="pauseHint">P / Esc 로 계속</div>
+  <div class="btns"><button class="sub" id="pauseExit">나가기</button></div>
 </div>
 <div class="overlay" id="over" hidden>
   <h2>쓰러졌다</h2>
   <div class="result" id="result"></div>
-  <button id="retryBtn">다시 (R)</button>
+  <div class="btns"><button class="sub" id="overExit">나가기</button><button id="retryBtn">다시하기 (R)</button></div>
+</div>
+<div class="overlay" id="clear" hidden>
+  <h2 id="clearTitle">클리어!</h2>
+  <div class="result" id="clearResult"></div>
+  <div class="btns"><button class="sub" id="clearExit">나가기</button><button class="sub" id="clearRetry">다시하기 (R)</button><button id="clearNext">다음 월드 (N)</button></div>
 </div>
 
 <div id="ver"></div>
@@ -81,7 +97,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.6.1';
+const VERSION = '0.7.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 const ENEMY_TYPES = {
@@ -164,8 +180,59 @@ if (matchMedia('(pointer: coarse)').matches) {
   document.getElementById('luHint').textContent = '카드를 누른다';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
 }
-function newGame() {
+// ───── 월드 ─────
+// 한 월드 = dur 초 버티면 클리어. 중간보스 · 마지막 보스는 아직 미정
+const WORLDS = [
+  {id: 1, name: '월드 1', desc: '풀밭 — 슬라임 · 박쥐 · 골렘', dur: 600},
+];
+const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
+const recKey = w => 'survivor.w' + w;
+const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills":0,"clear":false}');
+
+function showWorlds() {
+  G = null;
+  ['over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  const box = $('worldList'); box.innerHTML = '';
+  for (let i = 0; i < WORLD_SLOTS; i++) {
+    const w = WORLDS[i], b = document.createElement('button');
+    b.className = 'world';
+    if (!w) {
+      b.disabled = true;
+      b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
+    } else {
+      const r = getRec(w.id);
+      b.innerHTML = `<div class="wn">${w.name}${r.clear ? '<span class="ok">클리어</span>' : ''}</div>
+        <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
+        <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
+      b.onclick = () => newGame(i);
+    }
+    box.appendChild(b);
+  }
+  $('worldSel').hidden = false;
+}
+
+function saveRec() {
+  const r = getRec(G.world.id), nt = G.t > r.t, nk = G.kills > r.kills;
+  r.t = Math.max(r.t, G.t); r.kills = Math.max(r.kills, G.kills);
+  if (G.mode === 'clear') r.clear = true;
+  localStorage.setItem(recKey(G.world.id), JSON.stringify(r));
+  return `생존 <b>${fmt(G.t)}</b>${nt ? ' (신기록)' : ''} · 처치 <b>${G.kills}</b>${nk ? ' (신기록)' : ''} · 레벨 <b>${G.lv}</b><br>
+    <span class="hint">${G.world.name} 최고 기록 — 생존 ${fmt(r.t)} · 처치 ${r.kills}</span>`;
+}
+
+function worldClear() {
+  G.mode = 'clear'; joy.id = null;
+  $('clearTitle').textContent = `${G.world.name} 클리어!`;
+  $('clearResult').innerHTML = saveRec();
+  const next = WORLDS[G.wi + 1];
+  $('clearNext').disabled = !next;
+  $('clearNext').textContent = next ? '다음 월드 (N)' : '다음 월드 (준비 중)';
+  $('clear').hidden = false;
+}
+
+function newGame(wi = G ? G.wi : 0) {
   G = {
+    wi, world: WORLDS[wi],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: 190, hp: 100, maxHp: 100, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmg: 10, cd: 0.75, range: 280, pspd: 520, def: 0, count: 1, burst: 1, knock: 0, splash: 0},
@@ -174,19 +241,21 @@ function newGame() {
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
-  ['start', 'over', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['worldSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
 }
 
 // ───── 입력 ─────
 const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (!G) { if (e.code === 'Space' || e.code === 'Enter') newGame(); return; }
+  if (!G) { const i = {Digit1: 0, Digit2: 1, Digit3: 2}[e.code]; if (WORLDS[i]) newGame(i); return; }   // 월드 선택: 숫자
   if (G.mode === 'levelup') {
     const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];   // 이동 키(WASD)와 겹치지 않게 숫자
     if (i !== undefined && !e.repeat) choose(i);
-  } else if (G.mode === 'over') {
+  } else if (G.mode === 'over' || G.mode === 'clear') {
     if (e.code === 'KeyR') newGame();
+    else if (e.code === 'KeyN' && G.mode === 'clear' && WORLDS[G.wi + 1]) newGame(G.wi + 1);
+    else if (e.code === 'Escape') showWorlds();
   } else if (e.code === 'KeyP' || e.code === 'Escape') {
     togglePause();
   }
@@ -195,10 +264,13 @@ addEventListener('keyup', e => { keys[e.code] = false; });
 // 창을 벗어나면 멈추고, 돌아오면 다시 간다. P 로 직접 멈춘 것은 돌아와도 그대로
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.id = null; if (G && G.mode === 'play') { togglePause(); G.autoPaused = true; } });
 addEventListener('focus', () => { if (G && G.mode === 'pause' && G.autoPaused) togglePause(); });
-$('startBtn').onclick = () => newGame();
 $('pauseBtn').onclick = e => { e.currentTarget.blur(); if (G) togglePause(); };
 $('pause').onclick = () => { if (G && G.mode === 'pause') togglePause(); };
 $('retryBtn').onclick = () => newGame();
+$('clearRetry').onclick = () => newGame();
+$('clearNext').onclick = () => newGame(G.wi + 1);
+$('overExit').onclick = $('clearExit').onclick = () => showWorlds();
+$('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 function togglePause() {
   G.autoPaused = false;
@@ -307,6 +379,7 @@ function fireShot() {
 function update(dt) {
   const p = G.p, s = G.s;
   G.t += dt;
+  if (G.t >= G.world.dur) { G.t = G.world.dur; worldClear(); return; }
 
   // 이동
   let mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), my = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
@@ -412,13 +485,8 @@ function update(dt) {
 }
 
 function gameOver() {
-  G.mode = 'over';
-  const best = JSON.parse(localStorage.getItem('survivor.best') || '{"t":0,"kills":0}');
-  const newT = G.t > best.t, newK = G.kills > best.kills;
-  best.t = Math.max(best.t, G.t); best.kills = Math.max(best.kills, G.kills);
-  localStorage.setItem('survivor.best', JSON.stringify(best));
-  $('result').innerHTML = `생존 <b>${fmt(G.t)}</b>${newT ? ' (신기록)' : ''} · 처치 <b>${G.kills}</b>${newK ? ' (신기록)' : ''} · 레벨 <b>${G.lv}</b><br>
-    <span class="hint">최고 기록 — 생존 ${fmt(best.t)} · 처치 ${best.kills}</span>`;
+  G.mode = 'over'; joy.id = null;
+  $('result').innerHTML = saveRec();
   $('over').hidden = false;
 }
 
@@ -541,7 +609,7 @@ function draw() {
 function hud() {
   if (!G) return;
   $('lv').textContent = G.lv;
-  $('time').textContent = fmt(G.t);
+  $('time').textContent = `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
   $('hpBar').firstElementChild.style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
@@ -563,6 +631,7 @@ function loop(now) {
   draw(); hud();
   requestAnimationFrame(loop);
 }
+showWorlds();
 requestAnimationFrame(loop);
 window.__G = () => G;   // 디버그
 window.__sim = sec => { for (let i = 0; i < sec * 60 && G.mode === 'play'; i++) update(1 / 60); return G.mode; };
