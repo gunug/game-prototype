@@ -156,7 +156,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.11.4';
+const VERSION = '0.12.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -535,6 +535,8 @@ addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 // 누른 곳이 중심 — 멀리 끌어도 중심은 그대로. 가운데(DEAD 안)에서 떼면 취소, 칸 위에서 떼면 그 칸을 고른다
 // 월드 선택: 위 절반 = 월드 (왼→오른), 아래 절반 = 캐릭터 (왼→오른)
 // 무기 선택: 위 절반 = 무기, 아래 절반 = 뒤로
+// 쓰러졌다 · 클리어 · 일시정지: 위 절반 = 버튼들 (왼→오른), 아래 절반은 비움
+// ※ 대전제: 모든 UI 는 방사형 메뉴로도 고를 수 있어야 한다 (docs/기능.md '# 대전제')
 // 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반은 빈칸 (떼면 취소)
 // 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
 const RM_R = 120, RM_IN = 34, RM_MOVE = 14;
@@ -554,6 +556,10 @@ function rmItems(scr) {
     const cards = [...$('wpnCards').children];
     return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
             down: [{label: '뒤로', el: $('wpnBack'), act: () => showWorlds()}]};
+  }
+  if (scr === 'over' || scr === 'clear' || scr === 'pause') {   // 버튼 줄 그대로 — 위 절반에 왼→오른, 아래 절반은 비움
+    const bs = [...$(scr).querySelectorAll('.btns button')];
+    return {up: bs.map(b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }})), down: []};   // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
   }
   const cards = [...$('cards').children];
   const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
@@ -611,11 +617,11 @@ function rmClose() { rm.id = null; rm.open = false; rm.hit = null; $('radial').h
 function rmEnd() {
   if (!rm.open) { rmClose(); return; }                          // 끌지 않았으면 그냥 탭
   const h = rmHit(rm.x, rm.y), it = h && rm[h.half][h.idx];
-  rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다
   rmClose();
   if (it && !it.disabled) it.act();
+  rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'wpnSel', 'levelup'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'wpnSel', 'levelup', 'over', 'clear', 'pause'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
