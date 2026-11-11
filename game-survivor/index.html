@@ -159,7 +159,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.17.3';
+const VERSION = '0.17.4';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -780,6 +780,7 @@ function hurtEnemy(e, dmg) {
 }
 
 // ───── 공격 ─────
+const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
 const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
 
 // 무기 자세: 손 위치 · 각도 · 총구 위치
@@ -962,21 +963,28 @@ function update(dt) {
   if (G.t >= G.nextWave) { G.nextWave += 60; for (let i = 0; i < 20 + G.t / 6; i++) spawnEnemy(); }
 
   // 조준 · 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
+  // 총(권총 · 저격총)은 **쏘기 전까지 방향을 그대로** 둔다 (적을 미리 따라 돌면 덜덜거림).
+  // 쏠 때가 되면 AIM_T 초 동안 그때의 대상 쪽으로 짧게 돌고 → 발사. 레이저는 늘 쏘고 있으므로 계속 따라 돈다
   G.weapons.forEach((w, wi) => {
     const kind = WEAPONS[w.id].kind, st = wstat(w.id);
     const tgt = (kind === 'rail' ? farthestEnemy : nearestEnemy)(p.x, p.y, st.range);
-    // 겨눌 방향: 사거리 안 가장 가까운 적 (저격총은 가장 먼 적). 없으면 걷는 쪽
-    const want = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : (amt > 0.1 ? Math.atan2(my, mx) : w.aim);
-    let d = want - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d));   // 가까운 쪽으로 돈다
-    w.aim += Math.sign(d) * Math.min(Math.abs(d), WEAPONS[w.id].turn * dt);
+    const turnTo = (want, k) => { let d = want - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d)); w.aim += d * k; };   // 가까운 쪽으로
     w.kick = Math.max(0, w.kick - dt * 8);
-    if (wi === 0 && tgt) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;     // 쏘는 동안 몸도 그쪽을 본다
-    if (WEAPONS[w.id].kind === 'laser') { updateLaser(w, wi, st, dt); return; }
-    w.cdT -= dt;
-    if (w.cdT <= 0 && tgt) {
-      w.cdT = st.cd;
-      for (let i = 0; i < st.burst; i++) w.shots.push(i * 0.1);
+    if (kind === 'laser') {
+      if (tgt) { let d = Math.atan2(tgt.y - p.y, tgt.x - p.x) - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d));
+                 w.aim += Math.sign(d) * Math.min(Math.abs(d), WEAPONS[w.id].turn * dt); }
+      if (wi === 0 && tgt) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;
+      updateLaser(w, wi, st, dt); return;
     }
+    w.cdT -= dt;
+    if (w.cdT <= 0 && tgt && !w.shots.length) {
+      w.cdT = st.cd;
+      for (let i = 0; i < st.burst; i++) w.shots.push(AIM_T + i * 0.1);
+    }
+    // 다음 발이 AIM_T 안으로 들어오면 그 발이 겨눌 대상 쪽으로 남은 시간에 맞춰 돈다 (발사 순간 딱 맞게)
+    const next = w.shots.length ? Math.min(...w.shots) : Infinity;
+    if (next <= AIM_T + 1e-6 && tgt) turnTo(Math.atan2(tgt.y - p.y, tgt.x - p.x), Math.min(1, dt / Math.max(dt, next)));
+    if (wi === 0 && w.shots.length) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;   // 쏘는 동안 몸도 그쪽을 본다
     w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || ((kind === 'rail' ? fireRail : fireGun)(st, w, wi), false));
   });
 
