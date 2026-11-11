@@ -166,7 +166,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.14.0';
+const VERSION = '0.14.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -805,6 +805,7 @@ function fireGun(st, w, i) {
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
 }
 
+const LASER_BEND = [0.7, 0.4, 0.2, 0.1];   // 마디별 휨 — 첫 마디가 가장 크게. 곡선 꼭대기 높이 = 휨/2 × 마디 길이 (1.0 이면 반원 높이)
 // 굴곡 레이저: 사거리 안 가장 가까운 적 → 그 적에서 hop 안의 가장 가까운 (아직 안 맞은) 적 … chain 마리
 function fireLaser(st, w) {
   const p = G.p, W = WEAPONS[w.id];
@@ -1063,16 +1064,18 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(b.x - tx * 0.6, b.y - ty * 0.6); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
 
-  // 굴곡 레이저: 총구 → 1번 → 2번 → 3번, 마디마다 반원 (마디마다 휘는 쪽을 번갈아 뱀처럼)
+  // 굴곡 레이저: 총구 → 1번 → 2번 → 3번, 마디마다 2차 베지어 곡선. 휨(곡률)은 첫 마디가 가장 크고 갈수록 작아짐
+  // 휘는 쪽은 마디마다 번갈아 뱀처럼. LASER_BEND[k] = 조절점이 마디 가운데에서 옆으로 나가는 거리 (마디 길이 비율)
   for (const [w, m] of poses) {
     if (!w.beam) continue;
     const pts = [{x: m.mx, y: m.my}, ...w.beam.pts.map(q => { if (!q.e.dead) { q.x = q.e.x; q.y = q.e.y; } return q; })];
     const fl = 0.75 + 0.25 * Math.sin((G.t + w.beam.ph) * 60);  // 지글지글
     const arcs = () => { ctx.beginPath();
       for (let k = 0; k + 1 < pts.length; k++) {
-        const A = pts[k], B = pts[k + 1], ang = Math.atan2(B.y - A.y, B.x - A.x), r = Math.hypot(B.x - A.x, B.y - A.y) / 2;
+        const A = pts[k], B = pts[k + 1], dx = B.x - A.x, dy = B.y - A.y;
+        const bend = LASER_BEND[Math.min(k, LASER_BEND.length - 1)] * (k % 2 ? -1 : 1);   // 길이에 비례 → (-dy, dx) 가 옆 방향
         if (k === 0) ctx.moveTo(A.x, A.y);
-        ctx.arc((A.x + B.x) / 2, (A.y + B.y) / 2, Math.max(1, r), ang + Math.PI, ang, k % 2 === 1);
+        ctx.quadraticCurveTo((A.x + B.x) / 2 - dy * bend, (A.y + B.y) / 2 + dx * bend, B.x, B.y);
       } };
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     arcs(); ctx.strokeStyle = `rgba(60,220,255,${0.22 * fl})`; ctx.lineWidth = 9; ctx.stroke();
