@@ -124,7 +124,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.8.0';
+const VERSION = '0.8.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -143,6 +143,8 @@ const MAX_ENEMIES = 500;
 const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 후보에
 
 const SPRITES = {};             // 없으면 도형으로
+const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
+for (const n of ['pistol']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png`; }
 for (const n of ['survivor', 'zombie', 'dog', 'brute']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
@@ -167,6 +169,8 @@ const UPGRADES = [
 const WEAPONS = {
   pistol: {nm: '권총', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
            dmg: 10, cd: 0.75, range: 280, spd: 620,
+           // 그림: 화면 길이(px) · 손잡이 축(그림 안 비율) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
+           len: 22, pivot: [0.28, 0.5], muzzle: [1.0, 0.22], turn: 16,
            affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock', 'splash']},
 };
 const UNLOCKED_WEAPONS = ['pistol'];   // 해금된 무기 (해금 방식은 미정 — 지금은 권총만)
@@ -327,7 +331,7 @@ function newGame(wi, weaponId) {
   const C = CHARACTERS[charIdx];
   G = {
     wi, world: WORLDS[wi], char: C,
-    weapons: [{id: weaponId, cdT: 0, shots: []}], subs: [],
+    weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: 0, count: 0, burst: 0, knock: 0, splash: 0},
@@ -388,7 +392,7 @@ function openLevelUp() {
   if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
     for (const id of UNLOCKED_WEAPONS) if (!G.weapons.some(w => w.id === id))
       pool.push({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id,
-                 apply: () => G.weapons.push({id, cdT: 0, shots: []})});
+                 apply: () => G.weapons.push(newWeapon(id))});
   const picks = [];
   while (picks.length < 3 && pool.length) {
     const tot = pool.reduce((a, u) => a + (u.ext ? 2 : 3), 0);
@@ -470,18 +474,32 @@ function hurtEnemy(e, dmg) {
 }
 
 // ───── 공격 ─────
-// 총 계열: 가장 가까운 적에게, 투사체 수만큼 부채꼴로
-function fireGun(st) {
+const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
+
+// 무기 자세: 손 위치 · 각도 · 총구 위치. 무기가 둘이면 손을 위아래로 나눈다
+function weaponPose(w, i) {
+  const p = G.p, W = WEAPONS[w.id], a = w.aim, c = Math.cos(a), sn = Math.sin(a);
+  const img = WEAPON_IMG[w.id], len = W.len, h = img ? len * img.height / img.width : len * 0.6;
+  const back = w.kick * 5;                                       // 반동: 쏘면 뒤로 살짝
+  const hx = p.x + c * (9 - back), hy = p.y - 2 + (i ? 7 : 0) + sn * (9 - back);
+  const flip = c < 0 ? -1 : 1;                                   // 왼쪽을 보면 위아래를 뒤집어 손잡이가 아래로
+  const mx = (W.muzzle[0] - W.pivot[0]) * len, my = (W.muzzle[1] - W.pivot[1]) * h * flip;
+  return {hx, hy, a, flip, len, h, mx: hx + c * mx - sn * my, my: hy + sn * mx + c * my};
+}
+
+// 총 계열: 가장 가까운 적에게, 투사체 수만큼 부채꼴로. 총구에서 나간다
+function fireGun(st, w, i) {
   const p = G.p;
   const tgt = nearestEnemy(p.x, p.y, st.range);
   if (!tgt) return;
-  const base = Math.atan2(tgt.y - p.y, tgt.x - p.x), spread = 0.14;
-  for (let i = 0; i < st.count; i++) {
-    const a = base + (i - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: p.x, y: p.y, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
+  w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;     // 쏘는 순간엔 정확히 그쪽
+  const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.14;
+  for (let k = 0; k < st.count; k++) {
+    const a = base + (k - (st.count - 1) / 2) * spread;
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
       dmg: st.dmg, knock: st.knock, splash: st.splash, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
-  G.fx.push({kind: 'muzzle', x: p.x + Math.cos(base) * 16, y: p.y - 6 + Math.sin(base) * 16, t: 0.06});
+  G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
 }
 
 // ───── 갱신 ─────
@@ -496,7 +514,7 @@ function update(dt) {
   else if (joy.id !== null) { const v = joyVec(); mx = v.x; my = v.y; }   // 조이스틱은 끌어낸 만큼 (0~1)
   const amt = Math.hypot(mx, my);
   p.x += mx * p.speed * dt; p.y += my * p.speed * dt;
-  if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);
+  if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);              // 겨눌 적이 있으면 아래 조준에서 덮어씀
   p.move += (amt - p.move) * Math.min(1, dt * 10);   // 걷기 세기 0~1 (멈추면 서서히 가라앉음)
   p.walk += dt * Math.PI * 2 * 2.6 * p.move;
   p.inv = Math.max(0, p.inv - dt);
@@ -506,16 +524,22 @@ function update(dt) {
   while (G.spawnAcc >= 1) { G.spawnAcc--; spawnEnemy(); }
   if (G.t >= G.nextWave) { G.nextWave += 60; for (let i = 0; i < 20 + G.t / 6; i++) spawnEnemy(); }
 
-  // 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
-  for (const w of G.weapons) {
-    const st = wstat(w.id);
+  // 조준 · 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
+  G.weapons.forEach((w, wi) => {
+    const st = wstat(w.id), tgt = nearestEnemy(p.x, p.y, st.range);
+    // 겨눌 방향: 사거리 안 가장 가까운 적. 없으면 걷는 쪽
+    const want = tgt ? Math.atan2(tgt.y - p.y, tgt.x - p.x) : (amt > 0.1 ? Math.atan2(my, mx) : w.aim);
+    let d = want - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d));   // 가까운 쪽으로 돈다
+    w.aim += Math.sign(d) * Math.min(Math.abs(d), WEAPONS[w.id].turn * dt);
+    w.kick = Math.max(0, w.kick - dt * 8);
+    if (wi === 0 && tgt) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;     // 쏘는 동안 몸도 그쪽을 본다
     w.cdT -= dt;
-    if (w.cdT <= 0 && nearestEnemy(p.x, p.y, st.range)) {
+    if (w.cdT <= 0 && tgt) {
       w.cdT = st.cd;
       for (let i = 0; i < st.burst; i++) w.shots.push(i * 0.1);
     }
-    w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || (fireGun(st), false));
-  }
+    w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || (fireGun(st, w, wi), false));
+  });
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
@@ -632,6 +656,14 @@ function drawSprite(name, x, y, h, flip, fallback, bob) {
   ctx.restore();
 }
 
+function drawWeapon(w, m) {
+  const W = WEAPONS[w.id], img = WEAPON_IMG[w.id];
+  ctx.save(); ctx.translate(m.hx, m.hy); ctx.rotate(m.a); ctx.scale(1, m.flip);
+  if (img) ctx.drawImage(img, -W.pivot[0] * m.len, -W.pivot[1] * m.h, m.len, m.h);
+  else { ctx.fillStyle = '#333'; ctx.fillRect(-4, -3, m.len, 6); }
+  ctx.restore();
+}
+
 function circle(x, y, r, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
 
 function draw() {
@@ -690,9 +722,14 @@ function draw() {
   pb.sy *= 1 + Math.sin(G.t * 3) * 0.015 * (1 - p.move);       // 서 있으면 숨쉬기만
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 13 * psh, 5 * psh, 0, 0, Math.PI * 2); ctx.fill();
-  if (!(p.inv > 0 && Math.floor(G.t * 20) % 2)) {
+  // 무기: 위를 겨누면 몸 뒤에, 아래를 겨누면 몸 앞에
+  const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
+  const blink = p.inv > 0 && Math.floor(G.t * 20) % 2;
+  if (!blink) poses.filter(([, m]) => Math.sin(m.a) < 0).forEach(([w, m]) => drawWeapon(w, m));
+  if (!blink) {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE.survivor ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
+  if (!blink) poses.filter(([, m]) => Math.sin(m.a) >= 0).forEach(([w, m]) => drawWeapon(w, m));
 
   // 투사체
   // 총알: 날아가는 쪽으로 짧은 노란 꼬리
