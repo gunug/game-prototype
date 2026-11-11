@@ -33,14 +33,23 @@
   .up .tag{font-size:11px;color:#c9f}
   .result{font-size:16px;line-height:1.8;text-align:center}
   .hint{font-size:13px;color:#9ab}
-  .worlds{display:flex;flex-direction:column;gap:10px;width:min(86vw,340px)}
-  .world{padding:14px 16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;text-align:left;cursor:pointer}
+  /* 월드 선택 화면: 월드는 위, 캐릭터는 아래 — 둘 다 가로 스크롤 */
+  #worldSel{justify-content:flex-start;padding:56px 0 28px;gap:12px}
+  #worldSel h2{margin-top:8px}
+  #startHint{padding:0 16px;text-align:center}
+  .hscroll{display:flex;gap:12px;width:100%;overflow-x:auto;overflow-y:hidden;padding:6px 16px 12px;
+           scroll-snap-type:x mandatory;scroll-padding:0 16px;touch-action:pan-x;-webkit-overflow-scrolling:touch;
+           scrollbar-width:thin;scrollbar-color:#3a3f55 transparent}
+  .hscroll>*{flex:0 0 auto;scroll-snap-align:start}
+  .hscroll::after{content:'';flex:0 0 4px;margin-right:auto}   /* 끝 칸 오른쪽 여백 */
+  .hscroll>:first-child{margin-left:auto}                       /* 넘치지 않으면 가운데, 넘치면 왼쪽부터 스크롤 */
+  .charSec{margin-top:auto;width:100%;display:flex;flex-direction:column;align-items:center;gap:8px}
+  .world{width:240px;padding:14px 16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;text-align:left;cursor:pointer}
   .world:hover:not(:disabled){border-color:#7cf}
   .world:disabled{opacity:.45;cursor:default}
   .world .wn{font-size:18px;font-weight:700}
   .world .wd{font-size:12px;color:#9ab;margin-top:4px}
   .world .ok{color:#7e7;font-size:12px;margin-left:6px}
-  .chars{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
   .char{width:150px;padding:10px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;cursor:pointer;text-align:center}
   .char.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
   .char img{width:72px;height:96px;object-fit:contain;display:block;margin:0 auto 4px}
@@ -62,7 +71,7 @@
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.char{width:120px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
@@ -87,10 +96,12 @@
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
   <div class="hint" id="startHint">캐릭터와 월드를 고르면 무기를 고른다. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
-  <div class="sec">캐릭터</div>
-  <div class="chars" id="charList"></div>
   <div class="sec">월드</div>
-  <div class="worlds" id="worldList"></div>
+  <div class="hscroll" id="worldList"></div>
+  <div class="charSec">
+    <div class="sec">캐릭터</div>
+    <div class="hscroll" id="charList"></div>
+  </div>
 </div>
 <div class="overlay" id="wpnSel" hidden>
   <h2>무기 선택</h2>
@@ -124,7 +135,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.8.2';
+const VERSION = '0.8.3';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -256,12 +267,17 @@ if (matchMedia('(pointer: coarse)').matches) {
 const WORLDS = [
   {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600},
 ];
+// PC: 마우스 휠을 가로 스크롤로
+for (const id of ['worldList', 'charList']) $(id).addEventListener('wheel', e => {
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }
+}, {passive: false});
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = w => 'survivor.w' + w;
 const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills":0,"clear":false}');
 
 function showWorlds() {
   G = null;
+  const keep = [$('worldList').scrollLeft, $('charList').scrollLeft];   // 다시 그려도 스크롤 자리 유지
   ['over', 'clear', 'levelup', 'pause', 'wpnSel'].forEach(id => $(id).hidden = true);
   const cl = $('charList'); cl.innerHTML = '';
   CHARACTERS.forEach((c, i) => {
@@ -289,6 +305,7 @@ function showWorlds() {
     box.appendChild(b);
   }
   $('worldSel').hidden = false;
+  $('worldList').scrollLeft = keep[0]; $('charList').scrollLeft = keep[1];
 }
 
 function saveRec() {
