@@ -127,7 +127,7 @@
   <h2>무기 선택</h2>
   <div class="hint" id="wpnHint">시작할 무기를 고른다 (1 · 2 · 3)</div>
   <div class="cards" id="wpnCards"></div>
-  <div class="btns"><button class="sub" id="wpnBack">뒤로</button></div>
+  <div class="btns"><button class="sub" id="wpnBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="levelup" hidden>
   <h2>레벨 업!</h2>
@@ -137,17 +137,17 @@
 <div class="overlay" id="pause" hidden>
   <h2>일시정지</h2>
   <div class="hint" id="pauseHint">P / Esc 로 계속</div>
-  <div class="btns"><button id="pauseGo">계속</button><button class="sub" id="pauseExit">나가기</button></div>
+  <div class="btns"><button id="pauseGo">계속</button><button class="sub" id="pauseExit" data-neg>나가기</button></div>
 </div>
 <div class="overlay" id="over" hidden>
   <h2>쓰러졌다</h2>
   <div class="result" id="result"></div>
-  <div class="btns"><button class="sub" id="overExit">나가기</button><button id="retryBtn">다시하기 (R)</button></div>
+  <div class="btns"><button class="sub" id="overExit" data-neg>나가기</button><button id="retryBtn">다시하기 (R)</button></div>
 </div>
 <div class="overlay" id="clear" hidden>
   <h2 id="clearTitle">클리어!</h2>
   <div class="result" id="clearResult"></div>
-  <div class="btns"><button class="sub" id="clearExit">나가기</button><button class="sub" id="clearRetry">다시하기 (R)</button><button id="clearNext">다음 월드 (N)</button></div>
+  <div class="btns"><button class="sub" id="clearExit" data-neg>나가기</button><button class="sub" id="clearRetry">다시하기 (R)</button><button id="clearNext">다음 월드 (N)</button></div>
 </div>
 
 <div id="radial" hidden></div>
@@ -156,7 +156,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.12.0';
+const VERSION = '0.12.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -535,7 +535,9 @@ addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 // 누른 곳이 중심 — 멀리 끌어도 중심은 그대로. 가운데(DEAD 안)에서 떼면 취소, 칸 위에서 떼면 그 칸을 고른다
 // 월드 선택: 위 절반 = 월드 (왼→오른), 아래 절반 = 캐릭터 (왼→오른)
 // 무기 선택: 위 절반 = 무기, 아래 절반 = 뒤로
-// 쓰러졌다 · 클리어 · 일시정지: 위 절반 = 버튼들 (왼→오른), 아래 절반은 비움
+// 메뉴는 두 가지 —
+//   선택형 (월드 · 캐릭터 · 무기 · 업그레이드): 화면 배치와 같은 방향 (왼→오른)
+//   확인형 (쓰러졌다 · 클리어 · 일시정지 · 뒤로/취소): 긍정 · 확인은 위, 부정 · 취소 · 나가기는 아래
 // ※ 대전제: 모든 UI 는 방사형 메뉴로도 고를 수 있어야 한다 (docs/기능.md '# 대전제')
 // 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반은 빈칸 (떼면 취소)
 // 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
@@ -557,9 +559,11 @@ function rmItems(scr) {
     return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
             down: [{label: '뒤로', el: $('wpnBack'), act: () => showWorlds()}]};
   }
-  if (scr === 'over' || scr === 'clear' || scr === 'pause') {   // 버튼 줄 그대로 — 위 절반에 왼→오른, 아래 절반은 비움
+  if (scr === 'over' || scr === 'clear' || scr === 'pause') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
-    return {up: bs.map(b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }})), down: []};   // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
+    // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
+    const item = b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }});
+    return {up: bs.filter(b => !b.hasAttribute('data-neg')).map(item), down: bs.filter(b => b.hasAttribute('data-neg')).map(item)};
   }
   const cards = [...$('cards').children];
   const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
