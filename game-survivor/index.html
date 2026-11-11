@@ -159,7 +159,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.17.1';
+const VERSION = '0.17.2';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -213,10 +213,10 @@ const WEAPONS = {
            dmg: 2, cd: 0.1, range: 240, spd: 0, chain: 3, hop: 150,
            len: 22, pivot: [0.3, 0.55], muzzle: [1.0, 0.3], turn: 16,
            affects: ['dmg', 'rate', 'range', 'count']},
-  // 저격총: 사거리 안 **가장 먼** 적을 겨눠 쏜다. 탄은 날아가지 않고 순간에 직선을 긋는다 —
-  // 총구에서 사거리 끝까지 선 위(폭 width)의 적 모두 관통. 투사체 업그레이드 = 부채꼴로 한 줄 더
+  // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적 모두 맞고 사거리 끝까지.
+  // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', ds: '사거리 안 가장 먼 적을 공격한다. 직선 위의 적은 모두 관통한다',
-           dmg: 24, cd: 1.6, range: 380, spd: 0, width: 8,
+           dmg: 24, cd: 1.6, range: 380, spd: 1500, width: 8,       // 탄속 1500 (권총 620)
            len: 30, pivot: [0.3, 0.6], muzzle: [1.0, 0.38], turn: 10,
            affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock']},
 };
@@ -816,25 +816,17 @@ function fireGun(st, w, i) {
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
 }
 
-// 저격총: 가장 먼 적 쪽으로 순간 직선. 총구 → 사거리 끝까지, 선에서 width 안의 적 모두 맞음 (관통)
+// 저격총: 가장 먼 적 쪽으로 빠른 관통탄. 날아가는 길의 적 모두 맞고 사거리 끝(+30px)까지 간다
 function fireRail(st, w, i) {
   const p = G.p, W = WEAPONS[w.id];
   const tgt = farthestEnemy(p.x, p.y, st.range);
   if (!tgt) return;
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.12;
-  const reach = st.range + 30;                                   // 겨눈 적 뒤로 조금 더
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread, dx = Math.cos(a), dy = Math.sin(a);
-    const x1 = m.mx + dx * reach, y1 = m.my + dy * reach;
-    for (const e of G.enemies) {
-      if (e.dead) continue;
-      const u = Math.max(0, Math.min(reach, (e.x - m.mx) * dx + (e.y - m.my) * dy));
-      if (Math.hypot(m.mx + dx * u - e.x, m.my + dy * u - e.y) > e.r + W.width / 2) continue;
-      hurtEnemy(e, st.dmg);
-      if (st.knock) { const v0 = knockV(st.knock) * Math.min(1, 15 / e.r); e.kbx += dx * v0; e.kby += dy * v0; }
-    }
-    G.fx.push({kind: 'rail', x: m.mx, y: m.my, x1, y1, t: 0.22});
+    const a = base + (k - (st.count - 1) / 2) * spread;
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, pierce: true, rad: W.width / 2,
+      dmg: st.dmg, knock: st.knock, splash: 0, travel: 0, maxTravel: st.range + 30, hit: new Set()});
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
@@ -1023,12 +1015,15 @@ function update(dt) {
 
   // 투사체
   for (const b of G.bullets) {
-    const st = Math.hypot(b.vx, b.vy) * dt;
+    const st = Math.hypot(b.vx, b.vy) * dt, ox = b.x, oy = b.y;
     b.x += b.vx * dt; b.y += b.vy * dt; b.travel += st;
     if (b.travel > b.maxTravel) { b.dead = true; continue; }
     for (const e of G.enemies) {
       if (e.dead || b.hit.has(e)) continue;
-      if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
+      if (b.pierce) {                                             // 관통탄: 이번 프레임에 지나온 선분과의 거리
+        const dx = b.x - ox, dy = b.y - oy, u = Math.max(0, Math.min(1, ((e.x - ox) * dx + (e.y - oy) * dy) / (dx * dx + dy * dy || 1)));
+        if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + b.rad) continue;
+      } else if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
       hurtEnemy(e, b.dmg); b.hit.add(e);
       if (b.splash) {
         const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
@@ -1039,6 +1034,7 @@ function update(dt) {
         const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) * Math.min(1, 15 / e.r);
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
+      if (b.pierce) continue;                                     // 관통탄은 계속 날아간다
       b.dead = true;
       break;
     }
@@ -1181,7 +1177,14 @@ function draw() {
   // 총알: 날아가는 쪽으로 짧은 노란 꼬리
   ctx.lineCap = 'round';
   for (const b of G.bullets) {
-    const sp = Math.hypot(b.vx, b.vy), tx = b.vx / sp * 12, ty = b.vy / sp * 12;
+    const sp = Math.hypot(b.vx, b.vy), tl = b.pierce ? 34 : 12, tx = b.vx / sp * tl, ty = b.vy / sp * tl;
+    if (b.pierce) {                                               // 저격탄: 긴 흰 꼬리 + 붉은 빛
+      ctx.strokeStyle = 'rgba(255,110,70,.4)'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = '#fff6e8'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(b.x - tx * 0.7, b.y - ty * 0.7); ctx.lineTo(b.x, b.y); ctx.stroke();
+      continue;
+    }
     ctx.strokeStyle = 'rgba(255,200,80,.35)'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x, b.y); ctx.stroke();
     ctx.strokeStyle = '#ffe9a0'; ctx.lineWidth = 2;
@@ -1214,14 +1217,6 @@ function draw() {
     if (f.kind === 'muzzle') {
       ctx.fillStyle = `rgba(255,220,120,${Math.min(1, f.t * 14)})`;
       ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI * 2); ctx.fill();
-      continue;
-    }
-    if (f.kind === 'rail') {                                      // 저격 선: 붉은 빛 겹 + 흰 심, 점점 가늘어지며 사라짐
-      const k = f.t / 0.22;
-      ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x1, f.y1);
-      ctx.strokeStyle = `rgba(255,90,60,${0.3 * k})`; ctx.lineWidth = 10 * k + 2; ctx.stroke();
-      ctx.strokeStyle = `rgba(255,190,140,${0.7 * k})`; ctx.lineWidth = 4 * k + 1; ctx.stroke();
-      ctx.strokeStyle = `rgba(255,255,255,${k})`; ctx.lineWidth = 1.5; ctx.stroke();
       continue;
     }
     ctx.strokeStyle = `rgba(255,170,60,${f.t * 3})`; ctx.lineWidth = 3;
