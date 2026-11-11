@@ -135,11 +135,11 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.8.3';
+const VERSION = '0.9.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, zombie: true, dog: true, brute: false};
+const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 const ENEMY_TYPES = {
   zombie: {hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
@@ -156,7 +156,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
 for (const n of ['pistol']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
-for (const n of ['survivor', 'zombie', 'dog', 'brute']) {
+for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
@@ -206,6 +206,11 @@ const affectedBy = uid => G.weapons.filter(w => WEAPONS[w.id].affects.includes(u
 // wSlots · sSlots: 무기 · 보조 슬롯 수. 특징은 docs/기획_캐릭터.md
 const CHARACTERS = [
   {id: 'survivor', nm: '생존자', sprite: 'survivor', wSlots: 2, sSlots: 2, hp: 100, speed: 190, trait: '특징 없음 — 기준 캐릭터'},
+  // wDmgMul: 무기 공격력 배율 · def: 시작 방어
+  {id: 'police', nm: '경찰', sprite: 'police', wSlots: 1, sSlots: 3, hp: 90, speed: 200, wDmgMul: 1.5,
+   trait: '무기는 하나뿐. 대신 무기 공격력 +50% · 조금 빠름'},
+  {id: 'firefighter', nm: '소방관', sprite: 'firefighter', wSlots: 2, sSlots: 1, hp: 150, speed: 160, def: 4,
+   trait: '체력 150 · 방어 +4. 대신 느림 · 보조 1칸'},
 ];
 let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === localStorage.getItem('survivor.char')));
 const slotRow = (label, n, cls, items = []) =>
@@ -351,7 +356,7 @@ function newGame(wi, weaponId) {
     weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: 0, count: 0, burst: 0, knock: 0, splash: 0},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, burst: 0, knock: 0, splash: 0},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
@@ -743,7 +748,7 @@ function draw() {
   const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
   const blink = p.inv > 0 && Math.floor(G.t * 20) % 2;
   if (!blink) {
-    drawSprite(G.char.sprite, p.x, p.y, 54, FACE.survivor ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
+    drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
 
