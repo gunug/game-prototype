@@ -89,8 +89,9 @@
   #radial .rct{font-size:11px;fill:#9ab}
   #radial.cancel .rc{stroke:#f66}
   #radial.cancel .rct{fill:#f99}
+  #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
@@ -155,7 +156,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.11.2';
+const VERSION = '0.11.3';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -534,7 +535,7 @@ addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 // 누른 곳이 중심 — 멀리 끌어도 중심은 그대로. 가운데(DEAD 안)에서 떼면 취소, 칸 위에서 떼면 그 칸을 고른다
 // 월드 선택: 위 절반 = 월드 (왼→오른), 아래 절반 = 캐릭터 (왼→오른)
 // 무기 선택: 위 절반 = 무기, 아래 절반 = 뒤로
-// 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반도 같은 순서 (어디로 끌어도 되게)
+// 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반은 빈칸 (떼면 취소)
 // 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
 const RM_R = 120, RM_IN = 34, RM_MOVE = 14;
 const rm = {id: null, scr: null, cx: 0, cy: 0, x: 0, y: 0, open: false, up: [], down: [], hit: null};
@@ -556,7 +557,7 @@ function rmItems(scr) {
   }
   const cards = [...$('cards').children];
   const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
-  return {up: list, down: list};
+  return {up: list, down: []};                                 // 아래 절반은 비워 둠 (나중에 리롤 같은 것)
 }
 // 손가락 위치 → {half, idx}. 가운데면 null
 function rmHit(x, y) {
