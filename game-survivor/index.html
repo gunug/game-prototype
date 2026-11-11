@@ -73,9 +73,22 @@
   /* 고르는 테두리 · 선택 창 조이스틱 */
   .focus{outline:3px solid #fff;outline-offset:3px}
   .up.focus{transform:translateY(-3px)}
-  #mjoy{position:fixed;width:92px;height:92px;margin:-46px 0 0 -46px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);pointer-events:none;z-index:2147483646}
-  #mjoy>i{position:absolute;left:24px;top:24px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.45)}
-  #mjoy[hidden]{display:none}
+  #radial{position:fixed;width:244px;height:244px;margin:-122px 0 0 -122px;pointer-events:none;z-index:2147483646}
+  #radial[hidden]{display:none}
+  #radial svg{width:100%;height:100%;overflow:visible}
+  #radial .rs{stroke:#12141a;stroke-width:2}
+  #radial .rs.up{fill:rgba(40,70,120,.88)}
+  #radial .rs.down{fill:rgba(110,85,30,.88)}
+  #radial .rs.on{stroke:#fc4}
+  #radial .rs.dis{fill:rgba(50,52,60,.8)}
+  #radial .rs.hot{fill:#39f}
+  #radial .rs.down.hot{fill:#e9a23b}
+  #radial .rs.dis.hot{fill:rgba(80,80,90,.9)}
+  #radial text{fill:#fff;font-size:12px;font-weight:700;text-anchor:middle;paint-order:stroke;stroke:rgba(0,0,0,.6);stroke-width:3px}
+  #radial .rc{fill:rgba(20,22,30,.9);stroke:rgba(255,255,255,.4);stroke-width:2}
+  #radial .rct{font-size:11px;fill:#9ab}
+  #radial.cancel .rc{stroke:#f66}
+  #radial.cancel .rct{fill:#f99}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
   @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
@@ -136,13 +149,13 @@
   <div class="btns"><button class="sub" id="clearExit">나가기</button><button class="sub" id="clearRetry">다시하기 (R)</button><button id="clearNext">다음 월드 (N)</button></div>
 </div>
 
-<div id="mjoy" hidden><i></i></div>
+<div id="radial" hidden></div>
 <div id="ver"></div>
 
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.10.0';
+const VERSION = '0.11.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -269,8 +282,8 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // 터치 기기면 안내 글을 바꾼다
 if (matchMedia('(pointer: coarse)').matches) {
-  document.getElementById('startHint').textContent = '눌러서 고르거나, 끌어서 테두리를 옮기고 그 칸을 누른다. 판 중엔 누른 채 끌면 움직이고, 총은 저절로 쏜다.';
-  document.getElementById('luHint').textContent = '카드를 누른다';
+  document.getElementById('startHint').textContent = '눌러서 고르거나, 끌면 둥근 메뉴 — 위 = 월드, 아래 = 캐릭터, 가운데서 떼면 취소. 판 중엔 누른 채 끌면 움직인다.';
+  document.getElementById('luHint').textContent = '카드를 누르거나, 끌어서 둥근 메뉴로 (가운데서 떼면 취소)';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
   document.getElementById('wpnHint').textContent = '시작할 무기를 누른다';
 }
@@ -517,44 +530,103 @@ function setPadHints() {
 }
 addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 
-// ───── 화면 조이스틱으로 고르기 (선택 창 위에서 끌기) ─────
-// 누른 곳이 중심, 끈 방향으로 테두리가 한 칸씩. 끌지 않고 떼면 그냥 누른 것 (탭)
-const MJ_R = 46, MJ_MOVE = 14;
-const mj = {id: null, bx: 0, by: 0, x: 0, y: 0, sx: 0, sy: 0, moved: false};
-let mjSuppress = 0;
-const mjVec = () => {
-  if (mj.id === null || !mj.moved) return {x: 0, y: 0};
-  const dx = mj.x - mj.bx, dy = mj.y - mj.by, d = Math.hypot(dx, dy);
-  return d ? {x: dx / d * Math.min(1, d / MJ_R), y: dy / d * Math.min(1, d / MJ_R)} : {x: 0, y: 0};
-};
-document.querySelectorAll('.overlay').forEach(o => o.addEventListener('pointerdown', e => {
-  if (mj.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
-  Object.assign(mj, {id: e.pointerId, bx: e.clientX, by: e.clientY, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false});
+// ───── 방사형 메뉴 (월드 선택 · 레벨업 창에서 끌기) ─────
+// 누른 곳이 중심 — 멀리 끌어도 중심은 그대로. 가운데(DEAD 안)에서 떼면 취소, 칸 위에서 떼면 그 칸을 고른다
+// 월드 선택: 위 절반 = 월드 (왼→오른), 아래 절반 = 캐릭터 (왼→오른)
+// 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반도 같은 순서 (어디로 끌어도 되게)
+// 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
+const RM_R = 120, RM_IN = 34, RM_MOVE = 14;
+const rm = {id: null, scr: null, cx: 0, cy: 0, x: 0, y: 0, open: false, up: [], down: [], hit: null};
+let rmSuppress = 0;
+function rmItems(scr) {
+  if (scr === 'worldSel') {
+    const wb = [...$('worldList').children], cb = [...$('charList').children];
+    return {
+      up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
+        el: wb[i], act: () => showWeaponPick(i)})),
+      down: CHARACTERS.map((c, i) => ({label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, on: i === charIdx,
+        el: cb[i], act: () => { charIdx = i; localStorage.setItem('survivor.char', c.id); showWorlds(); }})),
+    };
+  }
+  const cards = [...$('cards').children];
+  const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
+  return {up: list, down: list};
+}
+// 손가락 위치 → {half, idx}. 가운데면 null
+function rmHit(x, y) {
+  const dx = x - rm.cx, dy = y - rm.cy;
+  if (Math.hypot(dx, dy) < RM_IN) return null;
+  const half = dy <= 0 ? 'up' : 'down', list = rm[half];
+  if (!list.length) return null;
+  const a = Math.atan2(Math.abs(dy), dx);                       // 0(오른쪽) ~ π(왼쪽)
+  const idx = Math.min(list.length - 1, Math.floor((1 - a / Math.PI) * list.length));
+  return {half, idx};
+}
+function rmStart(id, x, y, scr) {
+  Object.assign(rm, {id, scr, cx: x, cy: y, x, y, open: false, hit: null});
+}
+function rmOpen() {
+  Object.assign(rm, rmItems(rm.scr)); rm.open = true;
+  // 그림: 칸마다 부채꼴. 위 절반은 위로 도는 호, 아래 절반은 아래로 도는 호
+  const P = (th, r, s) => `${(Math.cos(th) * r).toFixed(1)},${(s * Math.sin(th) * r).toFixed(1)}`;
+  let svg = '';
+  for (const [half, s] of [['up', -1], ['down', 1]]) {
+    const list = rm[half], n = list.length;
+    list.forEach((it, k) => {
+      const t1 = Math.PI - k * Math.PI / n, t2 = Math.PI - (k + 1) * Math.PI / n, tm = (t1 + t2) / 2;
+      const sw = s < 0 ? 1 : 0;
+      const cls = 'rs ' + half + (it.disabled ? ' dis' : '') + (it.on ? ' on' : '');
+      svg += `<path class="${cls}" data-h="${half}" data-i="${k}" d="M${P(t1, RM_R, s)} A${RM_R} ${RM_R} 0 0 ${sw} ${P(t2, RM_R, s)} L${P(t2, RM_IN, s)} A${RM_IN} ${RM_IN} 0 0 ${1 - sw} ${P(t1, RM_IN, s)}Z"/>`;
+      const [lx, ly] = P(tm, (RM_R + RM_IN) / 2 + 4, s).split(',').map(Number);
+      if (it.img) svg += `<image href="${it.img}" x="${lx - 15}" y="${ly - 30}" width="30" height="40"/>`;
+      svg += `<text x="${lx}" y="${ly + (it.img ? 18 : 4)}">${it.label}${it.disabled ? '' : ''}</text>`;
+    });
+  }
+  svg += `<circle class="rc" r="${RM_IN}"/><text class="rct" y="4">취소</text>`;
+  const el = $('radial');
+  el.innerHTML = `<svg viewBox="${-RM_R - 2} ${-RM_R - 2} ${RM_R * 2 + 4} ${RM_R * 2 + 4}">${svg}</svg>`;
+  el.style.left = rm.cx + 'px'; el.style.top = rm.cy + 'px';
+  el.hidden = false;
+}
+function rmMove(x, y) {
+  rm.x = x; rm.y = y;
+  if (!rm.open) { if (Math.hypot(x - rm.cx, y - rm.cy) > RM_MOVE) rmOpen(); else return; }
+  const h = rmHit(x, y), key = h ? h.half + h.idx : '';
+  if (key === (rm.hit ? rm.hit.half + rm.hit.idx : '')) return;
+  rm.hit = h;
+  $('radial').querySelectorAll('.rs').forEach(p => p.classList.toggle('hot', !!h && p.dataset.h === h.half && +p.dataset.i === h.idx));
+  $('radial').classList.toggle('cancel', !h);
+  const it = h && rm[h.half][h.idx];
+  if (it && it.el && !it.disabled) navFocusEl(it.el);           // 진짜 카드에도 테두리
+}
+function rmClose() { rm.id = null; rm.open = false; rm.hit = null; $('radial').hidden = true; $('radial').classList.remove('cancel'); }
+function rmEnd() {
+  if (!rm.open) { rmClose(); return; }                          // 끌지 않았으면 그냥 탭
+  const h = rmHit(rm.x, rm.y), it = h && rm[h.half][h.idx];
+  rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다
+  rmClose();
+  if (it && !it.disabled) it.act();
+}
+['worldSel', 'levelup'].forEach(id => $(id).addEventListener('pointerdown', e => {
+  if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
-addEventListener('pointermove', e => {
-  if (e.pointerId !== mj.id) return;
-  mj.x = e.clientX; mj.y = e.clientY;
-  if (Math.hypot(mj.x - mj.sx, mj.y - mj.sy) > MJ_MOVE) mj.moved = true;
-  const dx = mj.x - mj.bx, dy = mj.y - mj.by, d = Math.hypot(dx, dy);
-  if (d > MJ_R) { mj.bx = mj.x - dx / d * MJ_R; mj.by = mj.y - dy / d * MJ_R; }   // 중심이 손가락을 따라온다
-});
-const mjEnd = e => { if (e.pointerId !== mj.id) return; if (mj.moved) mjSuppress = performance.now(); mj.id = null; };
-addEventListener('pointerup', mjEnd); addEventListener('pointercancel', mjEnd);
-// 끈 뒤에 따라오는 클릭은 버린다 (끌다 뗀 자리의 카드가 눌리지 않게)
-addEventListener('click', e => { if (performance.now() - mjSuppress < 400) { mjSuppress = 0; e.stopPropagation(); e.preventDefault(); } }, true);
-function mjPaint() {
-  const el = $('mjoy'), on = mj.id !== null && mj.moved;
-  el.hidden = !on;
-  if (!on) return;
-  const v = mjVec();
-  el.style.left = mj.bx + 'px'; el.style.top = mj.by + 'px';
-  el.firstElementChild.style.transform = `translate(${v.x * MJ_R}px,${v.y * MJ_R}px)`;
+addEventListener('pointermove', e => { if (e.pointerId === rm.id) rmMove(e.clientX, e.clientY); });
+addEventListener('pointerup', e => { if (e.pointerId === rm.id) rmEnd(); });
+addEventListener('pointercancel', e => { if (e.pointerId === rm.id) rmClose(); });
+addEventListener('click', e => { if (performance.now() - rmSuppress < 400) { rmSuppress = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+function navFocusEl(el) {
+  navSync();
+  navRows().forEach((row, r) => { const c = row.indexOf(el); if (c >= 0) { nav.r = r; nav.cs[r] = c; } });
+  navPaint();
 }
 function navTick(dt) {
   pollPad();
-  if (!navSync()) { mj.id = null; mjPaint(); return; }
-  navAxis(mj.id !== null ? mjVec() : pad.v, dt);
-  navPaint(); mjPaint();
+  const scr = navSync();
+  if (rm.id !== null && scr !== rm.scr) rmClose();             // 창이 바뀌면 메뉴를 닫는다
+  if (!scr) return;
+  navAxis(pad.v, dt);
+  navPaint();
 }
 
 // ───── 레벨업 ─────
