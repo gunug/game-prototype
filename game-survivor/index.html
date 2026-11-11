@@ -155,7 +155,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.11.0';
+const VERSION = '0.11.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -285,7 +285,7 @@ if (matchMedia('(pointer: coarse)').matches) {
   document.getElementById('startHint').textContent = '눌러서 고르거나, 끌면 둥근 메뉴 — 위 = 월드, 아래 = 캐릭터, 가운데서 떼면 취소. 판 중엔 누른 채 끌면 움직인다.';
   document.getElementById('luHint').textContent = '카드를 누르거나, 끌어서 둥근 메뉴로 (가운데서 떼면 취소)';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
-  document.getElementById('wpnHint').textContent = '시작할 무기를 누른다';
+  document.getElementById('wpnHint').textContent = '무기를 누르거나, 끌어서 둥근 메뉴로 (위 = 무기 · 아래 = 뒤로)';
 }
 // ───── 월드 ─────
 // 한 월드 = dur 초 버티면 클리어. 중간보스 · 마지막 보스는 아직 미정
@@ -533,6 +533,7 @@ addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 // ───── 방사형 메뉴 (월드 선택 · 레벨업 창에서 끌기) ─────
 // 누른 곳이 중심 — 멀리 끌어도 중심은 그대로. 가운데(DEAD 안)에서 떼면 취소, 칸 위에서 떼면 그 칸을 고른다
 // 월드 선택: 위 절반 = 월드 (왼→오른), 아래 절반 = 캐릭터 (왼→오른)
+// 무기 선택: 위 절반 = 무기, 아래 절반 = 뒤로
 // 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반도 같은 순서 (어디로 끌어도 되게)
 // 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
 const RM_R = 120, RM_IN = 34, RM_MOVE = 14;
@@ -547,6 +548,11 @@ function rmItems(scr) {
       down: CHARACTERS.map((c, i) => ({label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, on: i === charIdx,
         el: cb[i], act: () => { charIdx = i; localStorage.setItem('survivor.char', c.id); showWorlds(); }})),
     };
+  }
+  if (scr === 'wpnSel') {                                       // 위 절반 = 무기, 아래 절반 = 뒤로
+    const cards = [...$('wpnCards').children];
+    return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
+            down: [{label: '뒤로', el: $('wpnBack'), act: () => showWorlds()}]};
   }
   const cards = [...$('cards').children];
   const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
@@ -578,7 +584,8 @@ function rmOpen() {
       const cls = 'rs ' + half + (it.disabled ? ' dis' : '') + (it.on ? ' on' : '');
       svg += `<path class="${cls}" data-h="${half}" data-i="${k}" d="M${P(t1, RM_R, s)} A${RM_R} ${RM_R} 0 0 ${sw} ${P(t2, RM_R, s)} L${P(t2, RM_IN, s)} A${RM_IN} ${RM_IN} 0 0 ${1 - sw} ${P(t1, RM_IN, s)}Z"/>`;
       const [lx, ly] = P(tm, (RM_R + RM_IN) / 2 + 4, s).split(',').map(Number);
-      if (it.img) svg += `<image href="${it.img}" x="${lx - 15}" y="${ly - 30}" width="30" height="40"/>`;
+      if (it.img) svg += it.wide ? `<image href="${it.img}" x="${lx - 20}" y="${ly - 28}" width="40" height="30"/>`
+                                 : `<image href="${it.img}" x="${lx - 15}" y="${ly - 30}" width="30" height="40"/>`;
       svg += `<text x="${lx}" y="${ly + (it.img ? 18 : 4)}">${it.label}${it.disabled ? '' : ''}</text>`;
     });
   }
@@ -607,7 +614,7 @@ function rmEnd() {
   rmClose();
   if (it && !it.disabled) it.act();
 }
-['worldSel', 'levelup'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'wpnSel', 'levelup'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
