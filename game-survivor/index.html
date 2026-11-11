@@ -74,11 +74,14 @@
 'use strict';
 // ───── 설정 ─────
 const ENEMY_TYPES = {
-  slime: {hp: 12, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#5c5'},
-  bat:   {hp: 6,  spd: 135, dmg: 5,  r: 12, xp: 1, from: 60,  w: 6,  color: '#a6e'},
-  golem: {hp: 70, spd: 42,  dmg: 18, r: 24, xp: 5, from: 180, w: 2,  color: '#999'},
+  slime: {hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#5c5'},
+  bat:   {hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, from: 60,  w: 6,  color: '#a6e'},
+  golem: {hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, from: 180, w: 2,  color: '#999'},
 };
 const HP_PER_MIN = 0.45;        // 분당 적 체력 +45%
+const DEF_PER_MIN = 1.5;        // 분당 적 방어 +1.5 (생길 때 정해짐)
+// 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
+const armor = (dmg, def) => Math.max(1, dmg - def);
 const MAX_ENEMIES = 500;
 const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 후보에
 
@@ -210,9 +213,9 @@ function spawnEnemy() {
   const T = ENEMY_TYPES[name];
   const ang = Math.random() * Math.PI * 2, dist = Math.hypot(W, H) / 2 + 60;
   const hpMul = 1 + HP_PER_MIN * G.t / 60;
-  const hp = T.hp * hpMul;
+  const hp = T.hp * hpMul, def = T.def + DEF_PER_MIN * G.t / 60;
   G.enemies.push({type: name, x: G.p.x + Math.cos(ang) * dist, y: G.p.y + Math.sin(ang) * dist,
-    r: T.r, hp, maxHp: hp, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2});
+    r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2});
 }
 
 function nearestEnemy(x, y, maxD, skip) {
@@ -227,8 +230,9 @@ function nearestEnemy(x, y, maxD, skip) {
 
 function hurtEnemy(e, dmg) {
   if (e.dead) return;
-  e.hp -= dmg; e.flash = 0.1;
-  G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(dmg), t: 0.6});
+  const real = armor(dmg, e.def);
+  e.hp -= real; e.flash = 0.1;
+  G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real <= dmg * 0.5});   // 방어에 반 넘게 막히면 회색
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
     G.gems.push({x: e.x, y: e.y, v: e.xp, pull: false});
@@ -301,7 +305,7 @@ function update(dt) {
     }
     // 닿으면 피해
     if (p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
-      const dmg = Math.max(1, e.dmg - s.def);
+      const dmg = armor(e.dmg, s.def);
       p.hp -= dmg; p.inv = 0.5;
       G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
       if (p.hp <= 0) { gameOver(); return; }
@@ -466,7 +470,7 @@ function draw() {
   ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
   for (const t of G.texts) {
     ctx.globalAlpha = Math.min(1, t.t * 2);
-    ctx.fillStyle = t.me ? '#f66' : '#fff';
+    ctx.fillStyle = t.me ? '#f66' : t.weak ? '#889' : '#fff';
     ctx.fillText(t.v, t.x, t.y - (0.8 - t.t) * 30);
   }
   ctx.globalAlpha = 1;
@@ -485,7 +489,7 @@ function hud() {
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
     `공격력 ${s.dmg.toFixed(1)}  쿨다운 ${s.cd.toFixed(2)}s  사거리 ${Math.round(s.range)}\n` +
     `투사체 ${s.count}  연속 ${s.burst}  넉백 Lv${s.knock}  스플래시 Lv${s.splash}\n` +
-    `적 ${G.enemies.length}  적 체력 ×${(1 + HP_PER_MIN * G.t / 60).toFixed(2)}`;
+    `적 ${G.enemies.length}  적 체력 ×${(1 + HP_PER_MIN * G.t / 60).toFixed(2)}  적 방어 +${(DEF_PER_MIN * G.t / 60).toFixed(1)}`;
 }
 
 let last = performance.now();
