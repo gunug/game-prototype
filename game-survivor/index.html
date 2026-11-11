@@ -51,6 +51,11 @@
   .world .wd{font-size:12px;color:#9ab;margin-top:4px}
   .world .ok{color:#7e7;font-size:12px;margin-left:6px}
   .char{width:150px;padding:10px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;cursor:pointer;text-align:center}
+  .world.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
+  .confBox{display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 24px);background:#232634;border:2px solid #3a3f55;border-radius:12px;padding:14px 20px}
+  .confBox img{width:72px;height:96px;object-fit:contain}
+  .confBox .wn{font-size:18px;font-weight:700}
+  .confBox .wd{font-size:12px;color:#9ab;margin-top:4px}
   .char.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
   .char img{width:72px;height:96px;object-fit:contain;display:block;margin:0 auto 4px}
   .char .cn{font-weight:700}
@@ -115,13 +120,18 @@
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
-  <div class="hint" id="startHint">캐릭터와 월드를 고르면 무기를 고른다. 방향키로 고르고 Enter. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
+  <div class="hint" id="startHint">월드와 캐릭터를 하나씩 고른다 (순서는 아무거나). 방향키로 고르고 Enter. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
   <div class="sec">월드</div>
   <div class="hscroll" id="worldList"></div>
   <div class="charSec">
     <div class="sec">캐릭터</div>
     <div class="hscroll" id="charList"></div>
   </div>
+</div>
+<div class="overlay" id="startConf" hidden>
+  <h2>출발 준비</h2>
+  <div class="confBox" id="confBox"></div>
+  <div class="btns"><button class="sub" id="confRe" data-neg>다시선택</button><button id="confGo">출발</button></div>
 </div>
 <div class="overlay" id="wpnSel" hidden>
   <h2>무기 선택</h2>
@@ -156,7 +166,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.12.1';
+const VERSION = '0.13.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -233,7 +243,9 @@ const CHARACTERS = [
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', wSlots: 2, sSlots: 1, hp: 150, speed: 160, def: 4,
    trait: '체력 150 · 방어 +4. 대신 느림 · 보조 1칸'},
 ];
-let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === localStorage.getItem('survivor.char')));
+let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
+// 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
+const sel = {w: null, c: null};
 const slotRow = (label, n, cls, items = []) =>
   `<div class="slotrow">${label}${Array.from({length: n}, (_, i) => items[i]
     ? `<span class="slot ${cls}">${items[i]}</span>` : `<span class="slot ${cls} empty"></span>`).join('')}</div>`;
@@ -301,23 +313,25 @@ const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월�
 const recKey = w => 'survivor.w' + w;
 const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills":0,"clear":false}');
 
-function showWorlds() {
+function showWorlds(keepSel = false) {
   G = null;
+  if (!keepSel) sel.w = sel.c = null;                              // 새로 들어오면 아무것도 안 고른 상태
+  $('startConf').hidden = true;
   const keep = [$('worldList').scrollLeft, $('charList').scrollLeft];   // 다시 그려도 스크롤 자리 유지
   ['over', 'clear', 'levelup', 'pause', 'wpnSel'].forEach(id => $(id).hidden = true);
   const cl = $('charList'); cl.innerHTML = '';
   CHARACTERS.forEach((c, i) => {
     const b = document.createElement('button');
-    b.className = 'char' + (i === charIdx ? ' on' : '');
+    b.className = 'char' + (i === sel.c ? ' on' : '');
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
       ${slotRow('무기 ', c.wSlots, 'w')}${slotRow('보조 ', c.sSlots, 's')}<div class="ct">${c.trait}</div>`;
-    b.onclick = () => { charIdx = i; localStorage.setItem('survivor.char', c.id); showWorlds(); };
+    b.onclick = () => pickChar(i);
     cl.appendChild(b);
   });
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
     const w = WORLDS[i], b = document.createElement('button');
-    b.className = 'world';
+    b.className = 'world' + (i === sel.w ? ' on' : '');
     if (!w) {
       b.disabled = true;
       b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
@@ -326,13 +340,26 @@ function showWorlds() {
       b.innerHTML = `<div class="wn">${w.name}${r.clear ? '<span class="ok">클리어</span>' : ''}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
-      b.onclick = () => showWeaponPick(i);
+      b.onclick = () => pickWorld(i);
     }
     box.appendChild(b);
   }
   $('worldSel').hidden = false;
   $('worldList').scrollLeft = keep[0]; $('charList').scrollLeft = keep[1];
 }
+// 고를 때마다 다시 그리고, 둘 다 골랐으면 확인 창
+function pickWorld(i) { if (!WORLDS[i]) return; sel.w = i; showWorlds(true); checkStart(); }
+function pickChar(i) { sel.c = i; showWorlds(true); checkStart(); }
+function checkStart() {
+  if (sel.w === null || sel.c === null) return;
+  const w = WORLDS[sel.w], c = CHARACTERS[sel.c];
+  $('confBox').innerHTML = `<div><div class="sec">월드</div><div class="wn">${w.name}</div><div class="wd">${w.desc} · ${fmt(w.dur)}</div></div>
+    <div><img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""></div>
+    <div><div class="sec">캐릭터</div><div class="wn">${c.nm}</div><div class="wd">${c.trait}</div></div>`;
+  $('startConf').hidden = false;
+}
+$('confRe').onclick = () => showWorlds();                       // 다시선택: 둘 다 지우고 처음부터
+$('confGo').onclick = () => { charIdx = sel.c; localStorage.setItem('survivor.char', CHARACTERS[sel.c].id); showWeaponPick(sel.w); };
 
 function saveRec() {
   const r = getRec(G.world.id), nt = G.t > r.t, nk = G.kills > r.kills;
@@ -357,7 +384,7 @@ function worldClear() {
 let pickWi = 0;
 function showWeaponPick(wi) {
   pickWi = wi; G = null;
-  ['worldSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['worldSel', 'startConf', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   const box = $('wpnCards'); box.innerHTML = '';
   UNLOCKED_WEAPONS.forEach((id, i) => {
     const W = WEAPONS[id], d = document.createElement('div');
@@ -398,8 +425,9 @@ addEventListener('keydown', e => {
   }
   if (!G) {                                                     // 월드 · 무기 선택: 숫자
     const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];
-    if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showWorlds(); }
-    else if (WORLDS[i]) showWeaponPick(i);
+    if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showWorlds(true); }
+    else if (!$('startConf').hidden) { if (e.code === 'Escape') showWorlds(); }
+    else if (WORLDS[i]) pickWorld(i);
     return;
   }
   if (G.mode === 'levelup') {
@@ -422,7 +450,7 @@ $('pause').onclick = () => { if (G && G.mode === 'pause') togglePause(); };
 $('retryBtn').onclick = () => showWeaponPick(G.wi);
 $('clearRetry').onclick = () => showWeaponPick(G.wi);
 $('clearNext').onclick = () => showWeaponPick(G.wi + 1);
-$('wpnBack').onclick = () => showWorlds();
+$('wpnBack').onclick = () => showWorlds(true);   // 뒤로: 고른 월드 · 캐릭터는 그대로
 $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
@@ -436,13 +464,14 @@ function togglePause() {
 // 창마다 줄(행) 목록. 위아래 = 줄 바꿈, 좌우 = 줄 안에서 옆 칸. 결정 = 그 칸을 누른 것과 같다
 const NAV_ROWS = {
   worldSel: ['#worldList > button', '#charList > button'],
+  startConf: ['#startConf .btns button'],
   wpnSel:   ['#wpnCards > .up', '#wpnBack'],
   levelup:  ['#cards > .up'],
   pause:    ['#pause .btns button'],
   over:     ['#over .btns button'],
   clear:    ['#clear .btns button'],
 };
-const NAV_ORDER = ['levelup', 'pause', 'over', 'clear', 'wpnSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const NAV_ORDER = ['levelup', 'pause', 'over', 'clear', 'wpnSel', 'startConf', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
 const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled));
@@ -452,7 +481,8 @@ function navSync() {
   nav.scr = scr; nav.dir = null; nav.needNeutral = true;        // 새 창: 스틱을 한 번 놓아야 움직인다 (피하던 스틱이 그대로 고르지 않게)
   const rows = navRows();
   nav.r = 0; nav.cs = rows.map(() => 0);
-  if (scr === 'worldSel') { nav.cs[0] = pickWi; nav.cs[1] = charIdx; }
+  if (scr === 'worldSel') { nav.cs[0] = sel.w ?? 0; nav.cs[1] = sel.c ?? 0; }
+  if (scr === 'startConf') nav.cs[0] = 1;                      // 출발
   if (scr === 'over' || scr === 'clear') nav.cs[0] = rows[0].length - 1;   // 다시하기 · 다음 월드
   return scr;
 }
@@ -474,7 +504,7 @@ function navStep(dir) {
 function navConfirm() {
   if (!navSync()) return;
   const el = navCur(); if (!el) return;
-  const pickedChar = nav.scr === 'worldSel' && nav.r === 1;
+  const pickedChar = nav.scr === 'worldSel' && nav.r === 1 && sel.w === null;   // 월드를 아직 안 골랐으면 월드 줄로
   el.click();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   if (pickedChar) nav.r = 0;                                    // 캐릭터를 고르면 월드 줄로
@@ -482,7 +512,8 @@ function navConfirm() {
 }
 function navBack() {
   const scr = navSync();
-  if (scr === 'wpnSel' || scr === 'over' || scr === 'clear') showWorlds();
+  if (scr === 'wpnSel') showWorlds(true);
+  else if (scr === 'startConf' || scr === 'over' || scr === 'clear') showWorlds();
   else if (scr === 'pause') togglePause();
 }
 function navPaint() {
@@ -537,7 +568,7 @@ addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 // 무기 선택: 위 절반 = 무기, 아래 절반 = 뒤로
 // 메뉴는 두 가지 —
 //   선택형 (월드 · 캐릭터 · 무기 · 업그레이드): 화면 배치와 같은 방향 (왼→오른)
-//   확인형 (쓰러졌다 · 클리어 · 일시정지 · 뒤로/취소): 긍정 · 확인은 위, 부정 · 취소 · 나가기는 아래
+//   확인형 (출발 준비 · 쓰러졌다 · 클리어 · 일시정지 · 뒤로/취소): 긍정 · 확인은 위, 부정 · 취소 · 나가기는 아래
 // ※ 대전제: 모든 UI 는 방사형 메뉴로도 고를 수 있어야 한다 (docs/기능.md '# 대전제')
 // 레벨업: 위 절반 = 카드 1 · 2 · 3 (왼 · 가운데 · 오른), 아래 절반은 빈칸 (떼면 취소)
 // 끌지 않고 떼면 그냥 탭 (버튼을 누른 것)
@@ -549,17 +580,17 @@ function rmItems(scr) {
     const wb = [...$('worldList').children], cb = [...$('charList').children];
     return {
       up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
-        el: wb[i], act: () => showWeaponPick(i)})),
-      down: CHARACTERS.map((c, i) => ({label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, on: i === charIdx,
-        el: cb[i], act: () => { charIdx = i; localStorage.setItem('survivor.char', c.id); showWorlds(); }})),
+        on: i === sel.w, el: wb[i], act: () => pickWorld(i)})),
+      down: CHARACTERS.map((c, i) => ({label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, on: i === sel.c,
+        el: cb[i], act: () => pickChar(i)})),
     };
   }
   if (scr === 'wpnSel') {                                       // 위 절반 = 무기, 아래 절반 = 뒤로
     const cards = [...$('wpnCards').children];
     return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
-            down: [{label: '뒤로', el: $('wpnBack'), act: () => showWorlds()}]};
+            down: [{label: '뒤로', el: $('wpnBack'), act: () => showWorlds(true)}]};
   }
-  if (scr === 'over' || scr === 'clear' || scr === 'pause') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
+  if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'startConf') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
     // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
     const item = b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }});
@@ -625,7 +656,7 @@ function rmEnd() {
   if (it && !it.disabled) it.act();
   rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'wpnSel', 'levelup', 'over', 'clear', 'pause'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'startConf', 'wpnSel', 'levelup', 'over', 'clear', 'pause'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
