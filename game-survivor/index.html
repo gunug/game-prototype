@@ -166,7 +166,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.14.2';
+const VERSION = '0.15.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -216,7 +216,7 @@ const WEAPONS = {
            affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock', 'splash']},
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
-  laser:  {nm: '굴곡 레이저', kind: 'laser', ds: '가까운 적부터 최대 3마리를 반원 빔으로 잇는다. 약하지만 빠르게 여러 번 맞힌다',
+  laser:  {nm: '굴곡 레이저', kind: 'laser', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
            dmg: 2, cd: 0.1, range: 240, spd: 0, chain: 3, hop: 150,
            len: 22, pivot: [0.3, 0.55], muzzle: [1.0, 0.3], turn: 16,
            affects: ['dmg', 'rate', 'range', 'count']},
@@ -807,21 +807,89 @@ function fireGun(st, w, i) {
 
 const LASER_BEND = [60, 35, 18, 10];   // 마디별 휨(도) — 마디가 출발할 때 곧은 선에서 벌어지는 각. 첫 마디가 가장 크게
 const LASER_HANDLE = 0.42;             // 베지어 손잡이 길이 (마디 길이 비율)
-// 굴곡 레이저: 사거리 안 가장 가까운 적 → 그 적에서 hop 안의 가장 가까운 (아직 안 맞은) 적 … chain 마리
-function fireLaser(st, w) {
-  const p = G.p, W = WEAPONS[w.id];
-  const first = nearestEnemy(p.x, p.y, st.range);
-  if (!first) return;
-  w.aim = Math.atan2(first.y - p.y, first.x - p.x); w.kick = 0.25;
-  const list = [first], hit = new Set(list), hop = W.hop * st.range / W.range;
-  while (list.length < st.chain) {
-    const last = list[list.length - 1], nx = nearestEnemy(last.x, last.y, hop, hit);
-    if (!nx) break;
-    list.push(nx); hit.add(nx);
+const LASER_SPEED = 420;              // 빔 끝이 다음 적으로 뻗어 가는 빠르기 (px/초)
+const LASER_SAMPLES = 16;             // 마디 하나를 몇 조각 꺾은선으로 (그리기 · 맞힘 판정 공용)
+// 점들(총구 · 적 …)을 지나는 매끄러운 곡선 — 마디마다 3차 베지어, 이음점은 앞뒤 마디가 같은 접선 (꺾이지 않게)
+// 마디 k 가 원하는 출발각 = 곧은 각 + 휨, 도착각 = 곧은 각 - 휨. 이음점 접선 = 앞 마디 도착각과 뒤 마디 출발각의 평균
+function laserSegs(P) {
+  const n = P.length - 1, a = [], b = [], L = [], segs = [];
+  for (let k = 0; k < n; k++) {
+    const A = P[k], B = P[k + 1], c = Math.atan2(B.y - A.y, B.x - A.x);
+    const d = LASER_BEND[Math.min(k, LASER_BEND.length - 1)] * Math.PI / 180 * (k % 2 ? -1 : 1);
+    a.push(c + d); b.push(c - d); L.push(Math.hypot(B.x - A.x, B.y - A.y));
   }
-  for (const e of list) hurtEnemy(e, st.dmg);
-  // 빔은 쿨다운보다 조금 길게 남겨 이어져 보이게. 적이 죽어도 그 자리까지는 그린다
-  w.beam = {pts: list.map(e => ({e, x: e.x, y: e.y})), t: Math.max(0.12, st.cd * 1.6), ph: Math.random()};
+  const T = [a[0]];
+  for (let j = 1; j < n; j++) T.push(Math.atan2(Math.sin(b[j - 1]) + Math.sin(a[j]), Math.cos(b[j - 1]) + Math.cos(a[j])));
+  T.push(b[n - 1]);
+  for (let k = 0; k < n; k++) {
+    const A = P[k], B = P[k + 1], h = L[k] * LASER_HANDLE;
+    const c1x = A.x + Math.cos(T[k]) * h, c1y = A.y + Math.sin(T[k]) * h, c2x = B.x - Math.cos(T[k + 1]) * h, c2y = B.y - Math.sin(T[k + 1]) * h;
+    const seg = [];
+    for (let i = 0; i <= LASER_SAMPLES; i++) {
+      const u = i / LASER_SAMPLES, v = 1 - u;
+      seg.push({x: v * v * v * A.x + 3 * v * v * u * c1x + 3 * v * u * u * c2x + u * u * u * B.x,
+                y: v * v * v * A.y + 3 * v * v * u * c1y + 3 * v * u * u * c2y + u * u * u * B.y});
+    }
+    seg.len = seg.reduce((s, q, i) => i ? s + Math.hypot(q.x - seg[i - 1].x, q.y - seg[i - 1].y) : 0, 0);
+    segs.push(seg);
+  }
+  return segs;
+}
+// 지금 그려진 만큼(prog 마디)의 꺾은선
+function beamLine(bm) {
+  const out = [], full = Math.floor(bm.prog), fr = bm.prog - full;
+  bm.segs.forEach((seg, k) => {
+    if (k < full) { out.push(...(k ? seg.slice(1) : seg)); return; }
+    if (k > full || fr <= 0) return;
+    const f = fr * LASER_SAMPLES, i = Math.floor(f), w = f - i;
+    out.push(...(k ? seg.slice(1, i + 1) : seg.slice(0, i + 1)));
+    if (i < LASER_SAMPLES) out.push({x: seg[i].x + (seg[i + 1].x - seg[i].x) * w, y: seg[i].y + (seg[i + 1].y - seg[i].y) * w});
+  });
+  return out;
+}
+// 굴곡 레이저 — 늘 켜진 빔. 총구에서 가장 가까운 적으로 **천천히 뻗어 가고**, 닿으면 그 적 둘레(hop)의 다음 적으로 또 뻗는다 (최대 chain)
+// 맞힘: 쿨다운마다 **빔이 지나는 길 위의 적 모두** 한 번씩 (연쇄 대상이 아니어도)
+// 첫 적이 죽거나 사거리 밖이면 빔을 거두고 새로 뻗는다. 중간 적이 죽으면 거기까지 잘리고 다시 이어 뻗는다
+function updateLaser(w, wi, st, dt) {
+  const p = G.p, W = WEAPONS[w.id], hop = W.hop * st.range / W.range;
+  let bm = w.beam;
+  if (bm && (bm.pts[0].dead || Math.hypot(bm.pts[0].x - p.x, bm.pts[0].y - p.y) > st.range * 1.15)) bm = w.beam = null;
+  if (!bm) {
+    const f = nearestEnemy(p.x, p.y, st.range);
+    if (!f) { w.cdT = Math.max(0, w.cdT - dt); return; }
+    bm = w.beam = {pts: [f], prog: 0, ph: Math.random(), segs: []};
+  }
+  for (let k = 1; k < bm.pts.length; k++) {
+    const e = bm.pts[k], q = bm.pts[k - 1];
+    if (e.dead || Math.hypot(e.x - q.x, e.y - q.y) > hop * 1.3) { bm.pts.length = k; bm.prog = Math.min(bm.prog, k); break; }
+  }
+  const m = weaponPose(w, wi);
+  bm.segs = laserSegs([{x: m.mx, y: m.my}, ...bm.pts]);
+  // 뻗기
+  const k = Math.floor(bm.prog);
+  if (k < bm.pts.length) bm.prog = Math.min(bm.pts.length, bm.prog + dt * LASER_SPEED / Math.max(20, bm.segs[k].len));
+  if (bm.prog >= bm.pts.length && bm.pts.length < st.chain) {
+    const last = bm.pts[bm.pts.length - 1], nx = nearestEnemy(last.x, last.y, hop, new Set(bm.pts));
+    if (nx) bm.pts.push(nx);
+  }
+  // 맞힘
+  w.cdT -= dt;
+  if (w.cdT > 0) return;
+  w.cdT = st.cd;
+  const line = beamLine(bm);
+  if (line.length < 2) return;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const q of line) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
+  for (const e of G.enemies) {
+    if (e.dead) continue;
+    const r = e.r + 4;
+    if (e.x < x0 - r || e.x > x1 + r || e.y < y0 - r || e.y > y1 + r) continue;
+    for (let i = 1; i < line.length; i++) {
+      const A = line[i - 1], B = line[i], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
+      const u = Math.max(0, Math.min(1, ((e.x - A.x) * dx + (e.y - A.y) * dy) / L2));
+      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg); break; }
+    }
+  }
 }
 
 // ───── 갱신 ─────
@@ -856,13 +924,13 @@ function update(dt) {
     w.aim += Math.sign(d) * Math.min(Math.abs(d), WEAPONS[w.id].turn * dt);
     w.kick = Math.max(0, w.kick - dt * 8);
     if (wi === 0 && tgt) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;     // 쏘는 동안 몸도 그쪽을 본다
+    if (WEAPONS[w.id].kind === 'laser') { updateLaser(w, wi, st, dt); return; }
     w.cdT -= dt;
     if (w.cdT <= 0 && tgt) {
       w.cdT = st.cd;
       for (let i = 0; i < st.burst; i++) w.shots.push(i * 0.1);
     }
-    w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || ((WEAPONS[w.id].kind === 'laser' ? fireLaser : fireGun)(st, w, wi), false));
-    if (w.beam) { w.beam.t -= dt; if (w.beam.t <= 0) w.beam = null; }
+    w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || (fireGun(st, w, wi), false));
   });
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
@@ -1065,33 +1133,24 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(b.x - tx * 0.6, b.y - ty * 0.6); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
 
-  // 굴곡 레이저: 총구 → 1번 → 2번 → 3번, 마디마다 2차 베지어 곡선. 휨(곡률)은 첫 마디가 가장 크고 갈수록 작아짐
-  // 휘는 쪽은 마디마다 번갈아 뱀처럼. 마디마다 3차 베지어 — 이음점(적)에선 앞뒤 마디가 **같은 접선**을 써서 꺾이지 않는다
+  // 굴곡 레이저: 그려진 만큼의 꺾은선 (updateLaser 가 계산). 청록 빛 3겹 · 닿은 적 빛 점 · 뻗는 끝 빛
   for (const [w, m] of poses) {
-    if (!w.beam) continue;
-    const pts = [{x: m.mx, y: m.my}, ...w.beam.pts.map(q => { if (!q.e.dead) { q.x = q.e.x; q.y = q.e.y; } return q; })];
-    const fl = 0.75 + 0.25 * Math.sin((G.t + w.beam.ph) * 60);  // 지글지글
-    const arcs = () => {
-      // 마디 k 가 원하는 출발각 a = 곧은 각 + 휨, 도착각 b = 곧은 각 - 휨 (호처럼 대칭). 이음점 접선 = 앞 마디 b 와 뒤 마디 a 의 평균
-      const n = pts.length - 1, a = [], b = [], L = [];
-      for (let k = 0; k < n; k++) {
-        const A = pts[k], B = pts[k + 1], c = Math.atan2(B.y - A.y, B.x - A.x);
-        const d = LASER_BEND[Math.min(k, LASER_BEND.length - 1)] * Math.PI / 180 * (k % 2 ? -1 : 1);
-        a.push(c + d); b.push(c - d); L.push(Math.hypot(B.x - A.x, B.y - A.y));
-      }
-      const T = [a[0]];
-      for (let j = 1; j < n; j++) T.push(Math.atan2(Math.sin(b[j - 1]) + Math.sin(a[j]), Math.cos(b[j - 1]) + Math.cos(a[j])));
-      T.push(b[n - 1]);
-      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-      for (let k = 0; k < n; k++) {
-        const A = pts[k], B = pts[k + 1], h = L[k] * LASER_HANDLE;
-        ctx.bezierCurveTo(A.x + Math.cos(T[k]) * h, A.y + Math.sin(T[k]) * h, B.x - Math.cos(T[k + 1]) * h, B.y - Math.sin(T[k + 1]) * h, B.x, B.y);
-      } };
+    const bm = w.beam;
+    if (!bm || !bm.segs.length) continue;
+    const line = beamLine(bm);
+    if (line.length < 2) continue;
+    const fl = 0.75 + 0.25 * Math.sin((G.t + bm.ph) * 60);   // 지글지글
+    line[0] = {x: m.mx, y: m.my};                               // 총구는 이번 프레임 자세에 붙인다
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    arcs(); ctx.strokeStyle = `rgba(60,220,255,${0.22 * fl})`; ctx.lineWidth = 9; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(line[0].x, line[0].y);
+    for (const q of line) ctx.lineTo(q.x, q.y);
+    ctx.strokeStyle = `rgba(60,220,255,${0.22 * fl})`; ctx.lineWidth = 9; ctx.stroke();
     ctx.strokeStyle = `rgba(120,240,255,${0.55 * fl})`; ctx.lineWidth = 4; ctx.stroke();
     ctx.strokeStyle = `rgba(235,255,255,${0.95 * fl})`; ctx.lineWidth = 1.6; ctx.stroke();
-    for (const q of pts.slice(1)) { ctx.fillStyle = `rgba(160,245,255,${0.6 * fl})`; ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = `rgba(160,245,255,${0.6 * fl})`;
+    bm.pts.forEach((e, k) => { if (k < Math.floor(bm.prog)) { ctx.beginPath(); ctx.arc(e.x, e.y, 5, 0, Math.PI * 2); ctx.fill(); } });
+    const tip = line[line.length - 1];
+    ctx.fillStyle = `rgba(220,255,255,${0.9 * fl})`; ctx.beginPath(); ctx.arc(tip.x, tip.y, 4, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(200,250,255,${0.8 * fl})`; ctx.beginPath(); ctx.arc(m.mx, m.my, 3.5, 0, Math.PI * 2); ctx.fill();
   }
 
