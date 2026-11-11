@@ -40,12 +40,29 @@
   .world .wn{font-size:18px;font-weight:700}
   .world .wd{font-size:12px;color:#9ab;margin-top:4px}
   .world .ok{color:#7e7;font-size:12px;margin-left:6px}
+  .chars{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .char{width:150px;padding:10px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;cursor:pointer;text-align:center}
+  .char.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
+  .char img{width:72px;height:96px;object-fit:contain;display:block;margin:0 auto 4px}
+  .char .cn{font-weight:700}
+  .char .ct{font-size:11px;color:#9ab;margin-top:4px}
+  .slotrow{display:flex;gap:3px;justify-content:center;align-items:center;font-size:11px;color:#9ab;margin-top:4px}
+  .slot{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;border-radius:4px;border:1px solid #6a7090;font-size:10px;color:#dde}
+  .slot.w{border-color:#e9a23b}
+  .slot.s{border-color:#5fb0e8}
+  .slot.empty{border-style:dashed;opacity:.6}
+  .sec{font-size:12px;color:#9ab;letter-spacing:.1em}
+  #slots{position:fixed;left:12px;bottom:84px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  #slots[hidden]{display:none}
+  #slots .slotrow{justify-content:flex-start}
+  #slots .slot{height:20px;font-size:11px;padding:0 6px}
+  .up .aff{font-size:11px;color:#e9a23b;margin-top:6px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
@@ -64,12 +81,22 @@
   <div class="bar" id="hpBar"><i></i></div>
   <div class="bar" id="xpBar"><i></i></div>
 </div>
+<div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
-  <div class="hint" id="startHint">WASD 로 피하고, 공격은 저절로. 레벨업하면 1 · 2 · 3 으로 고른다.</div>
+  <div class="hint" id="startHint">캐릭터와 월드를 고르면 무기를 고른다. WASD 로 피하고, 총은 저절로 쏜다. 레벨업하면 1 · 2 · 3.</div>
+  <div class="sec">캐릭터</div>
+  <div class="chars" id="charList"></div>
+  <div class="sec">월드</div>
   <div class="worlds" id="worldList"></div>
+</div>
+<div class="overlay" id="wpnSel" hidden>
+  <h2>무기 선택</h2>
+  <div class="hint" id="wpnHint">시작할 무기를 고른다 (1 · 2 · 3)</div>
+  <div class="cards" id="wpnCards"></div>
+  <div class="btns"><button class="sub" id="wpnBack">뒤로</button></div>
 </div>
 <div class="overlay" id="levelup" hidden>
   <h2>레벨 업!</h2>
@@ -97,13 +124,16 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
+// 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
+const FACE = {survivor: false, zombie: true, dog: true, brute: false};
+// 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 const ENEMY_TYPES = {
-  slime: {hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#5c5'},
-  bat:   {hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, from: 60,  w: 6,  color: '#a6e'},
-  golem: {hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, from: 180, w: 2,  color: '#999'},
+  zombie: {hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
+  dog:    {hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, from: 60,  w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
+  brute:  {hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, from: 180, w: 2,  color: '#888',    faceLeft: FACE.brute},
 };
 const HP_PER_MIN = 0.45;        // 분당 적 체력 +45%
 const DEF_PER_MIN = 1.5;        // 분당 적 방어 +1.5 (생길 때 정해짐)
@@ -113,23 +143,59 @@ const MAX_ENEMIES = 500;
 const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 후보에
 
 const SPRITES = {};             // 없으면 도형으로
-for (const n of ['hero', 'slime', 'bat', 'golem']) {
+for (const n of ['survivor', 'zombie', 'dog', 'brute']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
   img.src = `images/portrait_${n}.png`;
 }
 
+// wpn: 무기 업그레이드 — 가진 무기 중 하나라도 affects 에 이 id 가 있어야 후보에 나온다. 카드 밑에 영향받는 무기 표시
 const UPGRADES = [
-  {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, apply: s => s.dmg *= 1.2},
-  {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, apply: s => s.cd *= 0.85},
-  {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 99, apply: s => s.range *= 1.15},
+  {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, wpn: true, apply: s => s.dmgMul *= 1.2},
+  {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, apply: s => s.cdMul *= 0.85},
+  {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 99, wpn: true, apply: s => s.rangeMul *= 1.15},
   {id: 'hp',     nm: '체력',       ds: '최대 체력 +25, 회복',  max: 99, apply: (s, p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); }},
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, apply: s => s.def += 2},
-  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, apply: s => s.count++},
-  {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, apply: s => s.burst++},
-  {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, apply: s => s.knock++},
-  {id: 'splash', nm: '스플래시',   ds: '맞은 지점 둘레 피해',  max: 5, ext: true, apply: s => s.splash++},
+  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, apply: s => s.count++},
+  {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, apply: s => s.burst++},
+  {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, apply: s => s.knock++},
+  {id: 'splash', nm: '스플래시',   ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, apply: s => s.splash++},
 ];
+
+// ───── 무기 ─────
+// affects: 영향받는 업그레이드 id. 능력치는 기본값 — 업그레이드 배율이 곱해진다
+const WEAPONS = {
+  pistol: {nm: '권총', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
+           dmg: 10, cd: 0.75, range: 280, spd: 620,
+           affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock', 'splash']},
+};
+const UNLOCKED_WEAPONS = ['pistol'];   // 해금된 무기 (해금 방식은 미정 — 지금은 권총만)
+
+// 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
+function wstat(id) {
+  const W = WEAPONS[id], s = G.s, a = k => W.affects.includes(k), c = G.char;
+  return {
+    dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1),
+    cd: W.cd * (a('rate') ? s.cdMul : 1),
+    range: W.range * (a('range') ? s.rangeMul : 1),
+    spd: W.spd,
+    count: 1 + (a('count') ? s.count : 0),
+    burst: 1 + (a('burst') ? s.burst : 0),
+    knock: a('knock') ? s.knock : 0,
+    splash: a('splash') ? s.splash : 0,
+  };
+}
+const affectedBy = uid => G.weapons.filter(w => WEAPONS[w.id].affects.includes(uid)).map(w => WEAPONS[w.id].nm);
+
+// ───── 캐릭터 ─────
+// wSlots · sSlots: 무기 · 보조 슬롯 수. 특징은 docs/기획_캐릭터.md
+const CHARACTERS = [
+  {id: 'survivor', nm: '생존자', sprite: 'survivor', wSlots: 2, sSlots: 2, hp: 100, speed: 190, trait: '특징 없음 — 기준 캐릭터'},
+];
+let charIdx = Math.max(0, CHARACTERS.findIndex(c => c.id === localStorage.getItem('survivor.char')));
+const slotRow = (label, n, cls, items = []) =>
+  `<div class="slotrow">${label}${Array.from({length: n}, (_, i) => items[i]
+    ? `<span class="slot ${cls}">${items[i]}</span>` : `<span class="slot ${cls} empty"></span>`).join('')}</div>`;
 const splashR = lv => 45 + (lv - 1) * 12;
 const splashPct = lv => 0.4 + (lv - 1) * 0.15;
 const knockV = lv => 320 + (lv - 1) * 200;   // 처음 속도. 밀리는 거리 ≈ v/8 (Lv1 40px, 레벨당 +25px)
@@ -176,14 +242,15 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 
 // 터치 기기면 안내 글을 바꾼다
 if (matchMedia('(pointer: coarse)').matches) {
-  document.getElementById('startHint').textContent = '화면을 누른 채 끌면 그쪽으로 움직인다. 공격은 저절로. 레벨업하면 카드를 누른다.';
+  document.getElementById('startHint').textContent = '캐릭터와 월드를 고르면 무기를 고른다. 화면을 누른 채 끌면 움직이고, 총은 저절로 쏜다.';
   document.getElementById('luHint').textContent = '카드를 누른다';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
+  document.getElementById('wpnHint').textContent = '시작할 무기를 누른다';
 }
 // ───── 월드 ─────
 // 한 월드 = dur 초 버티면 클리어. 중간보스 · 마지막 보스는 아직 미정
 const WORLDS = [
-  {id: 1, name: '월드 1', desc: '풀밭 — 슬라임 · 박쥐 · 골렘', dur: 600},
+  {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = w => 'survivor.w' + w;
@@ -191,7 +258,16 @@ const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills
 
 function showWorlds() {
   G = null;
-  ['over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['over', 'clear', 'levelup', 'pause', 'wpnSel'].forEach(id => $(id).hidden = true);
+  const cl = $('charList'); cl.innerHTML = '';
+  CHARACTERS.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'char' + (i === charIdx ? ' on' : '');
+    b.innerHTML = `<img src="images/portrait_${c.sprite}.png" alt=""><div class="cn">${c.nm}</div>
+      ${slotRow('무기 ', c.wSlots, 'w')}${slotRow('보조 ', c.sSlots, 's')}<div class="ct">${c.trait}</div>`;
+    b.onclick = () => { charIdx = i; localStorage.setItem('survivor.char', c.id); showWorlds(); };
+    cl.appendChild(b);
+  });
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
     const w = WORLDS[i], b = document.createElement('button');
@@ -204,7 +280,7 @@ function showWorlds() {
       b.innerHTML = `<div class="wn">${w.name}${r.clear ? '<span class="ok">클리어</span>' : ''}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
-      b.onclick = () => newGame(i);
+      b.onclick = () => showWeaponPick(i);
     }
     box.appendChild(b);
   }
@@ -230,31 +306,55 @@ function worldClear() {
   $('clear').hidden = false;
 }
 
-function newGame(wi = G ? G.wi : 0) {
+// 월드를 시작할 때 무기를 고른다 (해금된 것 중)
+let pickWi = 0;
+function showWeaponPick(wi) {
+  pickWi = wi; G = null;
+  ['worldSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  const box = $('wpnCards'); box.innerHTML = '';
+  UNLOCKED_WEAPONS.forEach((id, i) => {
+    const W = WEAPONS[id], d = document.createElement('div');
+    d.className = 'up';
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${W.nm}</div>
+      <div class="lv">피해 ${W.dmg} · 쿨다운 ${W.cd}s · 사거리 ${W.range}</div><div class="ds">${W.ds}</div>`;
+    d.onclick = () => newGame(wi, id);
+    box.appendChild(d);
+  });
+  $('wpnSel').hidden = false;
+}
+
+function newGame(wi, weaponId) {
+  const C = CHARACTERS[charIdx];
   G = {
-    wi, world: WORLDS[wi],
+    wi, world: WORLDS[wi], char: C,
+    weapons: [{id: weaponId, cdT: 0, shots: []}], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, r: 14, speed: 190, hp: 100, maxHp: 100, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmg: 10, cd: 0.75, range: 280, pspd: 520, def: 0, count: 1, burst: 1, knock: 0, splash: 0},
-    ups: {}, cdT: 0, shots: [],
+    p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: 0, count: 0, burst: 0, knock: 0, splash: 0},
+    ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
-  ['worldSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
 }
 
 // ───── 입력 ─────
 const keys = {};
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (!G) { const i = {Digit1: 0, Digit2: 1, Digit3: 2}[e.code]; if (WORLDS[i]) newGame(i); return; }   // 월드 선택: 숫자
+  if (!G) {                                                     // 월드 · 무기 선택: 숫자
+    const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];
+    if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showWorlds(); }
+    else if (WORLDS[i]) showWeaponPick(i);
+    return;
+  }
   if (G.mode === 'levelup') {
     const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];   // 이동 키(WASD)와 겹치지 않게 숫자
     if (i !== undefined && !e.repeat) choose(i);
   } else if (G.mode === 'over' || G.mode === 'clear') {
-    if (e.code === 'KeyR') newGame();
-    else if (e.code === 'KeyN' && G.mode === 'clear' && WORLDS[G.wi + 1]) newGame(G.wi + 1);
+    if (e.code === 'KeyR') showWeaponPick(G.wi);
+    else if (e.code === 'KeyN' && G.mode === 'clear' && WORLDS[G.wi + 1]) showWeaponPick(G.wi + 1);
     else if (e.code === 'Escape') showWorlds();
   } else if (e.code === 'KeyP' || e.code === 'Escape') {
     togglePause();
@@ -266,9 +366,10 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; joy.id =
 addEventListener('focus', () => { if (G && G.mode === 'pause' && G.autoPaused) togglePause(); });
 $('pauseBtn').onclick = e => { e.currentTarget.blur(); if (G) togglePause(); };
 $('pause').onclick = () => { if (G && G.mode === 'pause') togglePause(); };
-$('retryBtn').onclick = () => newGame();
-$('clearRetry').onclick = () => newGame();
-$('clearNext').onclick = () => newGame(G.wi + 1);
+$('retryBtn').onclick = () => showWeaponPick(G.wi);
+$('clearRetry').onclick = () => showWeaponPick(G.wi);
+$('clearNext').onclick = () => showWeaponPick(G.wi + 1);
+$('wpnBack').onclick = () => showWorlds();
 $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
@@ -282,7 +383,12 @@ function togglePause() {
 const xpNeed = lv => 5 + (lv - 1) * 4;
 
 function openLevelUp() {
-  const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV));
+  const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV)
+    && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
+  if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
+    for (const id of UNLOCKED_WEAPONS) if (!G.weapons.some(w => w.id === id))
+      pool.push({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id,
+                 apply: () => G.weapons.push({id, cdT: 0, shots: []})});
   const picks = [];
   while (picks.length < 3 && pool.length) {
     const tot = pool.reduce((a, u) => a + (u.ext ? 2 : 3), 0);
@@ -297,11 +403,13 @@ function openLevelUp() {
   picks.forEach((u, i) => {
     const d = document.createElement('div');
     d.className = 'up' + (u.ext ? ' ext' : '');
-    const lv = G.ups[u.id];
+    const lv = G.ups[u.id] || 0;
     let ds = u.ds;
     if (u.id === 'splash') ds = `반경 ${splashR(lv + 1)} · 피해 ${Math.round(splashPct(lv + 1) * 100)}%`;
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
-      <div class="lv">Lv ${lv} → ${lv + 1}${u.max < 99 ? ' / ' + u.max : ''}</div><div class="ds">${ds}</div>${u.ext ? '<div class="tag">확장</div>' : ''}`;
+      ${u.newWeapon ? '<div class="lv">무기 슬롯에 추가</div>' : `<div class="lv">Lv ${lv} → ${lv + 1}${u.max < 99 ? ' / ' + u.max : ''}</div>`}
+      <div class="ds">${ds}</div>${u.ext ? '<div class="tag">확장</div>' : ''}
+      ${u.wpn ? `<div class="aff">영향: ${affectedBy(u.id).join(' · ')}</div>` : ''}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
@@ -311,7 +419,7 @@ function openLevelUp() {
 function choose(i, click) {
   if (G.mode !== 'levelup' || G.inputLock > 0) return;          // 창이 뜨자마자 누른 탭 · 키는 무시
   const u = G.choices[i]; if (!u) return;
-  G.ups[u.id]++;
+  G.ups[u.id] = (G.ups[u.id] || 0) + 1;
   u.apply(G.s, G.p);
   $('levelup').hidden = true;
   G.mode = 'play';
@@ -362,17 +470,18 @@ function hurtEnemy(e, dmg) {
 }
 
 // ───── 공격 ─────
-function fireShot() {
-  const p = G.p, s = G.s;
-  const tgt = nearestEnemy(p.x, p.y, s.range);
-  if (!tgt) return false;
-  const base = Math.atan2(tgt.y - p.y, tgt.x - p.x), spread = 0.17;
-  for (let i = 0; i < s.count; i++) {
-    const a = base + (i - (s.count - 1) / 2) * spread;
-    G.bullets.push({x: p.x, y: p.y, vx: Math.cos(a) * s.pspd, vy: Math.sin(a) * s.pspd,
-      dmg: s.dmg, travel: 0, maxTravel: s.range * 1.25, hit: new Set()});
+// 총 계열: 가장 가까운 적에게, 투사체 수만큼 부채꼴로
+function fireGun(st) {
+  const p = G.p;
+  const tgt = nearestEnemy(p.x, p.y, st.range);
+  if (!tgt) return;
+  const base = Math.atan2(tgt.y - p.y, tgt.x - p.x), spread = 0.14;
+  for (let i = 0; i < st.count; i++) {
+    const a = base + (i - (st.count - 1) / 2) * spread;
+    G.bullets.push({x: p.x, y: p.y, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
+      dmg: st.dmg, knock: st.knock, splash: st.splash, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
-  return true;
+  G.fx.push({kind: 'muzzle', x: p.x + Math.cos(base) * 16, y: p.y - 6 + Math.sin(base) * 16, t: 0.06});
 }
 
 // ───── 갱신 ─────
@@ -397,13 +506,16 @@ function update(dt) {
   while (G.spawnAcc >= 1) { G.spawnAcc--; spawnEnemy(); }
   if (G.t >= G.nextWave) { G.nextWave += 60; for (let i = 0; i < 20 + G.t / 6; i++) spawnEnemy(); }
 
-  // 발사 (연속공격은 0.1초 간격)
-  G.cdT -= dt;
-  if (G.cdT <= 0 && nearestEnemy(p.x, p.y, s.range)) {
-    G.cdT = s.cd;
-    for (let i = 0; i < s.burst; i++) G.shots.push(i * 0.1);
+  // 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
+  for (const w of G.weapons) {
+    const st = wstat(w.id);
+    w.cdT -= dt;
+    if (w.cdT <= 0 && nearestEnemy(p.x, p.y, st.range)) {
+      w.cdT = st.cd;
+      for (let i = 0; i < st.burst; i++) w.shots.push(i * 0.1);
+    }
+    w.shots = w.shots.map(t => t - dt).filter(t => t > 0 || (fireGun(st), false));
   }
-  G.shots = G.shots.map(t => t - dt).filter(t => t > 0 || (fireShot(), false));
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
@@ -447,13 +559,13 @@ function update(dt) {
       if (e.dead || b.hit.has(e)) continue;
       if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
       hurtEnemy(e, b.dmg); b.hit.add(e);
-      if (s.splash) {
-        const R = splashR(s.splash), sd = b.dmg * splashPct(s.splash);
-        G.fx.push({x: b.x, y: b.y, r: R, t: 0.25});
+      if (b.splash) {
+        const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
+        G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
         for (const o of G.enemies) if (o !== e && !o.dead && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
       }
-      if (s.knock) {                                              // 총알이 날던 방향으로 밀림. 큰 적은 덜 밀림
-        const sp = Math.hypot(b.vx, b.vy), v0 = knockV(s.knock) * Math.min(1, 15 / e.r);
+      if (b.knock) {                                              // 총알이 날던 방향으로 밀림. 큰 적은 덜 밀림
+        const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) * Math.min(1, 15 / e.r);
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
       b.dead = true;
@@ -495,10 +607,10 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 // ───── 그리기 ─────
 // 들썩: 종류마다 뛰는 빠르기(hz) · 높이(amp, 그림 키 비율) · 착지 찌그러짐(sq) · 흔들림(tilt) · 부드러운 오르내림(smooth: 박쥐)
 const BOB = {
-  hero:  {amp: 0.08, sq: 0.10, tilt: 0.06},
-  slime: {hz: 2.2, amp: 0.14, sq: 0.18, tilt: 0},
-  bat:   {hz: 3.2, amp: 0.10, sq: 0.04, tilt: 0.10, smooth: true},
-  golem: {hz: 1.3, amp: 0.04, sq: 0.06, tilt: 0.07},
+  survivor: {amp: 0.08, sq: 0.10, tilt: 0.06},
+  zombie:   {hz: 1.5, amp: 0.05, sq: 0.06, tilt: 0.10},   // 비틀비틀
+  dog:      {hz: 3.6, amp: 0.10, sq: 0.08, tilt: 0.05},   // 다다닥
+  brute:    {hz: 1.2, amp: 0.04, sq: 0.06, tilt: 0.07},   // 쿵쿵
 };
 // ph: 위상(라디안), k: 세기 0~1. 들린 높이(px)를 돌려줌 → 그림자 크기에 씀
 function bobOf(name, ph, k, h) {
@@ -524,22 +636,29 @@ function circle(x, y, r, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, 
 
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = '#1b1e27'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#1f2125'; ctx.fillRect(0, 0, W, H);             // 아스팔트
   if (!G) return;
   const p = G.p, ox = W / 2 - p.x, oy = H / 2 - p.y;
 
-  // 바닥 격자
-  ctx.strokeStyle = '#242836'; ctx.lineWidth = 1; ctx.beginPath();
+  // 바닥: 블록 줄 + 큰 간격마다 노란 점선 차선
+  ctx.strokeStyle = '#272a2f'; ctx.lineWidth = 1; ctx.beginPath();
   const S = 64;
   for (let x = ((ox % S) + S) % S; x < W; x += S) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
   for (let y = ((oy % S) + S) % S; y < H; y += S) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
   ctx.stroke();
+  const LANE = S * 8;
+  ctx.strokeStyle = 'rgba(230,190,60,.28)'; ctx.lineWidth = 4; ctx.setLineDash([36, 28]);
+  ctx.lineDashOffset = -ox;
+  ctx.beginPath();
+  for (let y = ((oy % LANE) + LANE) % LANE; y < H; y += LANE) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
 
   ctx.save(); ctx.translate(ox, oy);
 
   // 사거리
   ctx.strokeStyle = 'rgba(120,200,255,.12)'; ctx.setLineDash([6, 8]);
-  ctx.beginPath(); ctx.arc(p.x, p.y, G.s.range, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  const maxRange = Math.max(...G.weapons.map(w => wstat(w.id).range));
+  ctx.beginPath(); ctx.arc(p.x, p.y, maxRange, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
 
   // 보석
   for (const g of G.gems) {
@@ -557,8 +676,8 @@ function draw() {
     ctx.fillStyle = 'rgba(0,0,0,.3)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = e.flash > 0 ? 0.55 : 1;
-    // 크리처 그림은 왼쪽을 본다 → 오른쪽으로 가면 뒤집는다
-    drawSprite(e.type, e.x, e.y, eh, e.vx > 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob);
+    // 왼쪽을 보는 그림은 오른쪽으로 갈 때, 오른쪽을 보는 그림은 왼쪽으로 갈 때 뒤집는다
+    drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob);
     ctx.globalAlpha = 1;
     if (e.hp < e.maxHp) {
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
@@ -567,22 +686,32 @@ function draw() {
   }
 
   // 플레이어
-  const pb = bobOf('hero', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
+  const pb = bobOf('survivor', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
   pb.sy *= 1 + Math.sin(G.t * 3) * 0.015 * (1 - p.move);       // 서 있으면 숨쉬기만
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 13 * psh, 5 * psh, 0, 0, Math.PI * 2); ctx.fill();
   if (!(p.inv > 0 && Math.floor(G.t * 20) % 2)) {
-    drawSprite('hero', p.x, p.y, 54, p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
+    drawSprite(G.char.sprite, p.x, p.y, 54, FACE.survivor ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
 
   // 투사체
+  // 총알: 날아가는 쪽으로 짧은 노란 꼬리
+  ctx.lineCap = 'round';
   for (const b of G.bullets) {
-    circle(b.x, b.y, 7, 'rgba(140,220,255,.25)');
-    circle(b.x, b.y, 4, '#dff');
+    const sp = Math.hypot(b.vx, b.vy), tx = b.vx / sp * 12, ty = b.vy / sp * 12;
+    ctx.strokeStyle = 'rgba(255,200,80,.35)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.strokeStyle = '#ffe9a0'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(b.x - tx * 0.6, b.y - ty * 0.6); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
 
-  // 스플래시
+  // 효과: 총구 불꽃 · 스플래시
   for (const f of G.fx) {
+    if (f.kind === 'muzzle') {
+      ctx.fillStyle = `rgba(255,220,120,${Math.min(1, f.t * 14)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
     ctx.strokeStyle = `rgba(255,170,60,${f.t * 3})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.2 - f.t * 0.8), 0, Math.PI * 2); ctx.stroke();
   }
@@ -607,6 +736,7 @@ function draw() {
 }
 
 function hud() {
+  $('slots').hidden = !G;
   if (!G) return;
   $('lv').textContent = G.lv;
   $('time').textContent = `${fmt(G.t)} / ${fmt(G.world.dur)}`;
@@ -614,10 +744,12 @@ function hud() {
   $('hpBar').firstElementChild.style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
   const s = G.s;
+  const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => WEAPONS[w.id].nm)) + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => x.nm));
+  if ($('slots').dataset.k !== sl) { $('slots').innerHTML = sl; $('slots').dataset.k = sl; }
   $('stats').textContent =
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
-    `공격력 ${s.dmg.toFixed(1)}  쿨다운 ${s.cd.toFixed(2)}s  사거리 ${Math.round(s.range)}\n` +
-    `투사체 ${s.count}  연속 ${s.burst}  넉백 Lv${s.knock}  스플래시 Lv${s.splash}\n` +
+    G.weapons.map(w => { const t = wstat(w.id);
+      return `${WEAPONS[w.id].nm}  피해 ${t.dmg.toFixed(1)}  쿨 ${t.cd.toFixed(2)}s  사거리 ${Math.round(t.range)}  탄 ${t.count}  연속 ${t.burst}  넉백 ${t.knock}  스플 ${t.splash}\n`; }).join('') +
     `적 ${G.enemies.length}  적 체력 ×${(1 + HP_PER_MIN * G.t / 60).toFixed(2)}  적 방어 +${(DEF_PER_MIN * G.t / 60).toFixed(1)}`;
 }
 
