@@ -166,7 +166,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.15.1';
+const VERSION = '0.15.2';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -812,13 +812,13 @@ const LASER_SAMPLES = 16;             // 마디 하나를 몇 조각 꺾은선�
 // 점들(총구 · 적 …)을 지나는 매끄러운 곡선 — 마디마다 3차 베지어, 이음점은 앞뒤 마디가 같은 접선 (꺾이지 않게)
 // 마디 k 가 원하는 출발각 = 곧은 각 + 휨, 도착각 = 곧은 각 - 휨. 이음점 접선 = 앞 마디 도착각과 뒤 마디 출발각의 평균
 function laserSegs(P) {
-  const n = P.length - 1, a = [], b = [], L = [], segs = [];
+  const n = P.length - 1, a = [], b = [], L = [], c0 = [], segs = [];
   for (let k = 0; k < n; k++) {
     const A = P[k], B = P[k + 1], c = Math.atan2(B.y - A.y, B.x - A.x);
     const d = LASER_BEND[Math.min(k, LASER_BEND.length - 1)] * Math.PI / 180 * (k % 2 ? -1 : 1);
-    a.push(c + d); b.push(c - d); L.push(Math.hypot(B.x - A.x, B.y - A.y));
+    a.push(c + d); b.push(c - d); L.push(Math.hypot(B.x - A.x, B.y - A.y)); c0.push(c);
   }
-  const T = [a[0]];
+  const T = [c0[0]];   // 총구에선 적을 똑바로 향해 나간다 (옆으로 쏘지 않게). 휨은 첫 마디 끝 · 이음점에서 생긴다
   for (let j = 1; j < n; j++) T.push(Math.atan2(Math.sin(b[j - 1]) + Math.sin(a[j]), Math.cos(b[j - 1]) + Math.cos(a[j])));
   T.push(b[n - 1]);
   for (let k = 0; k < n; k++) {
