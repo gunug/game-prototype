@@ -274,7 +274,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.38.1';
+const VERSION = '0.39.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1667,6 +1667,11 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
+  // 머리 위 체력 줄 (총 고리보다 위) — 늘 보인다. 아래 정보칸의 줄과 같은 값
+  { const bw = 36, bh = 5, bx = p.x - bw / 2, by = p.y - 58, k = Math.max(0, p.hp / p.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = '#3a1416'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = k > 0.3 ? '#e44' : (Math.floor(G.t * 6) % 2 ? '#f77' : '#c22'); ctx.fillRect(bx, by, bw * k, bh); }
 
   // 투사체
   // 총알: 날아가는 쪽으로 짧은 노란 꼬리
