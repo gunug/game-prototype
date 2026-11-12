@@ -251,7 +251,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.29.1';
+const VERSION = '0.29.2';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -261,7 +261,7 @@ const ENEMY_TYPES = {
   zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
   dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
   brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
-  crawler:{nm: '기는 좀비', hp: 6,  def: 0, spd: 85,  dmg: 5,  r: 12, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
+  crawler:{nm: '기는 좀비', hp: 6,  def: 0, spd: 85,  dmg: 5,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
   riot:   {nm: '진압 경찰 좀비', hp: 40, def: 6, spd: 50, dmg: 14, r: 19, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 6 — 약한 연사를 막음
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
@@ -286,8 +286,24 @@ const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보�
 for (const n of ['pistol', 'laser', 'sniper', 'mg']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
 for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 'bossmid', 'bossking', 'crawler', 'riot']) {
   const img = new Image();
-  img.onload = () => { SPRITES[n] = img; };
+  img.onload = () => { SPRITES[n] = trimSprite(img); };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
+}
+// 그림 둘레 빈칸을 잘라낸다 → 가로형(폭 > 높이, 들개 · 기는 좀비) / 세로형(그 밖) 을 그림 모양으로 정한다
+//   그릴 때 세로형은 높이를, 가로형은 폭을 같은 길이(반지름 × 3.4)로 맞춘다 — 눕거나 엎드린 몹도 서 있는 몹과 비슷한 크기
+function trimSprite(img) {
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+  const a = g.getImageData(0, 0, c.width, c.height).data;
+  let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (a[(y * c.width + x) * 4 + 3] > 8) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) return img;
+  const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+  o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+  o.wide = o.width > o.height;
+  return o;
 }
 
 // wpn: 무기 업그레이드. badges: 이 뱃지 중 하나라도 가진 무기만 영향받는다 (없으면 모든 무기)
@@ -1445,11 +1461,12 @@ function drawSprite(name, x, y, h, flip, fallback, bob) {
   const img = SPRITES[name];
   const b = bob || {lift: 0, sy: 1, tilt: 0};
   if (!img) { ctx.save(); ctx.translate(0, -b.lift); fallback(); ctx.restore(); return; }
-  const w = h * img.width / img.height, foot = y + h * 0.38;    // 발밑을 축으로 찌그러뜨린다
+  const foot = y + h * 0.38;                                     // 발밑을 축으로 찌그러뜨린다
+  const w = img.wide ? h : h * img.width / img.height, hh = img.wide ? h * img.height / img.width : h;   // 가로형은 폭을 h 로
   ctx.save(); ctx.translate(x, foot - b.lift);
   ctx.rotate(b.tilt);
   ctx.scale((flip ? -1 : 1) / Math.sqrt(b.sy), b.sy);          // 납작해지면 옆으로 퍼짐
-  ctx.drawImage(img, -w / 2, -h, w, h);
+  ctx.drawImage(img, -w / 2, -hh, w, hh);
   ctx.restore();
 }
 
