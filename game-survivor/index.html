@@ -259,7 +259,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.33.0';
+const VERSION = '0.34.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -915,7 +915,10 @@ function navTick(dt) {
 }
 
 // ───── 레벨업 ─────
-const xpNeed = lv => 5 + (lv - 1) * 4;
+// 레벨업 필요 경험치 — 완벽 플레이(다 잡고 다 줍기)에서 **약 20초마다 한 번** 레벨업 되게 맞춘 곡선 (docs/레벨업_곡선.md)
+//   xpNeed(L) = 25 × 1.124^(L-1). 10분에 Lv 31. 빈도 · 몹 경험치를 바꾸면 콘솔 __fitXp(20) 으로 A · g 를 다시 뽑는다
+const XP_A = 25, XP_G = 1.124;
+const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1));
 
 function openLevelUp() {
   const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV)
@@ -1754,7 +1757,7 @@ window.__nav = () => ({scr: nav.scr, r: nav.r, cs: nav.cs.slice(), el: nav.el &&
 //   보스 · 엘리트 살아 있는 시간은 보스 20초 · 엘리트 10초로 침 (그 동안 빈도 낮춤)
 window.__perfect = (wi = 0) => {
   const save = G; G = {world: WORLDS[wi], t: 0, enemies: []};
-  const out = []; let xp = 0, lv = 1, cur = 0, mobs = 0;
+  const out = [], cum = []; let xp = 0, lv = 1, cur = 0, mobs = 0;
   const elite = new Set(), boss = new Set();
   WORLDS[wi].elites.forEach(e => { for (let s = 0; s < 10; s++) elite.add(e.at + s); });
   WORLDS[wi].bosses.forEach(b => { if (!BOSSES[b.id].final) for (let s = 0; s < 20; s++) boss.add(b.at + s); });
@@ -1770,11 +1773,21 @@ window.__perfect = (wi = 0) => {
     xp += r * avg; mobs += r;
     WORLDS[wi].elites.forEach(e => { if (e.at === s) xp += avg * ELITE.xp; });   // 엘리트 = 그때 몹 평균 경험치 × 12
     WORLDS[wi].bosses.forEach(b => { if (b.at === s) xp += BOSSES[b.id].xp; });
+    cum.push(xp);
     while (xp - cur >= xpNeed(lv)) { cur += xpNeed(lv); lv++; }
     if ((s + 1) % 60 === 0) out.push({min: (s + 1) / 60, mobs: Math.round(mobs), xp: Math.round(xp), lv, cap: SPAWN.cap((s + 1) / 60)});
   }
   G = save;
+  out.cum = cum;                                                 // 초마다 누적 경험치 (레벨업 곡선 맞출 때)
   return out;
+};
+// 완벽 플레이에서 D 초마다 레벨업 되게 xpNeed = A × g^(L-1) 을 맞춘다 (구간별 필요 경험치의 로그 직선 맞춤)
+window.__fitXp = (D = 20, wi = 0) => {
+  const cum = __perfect(wi).cum, X = s => s <= 0 ? 0 : cum[Math.min(cum.length, s) - 1], n = Math.floor(WORLDS[wi].dur / D);
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) { const y = Math.log(Math.max(1, X((i + 1) * D) - X(i * D))); sx += i; sy += y; sxx += i * i; sxy += i * y; }
+  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a = (sy - b * sx) / n;
+  return {A: +Math.exp(a).toFixed(2), g: +Math.exp(b).toFixed(4)};
 };
 window.__sim = sec => { for (let i = 0; i < sec * 60 && G.mode === 'play'; i++) update(1 / 60); return G.mode; };
 </script>
