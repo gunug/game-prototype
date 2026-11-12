@@ -128,7 +128,7 @@
 </div>
 <div class="overlay" id="wpnSel" hidden>
   <h2>출발 무기</h2>
-  <div class="hint" id="wpnHint">3단계 — 들고 나갈 무기를 고르면 바로 시작 (1 · 2 · 3)</div>
+  <div class="hint" id="wpnHint">3단계 — 들고 나갈 무기를 고르면 바로 시작 (숫자 키)</div>
   <div class="cards row1" id="wpnCards"></div>
   <div class="btns"><button class="sub" id="wpnBack" data-neg>뒤로</button></div>
 </div>
@@ -159,7 +159,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.18.0';
+const VERSION = '0.19.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -179,7 +179,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
-for (const n of ['pistol', 'laser', 'sniper']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
+for (const n of ['pistol', 'laser', 'sniper', 'mg']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
 for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
@@ -202,8 +202,9 @@ const UPGRADES = [
 // ───── 무기 ─────
 // affects: 영향받는 업그레이드 id. 능력치는 기본값 — 업그레이드 배율이 곱해진다
 const WEAPONS = {
+  // acc = 집탄: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
   pistol: {nm: '권총', kind: 'gun', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
-           dmg: 10, cd: 0.75, range: 280, spd: 620,
+           dmg: 10, cd: 0.75, range: 280, spd: 620, acc: 4,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
            affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock', 'splash']},
@@ -216,11 +217,16 @@ const WEAPONS = {
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적 모두 맞고 사거리 끝까지.
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', ds: '사거리 안 가장 먼 적을 공격한다. 직선 위의 적은 모두 관통한다',
-           dmg: 24, cd: 1.6, range: 380, spd: 1500, width: 8,       // 탄속 1500 (권총 620)
+           dmg: 24, cd: 1.6, range: 380, spd: 1500, width: 8, acc: 0.5,       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock']},
+  // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 집탄이 나빠 흩어진다
+  mg:     {nm: '기관총', kind: 'gun', ds: '가까운 적에게 빠르게 퍼붓는다. 집탄이 나빠 탄이 흩어진다',
+           dmg: 4, cd: 0.12, range: 260, spd: 720, acc: 12,
+           len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
+           affects: ['dmg', 'rate', 'range', 'count', 'burst', 'knock', 'splash']},
 };
-const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
+const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
 // 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
 function wstat(id) {
@@ -386,7 +392,7 @@ function showWeaponPick(wi) {
     const W = WEAPONS[id], d = document.createElement('div');
     d.className = 'up';
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${W.nm}</div>
-      <div class="lv">피해 ${W.dmg} · 쿨다운 ${W.cd}s · 사거리 ${W.range}</div><div class="ds">${W.ds}</div>`;
+      <div class="lv">피해 ${W.dmg} · 쿨다운 ${W.cd}s · 사거리 ${W.range}${W.acc != null ? ` · 집탄 ±${W.acc}°` : ''}</div><div class="ds">${W.ds}</div>`;
     d.onclick = () => newGame(wi, id);
     box.appendChild(d);
   });
@@ -419,8 +425,8 @@ addEventListener('keydown', e => {
     if (d) { e.preventDefault(); if (!(scr === 'levelup' && e.repeat)) navStep(d); }   // 레벨업: 누르고 있던 이동 키는 무시
     if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') { e.preventDefault(); if (!e.repeat) navConfirm(); return; }
   }
-  if (!G) {                                                     // 월드 · 무기 선택: 숫자
-    const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];
+  if (!G) {                                                     // 월드 · 캐릭터 · 무기 선택: 숫자 1~9
+    const dg = /^(Digit|Numpad)([1-9])$/.exec(e.code), i = dg ? +dg[2] - 1 : undefined;
     if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showChars(); }
     else if (!$('charSel').hidden) { if (CHARACTERS[i]) pickChar(i); else if (e.code === 'Escape') showWorlds(); }
     else if (WORLDS[i]) pickWorld(i);
@@ -774,6 +780,7 @@ function hurtEnemy(e, dmg) {
 }
 
 // ───── 공격 ─────
+const spreadRnd = w => (Math.random() * 2 - 1) * (WEAPONS[w.id].acc || 0) * Math.PI / 180;   // 집탄: 한 발마다 ±acc 도
 const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
 const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
 
@@ -804,7 +811,7 @@ function fireGun(st, w, i) {
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;     // 쏘는 순간엔 정확히 그쪽
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.14;
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread;
+    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
       dmg: st.dmg, knock: st.knock, splash: st.splash, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
@@ -819,7 +826,7 @@ function fireRail(st, w, i) {
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.12;
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread;
+    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, pierce: true, rad: W.width / 2,
       dmg: st.dmg, knock: st.knock, splash: 0, travel: 0, maxTravel: st.range + 30, hit: new Set()});
   }
