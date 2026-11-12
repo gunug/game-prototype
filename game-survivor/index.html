@@ -251,18 +251,19 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.29.2';
+const VERSION = '0.29.3';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
 const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
+// r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
 const ENEMY_TYPES = {
   zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
-  dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
-  brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
+  brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
   crawler:{nm: '기는 좀비', hp: 6,  def: 0, spd: 85,  dmg: 5,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
-  riot:   {nm: '진압 경찰 좀비', hp: 40, def: 6, spd: 50, dmg: 14, r: 19, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 6 — 약한 연사를 막음
+  riot:   {nm: '진압 경찰 좀비', hp: 40, def: 6, spd: 50, dmg: 14, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 6 — 약한 연사를 막음
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
@@ -289,8 +290,7 @@ for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 
   img.onload = () => { SPRITES[n] = trimSprite(img); };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
 }
-// 그림 둘레 빈칸을 잘라낸다 → 가로형(폭 > 높이, 들개 · 기는 좀비) / 세로형(그 밖) 을 그림 모양으로 정한다
-//   그릴 때 세로형은 높이를, 가로형은 폭을 같은 길이(반지름 × 3.4)로 맞춘다 — 눕거나 엎드린 몹도 서 있는 몹과 비슷한 크기
+// 그림 둘레 빈칸을 잘라낸다 → 적은 이 잘린 그림의 넓이로 크기를 맞춘다 (drawSprite byArea)
 function trimSprite(img) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const g = c.getContext('2d'); g.drawImage(img, 0, 0);
@@ -302,7 +302,6 @@ function trimSprite(img) {
   if (x1 < 0) return img;
   const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
   o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
-  o.wide = o.width > o.height;
   return o;
 }
 
@@ -1457,12 +1456,16 @@ function bobOf(name, ph, k, h) {
           tilt: Math.sin(B.smooth ? ph : ph * 0.5) * B.tilt * k};
 }
 
-function drawSprite(name, x, y, h, flip, fallback, bob) {
+// byArea: 적은 **면적**으로 크기를 맞춘다 — 그림 넓이 = (h² × SPRITE_AREA), 가로 · 세로 비율은 그림 그대로. 같은 등급(반지름)이면 같은 넓이
+//   주인공은 예전처럼 높이 h
+const SPRITE_AREA = 0.55;             // 서 있는 좀비(폭/높이 ≈ 0.53)가 예전과 거의 같은 크기가 되는 값
+function drawSprite(name, x, y, h, flip, fallback, bob, byArea) {
   const img = SPRITES[name];
   const b = bob || {lift: 0, sy: 1, tilt: 0};
   if (!img) { ctx.save(); ctx.translate(0, -b.lift); fallback(); ctx.restore(); return; }
   const foot = y + h * 0.38;                                     // 발밑을 축으로 찌그러뜨린다
-  const w = img.wide ? h : h * img.width / img.height, hh = img.wide ? h * img.height / img.width : h;   // 가로형은 폭을 h 로
+  const asp = img.width / img.height;
+  const hh = byArea ? h * Math.sqrt(SPRITE_AREA / asp) : h, w = hh * asp;
   ctx.save(); ctx.translate(x, foot - b.lift);
   ctx.rotate(b.tilt);
   ctx.scale((flip ? -1 : 1) / Math.sqrt(b.sy), b.sy);          // 납작해지면 옆으로 퍼짐
@@ -1542,9 +1545,9 @@ function draw() {
       ctx.shadowColor = gradeCol(e.elite); ctx.shadowBlur = 6 + 8 * (0.5 + 0.5 * Math.sin(G.t * 8));
     }
     // 왼쪽을 보는 그림은 오른쪽으로 갈 때, 오른쪽을 보는 그림은 왼쪽으로 갈 때 뒤집는다
-    drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob);
+    drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob, true);
     if (e.elite != null) {                                        // 빛을 한 번 더 겹쳐 테두리를 또렷하게
-      drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob);
+      drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob, true);
       ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
     }
     ctx.globalAlpha = 1;
