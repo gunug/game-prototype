@@ -223,7 +223,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.27.2';
+const VERSION = '0.27.3';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -245,8 +245,7 @@ const BOSSES = {
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
 };
 const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 32;
-const HP_PER_MIN = 0.45;        // 분당 적 체력 +45%
-const DEF_PER_MIN = 1.5;        // 분당 적 방어 +1.5 (생길 때 정해짐)
+// 적 체력 · 방어는 시간이 가도 그대로 (0.27.3 — 그 전엔 분당 체력 +45% · 방어 +1.5). 어려움은 나오는 수 · 엘리트 · 보스로
 // 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
 const armor = (dmg, def) => Math.max(1, dmg - def);
 const MAX_ENEMIES = 500;
@@ -966,8 +965,7 @@ function pickMob() {
 }
 function offscreen() { const ang = Math.random() * Math.PI * 2, dist = Math.hypot(W, H) / 2 + 60; return [G.p.x + Math.cos(ang) * dist, G.p.y + Math.sin(ang) * dist]; }
 function makeEnemy(name, x, y) {
-  const T = ENEMY_TYPES[name], hpMul = 1 + HP_PER_MIN * G.t / 60;
-  const hp = T.hp * hpMul, def = T.def + DEF_PER_MIN * G.t / 60;
+  const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
   return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
     flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
 }
@@ -984,8 +982,8 @@ function spawnElite(grade) {
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
 function spawnBoss(id) {
-  const B = BOSSES[id], [x, y] = offscreen(), hpMul = 1 + HP_PER_MIN * G.t / 60, hp = B.hp * hpMul;
-  G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def + DEF_PER_MIN * G.t / 60, spd: B.spd, dmg: B.dmg, xp: B.xp,
+  const B = BOSSES[id], [x, y] = offscreen(), hp = B.hp;
+  G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
   setBanner(`${B.final ? '최종 보스' : '중간 보스'} — ${B.nm}!`, gradeCol(B.grade));
 }
@@ -1620,7 +1618,7 @@ function hud() {
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
     G.weapons.map(w => { const t = wstat(w.id);
       return `${WEAPONS[w.id].nm}  피해 ${t.dmg.toFixed(1)}  쿨 ${t.cd.toFixed(2)}s  사거리 ${Math.round(t.range)}  탄 ${t.count}  연속 ${t.burst}  넉백 ${t.knock}  스플 ${t.splash}\n`; }).join('') +
-    `적 ${G.enemies.length}  적 체력 ×${(1 + HP_PER_MIN * G.t / 60).toFixed(2)}  적 방어 +${(DEF_PER_MIN * G.t / 60).toFixed(1)}`;
+    `적 ${G.enemies.length}`;
 }
 
 let last = performance.now();
