@@ -258,7 +258,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.43.0';
+const VERSION = '0.43.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1481,9 +1481,9 @@ function update(dt) {
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
-      //   관통탄은 겨눈 적(tgt)을 맞힐 때 튼다 (길 위의 다른 적은 그냥 꿰뚫음)
-      if (b.chain > 0 && (!b.pierce || e === b.tgt) && chainBullet(b, e)) { if (b.pierce) continue; break; }   // 튄 관통탄은 관통 수를 안 씀 (연쇄가 한 마리 더)
-      if (b.pierce && --b.pleft > 0) continue;                    // 관통탄은 남은 관통 수만큼 계속 날아간다
+      //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
+      if (b.pierce && --b.pleft > 0) continue;                    // 관통이 남았으면 꿰뚫고 계속 날아간다
+      if (b.chain > 0 && chainBullet(b, e)) break;
       b.dead = true;
       break;
     }
