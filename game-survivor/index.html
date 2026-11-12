@@ -259,7 +259,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.34.0';
+const VERSION = '0.35.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -278,11 +278,15 @@ const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
 // 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
-  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, hp: 1950, def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
+  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
           pats: ['charge'], gap: 3.2},
-  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, hp: 11000, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
+  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
 };
+// 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
+//   기준 레벨 = 그 보스가 나오는 때의 완벽 플레이 레벨 × BOSS_LV_PCT (지금 75%) — 이 퍼센트로 난이도를 조절한다
+//   기준 빌드 = 권총 하나 · 레벨업의 절반을 공격력 · 공격속도에 번갈아 (나머지는 체력 · 사거리 같은 데) · 보스 방어 뺀 단일 대상 DPS
+const BOSS_LV_PCT = 0.75;
 const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 32;
 // 적 체력 · 방어는 시간이 가도 그대로 (0.27.3 — 그 전엔 분당 체력 +45% · 방어 +1.5). 어려움은 나오는 수 · 엘리트 · 보스로
 // 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
@@ -1070,8 +1074,25 @@ function spawnElite(grade) {
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
 let bossSeq = 0;                      // 보스 줄을 가리는 번호
+// 완벽 플레이 레벨 (월드 wi, t 초) — __perfect 의 초당 누적 경험치로
+const perfCum = {};
+function perfectLv(wi, t) {
+  const cum = perfCum[wi] || (perfCum[wi] = __perfect(wi).cum), xp = cum[Math.max(0, Math.min(cum.length, Math.round(t)) - 1)] || 0;
+  let lv = 1, need = 0;
+  while (need + xpNeed(lv) <= xp) { need += xpNeed(lv); lv++; }
+  return lv;
+}
+// 기준 빌드 DPS (레벨 L, 대상 방어 def): 권총 · 레벨업 (L-1) 번 중 절반을 공격력 → 공격속도 → 공격력 … 차례로
+function refDps(L, def) {
+  const W = WEAPONS.pistol, k = Math.floor((L - 1) / 2), nd = Math.ceil(k / 2), nr = Math.floor(k / 2);
+  return Math.max(1, W.dmg * 1.2 ** nd - def) / (W.cd * 0.85 ** nr);
+}
+function bossPlan(id, wi, at) {
+  const B = BOSSES[id], pl = perfectLv(wi, at), L = Math.max(1, Math.round(pl * BOSS_LV_PCT)), dps = refDps(L, B.def);
+  return {perfectLv: pl, refLv: L, dps: +dps.toFixed(1), hp: Math.round(dps * B.fightT)};
+}
 function spawnBoss(id) {
-  const B = BOSSES[id], [x, y] = offscreen(), hp = B.hp;
+  const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp;
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
   // 등장 연출 (위쪽 알림 대신): 얼굴 + '이름 등장!' 이 가운데에 나타났다 사라짐
