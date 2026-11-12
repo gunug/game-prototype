@@ -18,7 +18,7 @@
   .bar>i{display:block;height:100%;width:0}
   #hpBar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
-  .stats{position:fixed;left:12px;bottom:10px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre}
+  .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre}
   .overlay{position:fixed;inset:0;background:rgba(8,9,14,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
   .overlay[hidden]{display:none}
   .overlay h2{margin:0;font-size:28px}
@@ -133,6 +133,9 @@
   @media (max-width:700px){.row1{gap:6px;padding:4px 8px 10px}.row1>.world,.row1>.char,.row1>.up{padding:8px 6px}
     .row1>.world .wn{font-size:15px}.row1 .wd,.row1 .ct{font-size:10px}.row1>.char img{width:56px;height:75px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
+  /* 등급 색 표 — 좌하단, 모바일에서 읽히는 가장 작은 글씨(10px). 모든 창 위 */
+  #grades{position:fixed;left:8px;bottom:5px;z-index:2147483647;display:flex;gap:7px;font-size:10px;line-height:12px;color:rgba(255,255,255,.7);pointer-events:none}
+  #grades i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:2px;vertical-align:-1px}
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -194,11 +197,12 @@
 
 <div id="radial" hidden></div>
 <div id="ver"></div>
+<div id="grades"></div>
 
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.26.0';
+const VERSION = '0.26.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -879,6 +883,7 @@ const gradeCol = g => GRADES[Math.min(g, GRADES.length - 1)].col;
 // done = 지금까지 찍은 횟수, total = 최대 (Infinity = 끝없음). 뒤에 (이번 것/최대) 글자
 //   최대가 5 이하인 것(확산 · 연쇄 …, 무기 슬롯)은 칸 수 = 최대, 일반 색 한 바퀴
 const PIP_N = 5;
+$('grades').innerHTML = GRADES.map(g => `<span><i style="background:${g.col}"></i>${g.nm}</span>`).join('');
 function pipsHtml(done, total) {
   const n = Number.isFinite(total) ? Math.min(total, PIP_N) : PIP_N;
   const g = Math.floor(done / n), k0 = done % n;                // g = 지금 채우는 등급, k0 = 그 등급으로 찬 칸 수
