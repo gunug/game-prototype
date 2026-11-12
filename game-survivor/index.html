@@ -18,6 +18,23 @@
   .bar>i{display:block;height:100%;width:0}
   #hpBar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
+  /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
+  #timeline{position:fixed;left:16px;right:16px;top:66px;height:26px;pointer-events:none}
+  #timeline[hidden],#bossBar[hidden],#banner[hidden]{display:none}
+  .tl-track{position:absolute;left:0;right:0;top:12px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
+  .tl-fill{display:block;height:100%;width:0;background:#9ab}
+  .tl-marks{position:absolute;inset:0}
+  .tl-m{position:absolute;top:13px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center}
+  .tl-m img{width:18px;height:18px;object-fit:cover;object-position:top;border-radius:50%;background:#232634;border:1px solid #556}
+  .tl-m.boss img{width:24px;height:24px;border:2px solid var(--gc)}
+  .tl-m.elite i{display:block;width:9px;height:9px;transform:rotate(45deg);background:var(--gc);border:1px solid #000}
+  .tl-m.done{opacity:.4}
+  .tl-now{position:absolute;top:2px;width:2px;height:22px;background:#fff;border-radius:1px;transform:translateX(-1px)}
+  #bossBar{position:fixed;left:50%;top:98px;transform:translateX(-50%);width:min(420px,80vw);pointer-events:none;text-align:center}
+  #bossBar .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
+  #bossBar .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
+  #bossBar .bar>i{background:linear-gradient(90deg,#b22,#f55)}
+  #banner{position:fixed;left:50%;top:132px;transform:translateX(-50%);font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;white-space:nowrap}
   .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre}
   .overlay{position:fixed;inset:0;background:rgba(8,9,14,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
   .overlay[hidden]{display:none}
@@ -153,6 +170,9 @@
   <div class="bar" id="hpBar"><i></i></div>
   <div class="bar" id="xpBar"><i></i></div>
 </div>
+<div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
+<div id="bossBar" hidden><span class="bn"></span><div class="bar"><i></i></div></div>
+<div id="banner" hidden></div>
 <div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
 
@@ -202,17 +222,28 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.26.1';
+const VERSION = '0.27.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
 const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 const ENEMY_TYPES = {
-  zombie: {hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, from: 0,   w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
-  dog:    {hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, from: 60,  w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
-  brute:  {hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, from: 180, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
+  dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
+  brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
 };
+// 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
+const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
+// 보스 — 그림은 아직 거구 좀비 그림을 키워 씀 (sprite). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
+//   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
+const BOSSES = {
+  mid:   {nm: '거구 우두머리', sprite: 'brute', grade: 3, hp: 600,  def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
+          pats: ['charge'], gap: 3.2},
+  final: {nm: '도심의 왕',     sprite: 'brute', grade: 5, hp: 2000, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
+          pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
+};
+const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 32;
 const HP_PER_MIN = 0.45;        // 분당 적 체력 +45%
 const DEF_PER_MIN = 1.5;        // 분당 적 방어 +1.5 (생길 때 정해짐)
 // 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
@@ -409,9 +440,13 @@ if (matchMedia('(pointer: coarse)').matches) {
   document.getElementById('wpnHint').textContent = '3단계 — 무기를 누르면 바로 시작. 끌면 둥근 메뉴 (위 = 무기 · 아래 = 뒤로)';
 }
 // ───── 월드 ─────
-// 한 월드 = dur 초 버티면 클리어. 중간보스 · 마지막 보스는 아직 미정
+// 한 월드 = dur 초. 타임라인: mobs(잡몹이 풀리는 때, 월드마다 3종) · elites(엘리트, 차례로 등급이 오른다) · bosses
+// 마지막 보스는 dur 에 나오고, **잡으면 클리어**
 const WORLDS = [
-  {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600},
+  {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600,
+   mobs: [{type: 'zombie', at: 0}, {type: 'dog', at: 180}, {type: 'brute', at: 360}],
+   elites: [{at: 120, grade: 1}, {at: 240, grade: 2}, {at: 360, grade: 3}, {at: 480, grade: 4}],
+   bosses: [{at: 300, id: 'mid'}, {at: 600, id: 'final'}]},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = w => 'survivor.w' + w;
@@ -518,9 +553,11 @@ function newGame(wi, weaponId) {
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
+    evDone: new Set(), banner: null, finalDead: false,
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
   ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  buildTimeline();
 }
 
 // ───── 입력 ─────
@@ -916,17 +953,81 @@ function gainXp(n) {
 }
 
 // ───── 적 ─────
+// 지금 풀린 잡몹 (월드 타임라인 mobs 중 at 이 지난 것)
+const mobTypes = () => G.world.mobs.filter(m => G.t >= m.at).map(m => m.type);
+function pickMob() {
+  const types = mobTypes();
+  let r = Math.random() * types.reduce((a, n) => a + ENEMY_TYPES[n].w, 0);
+  for (const n of types) { r -= ENEMY_TYPES[n].w; if (r <= 0) return n; }
+  return types[0];
+}
+function offscreen() { const ang = Math.random() * Math.PI * 2, dist = Math.hypot(W, H) / 2 + 60; return [G.p.x + Math.cos(ang) * dist, G.p.y + Math.sin(ang) * dist]; }
+function makeEnemy(name, x, y) {
+  const T = ENEMY_TYPES[name], hpMul = 1 + HP_PER_MIN * G.t / 60;
+  const hp = T.hp * hpMul, def = T.def + DEF_PER_MIN * G.t / 60;
+  return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
+    flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
+}
 function spawnEnemy() {
   if (G.enemies.length >= MAX_ENEMIES) return;
-  const types = Object.entries(ENEMY_TYPES).filter(([, t]) => G.t >= t.from);
-  let r = Math.random() * types.reduce((a, [, t]) => a + t.w, 0), name = types[0][0];
-  for (const [n, t] of types) { r -= t.w; if (r <= 0) { name = n; break; } }
-  const T = ENEMY_TYPES[name];
-  const ang = Math.random() * Math.PI * 2, dist = Math.hypot(W, H) / 2 + 60;
-  const hpMul = 1 + HP_PER_MIN * G.t / 60;
-  const hp = T.hp * hpMul, def = T.def + DEF_PER_MIN * G.t / 60;
-  G.enemies.push({type: name, x: G.p.x + Math.cos(ang) * dist, y: G.p.y + Math.sin(ang) * dist,
-    r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2});
+  const [x, y] = offscreen();
+  G.enemies.push(makeEnemy(pickMob(), x, y));
+}
+// 엘리트: 지금 잡몹 하나를 1.3배로 · 체력 ×10 · 피해 ×1.5 · 경험치 ×12, 등급 색 테두리가 깜빡인다
+function spawnElite(grade) {
+  const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
+  e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp; e.elite = grade;
+  G.enemies.push(e);
+  setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
+}
+function spawnBoss(id) {
+  const B = BOSSES[id], [x, y] = offscreen(), hpMul = 1 + HP_PER_MIN * G.t / 60, hp = B.hp * hpMul;
+  G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def + DEF_PER_MIN * G.t / 60, spd: B.spd, dmg: B.dmg, xp: B.xp,
+    flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
+  setBanner(`${B.final ? '최종 보스' : '중간 보스'} — ${B.nm}!`, gradeCol(B.grade));
+}
+const setBanner = (txt, col) => {                              // 같은 때 겹치면 이어 붙임 (예: 6:00 새 잡몹 · 엘리트)
+  G.banner = G.banner && G.banner.t > 2.8 ? {txt: G.banner.txt + ' · ' + txt, col, t: 3} : {txt, col, t: 3};
+};
+// 타임라인 사건 (엘리트 · 보스 · 새 잡몹 알림) — 때가 되면 한 번씩
+function timelineTick() {
+  const Wd = G.world;
+  Wd.mobs.forEach((m, i) => { const k = 'm' + i; if (i && G.t >= m.at && !G.evDone.has(k)) { G.evDone.add(k); setBanner(`${ENEMY_TYPES[m.type].nm} 등장`, '#e8e8ee'); } });
+  Wd.elites.forEach((ev, i) => { const k = 'e' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnElite(ev.grade); } });
+  Wd.bosses.forEach((ev, i) => { const k = 'b' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnBoss(ev.id); } });
+}
+// 보스 움직임: 걷기 → (gap 초) → 패턴 차례대로. 돌진은 예고 동안 방향을 따라가다 끝에 굳힌다
+function bossTick(e, dt) {
+  const p = G.p, B = e.boss, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+  e.bt -= dt;
+  if (e.st === 'walk') {
+    e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt;
+    if (e.bt > 0) return;
+    const pat = B.pats[e.pi++ % B.pats.length];
+    if (pat === 'charge') { e.st = 'aimC'; e.bt = 0.8; e.dir = Math.atan2(dy, dx); }
+    else if (pat === 'slam') { e.st = 'aimS'; e.bt = 1.0; }
+    else if (pat === 'summon') {
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.enemies.push(makeEnemy(pickMob(), e.x + Math.cos(a) * (e.r + 40), e.y + Math.sin(a) * (e.r + 40))); }
+      G.fx.push({kind: 'splash', x: e.x, y: e.y, r: e.r + 50, t: 0.3});
+      e.bt = B.gap;
+    }
+  } else if (e.st === 'aimC') {
+    if (e.bt > 0.25) e.dir = Math.atan2(dy, dx);                 // 마지막 0.25초는 방향을 굳힘 (피할 틈)
+    if (e.bt <= 0) { e.st = 'dash'; e.bt = DASH_T; }
+  } else if (e.st === 'dash') {
+    e.vx = Math.cos(e.dir) * DASH_SPD; e.x += e.vx * dt; e.y += Math.sin(e.dir) * DASH_SPD * dt;
+    if (e.bt <= 0) { e.st = 'walk'; e.bt = B.gap; }
+  } else if (e.st === 'aimS') {
+    if (e.bt <= 0) {
+      G.fx.push({kind: 'splash', x: e.x, y: e.y, r: SLAM_R, t: 0.35});
+      if (p.inv <= 0 && d < SLAM_R + p.r) {
+        const dmg = armor(SLAM_DMG, G.s.def); p.hp -= dmg; p.inv = 0.5;
+        G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
+        if (p.hp <= 0) gameOver();
+      }
+      e.st = 'walk'; e.bt = B.gap;
+    }
+  }
 }
 
 function farthestEnemy(x, y, maxD) {             // 사거리 안 가장 먼 적 (저격총)
@@ -955,7 +1056,9 @@ function hurtEnemy(e, dmg) {
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real <= dmg * 0.5});   // 방어에 반 넘게 막히면 회색
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
-    G.gems.push({x: e.x, y: e.y, v: e.xp, pull: false});
+    if (e.xp) G.gems.push({x: e.x, y: e.y, v: e.xp, pull: false});
+    if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
+    else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
   }
 }
 
@@ -1137,7 +1240,9 @@ function chainBullet(b, e) {
 function update(dt) {
   const p = G.p, s = G.s;
   G.t += dt;
-  if (G.t >= G.world.dur) { G.t = G.world.dur; worldClear(); return; }
+  if (G.finalDead) { worldClear(); return; }                     // 최종 보스를 잡아야 클리어 (시간이 다 돼도 보스가 나올 뿐)
+  timelineTick();
+  if (G.banner && (G.banner.t -= dt) <= 0) G.banner = null;
 
   // 이동
   let mx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), my = (keys.KeyS ? 1 : 0) - (keys.KeyW ? 1 : 0);
@@ -1186,8 +1291,9 @@ function update(dt) {
   const grid = new Map(), CELL = 48;
   for (const e of G.enemies) {
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-    e.vx = dx / d * e.spd;
-    e.x += (e.vx + e.kbx) * dt; e.y += (dy / d * e.spd + e.kby) * dt;
+    if (e.boss) bossTick(e, dt);
+    else { e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt; }
+    e.x += e.kbx * dt; e.y += e.kby * dt;
     const kd = Math.exp(-8 * dt); e.kbx *= kd; e.kby *= kd;     // 넉백은 빠르게 잦아든다
     e.flash = Math.max(0, e.flash - dt);
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
@@ -1198,7 +1304,7 @@ function update(dt) {
     for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
       const b = grid.get((cx + ox) + ',' + (cy + oy)); if (!b) continue;
       for (const o of b) {
-        if (o === e) continue;
+        if (o === e || e.boss) continue;                            // 보스는 밀리지 않는다
         const dx = e.x - o.x, dy = e.y - o.y, min = e.r + o.r, d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.01) {
           const d = Math.sqrt(d2), push = (min - d) * 0.25;
@@ -1349,17 +1455,40 @@ function draw() {
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
-  const es = G.enemies.filter(e => view(e.x, e.y, 60)).sort((a, b) => a.y - b.y);
+  const es = G.enemies.filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);
+  // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
+  for (const e of G.enemies) {
+    if (!e.boss) continue;
+    if (e.st === 'aimC') {
+      const L = DASH_SPD * DASH_T, k = 1 - Math.max(0, e.bt) / 0.8;
+      ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.dir);
+      ctx.fillStyle = `rgba(255,60,40,${0.15 + 0.25 * k})`; ctx.fillRect(0, -e.r * 0.8, L, e.r * 1.6);
+      ctx.strokeStyle = 'rgba(255,90,60,.8)'; ctx.lineWidth = 2; ctx.strokeRect(0, -e.r * 0.8, L, e.r * 1.6);
+      ctx.restore();
+    } else if (e.st === 'aimS') {
+      const k = 1 - Math.max(0, e.bt) / 1.0;
+      ctx.fillStyle = 'rgba(255,60,40,.18)'; ctx.beginPath(); ctx.arc(e.x, e.y, SLAM_R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,60,40,.3)'; ctx.beginPath(); ctx.arc(e.x, e.y, SLAM_R * k, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,90,60,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, SLAM_R, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
   for (const e of es) {
     const T = ENEMY_TYPES[e.type], eh = e.r * 3.4;
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
     ctx.fillStyle = 'rgba(0,0,0,.3)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = e.flash > 0 ? 0.55 : 1;
+    if (e.elite != null) {                                        // 엘리트 · 보스: 등급 색 테두리(빛)가 깜빡인다
+      ctx.shadowColor = gradeCol(e.elite); ctx.shadowBlur = 6 + 8 * (0.5 + 0.5 * Math.sin(G.t * 8));
+    }
     // 왼쪽을 보는 그림은 오른쪽으로 갈 때, 오른쪽을 보는 그림은 왼쪽으로 갈 때 뒤집는다
     drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob);
+    if (e.elite != null) {                                        // 빛을 한 번 더 겹쳐 테두리를 또렷하게
+      drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob);
+      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
+    }
     ctx.globalAlpha = 1;
-    if (e.hp < e.maxHp) {
+    if (e.hp < e.maxHp && !e.boss) {                              // 보스 체력은 위쪽 큰 줄에
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
     }
@@ -1447,11 +1576,35 @@ function draw() {
   }
 }
 
+// 월드 타임라인 표시 (새 판마다 다시 만든다)
+function buildTimeline() {
+  const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
+  let h = '';
+  Wd.mobs.forEach(m => { h += `<div class="tl-m mob" data-at="${m.at}" style="left:${pct(m.at)}" title="${ENEMY_TYPES[m.type].nm} ${fmt(m.at)}"><img src="${img(m.type)}" alt=""></div>`; });
+  Wd.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(ev.grade)}" title="${GRADES[ev.grade].nm} 엘리트 ${fmt(ev.at)}"><i></i></div>`; });
+  Wd.bosses.forEach(ev => { const B = BOSSES[ev.id]; h += `<div class="tl-m boss" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(B.grade)}" title="${B.nm} ${fmt(ev.at)}"><img src="${img(B.sprite)}" alt=""></div>`; });
+  $('timeline').querySelector('.tl-marks').innerHTML = h;
+}
+
 function hud() {
   $('slots').hidden = !G;
-  if (!G) return;
+  $('timeline').hidden = !G;
+  if (!G) { $('bossBar').hidden = true; $('banner').hidden = true; return; }
+  const tp = Math.min(1, G.t / G.world.dur) * 100;
+  $('timeline').querySelector('.tl-fill').style.width = tp + '%';
+  $('timeline').querySelector('.tl-now').style.left = tp + '%';
+  $('timeline').querySelectorAll('.tl-m').forEach(m => m.classList.toggle('done', G.t >= +m.dataset.at && !m.classList.contains('boss')));
+  const boss = G.enemies.find(e => e.boss && !e.dead);
+  $('bossBar').hidden = !boss;
+  if (boss) {
+    $('bossBar').style.setProperty('--gc', gradeCol(boss.boss.grade));
+    $('bossBar').querySelector('.bn').textContent = boss.boss.nm;
+    $('bossBar').querySelector('.bar>i').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+  }
+  $('banner').hidden = !G.banner;
+  if (G.banner) { $('banner').textContent = G.banner.txt; $('banner').style.setProperty('--gc', G.banner.col); $('banner').style.opacity = Math.min(1, G.banner.t); }
   $('lv').textContent = G.lv;
-  $('time').textContent = `${fmt(G.t)} / ${fmt(G.world.dur)}`;
+  $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
   $('hpBar').firstElementChild.style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
