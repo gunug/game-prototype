@@ -7,7 +7,7 @@
 <link rel="icon" href="../favicon.svg">
 <script>
 // PC(넓은 창 · 마우스)로 열면 폰 화면 틀(phone.html)로 — 모바일 전용 개발이라 PC 에서도 폰 해상도로 본다. ?raw 면 그대로
-if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').matches && !/[?&]raw/.test(location.search))
+if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').matches && !/[?&]raw(?:[=&]|$)/.test(location.search))
   location.replace('phone.html' + location.hash);
 </script>
 <style>
@@ -264,7 +264,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.39.1';
+const VERSION = '0.39.2';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1388,7 +1388,7 @@ function update(dt) {
   p.moving = amt > 0.15;
   if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);
   p.move += (amt - p.move) * Math.min(1, dt * 10);   // 걷기 세기 0~1 (멈추면 서서히 가라앉음)
-  p.walk += dt * Math.PI * 2 * 2.6 * p.move;
+  p.walk += dt * Math.PI * p.speed / WALK_STRIDE * p.move;   // 한 걸음(통통 한 번 = π) 에 WALK_STRIDE 만큼 나아간다 — 빠른 캐릭터는 발도 빠르게
   p.inv = Math.max(0, p.inv - dt);
 
   // 생성: 초당 1.2 + 0.06·초 마리, 1분마다 둘레 무리
@@ -1526,6 +1526,7 @@ const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2,
 
 // ───── 그리기 ─────
 // 들썩: 종류마다 뛰는 빠르기(hz) · 높이(amp, 그림 키 비율) · 착지 찌그러짐(sq) · 흔들림(tilt) · 부드러운 오르내림(smooth: 박쥐)
+const WALK_STRIDE = 64;   // 주인공 한 걸음 거리(px). 속도 190 이면 초당 약 3 걸음 (그 전: 속도와 상관없이 초당 5.2)
 const BOB = {
   survivor: {amp: 0.08, sq: 0.10, tilt: 0.06},
   zombie:   {hz: 1.5, amp: 0.05, sq: 0.06, tilt: 0.10},   // 비틀비틀
