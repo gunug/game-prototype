@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>서바이버</title>
 <link rel="icon" href="../favicon.svg">
+<script>
+// PC(넓은 창 · 마우스)로 열면 폰 화면 틀(phone.html)로 — 모바일 전용 개발이라 PC 에서도 폰 해상도로 본다. ?raw 면 그대로
+if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').matches && !/[?&]raw/.test(location.search))
+  location.replace('phone.html' + location.hash);
+</script>
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#12141a;color:#e8e8ee;font-family:system-ui,"Malgun Gothic",sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
@@ -196,7 +201,7 @@
 <body>
 <div id="hudTop">
 <div class="top">
-  <a href="../index.html">← 프로토타입 목록</a>
+  <a href="../index.html" target="_top">← 프로토타입 목록</a>
   <span>Lv <b id="lv">1</b></span>
   <span>시간 <b id="time">0:00</b></span>
   <span>처치 <b id="kills">0</b></span>
@@ -269,7 +274,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.37.1';
+const VERSION = '0.38.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -478,7 +483,8 @@ const $ = id => document.getElementById(id);
 let W = 0, H = 0, DPR = 1, cvTop = 0;
 // 게임 칸 = 위 · 아래 정보칸 사이. 정보칸 높이가 바뀌면(보스 줄이 생기고 없어지면) 다시 잰다
 function resize() {
-  DPR = window.devicePixelRatio || 1;
+  let pz = 1; try { pz = (parent !== window && parent.__phoneZoom) || 1; } catch (_) {}   // PC 폰 틀에서 확대하면 캔버스도 그만큼 촘촘히
+  DPR = (window.devicePixelRatio || 1) * pz;
   const tH = $('hudTop').offsetHeight, bH = $('hudBot').offsetHeight;
   document.documentElement.style.setProperty('--topH', tH + 'px');
   document.documentElement.style.setProperty('--botH', bH + 'px');

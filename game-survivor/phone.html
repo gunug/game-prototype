@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>서바이버</title>
+<link rel="icon" href="../favicon.svg">
+<style>
+  /* PC 에서 볼 때: 폰 화면(375×812) 틀 + 바깥 배율 버튼. 게임은 iframe 안 index.html 그대로 */
+  html,body{margin:0;height:100%;background:#07080b;color:#ccd;font-family:system-ui,"Malgun Gothic",sans-serif;overflow:auto}
+  #wrap{min-height:100%;display:flex;align-items:center;justify-content:center;gap:16px;padding:12px;box-sizing:border-box}
+  #box{flex:0 0 auto;position:relative}
+  #game{position:absolute;left:0;top:0;width:375px;height:812px;border:0;transform-origin:0 0;background:#12141a;box-shadow:0 0 0 2px #2a2d38,0 0 30px rgba(0,0,0,.7);border-radius:6px}
+  #zoom{display:flex;flex-direction:column;align-items:center;gap:6px;align-self:center;user-select:none}
+  #zoom button{width:44px;height:36px;font-size:18px;font-weight:700;background:#2a2d38;color:#dde;border:1px solid #3a3f55;border-radius:8px;cursor:pointer}
+  #zoom button:hover{background:#363a4a}
+  #zoom button.sm{font-size:11px;height:28px}
+  #zv{font-size:13px;font-variant-numeric:tabular-nums;color:#fff}
+  #zoom .lb{font-size:10px;color:#778}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="box"><iframe id="game" src="index.html?v=1" allow="fullscreen"></iframe></div>
+  <div id="zoom">
+    <span class="lb">배율</span>
+    <button id="zIn" title="확대 (+)">+</button>
+    <span id="zv">100%</span>
+    <button id="zOut" title="축소 (-)">−</button>
+    <button id="zFit" class="sm" title="창에 맞춤 (0)">맞춤</button>
+    <button id="z1" class="sm" title="100%">1:1</button>
+    <span class="lb">375×812</span>
+  </div>
+</div>
+<script>
+'use strict';
+const PW = 375, PH = 812, STEP = 0.25, MIN = 0.5, MAX = 3;
+const $ = id => document.getElementById(id), fr = $('game');
+let z = +localStorage.getItem('survivorPhoneZoom') || 0;   // 0 = 창에 맞춤
+const fitZ = () => Math.max(MIN, Math.min(MAX, (innerHeight - 24) / PH, (innerWidth - 100) / PW));
+function apply() {
+  const s = z || fitZ();
+  window.__phoneZoom = s;                                      // 게임이 캔버스 선명도(DPR)에 곱한다
+  fr.style.transform = `scale(${s})`;
+  $('box').style.width = PW * s + 'px'; $('box').style.height = PH * s + 'px';
+  $('zv').textContent = Math.round(s * 100) + '%' + (z ? '' : ' 맞춤');
+  try { fr.contentWindow.dispatchEvent(new Event('resize')); } catch (_) {}
+  localStorage.setItem('survivorPhoneZoom', z);
+}
+const set = v => { z = v; apply(); fr.focus(); };
+const cur = () => z || fitZ();
+$('zIn').onclick = () => set(Math.min(MAX, Math.round((cur() + STEP) / STEP) * STEP));
+$('zOut').onclick = () => set(Math.max(MIN, Math.round((cur() - STEP) / STEP) * STEP));
+$('zFit').onclick = () => set(0);
+$('z1').onclick = () => set(1);
+addEventListener('resize', () => { if (!z) apply(); });
+addEventListener('keydown', e => {                             // 틀 바깥에 초점이 있을 때만
+  if (e.key === '+' || e.key === '=') $('zIn').click();
+  else if (e.key === '-') $('zOut').click();
+  else if (e.key === '0') $('zFit').click();
+});
+fr.addEventListener('load', () => { apply(); fr.focus(); });
+document.addEventListener('pointerdown', e => { if (!$('zoom').contains(e.target)) fr.focus(); });
+apply();
+</script>
+</body>
+</html>
