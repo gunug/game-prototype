@@ -222,11 +222,11 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.27.0';
+const VERSION = '0.27.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false};
+const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 const ENEMY_TYPES = {
   zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
@@ -235,12 +235,12 @@ const ENEMY_TYPES = {
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
-// 보스 — 그림은 아직 거구 좀비 그림을 키워 씀 (sprite). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
+// 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
-  mid:   {nm: '거구 우두머리', sprite: 'brute', grade: 3, hp: 600,  def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
+  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, hp: 600,  def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
           pats: ['charge'], gap: 3.2},
-  final: {nm: '도심의 왕',     sprite: 'brute', grade: 5, hp: 2000, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
+  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, hp: 2000, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
 };
 const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 32;
@@ -254,7 +254,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
 for (const n of ['pistol', 'laser', 'sniper', 'mg']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
-for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute']) {
+for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 'bossmid', 'bossking']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
@@ -1389,6 +1389,8 @@ const BOB = {
   zombie:   {hz: 1.5, amp: 0.05, sq: 0.06, tilt: 0.10},   // 비틀비틀
   dog:      {hz: 3.6, amp: 0.10, sq: 0.08, tilt: 0.05},   // 다다닥
   brute:    {hz: 1.2, amp: 0.04, sq: 0.06, tilt: 0.07},   // 쿵쿵
+  bossmid:  {hz: 1.0, amp: 0.04, sq: 0.06, tilt: 0.06},   // 보스: 무겁게
+  bossking: {hz: 0.9, amp: 0.03, sq: 0.05, tilt: 0.05},
 };
 // ph: 위상(라디안), k: 세기 0~1. 들린 높이(px)를 돌려줌 → 그림자 크기에 씀
 function bobOf(name, ph, k, h) {
@@ -1473,7 +1475,7 @@ function draw() {
     }
   }
   for (const e of es) {
-    const T = ENEMY_TYPES[e.type], eh = e.r * 3.4;
+    const T = ENEMY_TYPES[e.type] || {faceLeft: FACE[e.type], color: '#a44'}, eh = e.r * 3.4;   // 보스 그림은 적 표에 없음
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
     ctx.fillStyle = 'rgba(0,0,0,.3)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill();
