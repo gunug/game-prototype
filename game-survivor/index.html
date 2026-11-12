@@ -259,7 +259,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.46.0';
+const VERSION = '0.47.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -340,7 +340,9 @@ const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 const BADGES = {
   // 능력치 뱃지 — 모든 무기가 가진다 (발사각은 탄이 있는 무기만). 값은 숫자로 붙는다
   dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「공격력」을 받으면 +20%.'},
-  cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '다시 쏠 때까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
+  cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '한 발 쏘고 다음 발까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
+  mag:    {nm: '장탄',   col: '#ffe27a', tip: '재장전 없이 쏘는 수. 다 쏘면 재장전.'},
+  reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「공격속도」를 받으면 ×0.85.'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
@@ -361,6 +363,8 @@ function badgeVal(id, st) {
   switch (id) {
     case 'dmg': return num(st.dmg);
     case 'cd': return num(st.cd) + 's';
+    case 'mag': return st.mag;
+    case 'reload': return num(st.reload) + 's';
     case 'range': return Math.round(st.range);
     case 'acc': return '±' + num(st.acc) + '°';
     case 'chain': return st.chain;
@@ -378,7 +382,7 @@ function badgeVal(id, st) {
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 발사각) + 특성 뱃지(badges)
-const wpnBadges = W => ['dmg', 'cd', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
+const wpnBadges = W => ['dmg', 'cd', 'mag', 'reload', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
 // 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
 const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
 
@@ -387,48 +391,57 @@ const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.ba
 const WEAPONS = {
   // acc = 발사각: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
   pistol: {nm: '권총', kind: 'gun', sh: '가까운 적에게 한 발', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
-           dmg: 0, cd: 1, range: 145, spd: 620, acc: 4, maxT: 1,
+           dmg: 0, cd: 0.5, mag: 8, range: 145, spd: 620, acc: 4, maxT: 1,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
            badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
-           dmg: 0, cd: 0.14, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['chain', 'pierce']},
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '가장 먼 적을 꿰뚫는 탄', ds: '사거리 안 가장 먼 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다',
-           dmg: 0, cd: 2.13, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2,   // maxT = 관통 수       // 탄속 1500 (권총 620)
+           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2,   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            badges: ['far', 'pierce', 'spread', 'chain', 'burst', 'knock']},
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
-           dmg: 0, cd: 0.16, range: 130, spd: 720, acc: 12, maxT: 1,
+           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
 //   비교 DPS = 단일과 최적의 가운데 = 단일 × (1 + maxT) / 2 → 모든 무기가 DPS_REF 가 되게 **피해를 계산해 넣는다** (정수)
+//   장탄 (0.47.0): cd = 한 발 간격, mag 발 쏘면 재장전 reload = max(RELOAD_MIN, cd × RELOAD_K). 한 바퀴 = mag × cd + reload
+//   단일 DPS = 피해 × mag ÷ 한 바퀴 (평균) — 이것으로 비교 DPS 를 맞춘다
 const DPS_REF = 100;   // 0.44.0 수치 10배 (그 전 10)
-for (const W of Object.values(WEAPONS)) W.dmg = Math.round(DPS_REF * W.cd * 2 / (1 + W.maxT));   // 정수
-const dpsOf = W => { const s = W.dmg / W.cd; return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2}; };
+const RELOAD_K = 5, RELOAD_MIN = 1.5;
+const cycleOf = W => W.mag * W.cd + W.reload;
+for (const W of Object.values(WEAPONS)) {
+  W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
+  W.dmg = Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / W.mag);   // 정수
+}
+const dpsOf = W => { const s = W.dmg * W.mag / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.dmg / W.cd}; };
 const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
 const RANGE_CAP = 1.4;
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
-const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, range: W.range, acc: W.acc, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: 0}; };
+const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, mag: W.mag, reload: W.reload, range: W.range, acc: W.acc, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: 0}; };
 // 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
 function wstat(id) {
   const W = WEAPONS[id], s = G.s, a = k => wpnTakes(W, k), c = G.char;
   return {
     dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1),
     cd: W.cd * (a('rate') ? s.cdMul : 1),
+    mag: W.mag,
+    reload: W.reload * (a('rate') ? s.cdMul : 1),           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
     spd: W.spd,
     pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
@@ -679,7 +692,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'range', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'range', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1097,7 +1110,7 @@ function perfectLv(wi, t) {
 // 기준 빌드 DPS (레벨 L, 대상 방어 def): 권총 · 레벨업 (L-1) 번 중 절반을 공격력 → 공격속도 → 공격력 … 차례로
 function refDps(L, def) {
   const W = WEAPONS.pistol, k = Math.floor((L - 1) / 2), nd = Math.ceil(k / 2), nr = Math.floor(k / 2);
-  return Math.max(1, W.dmg * 1.2 ** nd - def) / (W.cd * 0.85 ** nr);
+  return Math.max(1, W.dmg * 1.2 ** nd - def) * W.mag / (cycleOf(W) * 0.85 ** nr);   // 재장전 포함 평균
 }
 function bossPlan(id, wi, at) {
   const B = BOSSES[id], pl = perfectLv(wi, at), L = Math.max(1, Math.round(pl * BOSS_LV_PCT)), dps = refDps(L, B.def);
@@ -1193,7 +1206,16 @@ function hurtEnemy(e, dmg) {
 // ───── 공격 ─────
 const spreadRnd = st => (Math.random() * 2 - 1) * (st.acc || 0) * Math.PI / 180;   // 발사각: 한 발마다 ±acc 도
 const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
-const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
+const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0, ammo: WEAPONS[id].mag, rl: 0, rlMax: 0});
+// 재장전 중이면 시간을 흘리고 true. 다 채우면 바로 쏠 수 있게
+function reloading(w, st, dt) {
+  if (!(w.rl > 0)) return false;
+  w.rl -= dt;
+  if (w.rl <= 0) { w.rl = 0; w.ammo = st.mag; w.cdT = 0; }
+  return true;
+}
+// 한 번 쏠 때(연속 · 확산 포함) 한 발. 비면 재장전 — 마지막 발 간격(cd) + 재장전을 한 번에 기다린다
+function useAmmo(w, st) { if (--w.ammo <= 0) { w.ammo = 0; w.rl = w.rlMax = st.cd + st.reload; } }
 
 // 무기 자세: 손 위치 · 각도 · 총구 위치
 // 무기가 여럿이면 얼굴 높이(WPN_CY) 둘레 원(반지름 WPN_RING) 위 **정해진 자리**에 고르게 놓는다 (360° / 개수).
@@ -1334,9 +1356,10 @@ function updateLaser(w, wi, st, dt) {
   // 맞힘
   w.cdT -= dt;
   if (w.cdT > 0) return;
-  w.cdT = st.cd;
+  w.cdT = Math.max(0, w.cdT + st.cd);                           // 남은 몫을 넘긴다 (간격 0.07 이 프레임에 잘려 느려지지 않게)
   const line = beamLine(bm);
   if (line.length < 2) return;
+  let hit = false;
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const q of line) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
   for (const e of G.enemies) {
@@ -1346,9 +1369,10 @@ function updateLaser(w, wi, st, dt) {
     for (let i = 1; i < line.length; i++) {
       const A = line[i - 1], B = line[i], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
       const u = Math.max(0, Math.min(1, ((e.x - A.x) * dx + (e.y - A.y) * dy) / L2));
-      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg); break; }
+      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg); hit = true; break; }
     }
   }
+  if (hit) useAmmo(w, st);                                        // 빔이 아직 뻗는 중이라 아무도 못 맞혔으면 탄을 안 쓴다
 }
 
 // 총알 연쇄: e 를 맞힌 b 를 다음 적으로 돌린다. 이을 적이 없으면 false
@@ -1410,12 +1434,15 @@ function update(dt) {
       if (tgt) { let d = Math.atan2(tgt.y - p.y, tgt.x - p.x) - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d));
                  w.aim += Math.sign(d) * Math.min(Math.abs(d), WEAPONS[w.id].turn * dt); }
       if (wi === 0 && tgt && !p.moving) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;
+      if (reloading(w, st, dt)) { w.beam = null; return; }   // 재장전(과열) 중엔 빔이 꺼진다
       updateLaser(w, wi, st, dt); return;
     }
-    w.cdT -= dt;
-    if (w.cdT <= 0 && tgt && !w.shots.length) {
-      w.cdT = st.cd;
-      for (let i = 0; i < st.burst; i++) w.shots.push(AIM_T + i * 0.1);
+    if (!reloading(w, st, dt)) {
+      w.cdT -= dt;
+      if (w.cdT <= 0 && tgt && !w.shots.length) {
+        w.cdT = st.cd; useAmmo(w, st);
+        for (let i = 0; i < st.burst; i++) w.shots.push(AIM_T + i * 0.1);
+      }
     }
     // 다음 발이 AIM_T 안으로 들어오면 그 발이 겨눌 대상 쪽으로 남은 시간에 맞춰 돈다 (발사 순간 딱 맞게)
     const next = w.shots.length ? Math.min(...w.shots) : Infinity;
@@ -1654,12 +1681,20 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
-  // 쿨타임 미터: 총마다 손잡이 자리에 작은 파이 — 다음 발까지 찬 만큼 시계 방향으로 채워짐, 다 차면 밝게
+  // 탄 미터: 총마다 손잡이 밑 파이 — 남은 탄 ÷ 장탄 만큼 노랗게 + 가운데 남은 탄 수.
+  //   다 쓰면 재장전: 주황 파이가 12시부터 시계 방향으로 차오른다 (숫자 없음)
   for (const [w, m] of poses) {
-    const cd = wstat(w.id).cd, k = cd > 0 ? 1 - Math.max(0, Math.min(cd, w.cdT || 0)) / cd : 1, R = 5, x = m.hx, y = m.hy + 9;
-    ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = k >= 1 ? '#ffe27a' : '#9ab';
+    const st = wstat(w.id), R = 7, x = m.hx, y = m.hy + 11, rl = w.rl > 0;
+    const k = rl ? 1 - w.rl / w.rlMax : Math.max(0, w.ammo) / st.mag;
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rl ? '#ff9a4a' : '#c9a93a';
     ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+    if (!rl) {
+      ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(w.ammo, x, y + 0.5);
+      ctx.fillStyle = '#fff'; ctx.fillText(w.ammo, x, y + 0.5);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    }
   }
   // 머리 위: 레벨 글 + 체력 줄 + 그 바로 밑 경험치 줄 (총 고리보다 위) — 늘 보인다. 레벨 글까지 합친 폭을 캐릭터 가운데에
   ctx.font = 'bold 10px system-ui';
