@@ -178,9 +178,6 @@
   @media (max-width:700px){.row1{gap:6px;padding:4px 8px 10px}.row1>.world,.row1>.char,.row1>.up{padding:8px 6px}
     .row1>.world .wn{font-size:15px}.row1 .wd,.row1 .ct{font-size:10px}.row1>.char img{width:56px;height:75px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
-  /* 등급 색 표 — 좌하단, 모바일에서 읽히는 가장 작은 글씨(10px). 모든 창 위 */
-  #grades{position:fixed;left:8px;bottom:5px;z-index:2147483647;display:flex;gap:7px;font-size:10px;line-height:12px;color:rgba(255,255,255,.7);pointer-events:none}
-  #grades i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:2px;vertical-align:-1px}
   /* 정보 버튼 — 우하단 (버전 위). 누르면 판이 멈추고 뱃지 설명 창 */
   #infoBtn{position:fixed;right:8px;bottom:24px;z-index:2147483645;padding:4px 12px;font-size:12px;background:#2a2d38;color:#ccd;border:1px solid #3a3f55}
   #info{z-index:2147483646;justify-content:flex-start;padding:48px 0 24px;overflow-y:auto}
@@ -254,16 +251,15 @@
 <div id="ver"></div>
 <button id="infoBtn">정보</button>
 <div class="overlay" id="info" hidden>
-  <h2>뱃지 설명</h2>
+  <h2>정보</h2>
   <div class="infoList" id="infoList"></div>
   <div class="btns"><button class="sub" id="infoClose" data-neg>닫기</button></div>
 </div>
-<div id="grades"></div>
 
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.31.0';
+const VERSION = '0.31.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -669,11 +665,20 @@ const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'range', 'acc', 'hp', 'def']], 
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
-    `<div class="infoRow"><span class="chip" style="--bc:${BADGES[id].col}">${BADGES[id].nm}</span><span>${BADGES[id].tip}</span></div>`).join('')).join('');
+    `<div class="infoRow"><span class="chip" style="--bc:${BADGES[id].col}">${BADGES[id].nm}</span><span>${BADGES[id].tip}</span></div>`).join('')).join('')
+    + `<h3>등급 색</h3>` + GRADES.map((gr, g) => `<div class="infoRow"><span class="chip" style="--bc:${gr.col}">${gr.nm}</span><span>${gradeInfo(g)}</span></div>`).join('');
   $('info').dataset.resume = G && G.mode === 'play' ? '1' : '';
   if (G && G.mode === 'play') G.mode = 'pause';
   joy.id = null;
   $('info').hidden = false; $('infoBtn').hidden = true;
+}
+// 등급 하나의 설명: 끝없는 업그레이드 칸이 몇 번째에서 이 색인지 + 지금 월드에서 이 등급인 엘리트 · 보스
+function gradeInfo(g) {
+  const Wd = G ? G.world : WORLDS[selWorld] || WORLDS[0], s = [];
+  s.push(g < GRADES.length - 1 ? `업그레이드 칸 ${g * PIP_N + 1}~${(g + 1) * PIP_N}번째` : `업그레이드 칸 ${g * PIP_N + 1}번째부터`);
+  const ev = [...Wd.elites.filter(e => e.grade === g).map(e => [e.at, '엘리트']),
+              ...Wd.bosses.filter(e => BOSSES[e.id].grade === g).map(e => [e.at, BOSSES[e.id].nm])].sort((a, b) => a[0] - b[0]);
+  return [...s, ...ev.map(([at, nm]) => `${fmt(at)} ${nm}`)].join(' · ');
 }
 function closeInfo() {
   $('info').hidden = true; $('infoBtn').hidden = false;
@@ -977,7 +982,6 @@ const gradeCol = g => GRADES[Math.min(g, GRADES.length - 1)].col;
 // done = 지금까지 찍은 횟수, total = 최대 (Infinity = 끝없음). 뒤에 (이번 것/최대) 글자
 //   최대가 5 이하인 것(확산 · 연쇄 …, 무기 슬롯)은 칸 수 = 최대, 일반 색 한 바퀴
 const PIP_N = 5;
-$('grades').innerHTML = GRADES.map(g => `<span><i style="background:${g.col}"></i>${g.nm}</span>`).join('');
 function pipsHtml(done, total) {
   const n = Number.isFinite(total) ? Math.min(total, PIP_N) : PIP_N;
   const g = Math.floor(done / n), k0 = done % n;                // g = 지금 채우는 등급, k0 = 그 등급으로 찬 칸 수
