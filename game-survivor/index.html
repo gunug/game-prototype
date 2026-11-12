@@ -16,6 +16,11 @@
   .bars{position:fixed;left:12px;right:12px;top:36px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
   .bar{height:10px;background:#2a2d38;border-radius:5px;overflow:hidden}
   .bar>i{display:block;height:100%;width:0}
+  /* 체력 마디: 100 마다 가는 금, 1000 마다 굵은 금. --s1 · --s10 = 100 · 1000 이 줄 폭의 몇 % 인지 (hpTicks) */
+  .bar.ticks{position:relative}
+  .bar.ticks::after{content:'';position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
+               repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
   #hpBar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
@@ -173,7 +178,7 @@
   <button id="pauseBtn">II</button>
 </div>
 <div class="bars">
-  <div class="bar" id="hpBar"><i></i></div>
+  <div class="bar ticks" id="hpBar"><i></i></div>
   <div class="bar" id="xpBar"><i></i></div>
 </div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
@@ -227,7 +232,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.27.5';
+const VERSION = '0.27.6';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1499,6 +1504,8 @@ function draw() {
     if (e.hp < e.maxHp && !e.boss) {                              // 보스 체력은 위쪽 큰 줄에
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
+      ctx.fillStyle = '#000';                                      // 100 마다 마디
+      for (let v = 100; v < e.maxHp; v += 100) ctx.fillRect(e.x - e.r + e.r * 2 * v / e.maxHp - 0.5, e.y - e.r * 2.3, 1, 3);
     }
   }
 
@@ -1585,6 +1592,8 @@ function draw() {
 }
 
 // 월드 타임라인 표시 (새 판마다 다시 만든다)
+// 체력 줄 마디 간격 — 최대 체력 maxHp 에서 100 · 1000 이 몇 %
+const hpTicks = maxHp => `--s1:${100 / maxHp * 100}%;--s10:${1000 / maxHp * 100}%`;
 function buildTimeline() {
   const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
   let h = '';
@@ -1606,7 +1615,7 @@ function hud() {
   const bosses = G.enemies.filter(e => e.boss && !e.dead), key = bosses.map(e => e.bid).join(',');
   if ($('bossBars').dataset.k !== key) {
     $('bossBars').dataset.k = key;
-    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}</div><div class="bar"><i></i></div></div></div>`).join('');
+    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}</div><div class="bar ticks" style="${hpTicks(e.maxHp)}"><i></i></div></div></div>`).join('');
   }
   [...$('bossBars').children].forEach((row, i) => { row.querySelector('.bar>i').style.width = Math.max(0, bosses[i].hp / bosses[i].maxHp * 100) + '%'; });
   $('banner').hidden = !G.banner;
@@ -1615,6 +1624,7 @@ function hud() {
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
   $('hpBar').firstElementChild.style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
+  if ($('hpBar').dataset.m != G.p.maxHp) { $('hpBar').dataset.m = G.p.maxHp; $('hpBar').style.cssText = hpTicks(G.p.maxHp); }   // 최대 체력이 바뀌면 마디 다시
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
   const s = G.s;
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => WEAPONS[w.id].nm)) + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => x.nm));
