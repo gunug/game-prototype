@@ -159,7 +159,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.19.0';
+const VERSION = '0.19.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -785,9 +785,9 @@ const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 �
 const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
 
 // 무기 자세: 손 위치 · 각도 · 총구 위치
-// 무기가 여럿이면 몸 중심 둘레 원(반지름 WPN_RING) 위 **정해진 자리**에 고르게 놓는다 (360° / 개수).
+// 무기가 여럿이면 상반신 중심(WPN_CY) 둘레 원(반지름 WPN_RING) 위 **정해진 자리**에 고르게 놓는다 (360° / 개수).
 // 자리는 겨누는 쪽과 상관없이 고정 — 총마다 **제 자리를 축으로** 제 적을 겨눠 돈다. 짝수 개는 오른쪽부터, 홀수 개는 위부터
-const WPN_RING = 20;
+const WPN_RING = 20, WPN_CY = -10;   // 원 중심 = 몸 중심에서 위로 10px (상반신 · 손 높이)
 function weaponPose(w, i) {
   const p = G.p, W = WEAPONS[w.id], a = w.aim, c = Math.cos(a), sn = Math.sin(a);
   const img = WEAPON_IMG[w.id], len = W.len, h = img ? len * img.height / img.width : len * 0.6;
@@ -796,8 +796,8 @@ function weaponPose(w, i) {
   let hx, hy;
   if (n > 1) {
     const th = (n % 2 ? -Math.PI / 2 : 0) + i * Math.PI * 2 / n;
-    hx = p.x + Math.cos(th) * WPN_RING - c * back; hy = p.y - 2 + Math.sin(th) * WPN_RING - sn * back;
-  } else { hx = p.x + c * (9 - back); hy = p.y - 2 + sn * (9 - back); }   // 하나면 몸 앞
+    hx = p.x + Math.cos(th) * WPN_RING - c * back; hy = p.y + WPN_CY + Math.sin(th) * WPN_RING - sn * back;
+  } else { hx = p.x + c * (9 - back); hy = p.y + WPN_CY + sn * (9 - back); }   // 하나면 몸 앞
   const flip = c < 0 ? -1 : 1;                                   // 왼쪽을 보면 위아래를 뒤집어 손잡이가 아래로
   const mx = (W.muzzle[0] - W.pivot[0]) * len, my = (W.muzzle[1] - W.pivot[1]) * h * flip;
   return {hx, hy, a, flip, len, h, mx: hx + c * mx - sn * my, my: hy + sn * mx + c * my};
