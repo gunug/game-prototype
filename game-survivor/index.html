@@ -49,6 +49,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .bb .bf{flex:0 0 auto;width:30px;height:30px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}   /* 초상화를 키워 얼굴만 */
   .bb .bi{flex:1 1 auto;min-width:0;text-align:left}
   .bb .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
+  .bb .bdef{display:inline-flex;align-items:center;gap:2px;margin-left:6px;color:#c0c8d8;font-size:11px;vertical-align:-1px}
   .bb .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
   .bb .bar>i{background:linear-gradient(90deg,#b22,#f55)}
   /* 보스 등장 연출: 화면 가운데쯤 — 큰 얼굴 + '이름 등장!' 이 커지며 나타났다 사라진다 (2.8초) */
@@ -258,7 +259,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.43.3';
+const VERSION = '0.44.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -266,27 +267,27 @@ const FACE = {survivor: false, police: false, firefighter: false, zombie: true, 
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 // r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
 const ENEMY_TYPES = {
-  zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
-  dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
-  brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
-  crawler:{nm: '기는 좀비', hp: 6,  def: 0, spd: 85,  dmg: 5,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
-  riot:   {nm: '진압 경찰 좀비', hp: 40, def: 6, spd: 50, dmg: 14, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 6 — 약한 연사를 막음
+  zombie: {nm: '좀비',      hp: 120, def: 0, spd: 70,  dmg: 80,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
+  dog:    {nm: '들개',      hp: 60,  def: 0, spd: 135, dmg: 50,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
+  brute:  {nm: '거구 좀비', hp: 700, def: 30, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  crawler:{nm: '기는 좀비', hp: 60,  def: 0, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
+  riot:   {nm: '진압 경찰 좀비', hp: 400, def: 60, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 60 — 약한 연사를 막음
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
 // 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
-  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 4, spd: 55, dmg: 22, r: 44, xp: 60,
+  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 40, spd: 55, dmg: 220, r: 44, xp: 60,
           pats: ['charge'], gap: 3.2},
-  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 6, spd: 60, dmg: 30, r: 58, xp: 0,
+  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 60, spd: 60, dmg: 300, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
 };
 // 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
 //   기준 레벨 = 그 보스가 나오는 때의 완벽 플레이 레벨 × BOSS_LV_PCT (지금 75%) — 이 퍼센트로 난이도를 조절한다
 //   기준 빌드 = 권총 하나 · 레벨업의 절반을 공격력 · 공격속도에 번갈아 (나머지는 체력 · 사거리 같은 데) · 보스 방어 뺀 단일 대상 DPS
 const BOSS_LV_PCT = 0.75;
-const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 32;
+const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 320;
 // 적 체력 · 방어는 시간이 가도 그대로 (0.27.3 — 그 전엔 분당 체력 +45% · 방어 +1.5). 어려움은 나오는 수 · 엘리트 · 보스로
 // 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
 const armor = (dmg, def) => Math.max(1, dmg - def);
@@ -322,8 +323,8 @@ const UPGRADES = [
   {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, wpn: true, badges: ['dmg'], fx: '+20%', apply: s => s.dmgMul *= 1.2},
   {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, badges: ['cd'], fx: '×0.85', apply: s => s.cdMul *= 0.85},
   {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 3, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
-  {id: 'hp',     nm: '체력',       ds: '최대 체력 +25, 회복',  max: 99, badges: ['hp'], fx: '+25', apply: (s, p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); }},
-  {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, badges: ['def'], fx: '+2', apply: s => s.def += 2},
+  {id: 'hp',     nm: '체력',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
+  {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
   {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   {id: 'focus',  nm: '집탄',       ds: '발사각 ×0.8 — 탄이 잘 모인다', max: 5, ext: true, wpn: true, badges: ['acc'], fx: '×0.8', apply: s => s.accMul *= 0.8},
@@ -342,7 +343,7 @@ const BADGES = {
   cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '다시 쏠 때까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
-  hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +25 하고 그만큼 회복.'},
+  hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). ∞ = 지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
@@ -411,9 +412,9 @@ const WEAPONS = {
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
-//   비교 DPS = 단일과 최적의 가운데 = 단일 × (1 + maxT) / 2 → 모든 무기가 DPS_REF 가 되게 **피해를 계산해 넣는다** (소수 한 자리)
-const DPS_REF = 10;
-for (const W of Object.values(WEAPONS)) W.dmg = Math.round(DPS_REF * W.cd * 2 / (1 + W.maxT) * 10) / 10;
+//   비교 DPS = 단일과 최적의 가운데 = 단일 × (1 + maxT) / 2 → 모든 무기가 DPS_REF 가 되게 **피해를 계산해 넣는다** (정수)
+const DPS_REF = 100;   // 0.44.0 수치 10배 (그 전 10)
+for (const W of Object.values(WEAPONS)) W.dmg = Math.round(DPS_REF * W.cd * 2 / (1 + W.maxT));   // 정수
 const dpsOf = W => { const s = W.dmg / W.cd; return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2}; };
 const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
@@ -444,12 +445,12 @@ const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).ma
 // ───── 캐릭터 ─────
 // wSlots · sSlots: 무기 · 보조 슬롯 수. 특징은 docs/기획_캐릭터.md
 const CHARACTERS = [
-  {id: 'survivor', nm: '생존자', sprite: 'survivor', wSlots: 2, sSlots: 2, hp: 100, speed: 190, trait: '특징 없음 — 기준 캐릭터'},
+  {id: 'survivor', nm: '생존자', sprite: 'survivor', wSlots: 2, sSlots: 2, hp: 1000, speed: 190, trait: '특징 없음 — 기준 캐릭터'},
   // wDmgMul: 무기 공격력 배율 · def: 시작 방어
-  {id: 'police', nm: '경찰', sprite: 'police', wSlots: 1, sSlots: 3, hp: 90, speed: 200, wDmgMul: 1.5,
+  {id: 'police', nm: '경찰', sprite: 'police', wSlots: 1, sSlots: 3, hp: 900, speed: 200, wDmgMul: 1.5,
    trait: '무기는 하나뿐. 대신 무기 공격력 +50% · 조금 빠름'},
-  {id: 'firefighter', nm: '소방관', sprite: 'firefighter', wSlots: 2, sSlots: 1, hp: 150, speed: 160, def: 4,
-   trait: '체력 150 · 방어 +4. 대신 느림 · 보조 1칸'},
+  {id: 'firefighter', nm: '소방관', sprite: 'firefighter', wSlots: 2, sSlots: 1, hp: 1500, speed: 160, def: 40,
+   trait: '체력 1500 · 방어 +40. 대신 느림 · 보조 1칸'},
 ];
 let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
 // 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
@@ -975,7 +976,7 @@ function openLevelUp() {
 function upHtml(u) {
   const fx = `<div class="badges">${u.badges.map(b => badgeHtml(b, u.fx)).join('')}</div>`;
   if (!u.wpn) {
-    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : G.s.def, nx = b === 'hp' ? now + 25 : now + 2;
+    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : G.s.def, nx = b === 'hp' ? now + 250 : now + 20;
     return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
   }
   // 받는 무기만 한 줄씩 (세로): 작은 무기 그림 + '지금→다음' (검은 상자). 이름은 그림 위에 마우스 · 팁 대신 title
@@ -1638,6 +1639,7 @@ function draw() {
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
     }
+    if (e.def > 0 && !e.boss) defMark(e.x + e.r + 3, e.y - e.r * 2.3 + 1.5, e.def);   // 방어: 체력 줄 오른쪽에 방패 + 숫자 (늘 보임)
   }
 
   // 플레이어
@@ -1775,8 +1777,25 @@ function offscreenMarks(ox, oy) {
 }
 
 // 월드 타임라인 표시 (새 판마다 다시 만든다)
-// 체력 줄 마디 간격 — 최대 체력 maxHp 에서 100 · 1000 이 몇 %
-const hpTicks = maxHp => `--s1:${100 / maxHp * 100}%;--s10:${1000 / maxHp * 100}%`;
+// 방어 표시 — 왼쪽 끝 x, 가운데 y 에 방패 + 방어 숫자 (방어 뱃지 색)
+const DEF_COL = '#c0c8d8';
+function shieldPath(x, y, w, h) {                               // 위가 넓고 아래가 뾰족한 방패
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.45);
+  ctx.quadraticCurveTo(x + w, y + h * 0.85, x + w / 2, y + h); ctx.quadraticCurveTo(x, y + h * 0.85, x, y + h * 0.45); ctx.closePath();
+}
+function defMark(x, y, def) {
+  const w = 7, h = 9;
+  shieldPath(x, y - h / 2, w, h);
+  ctx.fillStyle = DEF_COL; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#000'; ctx.stroke();
+  ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.strokeText(def, x + w + 2, y + 0.5);
+  ctx.fillStyle = DEF_COL; ctx.fillText(def, x + w + 2, y + 0.5);
+  ctx.textBaseline = 'alphabetic';
+}
+const SHIELD_SVG = `<svg viewBox="0 0 7 9" width="9" height="11"><path d="M0.5 0.5H6.5V4.3Q6.5 7.6 3.5 8.5Q0.5 7.6 0.5 4.3Z" fill="${DEF_COL}" stroke="#000" stroke-width="0.8"/></svg>`;
+
+// 체력 줄 마디 간격 — 최대 체력 maxHp 에서 1000 · 10000 이 몇 %
+const hpTicks = maxHp => `--s1:${1000 / maxHp * 100}%;--s10:${10000 / maxHp * 100}%`;
 function buildTimeline() {
   const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
   let h = '';
@@ -1798,7 +1817,7 @@ function hud() {
   const bosses = G.enemies.filter(e => e.boss && !e.dead), key = bosses.map(e => e.bid).join(',');
   if ($('bossBars').dataset.k !== key) {
     $('bossBars').dataset.k = key;
-    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}</div><div class="bar ticks" style="${hpTicks(e.maxHp)}"><i></i></div></div></div>`).join('');
+    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}${e.def > 0 ? `<span class="bdef">${SHIELD_SVG}${e.def}</span>` : ''}</div><div class="bar ticks" style="${hpTicks(e.maxHp)}"><i></i></div></div></div>`).join('');
   }
   [...$('bossBars').children].forEach((row, i) => { row.querySelector('.bar>i').style.width = Math.max(0, bosses[i].hp / bosses[i].maxHp * 100) + '%'; });
   $('banner').hidden = !G.banner;
