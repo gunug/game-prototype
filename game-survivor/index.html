@@ -23,7 +23,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .top{padding:2px 56px 2px 0;min-height:22px;display:flex;gap:14px;align-items:center;font-size:14px;pointer-events:none}
   .top a{pointer-events:auto;color:#9ab;text-decoration:none}
   .top b{color:#fff}
-  .bars{display:flex;flex-direction:column;gap:4px;pointer-events:none}
   .bar{height:10px;background:#2a2d38;border-radius:5px;overflow:hidden}
   .bar>i{display:block;height:100%;width:0}
   /* 체력 마디 (보스 줄만): 100 마다 가는 금, 1000 마다 굵은 금. --s1 · --s10 = 100 · 1000 이 줄 폭의 몇 % 인지 (hpTicks) */
@@ -31,7 +30,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .bar.ticks::after{content:'';position:absolute;inset:0;pointer-events:none;
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
-  #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
   #timeline{position:relative;margin:0 4px;height:26px;pointer-events:none}
   #timeline[hidden],#banner[hidden]{display:none}
@@ -199,9 +197,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <span class="hint">WASD 이동 · P 일시정지</span>
   <button id="pauseBtn">II</button>
 </div>
-<div class="bars">
-  <div class="bar" id="xpBar"><i></i></div>
-</div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
 <div id="bossBars"></div>
 </div>
@@ -264,7 +259,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.39.2';
+const VERSION = '0.40.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1658,11 +1653,13 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
-  // 머리 위 체력 줄 (총 고리보다 위) — 늘 보인다. 아래 정보칸의 줄과 같은 값
-  { const bw = 36, bh = 5, bx = p.x - bw / 2, by = p.y - 58, k = Math.max(0, p.hp / p.maxHp);
-    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+  // 머리 위: 체력 줄 + 그 바로 밑 경험치 줄 (총 고리보다 위) — 늘 보인다
+  { const bw = 36, bh = 5, xh = 3, bx = p.x - bw / 2, by = p.y - 60, k = Math.max(0, p.hp / p.maxHp), kx = Math.min(1, G.xp / xpNeed(G.lv));
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + xh + 3);
     ctx.fillStyle = '#3a1416'; ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = k > 0.3 ? '#e44' : (Math.floor(G.t * 6) % 2 ? '#f77' : '#c22'); ctx.fillRect(bx, by, bw * k, bh); }
+    ctx.fillStyle = k > 0.3 ? '#e44' : (Math.floor(G.t * 6) % 2 ? '#f77' : '#c22'); ctx.fillRect(bx, by, bw * k, bh);
+    ctx.fillStyle = '#132234'; ctx.fillRect(bx, by + bh + 1, bw, xh);
+    ctx.fillStyle = '#5bf'; ctx.fillRect(bx, by + bh + 1, bw * kx, xh); }
 
   // 투사체
   // 총알: 날아가는 쪽으로 짧은 노란 꼬리
@@ -1795,7 +1792,6 @@ function hud() {
   $('lv').textContent = G.lv;
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
-  $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
   const s = G.s;
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => WEAPONS[w.id].nm)) + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => x.nm));
   if ($('slots').dataset.k !== sl) { $('slots').innerHTML = sl; $('slots').dataset.k = sl; }
