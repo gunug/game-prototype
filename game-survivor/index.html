@@ -31,15 +31,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .bar.ticks::after{content:'';position:absolute;inset:0;pointer-events:none;
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
-  /* 주인공: 좌하단(무기 칸 위) — 얼굴 + 이름 · 체력 숫자 + 체력 줄 (보스 줄과 같은 모양, 눈금 없음) */
-  #pHud{width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
-  #pHud[hidden]{display:none}
-  #pHud .bf{flex:0 0 auto;width:34px;height:34px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}
-  #pHud .bi{flex:1 1 auto;min-width:0}
-  #pHud .bn{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--gc)}
-  #pHud .pv{font-variant-numeric:tabular-nums;color:#ccd}
-  #pHud .bar{height:9px;margin-top:2px;border:1px solid #888}
-  #pHud .bar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
   #timeline{position:relative;margin:0 4px;height:26px;pointer-events:none}
@@ -218,7 +209,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <div id="banner" hidden></div>
 <div id="bossIntro" hidden></div>
 <div id="hudBot">
-<div id="pHud" hidden><i class="bf"></i><div class="bi"><div class="bn"><span class="pn"></span><span class="pv"></span></div><div class="bar"><i></i></div></div></div>
 <div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
 </div>
@@ -274,7 +264,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.39.0';
+const VERSION = '0.39.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1786,7 +1776,6 @@ function buildTimeline() {
 
 function hud() {
   $('slots').hidden = !G;
-  $('pHud').hidden = !G;
   $('timeline').hidden = !G;
   if (!G) { $('bossIntro').hidden = true; $('bossBars').innerHTML = ''; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
@@ -1805,13 +1794,6 @@ function hud() {
   $('lv').textContent = G.lv;
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
-  if ($('pHud').dataset.c !== G.char.id) {                       // 캐릭터가 바뀌면 얼굴 · 이름
-    $('pHud').dataset.c = G.char.id;
-    $('pHud').querySelector('.bf').style.backgroundImage = `url(images/portrait_${G.char.sprite}.png?v=${VERSION})`;
-    $('pHud').querySelector('.pn').textContent = G.char.nm;
-  }
-  $('pHud').querySelector('.pv').textContent = `${Math.max(0, Math.ceil(G.p.hp))}/${G.p.maxHp}`;
-  $('pHud').querySelector('.bar>i').style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
   const s = G.s;
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => WEAPONS[w.id].nm)) + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => x.nm));
