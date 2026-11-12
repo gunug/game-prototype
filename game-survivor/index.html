@@ -258,7 +258,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.43.2';
+const VERSION = '0.43.3';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -346,7 +346,7 @@ const BADGES = {
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). ∞ = 지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
-  far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다. 값 = 노리는 거리(사거리 끝).'},
+  far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
   knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
@@ -370,11 +370,11 @@ function badgeVal(id, st) {
     case 'hp': return st.hp;
     case 'def': return st.def;
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
-    case 'far': return Math.round(st.range);                           // 노리는 거리 = 사거리 끝
+    case 'far': return false;                                          // 값 없음 — 노리는 거리는 사거리 뱃지와 같아서 (한 수치는 한 가지로만)
   }
   return null;
 }
-const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></span>`;   // 값이 없으면 0
+const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 발사각) + 특성 뱃지(badges)
 const wpnBadges = W => ['dmg', 'cd', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
