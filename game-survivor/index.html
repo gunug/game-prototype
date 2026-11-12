@@ -74,10 +74,11 @@
   .pipsrow{display:flex;align-items:center;justify-content:center;gap:5px;margin:5px auto 7px}
   .pipl{font-size:11px;font-weight:700;color:#9ab}
   .pips{display:flex;flex-wrap:wrap;gap:3px;max-width:150px}
-  .pip{width:11px;height:7px;border-radius:2px;border:1px solid #6a7080;box-sizing:border-box}
-  .pip.on{background:#e9a23b;border-color:#e9a23b}
-  .pip.next{border-color:#ffd28a;animation:pipBlink .7s ease-in-out infinite}
-  @keyframes pipBlink{0%,100%{background:transparent}50%{background:#ffd28a}}
+  .pip{width:11px;height:7px;border-radius:2px;border:1px solid #6a7080;box-sizing:border-box;background:var(--b,transparent)}
+  .pip.on{border-color:var(--b)}
+  .pip.next{border-color:var(--c);animation:pipBlink .7s ease-in-out infinite}   /* 깜빡임: 지금 색(--b) ↔ 다음 등급 색(--c) */
+  @keyframes pipBlink{0%,100%{background:var(--b,transparent)}50%{background:var(--c)}}
+  .pipn{font-size:11px;font-weight:700;color:#9ab;font-variant-numeric:tabular-nums}
   .wls{display:flex;flex-direction:column;gap:2px;margin-top:5px;align-items:center}
   .wl{display:flex;align-items:center;gap:5px;width:100%;max-width:190px;height:23px}
   .wl .wn{flex:1 1 auto;min-width:0;font-size:11px;color:#ccd;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* 그림 오른쪽, 모자라면 … */
@@ -197,7 +198,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.25.0';
+const VERSION = '0.26.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -836,7 +837,7 @@ function openLevelUp() {
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
-      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : pipsHtml(lv, u.max < 99 ? u.max : lv + 1)}
+      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + badgesHtml(wpnBadges(WEAPONS[u.newWeapon]), wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
@@ -864,10 +865,31 @@ function upHtml(u) {
   return fx + `<div class="wls">${rows}</div>`;
 }
 
+// 등급 색 (디아블로식 아이템 등급) — 업그레이드 칸 색 단계에 쓰고, 나중에 아이템 · 보상에도 같은 표를 쓴다
+const GRADES = [
+  {id: 'normal',    nm: '일반', col: '#c8c8c8'},   // 흰 · 회색
+  {id: 'magic',     nm: '마법', col: '#6f8cff'},   // 파랑
+  {id: 'rare',      nm: '희귀', col: '#ffe14d'},   // 노랑
+  {id: 'legendary', nm: '전설', col: '#ff8a1e'},   // 주황
+  {id: 'set',       nm: '세트', col: '#3fe05a'},   // 초록
+  {id: 'ancient',   nm: '태고', col: '#ff4040'},   // 빨강 (마지막 — 여기서 더 오르지 않음)
+];
+const gradeCol = g => GRADES[Math.min(g, GRADES.length - 1)].col;
+// 단계 칸: 늘 5칸(PIP_N). 다 차면 다음 등급 색으로 처음부터 다시 채운다 (일반 → 마법 → 희귀 → 전설 → 세트 → 태고)
+// done = 지금까지 찍은 횟수, total = 최대 (Infinity = 끝없음). 뒤에 (이번 것/최대) 글자
+//   최대가 5 이하인 것(확산 · 연쇄 …, 무기 슬롯)은 칸 수 = 최대, 일반 색 한 바퀴
+const PIP_N = 5;
 function pipsHtml(done, total) {
+  const n = Number.isFinite(total) ? Math.min(total, PIP_N) : PIP_N;
+  const g = Math.floor(done / n), k0 = done % n;                // g = 지금 채우는 등급, k0 = 그 등급으로 찬 칸 수
   let h = '';
-  for (let k = 0; k < total; k++) h += `<i class="pip${k < done ? ' on' : k === done ? ' next' : ''}"></i>`;
-  return `<div class="pipsrow"><span class="pipl">Lv.</span><div class="pips">${h}</div></div>`;
+  for (let k = 0; k < n; k++) {
+    const cur = k < k0 ? gradeCol(g) : g > 0 ? gradeCol(g - 1) : '';   // 이번 바퀴에 찬 칸 · 전 바퀴 색 · 빈 칸
+    const style = (cur ? `--b:${cur};` : '') + (k === k0 ? `--c:${gradeCol(g)};` : '');
+    h += `<i class="pip${cur ? ' on' : ''}${k === k0 && done < total ? ' next' : ''}" style="${style}"></i>`;
+  }
+  const lim = Number.isFinite(total) ? total : '∞';
+  return `<div class="pipsrow"><span class="pipl">Lv.</span><div class="pips">${h}</div><span class="pipn">(${done + 1}/${lim})</span></div>`;
 }
 
 function choose(i, click) {
