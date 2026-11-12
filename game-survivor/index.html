@@ -36,14 +36,8 @@
   /* 월드 선택 화면: 월드는 위, 캐릭터는 아래 — 둘 다 가로 스크롤 */
   #worldSel{padding:56px 0 28px;gap:12px}
   #worldSel h2{margin-top:8px}
-  #startHint,#charHint{padding:0 16px;text-align:center}
+  #startHint,#charHint,#wpnHint{padding:0 16px;text-align:center}
   #worldSel,#charSel{justify-content:center}
-  .hscroll{display:flex;gap:12px;width:100%;overflow-x:auto;overflow-y:hidden;padding:6px 16px 12px;
-           scroll-snap-type:x mandatory;scroll-padding:0 16px;touch-action:none;-webkit-overflow-scrolling:touch;
-           scrollbar-width:thin;scrollbar-color:#3a3f55 transparent}
-  .hscroll>*{flex:0 0 auto;scroll-snap-align:start}
-  .hscroll::after{content:'';flex:0 0 4px;margin-right:auto}   /* 끝 칸 오른쪽 여백 */
-  .hscroll>:first-child{margin-left:auto}                       /* 넘치지 않으면 가운데, 넘치면 왼쪽부터 스크롤 */
   .world{width:240px;padding:14px 16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;text-align:left;cursor:pointer}
   .world:hover:not(:disabled){border-color:#7cf}
   .world:disabled{opacity:.45;cursor:default}
@@ -93,6 +87,12 @@
   #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
   @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
+  .row1{display:flex;flex-wrap:nowrap;flex-direction:row;justify-content:center;gap:10px;width:100%;max-width:900px;padding:6px 12px 12px;touch-action:none;box-sizing:border-box}
+  #wpnCards.row1{flex-direction:row;flex-wrap:nowrap}
+  .row1>.world,.row1>.char,.row1>.up{flex:1 1 0;width:auto;min-width:0;max-width:250px;box-sizing:border-box}
+  @media (max-width:700px){.row1{gap:6px;padding:4px 8px 10px}.row1>.world,.row1>.char,.row1>.up{padding:8px 6px}
+    .row1>.world .wn{font-size:15px}.row1 .wd,.row1 .ct{font-size:10px}.row1>.char img{width:56px;height:75px}}
   /* 버전 — 우하단, 모든 창(레벨업 · 일시정지 · 게임오버) 위에 */
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
@@ -118,18 +118,18 @@
   <h2>서바이버</h2>
   <div class="hint" id="startHint">1단계 — 월드를 고른다. 방향키로 고르고 Enter (또는 1 · 2 · 3). WASD 로 피하고, 총은 저절로 쏜다.</div>
   <div class="sec">월드</div>
-  <div class="hscroll" id="worldList"></div>
+  <div class="row1" id="worldList"></div>
 </div>
 <div class="overlay" id="charSel" hidden>
   <h2>캐릭터 선택</h2>
   <div class="hint" id="charHint"></div>
-  <div class="hscroll" id="charList"></div>
+  <div class="row1" id="charList"></div>
   <div class="btns"><button class="sub" id="charBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="wpnSel" hidden>
   <h2>출발 무기</h2>
   <div class="hint" id="wpnHint">3단계 — 들고 나갈 무기를 고르면 바로 시작 (1 · 2 · 3)</div>
-  <div class="cards" id="wpnCards"></div>
+  <div class="cards row1" id="wpnCards"></div>
   <div class="btns"><button class="sub" id="wpnBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="levelup" hidden>
@@ -159,7 +159,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.17.4';
+const VERSION = '0.18.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -311,10 +311,6 @@ if (matchMedia('(pointer: coarse)').matches) {
 const WORLDS = [
   {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600},
 ];
-// PC: 마우스 휠을 가로 스크롤로
-for (const id of ['worldList', 'charList']) $(id).addEventListener('wheel', e => {
-  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }
-}, {passive: false});
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = w => 'survivor.w' + w;
 const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills":0,"clear":false}');
@@ -322,7 +318,6 @@ const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
   G = null;
-  const keep = $('worldList').scrollLeft;                        // 다시 그려도 스크롤 자리 유지
   ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'charSel'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
@@ -341,7 +336,6 @@ function showWorlds() {
     box.appendChild(b);
   }
   $('worldSel').hidden = false;
-  $('worldList').scrollLeft = keep;
 }
 function pickWorld(i) { if (!WORLDS[i]) return; selWorld = i; showChars(); }
 let selWorld = 0;
