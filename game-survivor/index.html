@@ -70,6 +70,16 @@
   .wch.on{color:#e9a23b;border:1px solid #e9a23b}
   .wch.off{color:#6a7080;border:1px dashed #3a3f55;text-decoration:line-through}
   .badge b{background:#000;color:#fff;border-radius:7px;padding:0 5px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;min-width:12px}
+  /* 레벨업 아래: 가진 무기 카드 — 고른(테두리) 업그레이드가 바꾸는 값만 '지금→다음' 뱃지로 */
+  .lvw{display:flex;flex-wrap:nowrap;justify-content:center;gap:8px;width:100%;max-width:640px;padding:0 10px;box-sizing:border-box}
+  .lvw .lw{flex:1 1 0;min-width:0;max-width:150px;padding:6px 6px 8px;border-radius:10px;background:#1c1f2a;border:2px solid #e9a23b;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .lvw .lw.off{border:2px dashed #3a3f55;opacity:.45}
+  .lvw .lw.new{border-color:#c9f}
+  .lvw .lw .wimg{width:100%;height:30px;display:flex;align-items:center;justify-content:center}
+  .lvw .lw .wimg img{max-width:85%;max-height:26px;image-rendering:pixelated}
+  .lvw .lw .wn{font-size:12px;font-weight:700;color:#e8e8ee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .lvw .lw .none{font-size:10px;color:#8a93a8}
+  .lvw .badge{width:auto;min-width:96px;max-width:100%}
   .wrows{display:flex;flex-direction:column;gap:3px;margin-top:6px;align-items:stretch}
   .wrow{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:12px}
   .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -83,7 +93,7 @@
   .wcard .wimg{width:100%;height:48px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2e3346 0,#232634 70%);border-radius:8px}
   .wcard .wimg img{max-width:88%;max-height:40px;image-rendering:pixelated}
   .wcard .wsh{font-size:11px;color:#9ab;min-height:15px}
-  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
+  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}.lvw{gap:5px;padding:0 6px}.lvw .badge{font-size:9px;line-height:13px;min-width:0;width:100%;padding:1px 1px 1px 4px}.lvw .badge b{padding:0 3px}.lvw .lw .wn{font-size:10px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
   #tip b{color:var(--bc,#fff);margin-right:4px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
@@ -159,6 +169,7 @@
 <div class="overlay" id="levelup" hidden>
   <h2>레벨 업!</h2>
   <div class="cards" id="cards"></div>
+  <div class="lvw" id="lvWpns"></div>
   <div class="hint" id="luHint">1 · 2 · 3 또는 클릭</div>
 </div>
 <div class="overlay" id="pause" hidden>
@@ -183,7 +194,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.22.1';
+const VERSION = '0.23.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -635,6 +646,7 @@ function navPaint() {
   if (nav.el) nav.el.classList.remove('focus');
   nav.el = el;
   if (el) { el.classList.add('focus'); el.scrollIntoView({block: 'nearest', inline: 'center', behavior: 'smooth'}); }
+  if (nav.scr === 'levelup') lvPreview();                        // 레벨업: 테두리 옮기면 아래 무기 카드 다시
 }
 // 스틱(패드 · 화면 조이스틱) → 한 칸씩. 계속 기울이면 0.35초 뒤부터 0.13초마다
 function navAxis(v, dt) {
@@ -825,7 +837,9 @@ function openLevelUp() {
     d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
+  [...box.children].forEach(d => d.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') navFocusEl(d); }));   // 마우스를 올리면 그 카드 기준
   $('levelup').hidden = false;
+  lvPreview.c = null; lvPreview();
   // 판 중 누르고 있던 손가락은 메뉴로 잇지 않는다 — 새로 눌러 끌어야 열린다 (0.11.4)
 }
 
@@ -838,15 +852,30 @@ function upHtml(u) {
     const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : G.s.def, nx = b === 'hp' ? now + 25 : now + 2;
     return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
   }
-  const s0 = G.s, s1 = {...s0}; u.apply(s1, {maxHp: 0, hp: 0});
-  const rows = G.weapons.map(w => {
+  const n = G.weapons.filter(w => wpnTakes(WEAPONS[w.id], u.id)).length;
+  return fx + `<div class="aff">무기 ${n}개 영향</div>`;
+}
+// 레벨업 아래 무기 카드: 테두리가 있는(고른) 업그레이드 기준. 받는 무기는 바뀌는 뱃지 하나만 '지금→다음',
+// 안 받는 무기는 흐리게 '변화 없음'. 새 무기 카드를 고르면 그 무기가 '새 무기' 로 끝에 붙는다
+// 테두리는 방향키 · 패드 · 방사형 메뉴 · 마우스 올림으로 옮겨지고, 옮길 때마다 다시 그린다
+function lvPreview() {
+  if (!G || G.mode !== 'levelup') return;
+  const cards = [...$('cards').children];
+  let i = cards.findIndex(c => c.classList.contains('focus')); if (i < 0) i = 0;
+  if (lvPreview.i === i && lvPreview.c === G.choices) return;
+  lvPreview.i = i; lvPreview.c = G.choices;
+  const u = G.choices[i]; if (!u) return;
+  const s0 = G.s, s1 = {...s0}; if (u.wpn) u.apply(s1, {maxHp: 0, hp: 0});
+  const card = (id, cls, body) => `<div class="lw ${cls}"><div class="wimg"><img src="images/weapon_${id}.png?v=${VERSION}" alt=""></div><div class="wn">${WEAPONS[id].nm}</div>${body}</div>`;
+  let html = G.weapons.map(w => {
     const W = WEAPONS[w.id];
-    if (!wpnTakes(W, u.id)) return `<div class="wrow"><span class="wch off">${W.nm}</span></div>`;
+    if (!u.wpn || !wpnTakes(W, u.id)) return card(w.id, 'off', '<div class="none">변화 없음</div>');
     const b = u.badges.find(x => wpnBadges(W).includes(x));
     const a = badgeVal(b, wstat(w.id)); G.s = s1; const c = badgeVal(b, wstat(w.id)); G.s = s0;
-    return `<div class="wrow"><span class="wch on">${W.nm}</span><span class="wv">${a} → <b>${c}</b></span></div>`;
+    return card(w.id, '', `<div class="badges">${badgeHtml(b, `${a}→${c}`)}</div>`);
   }).join('');
-  return fx + `<div class="wrows">${rows}</div>`;
+  if (u.newWeapon) html += card(u.newWeapon, 'new', '<div class="none">새 무기</div>');
+  $('lvWpns').innerHTML = html;
 }
 
 function choose(i, click) {
