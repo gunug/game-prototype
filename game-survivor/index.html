@@ -108,7 +108,7 @@
   /* 뱃지 — 무기 특성 · 업그레이드가 닿는 범위. 올리거나(마우스) 누르면(터치) 팁 */
   .badges{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:6px}
   /* 뱃지: 모두 같은 폭 — 이름은 왼쪽, 값은 오른쪽 검은 둥근 상자에 흰 글씨 */
-  .badge{display:inline-flex;align-items:center;justify-content:space-between;gap:4px;width:96px;box-sizing:border-box;font-size:11px;font-weight:700;line-height:15px;padding:2px 2px 2px 7px;border-radius:9px;background:var(--bc,#888);color:#14161c;cursor:help;white-space:nowrap;overflow:hidden}
+  .badge{display:inline-flex;align-items:center;justify-content:space-between;gap:4px;width:96px;box-sizing:border-box;font-size:11px;font-weight:700;line-height:15px;padding:2px 2px 2px 7px;border-radius:9px;background:var(--bc,#888);color:#14161c;white-space:nowrap;overflow:hidden}
   .wchs{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:4px}
   .wch{font-size:11px;line-height:15px;padding:0 5px;border-radius:4px;white-space:nowrap}
   .wch.on{color:#e9a23b;border:1px solid #e9a23b}
@@ -139,15 +139,12 @@
   .wrow .wv b{color:#ffd28a}
   .up .wimg{width:100%;height:40px;display:flex;align-items:center;justify-content:center;margin-top:4px}
   .up .wimg img{max-width:80%;max-height:34px;image-rendering:pixelated}
-  #tip{position:fixed;z-index:2147483646;max-width:230px;padding:7px 10px;border-radius:8px;background:rgba(14,16,22,.96);border:1px solid #556;color:#e8e8ee;font-size:12px;line-height:1.45;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #tip[hidden]{display:none}
   /* 무기 카드 (출발 무기): 그림 · 이름 · 한 줄 · 숫자 표 · 뱃지 */
   .wcard{display:flex;flex-direction:column;align-items:center;gap:4px}
   .wcard .wimg{width:100%;height:48px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2e3346 0,#232634 70%);border-radius:8px}
   .wcard .wimg img{max-width:88%;max-height:40px;image-rendering:pixelated}
   .wcard .wsh{font-size:11px;color:#9ab;min-height:15px}
   @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}#cards .wl{gap:3px}#cards .wl{gap:3px;height:20px}#cards .wl img{width:42px;height:18px;padding:1px 2px}#cards .wl .wn{font-size:9px;letter-spacing:-.03em}#cards .wl b{font-size:9px;line-height:13px;padding:0 4px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
-  #tip b{color:var(--bc,#fff);margin-right:4px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
   button:disabled{opacity:.4;cursor:default}
@@ -184,6 +181,13 @@
   /* 등급 색 표 — 좌하단, 모바일에서 읽히는 가장 작은 글씨(10px). 모든 창 위 */
   #grades{position:fixed;left:8px;bottom:5px;z-index:2147483647;display:flex;gap:7px;font-size:10px;line-height:12px;color:rgba(255,255,255,.7);pointer-events:none}
   #grades i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:2px;vertical-align:-1px}
+  /* 정보 버튼 — 우하단 (버전 위). 누르면 판이 멈추고 뱃지 설명 창 */
+  #infoBtn{position:fixed;right:8px;bottom:24px;z-index:2147483645;padding:4px 12px;font-size:12px;background:#2a2d38;color:#ccd;border:1px solid #3a3f55}
+  #info{z-index:2147483646;justify-content:flex-start;padding:48px 0 24px;overflow-y:auto}
+  .infoList{display:flex;flex-direction:column;gap:6px;width:min(520px,92vw)}
+  .infoList h3{margin:10px 0 2px;font-size:13px;color:#9ab;letter-spacing:.1em}
+  .infoRow{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.45;color:#dde}
+  .infoRow .chip{flex:0 0 auto;width:64px;text-align:center;font-size:12px;font-weight:700;line-height:18px;border-radius:9px;background:var(--bc);color:#14161c}
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -248,12 +252,18 @@
 
 <div id="radial" hidden></div>
 <div id="ver"></div>
+<button id="infoBtn">정보</button>
+<div class="overlay" id="info" hidden>
+  <h2>뱃지 설명</h2>
+  <div class="infoList" id="infoList"></div>
+  <div class="btns"><button class="sub" id="infoClose" data-neg>닫기</button></div>
+</div>
 <div id="grades"></div>
 
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.30.0';
+const VERSION = '0.31.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -507,7 +517,6 @@ const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills
 
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
-  hideTip();                                                    // 창이 바뀌면 뱃지 팁을 닫는다
   G = null;
   ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'charSel'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
@@ -531,7 +540,6 @@ function showWorlds() {
 function pickWorld(i) { if (!WORLDS[i]) return; selWorld = i; showChars(); }
 let selWorld = 0;
 function showChars() {
-  hideTip();                                                    // 창이 바뀌면 뱃지 팁을 닫는다
   G = null;
   ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   $('charHint').textContent = `2단계 — ${WORLDS[selWorld].name} 에 나갈 캐릭터를 고른다 (다음은 출발 무기)`;
@@ -580,7 +588,6 @@ function wcardHtml(id, i) {
 // 월드를 시작할 때 무기를 고른다 (해금된 것 중)
 let pickWi = 0;
 function showWeaponPick(wi) {
-  hideTip();                                                    // 창이 바뀌면 뱃지 팁을 닫는다
   pickWi = wi; G = null;
   ['worldSel', 'charSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   const box = $('wpnCards'); box.innerHTML = '';
@@ -595,7 +602,6 @@ function showWeaponPick(wi) {
 }
 
 function newGame(wi, weaponId) {
-  hideTip();                                                    // 창이 바뀌면 뱃지 팁을 닫는다
   const C = CHARACTERS[charIdx];
   G = {
     wi, world: WORLDS[wi], char: C,
@@ -615,34 +621,12 @@ function newGame(wi, weaponId) {
 
 // ───── 입력 ─────
 const keys = {};
-// 뱃지 팁: 마우스는 올리면, 터치 · 펜은 누르면 뜬다. 뱃지를 누른 것은 카드 고르기 · 방사형 메뉴로 넘기지 않는다
-const tipEl = Object.assign(document.createElement('div'), {id: 'tip', hidden: true});
-document.body.appendChild(tipEl);
-function showTip(el) {
-  const b = BADGES[el.dataset.badge]; if (!b) return;
-  tipEl.style.setProperty('--bc', b.col);
-  tipEl.innerHTML = `<b>${b.nm}</b>${b.tip}`;
-  tipEl.hidden = false; tipEl.dataset.on = el.dataset.badge;
-  const r = el.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
-  tipEl.style.left = Math.max(6, Math.min(innerWidth - tw - 6, r.left + r.width / 2 - tw / 2)) + 'px';
-  tipEl.style.top = (r.top - th - 6 >= 4 ? r.top - th - 6 : r.bottom + 6) + 'px';
-}
-const hideTip = () => { tipEl.hidden = true; tipEl.dataset.on = ''; };
-const badgeOf = e => e.target && e.target.closest ? e.target.closest('[data-badge]') : null;
-document.addEventListener('pointerover', e => { const el = badgeOf(e); if (el && e.pointerType === 'mouse') showTip(el); });
-document.addEventListener('pointerout', e => { if (e.pointerType === 'mouse' && badgeOf(e)) hideTip(); });
-document.addEventListener('pointerdown', e => {
-  const el = badgeOf(e);
-  if (!el) { hideTip(); return; }
-  e.stopPropagation(); e.preventDefault();
-  if (e.pointerType !== 'mouse') { if (tipEl.dataset.on === el.dataset.badge) hideTip(); else showTip(el); }   // 다시 누르면 닫힘
-}, true);
-document.addEventListener('click', e => { if (badgeOf(e)) { e.stopPropagation(); e.preventDefault(); } }, true);
-addEventListener('keydown', hideTip, true);
 
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Backquote' && !e.repeat) { document.body.classList.toggle('dbg'); return; }   // 능력치 디버그 글
+  if (e.code === 'KeyI' && !e.repeat) { $('info').hidden ? openInfo() : closeInfo(); return; }      // 정보 창
+  if (!$('info').hidden && e.code === 'Escape') { closeInfo(); return; }
   const scr = navSync();
   if (scr) {                                                    // 선택 창: 방향키 · WASD 로 테두리, Enter · Space 로 결정
     const d = {ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', KeyA: 'L', KeyD: 'R', KeyW: 'U', KeyS: 'D'}[e.code];
@@ -680,6 +664,24 @@ $('wpnBack').onclick = () => showChars();   // 뒤로: 캐릭터 선택으로
 $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
+// 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'range', 'acc', 'hp', 'def']], ['특성', ['rapid', 'pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
+function openInfo() {
+  if (!$('info').hidden) return;
+  $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
+    `<div class="infoRow"><span class="chip" style="--bc:${BADGES[id].col}">${BADGES[id].nm}</span><span>${BADGES[id].tip}</span></div>`).join('')).join('');
+  $('info').dataset.resume = G && G.mode === 'play' ? '1' : '';
+  if (G && G.mode === 'play') G.mode = 'pause';
+  joy.id = null;
+  $('info').hidden = false; $('infoBtn').hidden = true;
+}
+function closeInfo() {
+  $('info').hidden = true; $('infoBtn').hidden = false;
+  if ($('info').dataset.resume && G && G.mode === 'pause' && $('pause').hidden) G.mode = 'play';
+}
+$('infoBtn').onclick = openInfo;
+$('infoClose').onclick = closeInfo;
+
 function togglePause() {
   G.autoPaused = false;
   if (G.mode === 'play') { G.mode = 'pause'; $('pause').hidden = false; }
@@ -696,8 +698,9 @@ const NAV_ROWS = {
   pause:    ['#pause .btns button'],
   over:     ['#over .btns button'],
   clear:    ['#clear .btns button'],
+  info:     ['#info .btns button'],
 };
-const NAV_ORDER = ['levelup', 'pause', 'over', 'clear', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const NAV_ORDER = ['info', 'levelup', 'pause', 'over', 'clear', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
 const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled));
@@ -739,6 +742,7 @@ function navBack() {
   if (scr === 'wpnSel') showChars();
   else if (scr === 'charSel' || scr === 'over' || scr === 'clear') showWorlds();
   else if (scr === 'pause') togglePause();
+  else if (scr === 'info') closeInfo();
 }
 function navPaint() {
   const el = nav.scr ? navCur() : null;
@@ -815,7 +819,7 @@ function rmItems(scr) {
     return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
             down: [{label: '뒤로', el: $('wpnBack'), act: () => showChars()}]};
   }
-  if (scr === 'over' || scr === 'clear' || scr === 'pause') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
+  if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
     // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
     const item = b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }});
@@ -881,7 +885,7 @@ function rmEnd() {
   if (it && !it.disabled) it.act();
   rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'charSel', 'wpnSel', 'levelup', 'over', 'clear', 'pause'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'charSel', 'wpnSel', 'levelup', 'over', 'clear', 'pause', 'info'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
@@ -907,7 +911,6 @@ function navTick(dt) {
 const xpNeed = lv => 5 + (lv - 1) * 4;
 
 function openLevelUp() {
-  hideTip();                                                    // 창이 바뀌면 뱃지 팁을 닫는다
   const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV)
     && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
   if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
