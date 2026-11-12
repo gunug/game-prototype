@@ -16,15 +16,23 @@
   .bars{position:fixed;left:12px;right:12px;top:36px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
   .bar{height:10px;background:#2a2d38;border-radius:5px;overflow:hidden}
   .bar>i{display:block;height:100%;width:0}
-  /* 체력 마디: 100 마다 가는 금, 1000 마다 굵은 금. --s1 · --s10 = 100 · 1000 이 줄 폭의 몇 % 인지 (hpTicks) */
+  /* 체력 마디 (보스 줄만): 100 마다 가는 금, 1000 마다 굵은 금. --s1 · --s10 = 100 · 1000 이 줄 폭의 몇 % 인지 (hpTicks) */
   .bar.ticks{position:relative}
   .bar.ticks::after{content:'';position:absolute;inset:0;pointer-events:none;
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
-  #hpBar>i{background:linear-gradient(90deg,#d33,#f66)}
+  /* 주인공: 좌하단(무기 칸 위) — 얼굴 + 이름 · 체력 숫자 + 체력 줄 (보스 줄과 같은 모양, 눈금 없음) */
+  #pHud{position:fixed;left:12px;bottom:178px;width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
+  #pHud[hidden]{display:none}
+  #pHud .bf{flex:0 0 auto;width:34px;height:34px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}
+  #pHud .bi{flex:1 1 auto;min-width:0}
+  #pHud .bn{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--gc)}
+  #pHud .pv{font-variant-numeric:tabular-nums;color:#ccd}
+  #pHud .bar{height:9px;margin-top:2px;border:1px solid #888}
+  #pHud .bar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
-  #timeline{position:fixed;left:16px;right:16px;top:66px;height:26px;pointer-events:none}
+  #timeline{position:fixed;left:16px;right:16px;top:52px;height:26px;pointer-events:none}
   #timeline[hidden],#banner[hidden]{display:none}
   .tl-track{position:absolute;left:0;right:0;top:12px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
   .tl-fill{display:block;height:100%;width:0;background:#9ab}
@@ -36,7 +44,7 @@
   .tl-m.done{opacity:.4}
   .tl-now{position:absolute;top:2px;width:2px;height:22px;background:#fff;border-radius:1px;transform:translateX(-1px)}
   /* 보스 체력 줄: 보스마다 한 줄, 아래로 쌓인다. 왼쪽에 얼굴(초상화 위쪽을 잘라) · 오른쪽에 이름 + 줄. 알림은 그 아래 */
-  #topStack{position:fixed;left:50%;top:98px;transform:translateX(-50%);width:min(420px,84vw);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none}
+  #topStack{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(420px,84vw);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none}
   #bossBars{display:flex;flex-direction:column;gap:5px;width:100%}
   .bb{display:flex;align-items:center;gap:6px;width:100%}
   .bb .bf{flex:0 0 auto;width:30px;height:30px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}   /* 초상화를 키워 얼굴만 */
@@ -82,7 +90,7 @@
   .slot.s{border-color:#5fb0e8}
   .slot.empty{border-style:dashed;opacity:.6}
   .sec{font-size:12px;color:#9ab;letter-spacing:.1em}
-  #slots{position:fixed;left:12px;bottom:84px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  #slots{position:fixed;left:12px;bottom:118px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
   #slots[hidden]{display:none}
   #slots .slotrow{justify-content:flex-start}
   #slots .slot{height:20px;font-size:11px;padding:0 6px}
@@ -153,7 +161,7 @@
   #radial.cancel .rct{fill:#f99}
   #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:70px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:100px}#pHud{bottom:158px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
   .row1{display:flex;flex-wrap:nowrap;flex-direction:row;justify-content:center;gap:10px;width:100%;max-width:900px;padding:6px 12px 12px;touch-action:none;box-sizing:border-box}
   #wpnCards.row1{flex-direction:row;flex-wrap:nowrap}
@@ -178,11 +186,11 @@
   <button id="pauseBtn">II</button>
 </div>
 <div class="bars">
-  <div class="bar ticks" id="hpBar"><i></i></div>
   <div class="bar" id="xpBar"><i></i></div>
 </div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
 <div id="topStack"><div id="bossBars"></div><div id="banner" hidden></div></div>
+<div id="pHud" hidden><i class="bf"></i><div class="bi"><div class="bn"><span class="pn"></span><span class="pv"></span></div><div class="bar"><i></i></div></div></div>
 <div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
 
@@ -232,7 +240,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.27.6';
+const VERSION = '0.28.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1504,8 +1512,6 @@ function draw() {
     if (e.hp < e.maxHp && !e.boss) {                              // 보스 체력은 위쪽 큰 줄에
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
-      ctx.fillStyle = '#000';                                      // 100 마다 마디
-      for (let v = 100; v < e.maxHp; v += 100) ctx.fillRect(e.x - e.r + e.r * 2 * v / e.maxHp - 0.5, e.y - e.r * 2.3, 1, 3);
     }
   }
 
@@ -1605,6 +1611,7 @@ function buildTimeline() {
 
 function hud() {
   $('slots').hidden = !G;
+  $('pHud').hidden = !G;
   $('timeline').hidden = !G;
   if (!G) { $('bossBars').innerHTML = ''; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
@@ -1623,8 +1630,13 @@ function hud() {
   $('lv').textContent = G.lv;
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
-  $('hpBar').firstElementChild.style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
-  if ($('hpBar').dataset.m != G.p.maxHp) { $('hpBar').dataset.m = G.p.maxHp; $('hpBar').style.cssText = hpTicks(G.p.maxHp); }   // 최대 체력이 바뀌면 마디 다시
+  if ($('pHud').dataset.c !== G.char.id) {                       // 캐릭터가 바뀌면 얼굴 · 이름
+    $('pHud').dataset.c = G.char.id;
+    $('pHud').querySelector('.bf').style.backgroundImage = `url(images/portrait_${G.char.sprite}.png?v=${VERSION})`;
+    $('pHud').querySelector('.pn').textContent = G.char.nm;
+  }
+  $('pHud').querySelector('.pv').textContent = `${Math.max(0, Math.ceil(G.p.hp))}/${G.p.maxHp}`;
+  $('pHud').querySelector('.bar>i').style.width = Math.max(0, G.p.hp / G.p.maxHp * 100) + '%';
   $('xpBar').firstElementChild.style.width = (G.xp / xpNeed(G.lv) * 100) + '%';
   const s = G.s;
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => WEAPONS[w.id].nm)) + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => x.nm));
