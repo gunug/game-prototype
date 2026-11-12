@@ -259,7 +259,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.32.0';
+const VERSION = '0.33.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -609,7 +609,7 @@ function newGame(wi, weaponId) {
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, knock: 0, splash: 0, accMul: 1},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
-    spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
+    spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
@@ -1019,11 +1019,35 @@ function gainXp(n) {
 // 지금 풀린 잡몹 (월드 타임라인 mobs 중 at 이 지난 것)
 const mobTypes = () => G.world.mobs.filter(m => G.t >= m.at).map(m => m.type);
 function pickMob() {
-  const types = mobTypes();
-  let r = Math.random() * types.reduce((a, n) => a + ENEMY_TYPES[n].w, 0);
-  for (const n of types) { r -= ENEMY_TYPES[n].w; if (r <= 0) return n; }
-  return types[0];
+  const ms = G.world.mobs.filter(m => G.t >= m.at);
+  const intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);   // 새 몹 소개: 처음 15초는 그 몹이 절반
+  if (intro && Math.random() < SPAWN.introShare) return intro.type;
+  const wt = ms.map((m, i) => ENEMY_TYPES[m.type].w * SPAWN.ageDecay ** (ms.length - 1 - i));   // 뒤에 나온 몹 하나마다 ×0.8
+  let r = Math.random() * wt.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < ms.length; i++) { r -= wt[i]; if (r <= 0) return ms[i].type; }
+  return ms[0].type;
 }
+// ── 잡몹 등장 빈도 (docs/등장_빈도.md) ──
+// 시간표대로 '나올 차례' 가 생기고, 산 잡몹이 상한 이상이면 그 차례는 **버린다** (쌓아 두지 않음, 알리지 않음)
+//   → 빨리 잡아도 더 나오지 않고(경험치 천장), 늦게 잡으면 덜 나와 레벨이 처진다(보스에서 드러남)
+const SPAWN = {
+  base: m => 1.2 + 0.5 * m + 0.08 * m * m,     // 초당 마릿수 (m = 분)
+  cap:  () => 150,                               // 숨은 상한 — 산 잡몹 150 고정 = 폰 세로 화면이 꽉 찬 느낌 (빽빽이 채우면 약 330의 절반). 처리 능력과 무관 — 처리는 몹 체력 · DPS · 레벨업으로 맞춘다
+                                                 // 엘리트 · 보스 · 보스가 부른 몹은 셈에서 뺌
+  rhythm: s => s < 10 ? 0.6 : s < 40 ? 1 : 1.3,   // 1분 안: 사건 직후 숨 돌림 → 보통 → 다음 사건 앞 조임
+  lastMin: 1.5,                                  // 9:00~10:00 마지막 1분
+  elite: 0.8, boss: 0.4,                         // 엘리트 · 보스가 살아 있는 동안
+  introT: 15, introShare: 0.5, ageDecay: 0.8,
+};
+function spawnRate() {
+  const m = G.t / 60, dur = G.world.dur;
+  let r = SPAWN.base(Math.min(m, dur / 60));
+  r *= G.t >= dur - 60 && G.t < dur ? SPAWN.lastMin : SPAWN.rhythm(G.t % 60);
+  if (G.enemies.some(e => e.boss && !e.dead)) r *= SPAWN.boss;
+  else if (G.enemies.some(e => e.elite != null && !e.dead)) r *= SPAWN.elite;
+  return r;
+}
+const mobCount = () => G.enemies.reduce((n, e) => n + (!e.dead && e.elite == null && !e.boss && !e.summon ? 1 : 0), 0);
 function offscreen() { const ang = Math.random() * Math.PI * 2, dist = Math.hypot(W, H) / 2 + 60; return [G.p.x + Math.cos(ang) * dist, G.p.y + Math.sin(ang) * dist]; }
 function makeEnemy(name, x, y) {
   const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
@@ -1075,7 +1099,7 @@ function bossTick(e, dt) {
     if (pat === 'charge') { e.st = 'aimC'; e.bt = 0.8; e.dir = Math.atan2(dy, dx); }
     else if (pat === 'slam') { e.st = 'aimS'; e.bt = 1.0; }
     else if (pat === 'summon') {
-      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; G.enemies.push(makeEnemy(pickMob(), e.x + Math.cos(a) * (e.r + 40), e.y + Math.sin(a) * (e.r + 40))); }
+      for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, s = makeEnemy(pickMob(), e.x + Math.cos(a) * (e.r + 40), e.y + Math.sin(a) * (e.r + 40)); s.summon = true; G.enemies.push(s); }
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: e.r + 50, t: 0.3});
       e.bt = B.gap;
     }
@@ -1325,9 +1349,16 @@ function update(dt) {
   p.inv = Math.max(0, p.inv - dt);
 
   // 생성: 초당 1.2 + 0.06·초 마리, 1분마다 둘레 무리
-  G.spawnAcc += (1.2 + G.t * 0.06) * dt;
-  while (G.spawnAcc >= 1) { G.spawnAcc--; spawnEnemy(); }
-  if (G.t >= G.nextWave) { G.nextWave += 60; for (let i = 0; i < 20 + G.t / 6; i++) spawnEnemy(); }
+  G.spawnAcc += spawnRate() * dt;
+  if (G.spawnAcc >= 1) {
+    let n = mobCount();
+    const cap = SPAWN.cap(G.t / 60);
+    while (G.spawnAcc >= 1) {
+      G.spawnAcc--;
+      if (n >= cap) { G.missed++; continue; }                     // 상한: 이 차례는 버림 (알리지 않음)
+      spawnEnemy(); n++;
+    }
+  }
 
   // 조준 · 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
   // 총(권총 · 저격총)은 **쏘기 전까지 방향을 그대로** 둔다 (적을 미리 따라 돌면 덜덜거림).
@@ -1719,6 +1750,32 @@ showWorlds();
 requestAnimationFrame(loop);
 window.__G = () => G;   // 디버그
 window.__nav = () => ({scr: nav.scr, r: nav.r, cs: nav.cs.slice(), el: nav.el && (nav.el.id || nav.el.innerText.split('\n')[0])});
+// 완벽 플레이 기대값: 1초 단위로 기대 마릿수 × 그때 몹 섞임의 평균 경험치 + 엘리트 · 중간 보스
+//   보스 · 엘리트 살아 있는 시간은 보스 20초 · 엘리트 10초로 침 (그 동안 빈도 낮춤)
+window.__perfect = (wi = 0) => {
+  const save = G; G = {world: WORLDS[wi], t: 0, enemies: []};
+  const out = []; let xp = 0, lv = 1, cur = 0, mobs = 0;
+  const elite = new Set(), boss = new Set();
+  WORLDS[wi].elites.forEach(e => { for (let s = 0; s < 10; s++) elite.add(e.at + s); });
+  WORLDS[wi].bosses.forEach(b => { if (!BOSSES[b.id].final) for (let s = 0; s < 20; s++) boss.add(b.at + s); });
+  for (let s = 0; s < WORLDS[wi].dur; s++) {
+    G.t = s + 0.5;
+    let r = SPAWN.base(G.t / 60) * (G.t >= WORLDS[wi].dur - 60 ? SPAWN.lastMin : SPAWN.rhythm(G.t % 60));
+    if (boss.has(s)) r *= SPAWN.boss; else if (elite.has(s)) r *= SPAWN.elite;
+    // 그 초의 몹 섞임 평균 경험치
+    const ms = WORLDS[wi].mobs.filter(m => G.t >= m.at), intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);
+    const wt = ms.map((m, i) => ENEMY_TYPES[m.type].w * SPAWN.ageDecay ** (ms.length - 1 - i)), ws = wt.reduce((a, b) => a + b, 0);
+    let avg = ms.reduce((a, m, i) => a + ENEMY_TYPES[m.type].xp * wt[i] / ws, 0);
+    if (intro) avg = avg * (1 - SPAWN.introShare) + ENEMY_TYPES[intro.type].xp * SPAWN.introShare;
+    xp += r * avg; mobs += r;
+    WORLDS[wi].elites.forEach(e => { if (e.at === s) xp += avg * ELITE.xp; });   // 엘리트 = 그때 몹 평균 경험치 × 12
+    WORLDS[wi].bosses.forEach(b => { if (b.at === s) xp += BOSSES[b.id].xp; });
+    while (xp - cur >= xpNeed(lv)) { cur += xpNeed(lv); lv++; }
+    if ((s + 1) % 60 === 0) out.push({min: (s + 1) / 60, mobs: Math.round(mobs), xp: Math.round(xp), lv, cap: SPAWN.cap((s + 1) / 60)});
+  }
+  G = save;
+  return out;
+};
 window.__sim = sec => { for (let i = 0; i < sec * 60 && G.mode === 'play'; i++) update(1 / 60); return G.mode; };
 </script>
 </body>
