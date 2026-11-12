@@ -259,7 +259,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.31.2';
+const VERSION = '0.32.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -323,6 +323,8 @@ const UPGRADES = [
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, badges: ['def'], fx: '+2', apply: s => s.def += 2},
   {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
+  {id: 'focus',  nm: '집탄',       ds: '발사각 ×0.8 — 탄이 잘 모인다', max: 5, ext: true, wpn: true, badges: ['acc'], fx: '×0.8', apply: s => s.accMul *= 0.8},
+  {id: 'scatter',nm: '산탄',       ds: '발사각 ×1.25 — 탄이 넓게 흩어진다', max: 5, ext: true, wpn: true, badges: ['acc'], fx: '×1.25', apply: s => s.accMul *= 1.25},
   {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
   {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, badges: ['knock'], fx: '+1', apply: s => s.knock++},
   {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
@@ -332,11 +334,11 @@ const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 뱃지 — 무기의 특성. 업그레이드에 붙은 뱃지(연속 · 넉백 · 폭발 · 확산 · 연쇄)는 '그 업그레이드를 받는다' 는 뜻도 된다
 // 색은 --bc. 팁은 마우스를 올리거나 터치하면 뜬다
 const BADGES = {
-  // 능력치 뱃지 — 모든 무기가 가진다 (집탄은 탄이 있는 무기만). 값은 숫자로 붙는다
+  // 능력치 뱃지 — 모든 무기가 가진다 (발사각은 탄이 있는 무기만). 값은 숫자로 붙는다
   dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「공격력」을 받으면 +20%.'},
   cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '다시 쏠 때까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
-  acc:    {nm: '집탄',   col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 작을수록 잘 모인다.'},
+  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +25 하고 그만큼 회복.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   rapid:  {nm: '연사',   col: '#ffd166', tip: '1초에 쏘는 횟수. 쏘는 간격이 아주 짧은 무기에 붙는다.'},
@@ -357,7 +359,7 @@ function badgeVal(id, st) {
     case 'dmg': return num(st.dmg);
     case 'cd': return num(st.cd) + 's';
     case 'range': return Math.round(st.range);
-    case 'acc': return '±' + st.acc + '°';
+    case 'acc': return '±' + num(st.acc) + '°';
     case 'chain': return st.chain;
     case 'spread': return st.count;
     case 'burst': return st.burst;
@@ -373,7 +375,7 @@ function badgeVal(id, st) {
 }
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></span>`;   // 값이 없으면 0
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
-// 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 집탄) + 특성 뱃지(badges)
+// 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 발사각) + 특성 뱃지(badges)
 const wpnBadges = W => ['dmg', 'cd', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
 // 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
 const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
@@ -381,7 +383,7 @@ const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.ba
 // ───── 무기 ─────
 // badges: 특성 뱃지 (업그레이드가 닿는 범위도 이것으로 정해진다). 능력치는 기본값 — 업그레이드 배율이 곱해진다
 const WEAPONS = {
-  // acc = 집탄: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
+  // acc = 발사각: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
   pistol: {nm: '권총', kind: 'gun', sh: '가까운 적에게 한 발', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
            dmg: 10, cd: 0.75, range: 145, spd: 620, acc: 4,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
@@ -399,8 +401,8 @@ const WEAPONS = {
            dmg: 24, cd: 1.6, range: 215, spd: 1500, width: 8, acc: 0.5,       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            badges: ['far', 'pierce', 'spread', 'chain', 'burst', 'knock']},
-  // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 집탄이 나빠 흩어진다
-  mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 집탄이 나빠 탄이 흩어진다',
+  // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
+  mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
            dmg: 4, cd: 0.12, range: 130, spd: 720, acc: 12,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['rapid', 'spread', 'chain', 'burst', 'knock', 'splash']},
@@ -425,7 +427,7 @@ function wstat(id) {
     burst: 1 + (a('burst') ? s.burst : 0),
     knock: a('knock') ? s.knock : 0,
     splash: a('splash') ? s.splash : 0,
-    acc: W.acc,
+    acc: W.acc != null ? W.acc * (a('focus') ? s.accMul : 1) : undefined,   // 발사각 — 집탄 ×0.8 · 산탄 ×1.25
   };
 }
 const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).map(w => WEAPONS[w.id].nm);
@@ -604,7 +606,7 @@ function newGame(wi, weaponId) {
     weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, knock: 0, splash: 0},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, knock: 0, splash: 0, accMul: 1},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
@@ -1129,7 +1131,7 @@ function hurtEnemy(e, dmg) {
 }
 
 // ───── 공격 ─────
-const spreadRnd = w => (Math.random() * 2 - 1) * (WEAPONS[w.id].acc || 0) * Math.PI / 180;   // 집탄: 한 발마다 ±acc 도
+const spreadRnd = st => (Math.random() * 2 - 1) * (st.acc || 0) * Math.PI / 180;   // 발사각: 한 발마다 ±acc 도
 const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
 const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0});
 
@@ -1160,7 +1162,7 @@ function fireGun(st, w, i) {
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;     // 쏘는 순간엔 정확히 그쪽
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.14;
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
+    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(st);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
       dmg: st.dmg, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
@@ -1175,7 +1177,7 @@ function fireRail(st, w, i) {
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.12;
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
+    const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(st);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, pierce: true, rad: W.width / 2,
       dmg: st.dmg, knock: st.knock, splash: 0, chain: st.chain, tgt, travel: 0, maxTravel: st.range + 30, hit: new Set()});
   }
