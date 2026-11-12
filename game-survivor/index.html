@@ -22,7 +22,7 @@
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
   /* 주인공: 좌하단(무기 칸 위) — 얼굴 + 이름 · 체력 숫자 + 체력 줄 (보스 줄과 같은 모양, 눈금 없음) */
-  #pHud{position:fixed;left:12px;bottom:178px;width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
+  #pHud{position:fixed;left:12px;bottom:86px;width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
   #pHud[hidden]{display:none}
   #pHud .bf{flex:0 0 auto;width:34px;height:34px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}
   #pHud .bi{flex:1 1 auto;min-width:0}
@@ -52,8 +52,18 @@
   .bb .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
   .bb .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
   .bb .bar>i{background:linear-gradient(90deg,#b22,#f55)}
+  /* 보스 등장 연출: 화면 가운데쯤 — 큰 얼굴 + '이름 등장!' 이 커지며 나타났다 사라진다 (2.8초) */
+  #bossIntro{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;z-index:5}
+  #bossIntro[hidden]{display:none}
+  #bossIntro.play{animation:bossIn 2.8s ease-out forwards}
+  #bossIntro .bf{width:110px;height:110px;border-radius:14px;border:3px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%;box-shadow:0 0 24px var(--gc)}
+  #bossIntro .bt{font-size:26px;font-weight:900;color:var(--gc);text-shadow:0 2px 8px #000,0 0 3px #000;white-space:nowrap}
+  #bossIntro .bk{font-size:12px;font-weight:700;color:#ddd;letter-spacing:.3em;text-shadow:0 1px 4px #000}
+  @keyframes bossIn{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.92)}}
   #banner{font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;text-align:center;max-width:94vw}
-  .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre}
+  .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre;display:none}
+  body.dbg .stats{display:block}   /* 능력치 디버그 글 — ` 키로 켜고 끔 (켜면 무기 칸 · 주인공 줄이 그 위로) */
+  body.dbg #slots{bottom:118px} body.dbg #pHud{bottom:178px}
   .overlay{position:fixed;inset:0;background:rgba(8,9,14,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
   .overlay[hidden]{display:none}
   .overlay h2{margin:0;font-size:28px}
@@ -90,7 +100,7 @@
   .slot.s{border-color:#5fb0e8}
   .slot.empty{border-style:dashed;opacity:.6}
   .sec{font-size:12px;color:#9ab;letter-spacing:.1em}
-  #slots{position:fixed;left:12px;bottom:118px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  #slots{position:fixed;left:12px;bottom:26px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
   #slots[hidden]{display:none}
   #slots .slotrow{justify-content:flex-start}
   #slots .slot{height:20px;font-size:11px;padding:0 6px}
@@ -161,7 +171,7 @@
   #radial.cancel .rct{fill:#f99}
   #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}#slots{bottom:100px}#pHud{bottom:158px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}body.dbg #slots{bottom:100px}body.dbg #pHud{bottom:158px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
   .row1{display:flex;flex-wrap:nowrap;flex-direction:row;justify-content:center;gap:10px;width:100%;max-width:900px;padding:6px 12px 12px;touch-action:none;box-sizing:border-box}
   #wpnCards.row1{flex-direction:row;flex-wrap:nowrap}
@@ -189,6 +199,7 @@
   <div class="bar" id="xpBar"><i></i></div>
 </div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
+<div id="bossIntro" hidden></div>
 <div id="topStack"><div id="bossBars"></div><div id="banner" hidden></div></div>
 <div id="pHud" hidden><i class="bf"></i><div class="bi"><div class="bn"><span class="pn"></span><span class="pv"></span></div><div class="bar"><i></i></div></div></div>
 <div id="slots" hidden></div>
@@ -240,16 +251,18 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.28.0';
+const VERSION = '0.29.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false};
+const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 const ENEMY_TYPES = {
   zombie: {nm: '좀비',      hp: 12, def: 0, spd: 70,  dmg: 8,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
   dog:    {nm: '들개',      hp: 6,  def: 0, spd: 135, dmg: 5,  r: 12, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
   brute:  {nm: '거구 좀비', hp: 70, def: 3, spd: 42,  dmg: 18, r: 24, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  crawler:{nm: '기는 좀비', hp: 6,  def: 0, spd: 85,  dmg: 5,  r: 12, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
+  riot:   {nm: '진압 경찰 좀비', hp: 40, def: 6, spd: 50, dmg: 14, r: 19, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 6 — 약한 연사를 막음
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
@@ -271,7 +284,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
 for (const n of ['pistol', 'laser', 'sniper', 'mg']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
-for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 'bossmid', 'bossking']) {
+for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 'bossmid', 'bossking', 'crawler', 'riot']) {
   const img = new Image();
   img.onload = () => { SPRITES[n] = img; };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
@@ -459,12 +472,13 @@ if (matchMedia('(pointer: coarse)').matches) {
   document.getElementById('wpnHint').textContent = '3단계 — 무기를 누르면 바로 시작. 끌면 둥근 메뉴 (위 = 무기 · 아래 = 뒤로)';
 }
 // ───── 월드 ─────
-// 한 월드 = dur 초. 타임라인: mobs(잡몹이 풀리는 때, 월드마다 3종) · elites(엘리트, 차례로 등급이 오른다) · bosses
+// 한 월드 = dur 초. 타임라인: mobs(잡몹이 풀리는 때, 월드 1 은 5종) · elites(엘리트, 차례로 등급이 오른다) · bosses
 // 마지막 보스는 dur 에 나오고, **잡으면 클리어**
 const WORLDS = [
-  {id: 1, name: '월드 1', desc: '도심 — 좀비 · 들개 · 거구 좀비', dur: 600,
-   mobs: [{type: 'zombie', at: 0}, {type: 'dog', at: 180}, {type: 'brute', at: 360}],
-   elites: [{at: 120, grade: 1}, {at: 240, grade: 2}, {at: 360, grade: 3}, {at: 480, grade: 4}],
+  // 1분마다 사건 하나 (0.29.0): 1 새 몹 · 2 엘리트 · 3 새 몹 · 4 엘리트 · 5 중간 보스 · 6 새 몹 · 7 엘리트 · 8 새 몹 · 9 엘리트 · 10 최종 보스
+  {id: 1, name: '월드 1', desc: '도심 — 좀비 · 기는 좀비 · 들개 · 거구 좀비 · 진압 경찰 좀비', dur: 600,
+   mobs: [{type: 'zombie', at: 0}, {type: 'crawler', at: 60}, {type: 'dog', at: 180}, {type: 'brute', at: 360}, {type: 'riot', at: 480}],
+   elites: [{at: 120, grade: 1}, {at: 240, grade: 2}, {at: 420, grade: 3}, {at: 540, grade: 4}],
    bosses: [{at: 300, id: 'mid'}, {at: 600, id: 'final'}]},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
@@ -608,6 +622,7 @@ addEventListener('keydown', hideTip, true);
 
 addEventListener('keydown', e => {
   keys[e.code] = true;
+  if (e.code === 'Backquote' && !e.repeat) { document.body.classList.toggle('dbg'); return; }   // 능력치 디버그 글
   const scr = navSync();
   if (scr) {                                                    // 선택 창: 방향키 · WASD 로 테두리, Enter · Space 로 결정
     const d = {ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', KeyA: 'L', KeyD: 'R', KeyW: 'U', KeyS: 'D'}[e.code];
@@ -1003,7 +1018,12 @@ function spawnBoss(id) {
   const B = BOSSES[id], [x, y] = offscreen(), hp = B.hp;
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
-  setBanner(`${B.final ? '최종 보스' : '중간 보스'} — ${B.nm}!`, gradeCol(B.grade));
+  // 등장 연출 (위쪽 알림 대신): 얼굴 + '이름 등장!' 이 가운데에 나타났다 사라짐
+  const bi = $('bossIntro');
+  bi.style.setProperty('--gc', gradeCol(B.grade));
+  bi.innerHTML = `<i class="bf" style="background-image:url(images/portrait_${B.sprite}.png?v=${VERSION})"></i><div class="bk">${B.final ? '최종 보스' : '중간 보스'}</div><div class="bt">${B.nm} 등장!</div>`;
+  bi.hidden = false; bi.classList.remove('play'); void bi.offsetWidth; bi.classList.add('play');
+  clearTimeout(bi.tm); bi.tm = setTimeout(() => { bi.hidden = true; bi.classList.remove('play'); }, 2800);
 }
 const setBanner = (txt, col) => {                              // 같은 때 겹치면 이어 붙임 (예: 6:00 새 잡몹 · 엘리트)
   G.banner = G.banner && G.banner.t > 2.8 ? {txt: G.banner.txt + ' · ' + txt, col, t: 3} : {txt, col, t: 3};
@@ -1408,6 +1428,8 @@ const BOB = {
   zombie:   {hz: 1.5, amp: 0.05, sq: 0.06, tilt: 0.10},   // 비틀비틀
   dog:      {hz: 3.6, amp: 0.10, sq: 0.08, tilt: 0.05},   // 다다닥
   brute:    {hz: 1.2, amp: 0.04, sq: 0.06, tilt: 0.07},   // 쿵쿵
+  crawler:  {hz: 2.2, amp: 0.02, sq: 0.10, tilt: 0.04},   // 질질
+  riot:     {hz: 1.4, amp: 0.04, sq: 0.05, tilt: 0.06},
   bossmid:  {hz: 1.0, amp: 0.04, sq: 0.06, tilt: 0.06},   // 보스: 무겁게
   bossking: {hz: 0.9, amp: 0.03, sq: 0.05, tilt: 0.05},
 };
@@ -1613,7 +1635,7 @@ function hud() {
   $('slots').hidden = !G;
   $('pHud').hidden = !G;
   $('timeline').hidden = !G;
-  if (!G) { $('bossBars').innerHTML = ''; $('banner').hidden = true; return; }
+  if (!G) { $('bossIntro').hidden = true; $('bossBars').innerHTML = ''; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
   $('timeline').querySelector('.tl-fill').style.width = tp + '%';
   $('timeline').querySelector('.tl-now').style.left = tp + '%';
