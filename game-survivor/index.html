@@ -258,7 +258,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.40.3';
+const VERSION = '0.41.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -388,25 +388,25 @@ const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.ba
 const WEAPONS = {
   // acc = 발사각: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
   pistol: {nm: '권총', kind: 'gun', sh: '가까운 적에게 한 발', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
-           dmg: 0, cd: 0.75, range: 145, spd: 620, acc: 4, maxT: 1,
+           dmg: 0, cd: 1.5, range: 145, spd: 620, acc: 4, maxT: 1,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
            badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
-           dmg: 0, cd: 0.1, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.2, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['rapid', 'chain', 'pierce']},
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적 모두 맞고 사거리 끝까지.
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '가장 먼 적을 꿰뚫는 탄', ds: '사거리 안 가장 먼 적을 공격한다. 직선 위의 적은 모두 관통한다',
-           dmg: 0, cd: 1.6, range: 215, spd: 1500, width: 8, acc: 0.5, maxT: 8,   // maxT 8 = 직선(사거리 + 30)에 30px 간격       // 탄속 1500 (권총 620)
+           dmg: 0, cd: 3.2, range: 215, spd: 1500, width: 8, acc: 0.5, maxT: 8,   // maxT 8 = 직선(사거리 + 30)에 30px 간격       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            badges: ['far', 'pierce', 'spread', 'chain', 'burst', 'knock']},
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
-           dmg: 0, cd: 0.12, range: 130, spd: 720, acc: 12, maxT: 1,
+           dmg: 0, cd: 0.24, range: 130, spd: 720, acc: 12, maxT: 1,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['rapid', 'spread', 'chain', 'burst', 'knock', 'splash']},
 };
@@ -1652,6 +1652,13 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
+  // 쿨타임 미터: 총마다 손잡이 자리에 작은 파이 — 다음 발까지 찬 만큼 시계 방향으로 채워짐, 다 차면 밝게
+  for (const [w, m] of poses) {
+    const cd = wstat(w.id).cd, k = cd > 0 ? 1 - Math.max(0, Math.min(cd, w.cdT || 0)) / cd : 1, R = 5, x = m.hx, y = m.hy + 9;
+    ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = k >= 1 ? '#ffe27a' : '#9ab';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+  }
   // 머리 위: 레벨 글 + 체력 줄 + 그 바로 밑 경험치 줄 (총 고리보다 위) — 늘 보인다. 레벨 글까지 합친 폭을 캐릭터 가운데에
   ctx.font = 'bold 10px system-ui';
   { const lt = 'Lv' + G.lv, tw = ctx.measureText(lt).width, gap = 3, bw = 36;
