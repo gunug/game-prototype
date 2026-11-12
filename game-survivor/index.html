@@ -63,12 +63,13 @@
   .up .aff{font-size:11px;color:#e9a23b;margin-top:6px}
   /* 뱃지 — 무기 특성 · 업그레이드가 닿는 범위. 올리거나(마우스) 누르면(터치) 팁 */
   .badges{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:6px}
-  .badge{display:inline-block;font-size:11px;font-weight:700;line-height:16px;padding:1px 7px;border-radius:9px;background:var(--bc,#888);color:#14161c;cursor:help;white-space:nowrap}
+  /* 뱃지: 모두 같은 폭 — 이름은 왼쪽, 값은 오른쪽 검은 둥근 상자에 흰 글씨 */
+  .badge{display:inline-flex;align-items:center;justify-content:space-between;gap:4px;width:96px;box-sizing:border-box;font-size:11px;font-weight:700;line-height:15px;padding:2px 2px 2px 7px;border-radius:9px;background:var(--bc,#888);color:#14161c;cursor:help;white-space:nowrap;overflow:hidden}
   .wchs{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:4px}
   .wch{font-size:11px;line-height:15px;padding:0 5px;border-radius:4px;white-space:nowrap}
   .wch.on{color:#e9a23b;border:1px solid #e9a23b}
   .wch.off{color:#6a7080;border:1px dashed #3a3f55;text-decoration:line-through}
-  .badge b{font-weight:800;margin-left:1px}
+  .badge b{background:#000;color:#fff;border-radius:7px;padding:0 5px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;min-width:12px}
   .wrows{display:flex;flex-direction:column;gap:3px;margin-top:6px;align-items:stretch}
   .wrow{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:12px}
   .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -82,7 +83,7 @@
   .wcard .wimg{width:100%;height:48px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2e3346 0,#232634 70%);border-radius:8px}
   .wcard .wimg img{max-width:88%;max-height:40px;image-rendering:pixelated}
   .wcard .wsh{font-size:11px;color:#9ab;min-height:15px}
-  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;padding:0 4px;line-height:14px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;padding:0 4px;line-height:14px}}
+  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
   #tip b{color:var(--bc,#fff);margin-right:4px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
@@ -182,7 +183,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.22.0';
+const VERSION = '0.22.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -234,10 +235,10 @@ const BADGES = {
   acc:    {nm: '집탄',   col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 작을수록 잘 모인다.'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +25 하고 그만큼 회복.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
-  rapid:  {nm: '연사',   col: '#ffd166', tip: '쏘는 간격이 아주 짧다.'},
-  pierce: {nm: '관통',   col: '#9be7ff', tip: '지나는 길의 적을 모두 맞힌다.'},
+  rapid:  {nm: '연사',   col: '#ffd166', tip: '1초에 쏘는 횟수. 쏘는 간격이 아주 짧은 무기에 붙는다.'},
+  pierce: {nm: '관통',   col: '#9be7ff', tip: '꿰뚫는 적 수. ∞ = 지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '적에서 적으로 이어 맞힌다. 「투사체 +1」을 받으면 한 마리 더 잇는다.'},
-  far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다.'},
+  far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다. 값 = 노리는 거리(사거리 끝).'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
   knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
@@ -258,10 +259,13 @@ function badgeVal(id, st) {
     case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
     case 'hp': return st.hp;
     case 'def': return st.def;
+    case 'rapid': return st.cd ? num((st.burst || 1) / st.cd) : 0;    // 초당 쏘는 횟수
+    case 'pierce': return '∞';                                         // 지나는 길의 적 모두
+    case 'far': return Math.round(st.range);                           // 노리는 거리 = 사거리 끝
   }
   return null;
 }
-const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}">${BADGES[id].nm}${val != null && val !== '' ? ` <b>${val}</b>` : ''}</span>`;
+const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></span>`;   // 값이 없으면 0
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 집탄) + 특성 뱃지(badges)
 const wpnBadges = W => ['dmg', 'cd', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
