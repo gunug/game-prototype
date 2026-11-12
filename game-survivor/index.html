@@ -68,6 +68,13 @@
   .wch{font-size:11px;line-height:15px;padding:0 5px;border-radius:4px;white-space:nowrap}
   .wch.on{color:#e9a23b;border:1px solid #e9a23b}
   .wch.off{color:#6a7080;border:1px dashed #3a3f55;text-decoration:line-through}
+  .badge b{font-weight:800;margin-left:1px}
+  .wrows{display:flex;flex-direction:column;gap:3px;margin-top:6px;align-items:stretch}
+  .wrow{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:12px}
+  .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .wrow .wv b{color:#ffd28a}
+  .up .wimg{width:100%;height:40px;display:flex;align-items:center;justify-content:center;margin-top:4px}
+  .up .wimg img{max-width:80%;max-height:34px;image-rendering:pixelated}
   #tip{position:fixed;z-index:2147483646;max-width:230px;padding:7px 10px;border-radius:8px;background:rgba(14,16,22,.96);border:1px solid #556;color:#e8e8ee;font-size:12px;line-height:1.45;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #tip[hidden]{display:none}
   /* 무기 카드 (출발 무기): 그림 · 이름 · 한 줄 · 숫자 표 · 뱃지 */
@@ -75,10 +82,7 @@
   .wcard .wimg{width:100%;height:48px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2e3346 0,#232634 70%);border-radius:8px}
   .wcard .wimg img{max-width:88%;max-height:40px;image-rendering:pixelated}
   .wcard .wsh{font-size:11px;color:#9ab;min-height:15px}
-  .wcard .wst{display:grid;grid-template-columns:auto auto;gap:1px 8px;font-size:12px;width:100%;max-width:150px}
-  .wcard .wst span{color:#8a93a8;text-align:left}
-  .wcard .wst b{color:#fff;text-align:right;font-variant-numeric:tabular-nums}
-  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}.wcard .wst{font-size:10px;gap:0 3px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;padding:0 4px;line-height:14px}}
+  @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;padding:0 4px;line-height:14px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;padding:0 4px;line-height:14px}}
   #tip b{color:var(--bc,#fff);margin-right:4px}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
@@ -178,7 +182,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.21.0';
+const VERSION = '0.22.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -208,34 +212,61 @@ for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute'])
 // wpn: 무기 업그레이드. badges: 이 뱃지 중 하나라도 가진 무기만 영향받는다 (없으면 모든 무기)
 // 가진 무기 중 영향받는 것이 하나라도 있어야 후보에 나온다. 카드 밑에 뱃지 · 영향받는/안 받는 무기 표시
 const UPGRADES = [
-  {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, wpn: true, apply: s => s.dmgMul *= 1.2},
-  {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, apply: s => s.cdMul *= 0.85},
-  {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 99, wpn: true, apply: s => s.rangeMul *= 1.15},
-  {id: 'hp',     nm: '체력',       ds: '최대 체력 +25, 회복',  max: 99, apply: (s, p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); }},
-  {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, apply: s => s.def += 2},
-  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더 (연쇄: 한 마리 더)',    max: 5, ext: true, wpn: true, badges: ['spread', 'chain'], apply: s => s.count++},
-  {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], apply: s => s.burst++},
-  {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, badges: ['knock'], apply: s => s.knock++},
-  {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], apply: s => s.splash++},
+  {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, wpn: true, badges: ['dmg'], fx: '+20%', apply: s => s.dmgMul *= 1.2},
+  {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, badges: ['cd'], fx: '×0.85', apply: s => s.cdMul *= 0.85},
+  {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 99, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
+  {id: 'hp',     nm: '체력',       ds: '최대 체력 +25, 회복',  max: 99, badges: ['hp'], fx: '+25', apply: (s, p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); }},
+  {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, badges: ['def'], fx: '+2', apply: s => s.def += 2},
+  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더 (연쇄: 한 마리 더)',    max: 5, ext: true, wpn: true, badges: ['spread', 'chain'], fx: '+1', apply: s => s.count++},
+  {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
+  {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, badges: ['knock'], fx: '+1', apply: s => s.knock++},
+  {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 
 // 뱃지 — 무기의 특성. 업그레이드에 붙은 뱃지(연속 · 넉백 · 폭발 · 확산 · 연쇄)는 '그 업그레이드를 받는다' 는 뜻도 된다
 // 색은 --bc. 팁은 마우스를 올리거나 터치하면 뜬다
 const BADGES = {
+  // 능력치 뱃지 — 모든 무기가 가진다 (집탄은 탄이 있는 무기만). 값은 숫자로 붙는다
+  dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「공격력」을 받으면 +20%.'},
+  cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '다시 쏠 때까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
+  range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
+  acc:    {nm: '집탄',   col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 작을수록 잘 모인다.'},
+  hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +25 하고 그만큼 회복.'},
+  def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   rapid:  {nm: '연사',   col: '#ffd166', tip: '쏘는 간격이 아주 짧다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '적에서 적으로 이어 맞힌다. 「투사체 +1」을 받으면 한 마리 더 잇는다.'},
   far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다.'},
-  spread: {nm: '확산',   col: '#f6a6c1', tip: '「투사체 +1」을 받으면 부채꼴로 한 발 더 쏜다.'},
-  burst:  {nm: '연속',   col: '#ffb070', tip: '「연속공격 +1」을 받으면 한 번에 한 발 더 쏜다 (발마다 새로 겨눔).'},
-  knock:  {nm: '넉백',   col: '#a8d08d', tip: '「넉백」을 받으면 맞은 적을 뒤로 밀어낸다.'},
-  splash: {nm: '폭발',   col: '#ff7a6b', tip: '「폭발」을 받으면 맞은 자리 둘레에도 피해를 준다.'},
+  spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
+  burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
+  knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
+  splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
 };
-const badgeHtml = id => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}">${BADGES[id].nm}</span>`;
-const badgesHtml = ids => `<div class="badges">${ids.map(badgeHtml).join('')}</div>`;
-// 무기가 업그레이드 uid 를 받는가 — 업그레이드에 뱃지가 없으면 모든 무기, 있으면 그 뱃지 중 하나를 가진 무기만
-const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && (!u.badges || u.badges.some(b => W.badges.includes(b))); };
+// 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지(연사 · 관통 · 원거리)는 이름만
+const num = v => +v.toFixed(Math.abs(v) < 10 && v % 1 ? 2 : 1);
+function badgeVal(id, st) {
+  switch (id) {
+    case 'dmg': return num(st.dmg);
+    case 'cd': return num(st.cd) + 's';
+    case 'range': return Math.round(st.range);
+    case 'acc': return '±' + st.acc + '°';
+    case 'chain': return st.chain;
+    case 'spread': return st.count;
+    case 'burst': return st.burst;
+    case 'knock': return st.knock ? Math.round(knockV(st.knock) / 8) : 0;
+    case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
+    case 'hp': return st.hp;
+    case 'def': return st.def;
+  }
+  return null;
+}
+const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}">${BADGES[id].nm}${val != null && val !== '' ? ` <b>${val}</b>` : ''}</span>`;
+const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
+// 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 집탄) + 특성 뱃지(badges)
+const wpnBadges = W => ['dmg', 'cd', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
+// 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
+const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
 
 // ───── 무기 ─────
 // badges: 특성 뱃지 (업그레이드가 닿는 범위도 이것으로 정해진다). 능력치는 기본값 — 업그레이드 배율이 곱해진다
@@ -266,6 +297,8 @@ const WEAPONS = {
 };
 const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
+// 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
+const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, range: W.range, acc: W.acc, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: 0}; };
 // 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
 function wstat(id) {
   const W = WEAPONS[id], s = G.s, a = k => wpnTakes(W, k), c = G.char;
@@ -279,6 +312,7 @@ function wstat(id) {
     burst: 1 + (a('burst') ? s.burst : 0),
     knock: a('knock') ? s.knock : 0,
     splash: a('splash') ? s.splash : 0,
+    acc: W.acc,
   };
 }
 const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).map(w => WEAPONS[w.id].nm);
@@ -422,16 +456,13 @@ function worldClear() {
   $('clear').hidden = false;
 }
 
-// 무기 카드: 번호 · 그림 · 이름 · 한 줄(sh) · 숫자(피해 · 쿨다운 · 사거리 · 집탄 또는 연쇄) · 뱃지. 긴 설명(ds)은 카드에 안 씀
+// 무기 카드: 번호 · 그림 · 이름 · 한 줄(sh) · 값 붙은 뱃지 (능력치 + 특성). 긴 설명(ds)은 카드에 안 씀
 function wcardHtml(id, i) {
   const W = WEAPONS[id];
-  const rows = [['피해', W.dmg], ['쿨다운', W.cd + 's'], ['사거리', W.range],
-    W.acc != null ? ['집탄', '±' + W.acc + '°'] : ['연쇄', W.chain]];
   return `<div class="key">${i + 1}</div>
     <div class="wimg"><img src="images/weapon_${id}.png?v=${VERSION}" alt=""></div>
     <div class="nm">${W.nm}</div><div class="wsh">${W.sh}</div>
-    <div class="wst">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>
-    ${badgesHtml(W.badges)}`;
+    ${badgesHtml(wpnBadges(W), baseStat(id))}`;
 }
 
 // 월드를 시작할 때 무기를 고른다 (해금된 것 중)
@@ -783,12 +814,10 @@ function openLevelUp() {
     const d = document.createElement('div');
     d.className = 'up' + (u.ext ? ' ext' : '');
     const lv = G.ups[u.id] || 0;
-    let ds = u.ds;
-    if (u.id === 'splash') ds = `반경 ${splashR(lv + 1)} · 피해 ${Math.round(splashPct(lv + 1) * 100)}%`;
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
       ${u.newWeapon ? '<div class="lv">무기 슬롯에 추가</div>' : `<div class="lv">Lv ${lv} → ${lv + 1}${u.max < 99 ? ' / ' + u.max : ''}</div>`}
-      <div class="ds">${ds}</div>${u.ext ? '<div class="tag">확장</div>' : ''}
-      ${u.newWeapon ? badgesHtml(WEAPONS[u.newWeapon].badges) : ''}${u.wpn ? affHtml(u) : ''}`;
+      ${u.ext ? '<div class="tag">확장</div>' : ''}
+      ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + badgesHtml(wpnBadges(WEAPONS[u.newWeapon]), wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
@@ -796,11 +825,24 @@ function openLevelUp() {
   // 판 중 누르고 있던 손가락은 메뉴로 잇지 않는다 — 새로 눌러 끌어야 열린다 (0.11.4)
 }
 
-// 업그레이드 카드 밑: 필요한 뱃지(없으면 '모든 무기') + 가진 무기마다 받음(주황) · 안 받음(회색 줄)
-function affHtml(u) {
-  const ws = G.weapons.map(w => { const W = WEAPONS[w.id], on = wpnTakes(W, u.id);
-    return `<span class="wch ${on ? 'on' : 'off'}">${W.nm}</span>`; }).join('');
-  return `<div class="aff">${u.badges ? '이 뱃지 무기만' : '모든 무기'}</div>${u.badges ? badgesHtml(u.badges) : ''}<div class="wchs">${ws}</div>`;
+// 업그레이드 카드: 바뀌는 뱃지 + 늘어나는 양(fx) → 숫자로 지금 → 다음
+//   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
+//   체력 · 방어: 주인공 값 지금 → 다음
+function upHtml(u) {
+  const fx = `<div class="badges">${u.badges.map(b => badgeHtml(b, u.fx)).join('')}</div>`;
+  if (!u.wpn) {
+    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : G.s.def, nx = b === 'hp' ? now + 25 : now + 2;
+    return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
+  }
+  const s0 = G.s, s1 = {...s0}; u.apply(s1, {maxHp: 0, hp: 0});
+  const rows = G.weapons.map(w => {
+    const W = WEAPONS[w.id];
+    if (!wpnTakes(W, u.id)) return `<div class="wrow"><span class="wch off">${W.nm}</span></div>`;
+    const b = u.badges.find(x => wpnBadges(W).includes(x));
+    const a = badgeVal(b, wstat(w.id)); G.s = s1; const c = badgeVal(b, wstat(w.id)); G.s = s0;
+    return `<div class="wrow"><span class="wch on">${W.nm}</span><span class="wv">${a} → <b>${c}</b></span></div>`;
+  }).join('');
+  return fx + `<div class="wrows">${rows}</div>`;
 }
 
 function choose(i, click) {
