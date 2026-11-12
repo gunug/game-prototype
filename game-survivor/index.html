@@ -20,7 +20,7 @@
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
   #timeline{position:fixed;left:16px;right:16px;top:66px;height:26px;pointer-events:none}
-  #timeline[hidden],#bossBar[hidden],#banner[hidden]{display:none}
+  #timeline[hidden],#banner[hidden]{display:none}
   .tl-track{position:absolute;left:0;right:0;top:12px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
   .tl-fill{display:block;height:100%;width:0;background:#9ab}
   .tl-marks{position:absolute;inset:0}
@@ -30,11 +30,16 @@
   .tl-m.elite i{display:block;width:9px;height:9px;transform:rotate(45deg);background:var(--gc);border:1px solid #000}
   .tl-m.done{opacity:.4}
   .tl-now{position:absolute;top:2px;width:2px;height:22px;background:#fff;border-radius:1px;transform:translateX(-1px)}
-  #bossBar{position:fixed;left:50%;top:98px;transform:translateX(-50%);width:min(420px,80vw);pointer-events:none;text-align:center}
-  #bossBar .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
-  #bossBar .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
-  #bossBar .bar>i{background:linear-gradient(90deg,#b22,#f55)}
-  #banner{position:fixed;left:50%;top:132px;transform:translateX(-50%);font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;white-space:nowrap}
+  /* 보스 체력 줄: 보스마다 한 줄, 아래로 쌓인다. 왼쪽에 얼굴(초상화 위쪽을 잘라) · 오른쪽에 이름 + 줄. 알림은 그 아래 */
+  #topStack{position:fixed;left:50%;top:98px;transform:translateX(-50%);width:min(420px,84vw);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none}
+  #bossBars{display:flex;flex-direction:column;gap:5px;width:100%}
+  .bb{display:flex;align-items:center;gap:6px;width:100%}
+  .bb .bf{flex:0 0 auto;width:30px;height:30px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}   /* 초상화를 키워 얼굴만 */
+  .bb .bi{flex:1 1 auto;min-width:0;text-align:left}
+  .bb .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
+  .bb .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
+  .bb .bar>i{background:linear-gradient(90deg,#b22,#f55)}
+  #banner{font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;text-align:center;max-width:94vw}
   .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre}
   .overlay{position:fixed;inset:0;background:rgba(8,9,14,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
   .overlay[hidden]{display:none}
@@ -172,8 +177,7 @@
   <div class="bar" id="xpBar"><i></i></div>
 </div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
-<div id="bossBar" hidden><span class="bn"></span><div class="bar"><i></i></div></div>
-<div id="banner" hidden></div>
+<div id="topStack"><div id="bossBars"></div><div id="banner" hidden></div></div>
 <div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
 
@@ -223,7 +227,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.27.4';
+const VERSION = '0.27.5';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -981,10 +985,11 @@ function spawnElite(grade) {
   G.enemies.push(e);
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
+let bossSeq = 0;                      // 보스 줄을 가리는 번호
 function spawnBoss(id) {
   const B = BOSSES[id], [x, y] = offscreen(), hp = B.hp;
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
-    flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
+    flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
   setBanner(`${B.final ? '최종 보스' : '중간 보스'} — ${B.nm}!`, gradeCol(B.grade));
 }
 const setBanner = (txt, col) => {                              // 같은 때 겹치면 이어 붙임 (예: 6:00 새 잡몹 · 엘리트)
@@ -1592,18 +1597,18 @@ function buildTimeline() {
 function hud() {
   $('slots').hidden = !G;
   $('timeline').hidden = !G;
-  if (!G) { $('bossBar').hidden = true; $('banner').hidden = true; return; }
+  if (!G) { $('bossBars').innerHTML = ''; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
   $('timeline').querySelector('.tl-fill').style.width = tp + '%';
   $('timeline').querySelector('.tl-now').style.left = tp + '%';
   $('timeline').querySelectorAll('.tl-m').forEach(m => m.classList.toggle('done', G.t >= +m.dataset.at && !m.classList.contains('boss')));
-  const boss = G.enemies.find(e => e.boss && !e.dead);
-  $('bossBar').hidden = !boss;
-  if (boss) {
-    $('bossBar').style.setProperty('--gc', gradeCol(boss.boss.grade));
-    $('bossBar').querySelector('.bn').textContent = boss.boss.nm;
-    $('bossBar').querySelector('.bar>i').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%';
+  // 보스 체력 줄 — 살아 있는 보스마다 한 줄 (나온 차례대로 아래로 쌓임). 보스가 바뀔 때만 다시 만들고 줄 길이만 매번
+  const bosses = G.enemies.filter(e => e.boss && !e.dead), key = bosses.map(e => e.bid).join(',');
+  if ($('bossBars').dataset.k !== key) {
+    $('bossBars').dataset.k = key;
+    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}</div><div class="bar"><i></i></div></div></div>`).join('');
   }
+  [...$('bossBars').children].forEach((row, i) => { row.querySelector('.bar>i').style.width = Math.max(0, bosses[i].hp / bosses[i].maxHp * 100) + '%'; });
   $('banner').hidden = !G.banner;
   if (G.banner) { $('banner').textContent = G.banner.txt; $('banner').style.setProperty('--gc', G.banner.col); $('banner').style.opacity = Math.min(1, G.banner.t); }
   $('lv').textContent = G.lv;
