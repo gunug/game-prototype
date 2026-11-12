@@ -258,7 +258,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.43.1';
+const VERSION = '0.43.2';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -344,7 +344,6 @@ const BADGES = {
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +25 하고 그만큼 회복.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
-  rapid:  {nm: '연사',   col: '#ffd166', tip: '1초에 쏘는 횟수. 쏘는 간격이 아주 짧은 무기에 붙는다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). ∞ = 지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
   far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다. 값 = 노리는 거리(사거리 끝).'},
@@ -353,7 +352,7 @@ const BADGES = {
   knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
   splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
 };
-// 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지(연사 · 관통 · 원거리)는 이름만
+// 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지는 0
 const num = v => +v.toFixed(Math.abs(v) < 10 && v % 1 ? 2 : 1);
 // ∞ 는 글자가 납작해 1.45배로 (줄 높이는 안 늘림)
 const INF = '<span class="inf">∞</span>';
@@ -370,7 +369,6 @@ function badgeVal(id, st) {
     case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
     case 'hp': return st.hp;
     case 'def': return st.def;
-    case 'rapid': return st.cd ? num((st.burst || 1) / st.cd) : 0;    // 초당 쏘는 횟수
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
     case 'far': return Math.round(st.range);                           // 노리는 거리 = 사거리 끝
   }
@@ -397,7 +395,7 @@ const WEAPONS = {
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
            dmg: 0, cd: 0.2, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
-           badges: ['rapid', 'chain', 'pierce']},
+           badges: ['chain', 'pierce']},
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
@@ -409,7 +407,7 @@ const WEAPONS = {
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
            dmg: 0, cd: 0.24, range: 130, spd: 720, acc: 12, maxT: 1,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
-           badges: ['rapid', 'spread', 'chain', 'burst', 'knock', 'splash']},
+           badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
@@ -680,7 +678,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'range', 'acc', 'hp', 'def']], ['특성', ['rapid', 'pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'range', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
