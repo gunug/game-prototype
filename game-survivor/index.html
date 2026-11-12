@@ -25,7 +25,6 @@
   .cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center}
   .up{width:200px;padding:16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;cursor:pointer;text-align:center;transition:transform .08s}
   .up:hover{transform:translateY(-3px);border-color:#7cf}
-  .up.ext{border-color:#a7f}
   .up .key{display:inline-block;width:34px;height:34px;line-height:32px;border-radius:8px;background:#fff;color:#111;font-weight:700;font-size:18px;margin-bottom:8px}
   .up .nm{font-size:17px;font-weight:700}
   .up .lv{font-size:12px;color:#9ab;margin:4px 0 8px}
@@ -71,6 +70,12 @@
   .wch.off{color:#6a7080;border:1px dashed #3a3f55;text-decoration:line-through}
   .badge b{background:#000;color:#fff;border-radius:7px;padding:0 5px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums;min-width:12px}
   /* 레벨업 카드 안: 받는 무기 한 줄 — 작은 그림(높이 16px) + 지금→다음 (검은 상자 · 흰 글씨) */
+  /* 업그레이드 단계 칸: 채움 = 찍은 횟수, 깜빡임 = 이번 것 */
+  .pips{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;margin:5px auto 7px;max-width:150px}
+  .pip{width:11px;height:7px;border-radius:2px;border:1px solid #6a7080;box-sizing:border-box}
+  .pip.on{background:#e9a23b;border-color:#e9a23b}
+  .pip.next{border-color:#ffd28a;animation:pipBlink .7s ease-in-out infinite}
+  @keyframes pipBlink{0%,100%{background:transparent}50%{background:#ffd28a}}
   .wls{display:flex;flex-direction:column;gap:2px;margin-top:5px;align-items:center}
   .wl{display:flex;align-items:center;justify-content:space-between;gap:5px;width:100%;max-width:130px;height:18px}
   .wl img{height:16px;width:42px;box-sizing:border-box;padding:1px 3px;object-fit:contain;background:#5a6078;border-radius:5px;image-rendering:pixelated}   /* 어두운 총이 보이게 밝은 바탕 */
@@ -188,7 +193,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.23.1';
+const VERSION = '0.24.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -821,11 +826,12 @@ function openLevelUp() {
   const box = $('cards'); box.innerHTML = '';
   picks.forEach((u, i) => {
     const d = document.createElement('div');
-    d.className = 'up' + (u.ext ? ' ext' : '');
+    d.className = 'up';
     const lv = G.ups[u.id] || 0;
+    // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
+    // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
-      ${u.newWeapon ? '<div class="lv">무기 슬롯에 추가</div>' : `<div class="lv">Lv ${lv} → ${lv + 1}${u.max < 99 ? ' / ' + u.max : ''}</div>`}
-      ${u.ext ? '<div class="tag">확장</div>' : ''}
+      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : pipsHtml(lv, u.max < 99 ? u.max : lv + 1)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + badgesHtml(wpnBadges(WEAPONS[u.newWeapon]), wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
@@ -851,6 +857,12 @@ function upHtml(u) {
     return `<div class="wl" title="${W.nm}"><img src="images/weapon_${w.id}.png?v=${VERSION}" alt="${W.nm}"><b>${a}→${c}</b></div>`;
   }).join('');
   return fx + `<div class="wls">${rows}</div>`;
+}
+
+function pipsHtml(done, total) {
+  let h = '';
+  for (let k = 0; k < total; k++) h += `<i class="pip${k < done ? ' on' : k === done ? ' next' : ''}"></i>`;
+  return `<div class="pips">${h}</div>`;
 }
 
 function choose(i, click) {
