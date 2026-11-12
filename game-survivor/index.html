@@ -9,11 +9,16 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#12141a;color:#e8e8ee;font-family:system-ui,"Malgun Gothic",sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
   #pauseBtn{position:fixed;right:10px;top:6px;pointer-events:auto;padding:4px 12px;font-size:14px;background:#2a2d38;color:#ccd}
-  canvas{display:block;width:100vw;height:100vh}
-  .top{position:fixed;left:0;right:0;top:0;padding:8px 12px;display:flex;gap:14px;align-items:center;font-size:14px;pointer-events:none}
+  /* 화면 세 구획: 위 정보칸(#hudTop) · 가운데 게임(canvas) · 아래 정보칸(#hudBot). 정보는 게임 위에 겹치지 않는다.
+     구획 높이는 내용대로 — resize() 가 재서 canvas 를 그 사이에 둔다 (--topH · --botH) */
+  canvas{display:block;position:fixed;left:0;width:100vw;top:var(--topH,0px);height:calc(100vh - var(--topH,0px) - var(--botH,0px))}
+  #hudTop,#hudBot{position:fixed;left:0;right:0;background:#0c0e13;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+  #hudTop{top:0;padding:6px 12px 6px;border-bottom:1px solid #2a2d38}
+  #hudBot{bottom:0;padding:6px 76px calc(6px + env(safe-area-inset-bottom)) 12px;border-top:1px solid #2a2d38;min-height:52px}
+  .top{padding:2px 56px 2px 0;min-height:22px;display:flex;gap:14px;align-items:center;font-size:14px;pointer-events:none}
   .top a{pointer-events:auto;color:#9ab;text-decoration:none}
   .top b{color:#fff}
-  .bars{position:fixed;left:12px;right:12px;top:36px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+  .bars{display:flex;flex-direction:column;gap:4px;pointer-events:none}
   .bar{height:10px;background:#2a2d38;border-radius:5px;overflow:hidden}
   .bar>i{display:block;height:100%;width:0}
   /* 체력 마디 (보스 줄만): 100 마다 가는 금, 1000 마다 굵은 금. --s1 · --s10 = 100 · 1000 이 줄 폭의 몇 % 인지 (hpTicks) */
@@ -22,7 +27,7 @@
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
   /* 주인공: 좌하단(무기 칸 위) — 얼굴 + 이름 · 체력 숫자 + 체력 줄 (보스 줄과 같은 모양, 눈금 없음) */
-  #pHud{position:fixed;left:12px;bottom:86px;width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
+  #pHud{width:min(240px,62vw);display:flex;align-items:center;gap:6px;pointer-events:none;--gc:#e8e8ee}
   #pHud[hidden]{display:none}
   #pHud .bf{flex:0 0 auto;width:34px;height:34px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}
   #pHud .bi{flex:1 1 auto;min-width:0}
@@ -32,7 +37,7 @@
   #pHud .bar>i{background:linear-gradient(90deg,#d33,#f66)}
   #xpBar>i{background:linear-gradient(90deg,#39f,#7cf)}
   /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
-  #timeline{position:fixed;left:16px;right:16px;top:52px;height:26px;pointer-events:none}
+  #timeline{position:relative;margin:0 4px;height:26px;pointer-events:none}
   #timeline[hidden],#banner[hidden]{display:none}
   .tl-track{position:absolute;left:0;right:0;top:12px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
   .tl-fill{display:block;height:100%;width:0;background:#9ab}
@@ -44,8 +49,8 @@
   .tl-m.done{opacity:.4}
   .tl-now{position:absolute;top:2px;width:2px;height:22px;background:#fff;border-radius:1px;transform:translateX(-1px)}
   /* 보스 체력 줄: 보스마다 한 줄, 아래로 쌓인다. 왼쪽에 얼굴(초상화 위쪽을 잘라) · 오른쪽에 이름 + 줄. 알림은 그 아래 */
-  #topStack{position:fixed;left:50%;top:84px;transform:translateX(-50%);width:min(420px,84vw);display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none}
-  #bossBars{display:flex;flex-direction:column;gap:5px;width:100%}
+  #bossBars{display:flex;flex-direction:column;gap:5px;width:min(420px,100%);align-self:center}
+  #bossBars:empty{display:none}
   .bb{display:flex;align-items:center;gap:6px;width:100%}
   .bb .bf{flex:0 0 auto;width:30px;height:30px;border-radius:6px;border:2px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%}   /* 초상화를 키워 얼굴만 */
   .bb .bi{flex:1 1 auto;min-width:0;text-align:left}
@@ -53,17 +58,17 @@
   .bb .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
   .bb .bar>i{background:linear-gradient(90deg,#b22,#f55)}
   /* 보스 등장 연출: 화면 가운데쯤 — 큰 얼굴 + '이름 등장!' 이 커지며 나타났다 사라진다 (2.8초) */
-  #bossIntro{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;z-index:5}
+  #bossIntro{position:fixed;left:50%;top:calc(var(--topH,0px) + (100vh - var(--topH,0px) - var(--botH,0px)) * .4);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;z-index:5}
   #bossIntro[hidden]{display:none}
   #bossIntro.play{animation:bossIn 2.8s ease-out forwards}
   #bossIntro .bf{width:110px;height:110px;border-radius:14px;border:3px solid var(--gc);background:#232634 no-repeat;background-size:230%;background-position:50% 5%;box-shadow:0 0 24px var(--gc)}
   #bossIntro .bt{font-size:26px;font-weight:900;color:var(--gc);text-shadow:0 2px 8px #000,0 0 3px #000;white-space:nowrap}
   #bossIntro .bk{font-size:12px;font-weight:700;color:#ddd;letter-spacing:.3em;text-shadow:0 1px 4px #000}
   @keyframes bossIn{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.92)}}
-  #banner{font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;text-align:center;max-width:94vw}
-  .stats{position:fixed;left:12px;bottom:22px;font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre;display:none}
-  body.dbg .stats{display:block}   /* 능력치 디버그 글 — ` 키로 켜고 끔 (켜면 무기 칸 · 주인공 줄이 그 위로) */
-  body.dbg #slots{bottom:118px} body.dbg #pHud{bottom:178px}
+  /* 알림 글 (새 몹 · 엘리트): 게임 칸 맨 위에 잠깐 */
+  #banner{position:fixed;left:50%;top:calc(var(--topH,0px) + 10px);transform:translateX(-50%);z-index:5;font-size:20px;font-weight:800;color:var(--gc,#fff);text-shadow:0 2px 6px #000,0 0 2px #000;pointer-events:none;text-align:center;max-width:94vw}
+  .stats{font-size:12px;line-height:1.5;color:#aab;pointer-events:none;white-space:pre;display:none}
+  body.dbg .stats{display:block}   /* 능력치 디버그 글 — ` 키로 켜고 끔 (아래 정보칸에 붙는다) */
   .overlay{position:fixed;inset:0;background:rgba(8,9,14,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
   .overlay[hidden]{display:none}
   .overlay h2{margin:0;font-size:28px}
@@ -100,7 +105,7 @@
   .slot.s{border-color:#5fb0e8}
   .slot.empty{border-style:dashed;opacity:.6}
   .sec{font-size:12px;color:#9ab;letter-spacing:.1em}
-  #slots{position:fixed;left:12px;bottom:26px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  #slots{display:flex;flex-direction:column;gap:3px;pointer-events:none}
   #slots[hidden]{display:none}
   #slots .slotrow{justify-content:flex-start}
   #slots .slot{height:20px;font-size:11px;padding:0 6px}
@@ -170,7 +175,7 @@
   #radial.cancel .rct{fill:#f99}
   #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
-  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}body.dbg #slots{bottom:100px}body.dbg #pHud{bottom:158px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
+  @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
   .row1{display:flex;flex-wrap:nowrap;flex-direction:row;justify-content:center;gap:10px;width:100%;max-width:900px;padding:6px 12px 12px;touch-action:none;box-sizing:border-box}
   #wpnCards.row1{flex-direction:row;flex-wrap:nowrap}
@@ -189,7 +194,7 @@
 </style>
 </head>
 <body>
-<canvas id="cv"></canvas>
+<div id="hudTop">
 <div class="top">
   <a href="../index.html">← 프로토타입 목록</a>
   <span>Lv <b id="lv">1</b></span>
@@ -202,11 +207,16 @@
   <div class="bar" id="xpBar"><i></i></div>
 </div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i></div>
+<div id="bossBars"></div>
+</div>
+<canvas id="cv"></canvas>
+<div id="banner" hidden></div>
 <div id="bossIntro" hidden></div>
-<div id="topStack"><div id="bossBars"></div><div id="banner" hidden></div></div>
+<div id="hudBot">
 <div id="pHud" hidden><i class="bf"></i><div class="bi"><div class="bn"><span class="pn"></span><span class="pv"></span></div><div class="bar"><i></i></div></div></div>
 <div id="slots" hidden></div>
 <div class="stats" id="stats"></div>
+</div>
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
@@ -259,7 +269,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.36.0';
+const VERSION = '0.37.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -465,13 +475,18 @@ const knockV = lv => 320 + (lv - 1) * 200;   // 처음 속도. 밀리는 거리 
 // ───── 상태 ─────
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
-let W = 0, H = 0, DPR = 1;
+let W = 0, H = 0, DPR = 1, cvTop = 0;
+// 게임 칸 = 위 · 아래 정보칸 사이. 정보칸 높이가 바뀌면(보스 줄이 생기고 없어지면) 다시 잰다
 function resize() {
   DPR = window.devicePixelRatio || 1;
-  W = innerWidth; H = innerHeight;
+  const tH = $('hudTop').offsetHeight, bH = $('hudBot').offsetHeight;
+  document.documentElement.style.setProperty('--topH', tH + 'px');
+  document.documentElement.style.setProperty('--botH', bH + 'px');
+  cvTop = tH; W = innerWidth; H = Math.max(100, innerHeight - tH - bH);
   cv.width = W * DPR; cv.height = H * DPR;
 }
 addEventListener('resize', resize); resize();
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => resize()); ro.observe($('hudTop')); ro.observe($('hudBot')); }
 
 let G;   // 판 상태
 
@@ -487,13 +502,13 @@ function joyVec() {
 }
 cv.addEventListener('pointerdown', e => {
   if (joy.id !== null) return;                                  // 손가락 하나만
-  joy.id = e.pointerId; joy.bx = joy.x = e.clientX; joy.by = joy.y = e.clientY;
+  joy.id = e.pointerId; joy.bx = joy.x = e.clientX; joy.by = joy.y = e.clientY - cvTop;   // 게임 칸 좌표
   try { cv.setPointerCapture(e.pointerId); } catch (_) {}
   e.preventDefault();
 });
 cv.addEventListener('pointermove', e => {
   if (e.pointerId !== joy.id) return;
-  joy.x = e.clientX; joy.y = e.clientY;
+  joy.x = e.clientX; joy.y = e.clientY - cvTop;
   const dx = joy.x - joy.bx, dy = joy.y - joy.by, d = Math.hypot(dx, dy);
   if (d > JOY_R) { joy.bx = joy.x - dx / d * JOY_R; joy.by = joy.y - dy / d * JOY_R; }
 });
@@ -1705,12 +1720,42 @@ function draw() {
   ctx.globalAlpha = 1;
   ctx.restore();
 
+  offscreenMarks(ox, oy);
+
   // 조이스틱 (화면 좌표)
   if (joy.id !== null) {
     const v = joyVec();
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.fillStyle = 'rgba(255,255,255,.08)';
     ctx.beginPath(); ctx.arc(joy.bx, joy.by, JOY_R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     circle(joy.bx + v.x * JOY_R, joy.by + v.y * JOY_R, 24, 'rgba(255,255,255,.45)');
+  }
+}
+
+// 화면 밖 엘리트 · 보스: 게임 칸 테두리에 얼굴 동그라미 + 그쪽을 가리키는 화살표 (등급 색)
+//   가운데(주인공)에서 그 적으로 그은 선이 테두리와 만나는 곳. 보스는 크게, 엘리트는 테두리가 깜빡인다
+function offscreenMarks(ox, oy) {
+  for (const e of G.enemies) {
+    if (e.dead || e.elite == null) continue;
+    const sx = e.x + ox, sy = e.y + oy, m = e.r;
+    if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;      // 보이면 안 함
+    const R = e.boss ? 17 : 12, M = R + 10, dx = sx - W / 2, dy = sy - H / 2;
+    const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx), col = gradeCol(e.elite);
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = col; ctx.beginPath();                               // 화살표
+    ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
+    ctx.lineTo(Math.cos(a + 0.5) * (R + 1), Math.sin(a + 0.5) * (R + 1));
+    ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
+    ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    const img = SPRITES[e.type];
+    if (img) {                                                         // 그림 위쪽(얼굴)을 동그라미에
+      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R - 1, 0, Math.PI * 2); ctx.clip();
+      const w = R * 2.6, h = w * img.height / img.width;
+      ctx.drawImage(img, -w / 2, -R * 1.15, w, h); ctx.restore();
+    }
+    ctx.globalAlpha = e.boss ? 1 : 0.55 + 0.45 * Math.sin(G.t * 8);
+    ctx.strokeStyle = col; ctx.lineWidth = e.boss ? 3 : 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 }
 
