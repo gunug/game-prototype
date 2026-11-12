@@ -197,7 +197,7 @@
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.24.2';
+const VERSION = '0.25.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -232,7 +232,8 @@ const UPGRADES = [
   {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 99, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
   {id: 'hp',     nm: '체력',       ds: '최대 체력 +25, 회복',  max: 99, badges: ['hp'], fx: '+25', apply: (s, p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); }},
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -2',         max: 99, badges: ['def'], fx: '+2', apply: s => s.def += 2},
-  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더 (연쇄: 한 마리 더)',    max: 5, ext: true, wpn: true, badges: ['spread', 'chain'], fx: '+1', apply: s => s.count++},
+  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
+  {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
   {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, badges: ['knock'], fx: '+1', apply: s => s.knock++},
   {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
@@ -251,7 +252,7 @@ const BADGES = {
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   rapid:  {nm: '연사',   col: '#ffd166', tip: '1초에 쏘는 횟수. 쏘는 간격이 아주 짧은 무기에 붙는다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '꿰뚫는 적 수. ∞ = 지나는 길의 적을 모두 맞힌다.'},
-  chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '적에서 적으로 이어 맞힌다. 「투사체 +1」을 받으면 한 마리 더 잇는다.'},
+  chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
   far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다. 값 = 노리는 거리(사거리 끝).'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
@@ -294,11 +295,11 @@ const WEAPONS = {
            dmg: 10, cd: 0.75, range: 280, spd: 620, acc: 4,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
-           badges: ['spread', 'burst', 'knock', 'splash']},
+           badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
-           dmg: 2, cd: 0.1, range: 240, spd: 0, chain: 3, hop: 150,
+           dmg: 2, cd: 0.1, range: 240, spd: 0, chain: 2, hop: 150,   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['rapid', 'chain', 'pierce']},
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적 모두 맞고 사거리 끝까지.
@@ -306,12 +307,12 @@ const WEAPONS = {
   sniper: {nm: '저격총', kind: 'rail', sh: '가장 먼 적을 꿰뚫는 탄', ds: '사거리 안 가장 먼 적을 공격한다. 직선 위의 적은 모두 관통한다',
            dmg: 24, cd: 1.6, range: 380, spd: 1500, width: 8, acc: 0.5,       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
-           badges: ['far', 'pierce', 'spread', 'burst', 'knock']},
+           badges: ['far', 'pierce', 'spread', 'chain', 'burst', 'knock']},
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 집탄이 나빠 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 집탄이 나빠 탄이 흩어진다',
            dmg: 4, cd: 0.12, range: 260, spd: 720, acc: 12,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
-           badges: ['rapid', 'spread', 'burst', 'knock', 'splash']},
+           badges: ['rapid', 'spread', 'chain', 'burst', 'knock', 'splash']},
 };
 const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
@@ -326,7 +327,7 @@ function wstat(id) {
     range: W.range * (a('range') ? s.rangeMul : 1),
     spd: W.spd,
     count: 1 + (a('count') ? s.count : 0),
-    chain: (W.chain || 0) + (a('count') ? s.count : 0),      // 레이저 연쇄 수
+    chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
     knock: a('knock') ? s.knock : 0,
     splash: a('splash') ? s.splash : 0,
@@ -508,7 +509,7 @@ function newGame(wi, weaponId) {
     weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, burst: 0, knock: 0, splash: 0},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, knock: 0, splash: 0},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, nextWave: 60, choices: [], inputLock: 0,
@@ -965,7 +966,7 @@ function fireGun(st, w, i) {
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
-      dmg: st.dmg, knock: st.knock, splash: st.splash, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
+      dmg: st.dmg, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
 }
@@ -980,7 +981,7 @@ function fireRail(st, w, i) {
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(w);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, pierce: true, rad: W.width / 2,
-      dmg: st.dmg, knock: st.knock, splash: 0, travel: 0, maxTravel: st.range + 30, hit: new Set()});
+      dmg: st.dmg, knock: st.knock, splash: 0, chain: st.chain, tgt, travel: 0, maxTravel: st.range + 30, hit: new Set()});
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
@@ -1068,7 +1069,7 @@ function updateLaser(w, wi, st, dt) {
   // 뻗기 (새 마디만 — 이미 그려진 마디는 옮겨 갈 뿐 다시 뻗지 않는다)
   const k = Math.floor(bm.prog);
   if (k < bm.nodes.length) bm.prog = Math.min(bm.nodes.length, bm.prog + dt * LASER_SPEED / Math.max(20, bm.segs[k].len));
-  if (bm.prog >= bm.nodes.length && bm.nodes.length < st.chain) {
+  if (bm.prog >= bm.nodes.length && bm.nodes.length < st.chain + 1) {   // 첫 적 + 연쇄
     const last = bm.nodes[bm.nodes.length - 1].e, nx = nearestEnemy(last.x, last.y, hop, new Set(bm.nodes.map(q => q.e)));
     if (nx) bm.nodes.push({e: nx, x: nx.x, y: nx.y});
   }
@@ -1090,6 +1091,19 @@ function updateLaser(w, wi, st, dt) {
       if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg); break; }
     }
   }
+}
+
+// 총알 연쇄: e 를 맞힌 b 를 다음 적으로 돌린다. 이을 적이 없으면 false
+const CHAIN_HOP = 170;                // 연쇄로 다음 적을 찾는 거리 (px)
+function chainBullet(b, e) {
+  const nx = nearestEnemy(e.x, e.y, CHAIN_HOP, b.hit);
+  if (!nx) return false;
+  const sp = Math.hypot(b.vx, b.vy), d = Math.hypot(nx.x - e.x, nx.y - e.y) || 1;
+  b.x = e.x; b.y = e.y; b.vx = (nx.x - e.x) / d * sp; b.vy = (nx.y - e.y) / d * sp;
+  b.chain--; b.tgt = nx;
+  b.maxTravel = b.travel + CHAIN_HOP * 1.3;                     // 튄 뒤엔 다음 적까지만 (빗나가면 곧 사라짐)
+  G.fx.push({kind: 'muzzle', x: e.x, y: e.y, t: 0.05});
+  return true;
 }
 
 // ───── 갱신 ─────
@@ -1195,6 +1209,9 @@ function update(dt) {
         const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) * Math.min(1, 15 / e.r);
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
+      // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
+      //   관통탄은 겨눈 적(tgt)을 맞힐 때 튼다 (길 위의 다른 적은 그냥 꿰뚫음)
+      if (b.chain > 0 && (!b.pierce || e === b.tgt) && chainBullet(b, e)) { if (b.pierce) continue; break; }
       if (b.pierce) continue;                                     // 관통탄은 계속 날아간다
       b.dead = true;
       break;
