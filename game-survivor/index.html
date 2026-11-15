@@ -261,7 +261,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.51.1';
+const VERSION = '0.52.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1104,21 +1104,25 @@ function spawnRate() {
   return r;
 }
 const mobCount = () => G.enemies.reduce((n, e) => n + (!e.dead && e.elite == null && !e.boss && !e.summon ? 1 : 0), 0);
-// 화면 밖 둘레에서 나온다. 방향은 몹이 적은 쪽 위주 (0.51.0): 둘레를 SECTORS 칸으로 나눠 가까운 적(화면 대각선 안)을 세고
-//   칸 무게 = 1 / (1 + 수)² 로 뽑는다 — 이미 몰린 쪽은 거의 안 나옴
-const SECTORS = 8;
+// 화면 밖 둘레에서 나온다. 방향은 몹이 적은 쪽 위주 (0.52.0): 아무 각도 둘을 뽑아 그쪽 밀도가 낮은 쪽을 고른다 (두 선택지 고르기)
+//   밀도 = 가까운 적(화면 대각선 ×1.5 안)마다 max(0, cos 각도차)^SPAWN_K 를 더한 값 — 칸 경계 없이 몰린 쪽 한가운데일수록 높다
+const SPAWN_K = 4;
 function offscreen() {
-  const dist = Math.hypot(W, H) / 2 + 60, near = dist * 1.5, n = new Array(SECTORS).fill(0), step = Math.PI * 2 / SECTORS;
+  const dist = Math.hypot(W, H) / 2 + 60, near = dist * 1.5, ux = [], uy = [];
   for (const e of G.enemies) {
     if (e.dead) continue;
-    const dx = e.x - G.p.x, dy = e.y - G.p.y;
-    if (dx * dx + dy * dy > near * near) continue;
-    n[Math.floor(((Math.atan2(dy, dx) + Math.PI * 2) % (Math.PI * 2)) / step) % SECTORS]++;
+    const dx = e.x - G.p.x, dy = e.y - G.p.y, d = Math.hypot(dx, dy);
+    if (d > near || d < 1) continue;
+    ux.push(dx / d); uy.push(dy / d);
   }
-  const w = n.map(c => 1 / (1 + c) ** 2);
-  let r = Math.random() * w.reduce((a, b) => a + b, 0), k = 0;
-  for (; k < SECTORS - 1; k++) { r -= w[k]; if (r <= 0) break; }
-  const ang = (k + Math.random()) * step;
+  const dens = ang => {
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    let s = 0;
+    for (let i = 0; i < ux.length; i++) { const c = ux[i] * cx + uy[i] * cy; if (c > 0) s += c ** SPAWN_K; }
+    return s;
+  };
+  const a1 = Math.random() * Math.PI * 2, a2 = Math.random() * Math.PI * 2;
+  const ang = dens(a1) <= dens(a2) ? a1 : a2;
   return [G.p.x + Math.cos(ang) * dist, G.p.y + Math.sin(ang) * dist];
 }
 function makeEnemy(name, x, y) {
