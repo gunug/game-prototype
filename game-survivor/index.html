@@ -111,6 +111,12 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .badges{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:6px}
   /* 뱃지: 모두 같은 폭 — 이름은 왼쪽, 값은 오른쪽 검은 둥근 상자에 흰 글씨 */
   .badge{display:inline-flex;align-items:center;justify-content:space-between;gap:4px;width:96px;box-sizing:border-box;font-size:11px;font-weight:700;line-height:15px;padding:2px 2px 2px 7px;border-radius:9px;background:var(--bc,#888);color:#14161c;white-space:nowrap;overflow:hidden}
+  /* 수치 줄 (0.64.0) — 공통 능력치: 이름 왼쪽 회색 · 값 오른쪽 흰 숫자 */
+  .stats{display:flex;flex-direction:column;width:100%;max-width:150px;margin:6px auto 0;font-size:11px;line-height:15px}
+  .stat{display:flex;justify-content:space-between;gap:4px;white-space:nowrap;border-bottom:1px solid #2c3142}
+  .stat span{color:#8f98ae}
+  .stat b{color:#fff;font-weight:700;font-variant-numeric:tabular-nums}
+  @media (max-width:700px){.stats{font-size:10px;line-height:13px}.stat{gap:2px;letter-spacing:-.03em}}
   .wchs{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-top:4px}
   .wch{font-size:11px;line-height:15px;padding:0 5px;border-radius:4px;white-space:nowrap}
   .wch.on{color:#e9a23b;border:1px solid #e9a23b}
@@ -263,7 +269,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.63.0';
+const VERSION = '0.64.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -403,8 +409,22 @@ function badgeVal(id, st) {
 }
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
-// 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 발사각) + 특성 뱃지(badges)
-const wpnBadges = W => ['dmg', 'cd', ...(W.mag ? ['mag', 'reload'] : []), 'stun', 'range', ...(W.spd ? ['spd'] : []), ...(W.acc != null ? ['acc'] : []), ...W.badges];
+// 공통 능력치 (0.64.0): 뱃지가 아니라 '이름 … 값' 수치 줄로 쓴다. 특성(관통 · 연쇄 …)만 뱃지
+const STATS = new Set(['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move']);
+const statHtml = (id, val) => `<div class="stat" data-badge="${id}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></div>`;
+const statsHtml = (ids, st) => `<div class="stats">${ids.map(id => statHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
+// 능력치는 수치 줄, 특성은 뱃지 — 한 묶음씩
+const tagsHtml = (ids, val) => {
+  const a = ids.filter(id => STATS.has(id)), b = ids.filter(id => !STATS.has(id));
+  return (a.length ? `<div class="stats">${a.map(id => statHtml(id, val(id))).join('')}</div>` : '')
+       + (b.length ? `<div class="badges">${b.map(id => badgeHtml(id, val(id))).join('')}</div>` : '');
+};
+// 무기 카드 몸통: 수치 표(능력치) + 특성 뱃지
+const wpnInfoHtml = (W, st) => statsHtml(wpnStats(W), st) + (W.badges.length ? badgesHtml(W.badges, st) : '');
+// 무기의 능력치 = 피해 · 쿨다운 · (장탄 · 재장전) · 경직 · 사거리 · (탄속) · (발사각)
+const wpnStats = W => ['dmg', 'cd', ...(W.mag ? ['mag', 'reload'] : []), 'stun', 'range', ...(W.spd ? ['spd'] : []), ...(W.acc != null ? ['acc'] : [])];
+// 무기가 가진 뱃지 전부 = 능력치 + 특성 뱃지(badges) — 업그레이드가 닿는 범위도 이것
+const wpnBadges = W => [...wpnStats(W), ...W.badges];
 // 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
 const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
 
@@ -667,7 +687,7 @@ function wcardHtml(id, i) {
   return `<div class="key">${i + 1}</div>
     <div class="wimg"><img src="images/weapon_${id}.png?v=${VERSION}" alt=""></div>
     <div class="nm">${W.nm}</div><div class="wsh">${W.sh}</div>
-    ${badgesHtml(wpnBadges(W), baseStat(id))}`;
+    ${wpnInfoHtml(W, baseStat(id))}`;
 }
 
 // 월드를 시작할 때 무기를 고른다 (해금된 것 중)
@@ -1036,7 +1056,7 @@ function openLevelUp() {
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
       ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
-      ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + badgesHtml(wpnBadges(WEAPONS[u.newWeapon]), wstat(u.newWeapon)) : upHtml(u)}`;
+      ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
@@ -1048,7 +1068,7 @@ function openLevelUp() {
 //   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
 //   체력 · 방어: 주인공 값 지금 → 다음
 function upHtml(u) {
-  const fx = `<div class="badges">${u.badges.map(b => badgeHtml(b, u.fx)).join('')}</div>`;
+  const fx = tagsHtml(u.badges, () => u.fx);
   if (!u.wpn) {
     const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : b === 'move' ? Math.round(G.p.speed) : G.s.def;
     const nx = b === 'hp' ? now + 250 : b === 'move' ? Math.round(G.p.speed * 1.1) : now + 20;
