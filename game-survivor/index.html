@@ -259,28 +259,29 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.47.0';
+const VERSION = '0.48.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
 const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 // r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
+// wt = 무게: 넉백으로 밀리는 거리 = 넉백 ÷ 무게 (좀비 1 기준)
 const ENEMY_TYPES = {
-  zombie: {nm: '좀비',      hp: 120, def: 0, spd: 70,  dmg: 80,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
-  dog:    {nm: '들개',      hp: 60,  def: 0, spd: 135, dmg: 50,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
-  brute:  {nm: '거구 좀비', hp: 700, def: 30, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
-  crawler:{nm: '기는 좀비', hp: 60,  def: 0, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
-  riot:   {nm: '진압 경찰 좀비', hp: 400, def: 60, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 60 — 약한 연사를 막음
+  zombie: {nm: '좀비',      hp: 120, def: 0, wt: 1, spd: 70,  dmg: 80,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
+  dog:    {nm: '들개',      hp: 60,  def: 0, wt: 0.6, spd: 135, dmg: 50,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
+  brute:  {nm: '거구 좀비', hp: 700, def: 30, wt: 2.5, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  crawler:{nm: '기는 좀비', hp: 60,  def: 0, wt: 0.8, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
+  riot:   {nm: '진압 경찰 좀비', hp: 400, def: 60, wt: 1.5, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 60 — 약한 연사를 막음
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
-const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12};
+const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12, wt: 2};   // wt: 무게 ×2
 // 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
-  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 40, spd: 55, dmg: 220, r: 44, xp: 60,
+  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 40, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
           pats: ['charge'], gap: 3.2},
-  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 60, spd: 60, dmg: 300, r: 58, xp: 0,
+  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
 };
 // 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
@@ -352,7 +353,7 @@ const BADGES = {
   far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
-  knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
+  knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px, 무게 1 기준 — 무게 2 면 절반). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
   splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
 };
 // 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지는 0
@@ -1084,7 +1085,7 @@ function offscreen() { const ang = Math.random() * Math.PI * 2, dist = Math.hypo
 function makeEnemy(name, x, y) {
   const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
   return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
-    flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
+    wt: T.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
 }
 function spawnEnemy() {
   if (G.enemies.length >= MAX_ENEMIES) return;
@@ -1094,7 +1095,7 @@ function spawnEnemy() {
 // 엘리트: 지금 잡몹 하나를 1.3배로 · 체력 ×10 · 피해 ×1.5 · 경험치 ×12, 등급 색 테두리가 깜빡인다
 function spawnElite(grade) {
   const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
-  e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp; e.elite = grade;
+  e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp; e.wt *= ELITE.wt; e.elite = grade;
   G.enemies.push(e);
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
@@ -1119,7 +1120,7 @@ function bossPlan(id, wi, at) {
 function spawnBoss(id) {
   const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp;
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
-    flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
+    wt: B.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
   // 등장 연출 (위쪽 알림 대신): 얼굴 + '이름 등장!' 이 가운데에 나타났다 사라짐
   const bi = $('bossIntro');
   bi.style.setProperty('--gc', gradeCol(B.grade));
@@ -1502,8 +1503,8 @@ function update(dt) {
         G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
         for (const o of G.enemies) if (o !== e && !o.dead && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
       }
-      if (b.knock) {                                              // 총알이 날던 방향으로 밀림. 큰 적은 덜 밀림
-        const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) * Math.min(1, 15 / e.r);
+      if (b.knock) {                                              // 총알이 날던 방향으로 밀림. 무거운 적은 덜 밀림 (거리 = 넉백 ÷ 무게)
+        const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) / (e.wt || 1);
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
