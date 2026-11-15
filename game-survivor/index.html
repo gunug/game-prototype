@@ -147,6 +147,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .wrow{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:12px}
   .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
   .wrow .wv b{color:#ffd28a}
+  .up .sublbl{font-size:10px;color:#5fb0e8;margin-top:1px}
   .up .wimg{width:100%;height:40px;display:flex;align-items:center;justify-content:center;margin-top:4px}
   .up .wimg img{max-width:80%;max-height:34px;image-rendering:pixelated}
   /* 무기 카드 (출발 무기): 그림 · 이름 · 한 줄 · 숫자 표 · 뱃지 */
@@ -237,7 +238,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="btns"><button class="sub" id="wpnBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="levelup" hidden>
-  <h2>레벨 업!</h2>
+  <h2 id="luTitle">레벨 업!</h2>
   <div class="cards" id="cards"></div>
   <div class="hint" id="luHint">1 · 2 · 3 또는 클릭</div>
 </div>
@@ -269,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.66.0';
+const VERSION = '0.67.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -337,17 +338,17 @@ const UPGRADES = [
   {id: 'hp',     nm: '체력',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
   {id: 'move',   nm: '이동속도',   ds: '이동 속도 +10%',       max: 5, badges: ['move'], fx: '+10%', apply: (s, p) => { p.speed *= 1.1; }},
-  {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
-  {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
+  {id: 'count',  sub: '갈래 총구', nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
+  {id: 'chain',  sub: '도약 회로', nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
   {id: 'scatter',nm: '산탄',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
   {id: 'focus',  nm: '집탄',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
-  {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
+  {id: 'burst',  sub: '연발 장치', nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
   {id: 'pull',   nm: '끌어당김',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 탄이 지나는 줄로 당겨 모은다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
   {id: 'push',   nm: '밀쳐냄',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
   {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
-  {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
+  {id: 'splash', sub: '화약 주머니', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
@@ -715,7 +716,7 @@ function newGame(wi, weaponId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0},
     ups: {},
-    enemies: [], bullets: [], gems: [], fx: [], texts: [],
+    enemies: [], bullets: [], gems: [], chests: [], chestQ: 0, fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -941,7 +942,7 @@ function rmItems(scr) {
     return {up: bs.filter(b => !b.hasAttribute('data-neg')).map(item), down: bs.filter(b => b.hasAttribute('data-neg')).map(item)};
   }
   const cards = [...$('cards').children];
-  const list = G.choices.map((u, i) => ({label: u.nm, el: cards[i], act: () => choose(i, true)}));
+  const list = G.choices.map((u, i) => ({label: u.sub || u.nm, el: cards[i], act: () => choose(i, true)}));
   return {up: list, down: []};                                 // 아래 절반은 비워 둠 (나중에 리롤 같은 것)
 }
 // 손가락 위치 → {half, idx}. 가운데면 null
@@ -1031,7 +1032,7 @@ const XP_EARLY = 0.4, XP_EARLY_STEP = 0.15;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY + XP_EARLY_STEP * (lv - 1)));
 
 function openLevelUp() {
-  const pool = UPGRADES.filter(u => (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)
+  const pool = UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
     && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
   if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
     for (const id of UNLOCKED_WEAPONS) if (!G.weapons.some(w => w.id === id))
@@ -1044,9 +1045,14 @@ function openLevelUp() {
     for (; k < pool.length; k++) { r -= pool[k].ext ? 2 : 3; if (r <= 0) break; }
     picks.push(pool.splice(Math.min(k, pool.length - 1), 1)[0]);
   }
+  showPicks(picks, '레벨 업!');
+}
+// 고르기 창 — 레벨업과 상자가 같이 쓴다 (둥근 메뉴 · 키 · 탭이 그대로 붙는다)
+function showPicks(picks, title) {
   G.choices = picks;
   G.mode = 'levelup';
   G.inputLock = 0.35;
+  $('luTitle').textContent = title;
   const box = $('cards'); box.innerHTML = '';
   picks.forEach((u, i) => {
     const d = document.createElement('div');
@@ -1054,7 +1060,7 @@ function openLevelUp() {
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
-    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${G.subs.some(x => x.id === u.id) ? '보조 강화' : '새 보조'}</div>` : ''}
       ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
@@ -1126,9 +1132,24 @@ function choose(i, click) {
   const u = G.choices[i]; if (!u) return;
   G.ups[u.id] = (G.ups[u.id] || 0) + 1;
   u.apply(G.s, G.p);
+  if (u.sub && !G.subs.some(x => x.id === u.id)) G.subs.push({id: u.id, nm: u.sub});   // 새 보조 아이템 → 보조 슬롯
   $('levelup').hidden = true;
   G.mode = 'play';
-  if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); }
+  if (G.chestQ > 0) { G.chestQ--; openChest(); }               // 쌓인 상자 먼저, 그다음 밀린 레벨업
+  else if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); }
+}
+
+// ───── 상자 · 보조 아이템 (0.67.0) ─────
+// 엘리트(특수몹)가 죽으면 상자를 떨군다. 주인공이 닿으면 열려 보조 아이템 3개 중 하나를 고른다
+//   보조 아이템 = 연속 · 투사체 · 연쇄 · 폭발 (레벨업에서 뺀 것). 처음 고르면 보조 슬롯 하나를 차지, 다시 고르면 단계 +1 (최대 5)
+//   슬롯이 다 차면 가진 것만 나온다. 가진 무기가 받지 못하는 것은 안 나온다
+const chestPool = () => UPGRADES.filter(u => u.sub && G.ups[u.id] < u.max && affectedBy(u.id).length
+  && (G.subs.some(x => x.id === u.id) || G.subs.length < G.char.sSlots));
+function openChest() {
+  const pool = chestPool(), picks = [];
+  while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  if (!picks.length) { if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); } return; }   // 고를 것이 없으면 빈 상자
+  showPicks(picks, '보조 아이템');
 }
 
 function gainXp(n) {
@@ -1326,9 +1347,23 @@ function hurtEnemy(e, dmg, stun = 0) {
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
     if (e.xp) G.gems.push({x: e.x, y: e.y, v: e.xp, pull: false});
+    if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
     else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
   }
+}
+
+// 상자 그림 (캔버스로): 나무 몸통 · 뚜껑 · 금테 · 자물쇠, 둘레에 등급 빛
+function drawChest(x, y, col) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.shadowColor = col; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#7a4a22'; ctx.fillRect(-11, -4, 22, 12);          // 몸통
+  ctx.fillStyle = '#93592a'; ctx.beginPath(); ctx.moveTo(-11, -4); ctx.lineTo(-11, -9); ctx.quadraticCurveTo(0, -15, 11, -9); ctx.lineTo(11, -4); ctx.fill();   // 뚜껑
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = col; ctx.fillRect(-11, -5, 22, 2); ctx.fillRect(-8, -12, 2, 20); ctx.fillRect(6, -12, 2, 20);   // 테
+  ctx.fillStyle = '#ffe27a'; ctx.fillRect(-2, -6, 4, 5);              // 자물쇠
+  ctx.strokeStyle = '#2a170a'; ctx.lineWidth = 1; ctx.strokeRect(-11, -4, 22, 12);
+  ctx.restore();
 }
 
 // ───── 공격 ─────
@@ -1696,6 +1731,12 @@ function update(dt) {
     if (g.pull) { const sp = 420 * dt; g.x += dx / d * Math.min(sp, d); g.y += dy / d * Math.min(sp, d); }
     if (d < p.r + 6) { g.dead = true; gainXp(g.v); }
   }
+  // 상자: 닿으면 연다 (레벨업 창이 떠 있으면 줄 세워 두었다가 닫힐 때)
+  for (const c of G.chests) {
+    c.t += dt;
+    if (Math.hypot(p.x - c.x, p.y - c.y) < p.r + 14) { c.dead = true; if (G.mode === 'levelup') G.chestQ++; else openChest(); }
+  }
+  G.chests = G.chests.filter(c => !c.dead);
 
   // 너무 멀어진 적은 다시 둘레로 (버려진 적이 쌓이지 않게)
   const far = Math.hypot(W, H) * 0.9;
@@ -1831,6 +1872,9 @@ function draw() {
     const r = g.v > 1 ? 7 : 5;
     ctx.beginPath(); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x + r * 0.7, g.y); ctx.lineTo(g.x, g.y + r); ctx.lineTo(g.x - r * 0.7, g.y); ctx.fill();
   }
+
+  // 상자: 등급 색으로 빛나며 살짝 뜀
+  for (const c of G.chests) drawChest(c.x, c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4, gradeCol(c.g));
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
