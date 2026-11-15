@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.57.0';
+const VERSION = '0.57.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1283,7 +1283,7 @@ function hurtEnemy(e, dmg, stun = 0) {
 // ───── 공격 ─────
 const spreadRnd = st => (Math.random() * 2 - 1) * (st.acc || 0) * Math.PI / 180;   // 발사각: 한 발마다 ±acc 도
 const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
-const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0, ammo: WEAPONS[id].mag, rl: 0, rlMax: 0});
+const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0, ammo: WEAPONS[id].mag, rl: 0, rlMax: 0, flyT: 0});
 // 재장전 중이면 시간을 흘리고 true. 다 채우면 바로 쏠 수 있게
 function reloading(w, st, dt) {
   if (!(w.rl > 0)) return false;
@@ -1530,8 +1530,8 @@ function update(dt) {
     }
     if (kind === 'boom') {                                         // 부메랑: 날아간 게 하나라도 있으면 못 던짐. 다 받은 뒤부터 쿨다운
       w.out = w.shots.length > 0 || G.bullets.some(b => b.boom && b.w === w);
-      if (w.out) { if (!w.shots.length) w.cdT = st.cd; }
-      else { w.cdT -= dt; if (w.cdT <= 0 && tgt) { for (let i = 0; i < st.burst; i++) w.shots.push(AIM_T + i * 0.1); w.out = true; } }
+      if (w.out) { w.flyT += dt; if (!w.shots.length) w.cdT = st.cd; }
+      else { w.cdT -= dt; if (w.cdT <= 0 && tgt) { for (let i = 0; i < st.burst; i++) w.shots.push(AIM_T + i * 0.1); w.out = true; w.flyT = 0; } }
     } else if (!reloading(w, st, dt)) {
       w.cdT -= dt;
       if (w.cdT <= 0 && tgt && !w.shots.length) {
@@ -1706,6 +1706,18 @@ function drawSprite(name, x, y, h, flip, fallback, bob, byArea, white) {
   ctx.restore();
 }
 
+// 부메랑 미터 (0.57.1): 던진 때부터 다시 던질 수 있을 때까지 = 되돌아오는 시간 + 쿨다운 한 바퀴를 주황 파이로 채운다.
+//   되돌아오는 시간은 가늠값 (AIM_T + 2 × 사거리 ÷ 탄속 + 연속 간격) — 실제로 빨리 받으면 쿨다운 몫으로 건너뛰고, 늦으면 그 자리에서 기다린다.
+//   준비되면(손에 있음) 노란 파이 가득
+function boomMeter(w, m) {
+  const st = wstat(w.id), R = 7, x = m.hx, y = m.hy + 11;
+  const fly = AIM_T + 2 * st.range / st.spd + (st.burst - 1) * 0.1, all = fly + st.cd;
+  const ready = !w.out && w.cdT <= 0;
+  const k = ready ? 1 : w.out ? Math.min(w.flyT, fly) / all : (fly + st.cd - Math.max(0, w.cdT)) / all;
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = ready ? '#c9a93a' : '#ff9a4a';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+}
 // 날아가는 부메랑: 무기 그림을 돌려 그린다 (그림이 없으면 V 모양)
 function drawBoomerang(x, y, rot, len) {
   const img = WEAPON_IMG.boomerang;
@@ -1816,7 +1828,7 @@ function draw() {
   // 탄 미터: 총마다 손잡이 밑 파이 — 남은 탄 ÷ 장탄 만큼 노랗게 + 가운데 남은 탄 수.
   //   다 쓰면 재장전: 주황 파이가 12시부터 시계 방향으로 차오른다 (숫자 없음)
   for (const [w, m] of poses) {
-    if (!WEAPONS[w.id].mag) continue;                            // 장탄 없는 무기(부메랑)는 미터 없음
+    if (WEAPONS[w.id].kind === 'boom') { boomMeter(w, m); continue; }
     const st = wstat(w.id), R = 7, x = m.hx, y = m.hy + 11, rl = w.rl > 0;
     const k = rl ? 1 - w.rl / w.rlMax : Math.max(0, w.ammo) / st.mag;
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
