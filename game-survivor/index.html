@@ -269,7 +269,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.64.0';
+const VERSION = '0.65.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -436,32 +436,32 @@ const WEAPONS = {
            dmg: 0, cd: 0.5, mag: 8, range: 145, spd: 620, acc: 4, maxT: 1, stun: 0.12,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
-           badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
+           badges: ['burst', 'spread']},   // 특성 2개 (0.65.0): 기본 무기 — 발 수를 늘리는 쪽
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
            dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
-           badges: ['chain', 'pierce']},
+           badges: ['chain', 'pierce']},   // 특성 2개: 빔이 적을 잇는다
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '적을 꿰뚫는 센 탄', ds: '가장 가까운 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다',
            dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2, stun: 0.3,   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
-           badges: ['pierce', 'spread', 'chain', 'burst', 'knock']},
+           badges: ['pierce', 'knock']},   // 특성 2개: 당김으로 적을 탄 줄에 모아 다음 관통탄이 줄줄이 꿰뚫는다
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
   boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길의 적을 모두 벤다',
            dmg: 0, cd: 0.4, range: 130, spd: 360, acc: 15, maxT: 3, stun: 0.08, rad: 10,   // acc = 고리가 사거리 중간쯤에서 겨눈 쪽에서 비끼는 가장 큰 각 (0.62.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['pierce', 'spread', 'burst', 'knock']},   // 발사각(acc) 뱃지는 wpnBadges 가 붙인다 → 산탄 · 집탄 받음
+           badges: ['spread', 'knock']},   // 특성 2개: 여러 개 던져 길을 쓸고 밀당으로 고리 길에 모은다 · 관통 ∞ 는 설명(ds)에. 발사각(acc)은 능력치 → 산탄 · 집탄 받음
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
            dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
-           badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
+           badges: ['spread', 'splash']},   // 특성 2개: 군중을 쓸고 폭발로 범위 피해
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
