@@ -121,6 +121,8 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .pips{display:flex;flex-wrap:wrap;gap:3px;max-width:150px}
   .pip{width:11px;height:7px;border-radius:2px;border:1px solid #6a7080;box-sizing:border-box;background:var(--b,transparent)}
   .pip.on{border-color:var(--b)}
+  .pip.mid{outline:1px solid #9ab;outline-offset:1px}   /* 저울 가운데 = 기본 자리 */
+  #cards .axis .pip{width:10px;height:8px} #cards .axis .pips{gap:4px}
   .pip.next{border-color:var(--c);animation:pipBlink .7s ease-in-out infinite}   /* 깜빡임: 지금 색(--b) ↔ 다음 등급 색(--c) */
   @keyframes pipBlink{0%,100%{background:var(--b,transparent)}50%{background:var(--c)}}
   .inf{display:inline-block;font-size:1.45em;line-height:0;vertical-align:-.05em}
@@ -259,7 +261,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.49.0';
+const VERSION = '0.50.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -328,13 +330,21 @@ const UPGRADES = [
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
   {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
-  {id: 'focus',  nm: '집탄',       ds: '발사각 ×0.8 — 탄이 잘 모인다', max: 5, ext: true, wpn: true, badges: ['acc'], fx: '×0.8', apply: s => s.accMul *= 0.8},
-  {id: 'scatter',nm: '산탄',       ds: '발사각 ×1.25 — 탄이 넓게 흩어진다', max: 5, ext: true, wpn: true, badges: ['acc'], fx: '×1.25', apply: s => s.accMul *= 1.25},
+  // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
+  {id: 'scatter',nm: '산탄',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
+  {id: 'focus',  nm: '집탄',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
   {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
-  {id: 'knock',  nm: '넉백',       ds: '맞은 적을 뒤로 밀어낸다', max: 5, ext: true, wpn: true, badges: ['knock'], fx: '+1', apply: s => s.knock++},
+  {id: 'pull',   nm: '끌어당김',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 내 쪽으로 당긴다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
+  {id: 'push',   nm: '밀쳐냄',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 뒤로 밀어낸다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+// 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
+const AXIS_MAX = 2;
+const AXES = {accPos: {l: '산탄', r: '집탄'}, knockPos: {l: '당김', r: '밀침'}};
+const axisOk = u => { const v = G.s[u.axis] + u.dir; return v >= -AXIS_MAX && v <= AXIS_MAX; };
+// 발사각 배율: 오른쪽(집탄) 한 칸 ×0.8, 왼쪽(산탄) 한 칸 ×1.25
+const accMulOf = pos => pos > 0 ? 0.8 ** pos : 1.25 ** -pos;
 
 // 뱃지 — 무기의 특성. 업그레이드에 붙은 뱃지(연속 · 넉백 · 폭발 · 확산 · 연쇄)는 '그 업그레이드를 받는다' 는 뜻도 된다
 // 색은 --bc. 팁은 마우스를 올리거나 터치하면 뜬다
@@ -353,7 +363,7 @@ const BADGES = {
   far:    {nm: '원거리', col: '#c7b8ff', tip: '사거리 안 가장 먼 적을 노린다.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
-  knock:  {nm: '넉백',   col: '#a8d08d', tip: '맞은 적을 밀어내는 거리(px, 무게 1 기준 — 무게 2 면 절반). 「넉백」을 받으면 늘어난다 (Lv1 40, 레벨당 +25).'},
+  knock:  {nm: '밀당',   col: '#a8d08d', tip: '맞은 적이 움직이는 거리(px, 무게 1 기준 — 무게 2 면 절반). + 는 밀쳐냄, − 는 끌어당김, 0 은 없음. 5칸 저울: 「끌어당김」은 왼쪽, 「밀쳐냄」은 오른쪽으로 한 칸 (한 칸 40 · 두 칸 65).'},
   splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
 };
 // 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지는 0
@@ -371,7 +381,7 @@ function badgeVal(id, st) {
     case 'chain': return st.chain;
     case 'spread': return st.count;
     case 'burst': return st.burst;
-    case 'knock': return st.knock ? Math.round(knockV(st.knock) / 8) : 0;
+    case 'knock': return st.knock ? (st.knock > 0 ? '+' : '−') + Math.round(knockV(Math.abs(st.knock)) / 8) : 0;
     case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
     case 'hp': return st.hp;
     case 'def': return st.def;
@@ -449,9 +459,9 @@ function wstat(id) {
     count: 1 + (a('count') ? s.count : 0),
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
-    knock: a('knock') ? s.knock : 0,
+    knock: a('push') ? s.knockPos : 0,                        // 밀당 저울 자리: + 밀쳐냄 · − 끌어당김
     splash: a('splash') ? s.splash : 0,
-    acc: W.acc != null ? W.acc * (a('focus') ? s.accMul : 1) : undefined,   // 발사각 — 집탄 ×0.8 · 산탄 ×1.25
+    acc: W.acc != null ? W.acc * (a('focus') ? accMulOf(s.accPos) : 1) : undefined,   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
 }
 const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).map(w => WEAPONS[w.id].nm);
@@ -636,7 +646,7 @@ function newGame(wi, weaponId) {
     weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, knock: 0, splash: 0, accMul: 1},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
@@ -954,7 +964,7 @@ const XP_EARLY = 0.4, XP_EARLY_STEP = 0.15;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY + XP_EARLY_STEP * (lv - 1)));
 
 function openLevelUp() {
-  const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV)
+  const pool = UPGRADES.filter(u => (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)
     && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
   if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
     for (const id of UNLOCKED_WEAPONS) if (!G.weapons.some(w => w.id === id))
@@ -978,7 +988,7 @@ function openLevelUp() {
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.nm}</div>
-      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
+      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + badgesHtml(wpnBadges(WEAPONS[u.newWeapon]), wstat(u.newWeapon)) : upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
@@ -1020,6 +1030,16 @@ const gradeCol = g => GRADES[Math.min(g, GRADES.length - 1)].col;
 // done = 지금까지 찍은 횟수, total = 최대 (Infinity = 끝없음). 뒤에 (이번 것/최대) 글자
 //   최대가 5 이하인 것(확산 · 연쇄 …, 무기 슬롯)은 칸 수 = 최대, 일반 색 한 바퀴
 const PIP_N = 5;
+// 저울 칸: 5칸, 가운데 칸은 기준 테두리. 지금 자리는 채움, 이번에 옮겨 갈 자리는 깜빡임. 양 끝에 그쪽 이름
+function axisHtml(u) {
+  const A = AXES[u.axis], cur = G.s[u.axis], nx = cur + u.dir, col = gradeCol(0), nc = gradeCol(1);
+  let h = '';
+  for (let v = -AXIS_MAX; v <= AXIS_MAX; v++) {
+    const on = v === cur, next = v === nx;
+    h += `<i class="pip${on ? ' on' : ''}${next ? ' next' : ''}${v === 0 ? ' mid' : ''}" style="${on ? `--b:${col};` : ''}${next ? `--c:${nc};` : ''}"></i>`;
+  }
+  return `<div class="pipsrow axis"><span class="pipl">${A.l}</span><div class="pips">${h}</div><span class="pipn">${A.r}</span></div>`;
+}
 function pipsHtml(done, total) {
   const n = Number.isFinite(total) ? Math.min(total, PIP_N) : PIP_N;
   const g = Math.floor(done / n), k0 = done % n;                // g = 지금 채우는 등급, k0 = 그 등급으로 찬 칸 수
@@ -1515,7 +1535,7 @@ function update(dt) {
         for (const o of G.enemies) if (o !== e && !o.dead && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
       }
       if (b.knock) {                                              // 총알이 날던 방향으로 밀림. 무거운 적은 덜 밀림 (거리 = 넉백 ÷ 무게)
-        const sp = Math.hypot(b.vx, b.vy), v0 = knockV(b.knock) / (e.wt || 1);
+        const sp = Math.hypot(b.vx, b.vy), v0 = Math.sign(b.knock) * knockV(Math.abs(b.knock)) / (e.wt || 1);   // − 면 쏜 쪽으로 당김
         e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
@@ -1877,7 +1897,7 @@ function hud() {
   $('stats').textContent =
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
     G.weapons.map(w => { const t = wstat(w.id);
-      return `${WEAPONS[w.id].nm}  피해 ${t.dmg.toFixed(1)}  쿨 ${t.cd.toFixed(2)}s  사거리 ${Math.round(t.range)}  탄 ${t.count}  연속 ${t.burst}  넉백 ${t.knock}  스플 ${t.splash}\n`; }).join('') +
+      return `${WEAPONS[w.id].nm}  피해 ${t.dmg.toFixed(1)}  쿨 ${t.cd.toFixed(2)}s  사거리 ${Math.round(t.range)}  탄 ${t.count}  연속 ${t.burst}  밀당 ${t.knock}  스플 ${t.splash}\n`; }).join('') +
     `적 ${G.enemies.length}`;
 }
 
