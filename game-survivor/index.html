@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.60.1';
+const VERSION = '0.61.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -364,7 +364,7 @@ const BADGES = {
   stun:   {nm: '경직',   col: '#d8c8ff', tip: '맞은 적이 이만큼(초) 그 자리에 굳는다 (움직임 · 넉백 멈춤). 보스는 굳지 않는다.'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
   spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초). 「탄속 증가」는 저울 왼쪽(×1.25), 「탄속 감소」는 오른쪽(×0.8).'},
-  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
+  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 가는 길 · 오는 길이 겨눈 쪽에서 이만큼씩 비껴 벌어진다). 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
   move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
@@ -434,9 +434,9 @@ const WEAPONS = {
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
   boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길의 적을 모두 벤다',
-           dmg: 0, cd: 0.4, range: 130, spd: 360, maxT: 3, stun: 0.08, rad: 10,   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
+           dmg: 0, cd: 0.4, range: 130, spd: 360, acc: 15, maxT: 3, stun: 0.08, rad: 10,   // acc = 가는 길 · 오는 길이 겨눈 쪽에서 비끼는 각 (0.61.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['pierce', 'spread', 'burst', 'knock']},
+           badges: ['pierce', 'spread', 'burst', 'knock']},   // 발사각(acc) 뱃지는 wpnBadges 가 붙인다 → 산탄 · 집탄 받음
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
            dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
@@ -450,23 +450,13 @@ const WEAPONS = {
 //   단일 DPS = 피해 × mag ÷ 한 바퀴 (평균) — 이것으로 비교 DPS 를 맞춘다
 const DPS_REF = 100;   // 0.44.0 수치 10배 (그 전 10)
 const RELOAD_K = 5, RELOAD_MIN = 1.5;
-// 부메랑 물리 (0.60.0 — 중력 없음): 던진 방향 · 속도로 관성을 갖고 날며, 늘 주인공(손) 쪽으로 같은 세기의 힘 pull 을 받는다.
-//   pull = 탄속² ÷ (2 × (사거리 − 던진 거리)) → 서서 던지면 사거리 끝에서 멈췄다 같은 길로 돌아온다.
-//   주인공이 도착 지점을 벗어나면 쌓인 속도로 지나쳐 반대편으로 나간다 — 힘이 거리와 상관없이 같아 멀리 갈수록 되돌리는 일이 쌓여 반드시 다시 온다.
-//   감쇠 (0.60.1): 돌아서기 시작한 뒤 주인공 기준 속도에 늘 같은 저항 drag 를 건다 — 피할 때마다 지나쳐 나가는 거리가 조금씩 줄어 결국 손에 떨어진다.
-//   시간이 갈수록 세지는 감쇠가 아니라서 계속 피하면 계속 피할 수 있다. 줄: 주인공에서 사거리보다 멀리는 못 간다 (바깥으로 가는 속도를 없앰)
-// drag · 잡히는 거리(손에서 px) · 최대 비행(초, 안전장치) · 같은 적 다시 베기(초) · vcap: 주인공 기준 속도 상한 = 탄속 × vcap
-const BOOM = {drag: 1.2, catch: 12, life: 30, rehit: 0.5, vcap: 1.15};
-const boomPull = (spd, range, r0 = 9) => spd * spd / (2 * Math.max(10, range - r0));
-// 서서 던졌을 때 날아갔다 돌아오는 시간 (수치 적분 — 오는 길엔 저항) — DPS 맞춤용
-function boomFlight(range, spd, r0 = 9) {
-  const A = boomPull(spd, range, r0), h = 1 / 600;
-  let r = r0, v = spd, t = 0;
-  while (t < 20) { v -= (A + (v < 0 ? BOOM.drag * v : 0)) * h; r += v * h; t += h; if (v < 0 && r < BOOM.catch) break; }
-  return t;
-}
-//   부메랑 (0.60.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(일정한 끌림, 서 있을 때 boomFlight) + 쿨다운
-const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd) + W.cd : W.mag * W.cd + W.reload;
+// 부메랑 길 (0.61.0 — 물리 없음, 늘 탄속): 겨눈 쪽에서 발사각 acc 만큼 비껴 곧게 사거리까지 → 손을 가운데로 둔 원을 따라 2 × acc 만큼 반대쪽으로 돌고
+//   → 그 자리에서 손까지 곧게 돌아온다. 가는 길 · 오는 길이 2 × acc 만큼 벌어진 물방울 꼴. 집탄은 좁게(같은 길로), 산탄은 넓게(쓸고 지나감)
+const BOOM = {catch: 12, rehit: 0.5};   // 잡히는 거리(손에서 px) · 같은 적 다시 베기(초)
+// 서서 던졌을 때 날아갔다 돌아오는 시간 = (가는 길 + 원호 + 오는 길) ÷ 탄속 — DPS 맞춤용
+const boomFlight = (range, spd, acc = 0) => (2 * range + 2 * acc * Math.PI / 180 * range) / spd;
+//   부메랑 (0.61.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(boomFlight) + 쿨다운
+const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.cd : W.mag * W.cd + W.reload;
 const perCycle = W => W.mag || 2;                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
@@ -1362,18 +1352,18 @@ function fireRail(st, w, i) {
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
 
-// 부메랑 물리는 BOOM 설명 참고 (0.60.0 — 일정한 끌림 + 관성, 중력 없음)
-// 부메랑: 가까운 적 쪽으로 투사체 수만큼 부채꼴. 사거리(st.range)만큼 날고 → 주인공 쪽으로 따라 돌아온다 (boom: 1 가는 중 · 2 오는 중)
+// 부메랑: 가까운 적 쪽으로 투사체 수만큼 부채꼴. 길은 BOOM 설명 (boom: 1 가는 중 · 2 원호 · 3 오는 중). 던질 때마다 비끼는 쪽이 번갈아 바뀜
 function fireBoom(st, w, i) {
   const p = G.p, W = WEAPONS[w.id];
   const tgt = nearestEnemy(p.x, p.y, st.range);
   if (!tgt) return;
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.35;
+  const sg = w.bside = -(w.bside || -1), da = (st.acc || 0) * Math.PI / 180;   // 비끼는 쪽 (번갈아) · 비끼는 각
   for (let k = 0; k < st.count; k++) {
-    const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), pull: boomPull(st.spd, st.range, Math.hypot(m.mx - p.x, m.my - p.y - WPN_CY)), spd0: st.spd, rng: st.range, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
-      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: st.range, life: 0, hit: new Set()});
+    const a = base + (k - (st.count - 1) / 2) * spread + sg * da;
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, sp: st.spd, arc: 2 * da, sg, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
+      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: st.range - Math.hypot(m.mx - p.x, m.my - p.y - WPN_CY), life: 0, hit: new Set()});   // 손에서 사거리까지
   }
 }
 
@@ -1608,23 +1598,20 @@ function update(dt) {
 
   // 투사체
   for (const b of G.bullets) {
-    if (b.boom) {                                                 // 부메랑 물리 (0.60.0) — BOOM 설명 참고
+    if (b.boom) {                                                 // 부메랑 길 (0.61.0) — BOOM 설명 참고. 다음 자리를 정하고 속도로 바꿔 넣는다
       b.rot += dt * 22; b.life += dt;
-      const dx = p.x - b.x, dy = p.y + WPN_CY - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;   // 끌리는 곳 = 손 높이 (무기 고리 가운데)
-      b.vx += ux * b.pull * dt; b.vy += uy * b.pull * dt;          // 늘 주인공 쪽으로 같은 힘 → 나갈 땐 느려지고, 돌아올 땐 빨라진다 (관성은 그대로)
-      { const rvx = b.vx - p.vx, rvy = b.vy - p.vy, rs = Math.hypot(rvx, rvy), cap = b.spd0 * BOOM.vcap;   // 주인공 기준 속도 상한
-        if (rs > cap) { b.vx = p.vx + rvx / rs * cap; b.vy = p.vy + rvy / rs * cap; } }
-      if (b.boom === 1 && b.vx * b.lx + b.vy * b.ly <= 0) { b.boom = 2; b.tTurn = b.life; }   // 던진 쪽 속도가 다 줄면 돌아서기 시작
-      if (d >= b.rng) {                                            // 줄: 사거리 밖으로는 못 나감 — 바깥쪽 상대 속도를 없애고 사거리 안에 둔다
-        const out = -((b.vx - p.vx) * ux + (b.vy - p.vy) * uy);
-        if (out > 0) { b.vx += ux * out; b.vy += uy * out; }
-        b.x = p.x - ux * b.rng; b.y = p.y + WPN_CY - uy * b.rng;
+      const hx = p.x, hy = p.y + WPN_CY, dx = b.x - hx, dy = b.y - hy, d = Math.hypot(dx, dy) || 1;   // 손 높이 (무기 고리 가운데)
+      if (b.boom === 1 && b.travel >= b.maxTravel) {              // 사거리 끝 → 원호 (손 기준 지금 각 · 거리에서)
+        b.boom = b.arc > 0 ? 2 : 3; b.ang = Math.atan2(dy, dx); b.left = b.arc;
       }
-      if (b.boom === 2) {
-        if (d < BOOM.catch || b.life > BOOM.life) { b.dead = true; continue; }   // 손에 잡힘
-        // 저항: 주인공 기준 속도에 늘 같은 세기 → 지나쳐 나갈 때마다 조금씩 덜 나간다
-        const k = 1 - Math.exp(-BOOM.drag * dt);
-        b.vx -= (b.vx - p.vx) * k; b.vy -= (b.vy - p.vy) * k;
+      if (b.boom === 2) {                                         // 원호: 손을 가운데로 반대쪽(−sg)으로 돈다. 반지름은 지금 거리
+        const step = Math.min(b.left, b.sp * dt / d); b.ang -= b.sg * step; b.left -= step;
+        const nx = hx + Math.cos(b.ang) * d, ny = hy + Math.sin(b.ang) * d;
+        b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt;
+        if (b.left <= 1e-6) b.boom = 3;
+      } else if (b.boom === 3) {                                  // 오는 길: 손 쪽으로 곧게 (주인공이 움직이면 따라 꺾임)
+        if (d < Math.max(BOOM.catch, b.sp * dt)) { b.dead = true; continue; }   // 손에 잡힘
+        b.vx = -dx / d * b.sp; b.vy = -dy / d * b.sp;
       }
       for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
     }
