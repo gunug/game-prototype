@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.54.1';
+const VERSION = '0.55.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -356,6 +356,7 @@ const BADGES = {
   cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '한 발 쏘고 다음 발까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
   mag:    {nm: '장탄',   col: '#ffe27a', tip: '재장전 없이 쏘는 수. 다 쏘면 재장전.'},
   reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「공격속도」를 받으면 ×0.85.'},
+  stun:   {nm: '경직',   col: '#d8c8ff', tip: '맞은 적이 이만큼(초) 그 자리에 굳는다 (움직임 · 넉백 멈춤). 보스는 굳지 않는다.'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
@@ -378,6 +379,7 @@ function badgeVal(id, st) {
     case 'cd': return num(st.cd) + 's';
     case 'mag': return st.mag;
     case 'reload': return num(st.reload) + 's';
+    case 'stun': return num(st.stun) + 's';
     case 'range': return Math.round(st.range);
     case 'acc': return '±' + num(st.acc) + '°';
     case 'chain': return st.chain;
@@ -395,7 +397,7 @@ function badgeVal(id, st) {
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 무기가 가진 뱃지 전부 = 능력치 뱃지(피해 · 쿨다운 · 사거리 · 발사각) + 특성 뱃지(badges)
-const wpnBadges = W => ['dmg', 'cd', 'mag', 'reload', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
+const wpnBadges = W => ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', ...(W.acc != null ? ['acc'] : []), ...W.badges];
 // 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
 const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
 
@@ -404,26 +406,26 @@ const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.ba
 const WEAPONS = {
   // acc = 발사각: 한 발마다 겨눈 쪽에서 ±acc 도 안으로 무작위로 빗나간다 (작을수록 좋음). 저격총 < 권총 < 기관총
   pistol: {nm: '권총', kind: 'gun', sh: '가까운 적에게 한 발', ds: '가장 가까운 적에게 한 발씩. 무난한 기본 무기',
-           dmg: 0, cd: 0.5, mag: 8, range: 145, spd: 620, acc: 4, maxT: 1,
+           dmg: 0, cd: 0.5, mag: 8, range: 145, spd: 620, acc: 4, maxT: 1, stun: 0.12,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
            badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['chain', 'pierce']},
   // 저격총: 사거리 안 **가장 먼** 적을 겨눠 빠른 관통탄을 쏜다 — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '가장 먼 적을 꿰뚫는 탄', ds: '사거리 안 가장 먼 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다',
-           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2,   // maxT = 관통 수       // 탄속 1500 (권총 620)
+           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2, stun: 0.3,   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            badges: ['far', 'pierce', 'spread', 'chain', 'burst', 'knock']},
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
-           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1,
+           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['spread', 'chain', 'burst', 'knock', 'splash']},
 };
@@ -454,6 +456,7 @@ function wstat(id) {
     dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1),
     cd: W.cd * (a('rate') ? s.cdMul : 1),
     mag: W.mag,
+    stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
     reload: W.reload * (a('rate') ? s.cdMul : 1),           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
     spd: W.spd,
@@ -706,7 +709,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'range', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'far', 'spread', 'burst', 'knock', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1247,8 +1250,8 @@ function nearestEnemy(x, y, maxD, skip) {
   return best;
 }
 
-// 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) · 잠깐 멈춤 (0.53.0)
-const FLASH_T = 0.1, HITSTOP_T = 0.1, HITSTOP_CD = 0.25;
+// 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) — 보기만. 굳는 건 무기의 경직 stun(초) (0.55.0)
+const FLASH_T = 0.06;
 // 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
 const GHOST_WAIT = 0.1;
 function tickGhost(o, dt) {
@@ -1259,11 +1262,11 @@ function tickGhost(o, dt) {
   if (o.gw > 0) { o.gw -= dt; return; }
   o.gk = Math.max(k, o.gk - Math.max(0.6, (o.gk - k) * 3) * dt); // 처음엔 빠르게, 끝은 부드럽게 — 완만하게 (0.54.1)
 }
-function hurtEnemy(e, dmg) {
+function hurtEnemy(e, dmg, stun = 0) {
   if (e.dead) return;
   const real = armor(dmg, e.def);
   e.hp -= real; e.flash = FLASH_T;
-  if (!e.boss && !(e.stopCd > 0)) { e.stop = HITSTOP_T; e.stopCd = HITSTOP_CD; }   // 히트스톱: 잠깐 멈춤 (연사에 계속 굳지 않게 틈을 둔다)
+  if (stun > 0 && !e.boss) e.stop = Math.max(e.stop || 0, stun);   // 경직: 남은 것보다 길 때만 늘림 (쌓이지 않음)
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real <= dmg * 0.5});   // 방어에 반 넘게 막히면 회색
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
@@ -1316,7 +1319,7 @@ function fireGun(st, w, i) {
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(st);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
-      dmg: st.dmg, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
+      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set()});
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
 }
@@ -1331,7 +1334,7 @@ function fireRail(st, w, i) {
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread + spreadRnd(st);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, pierce: true, pleft: st.pierce || Infinity, rad: W.width / 2,
-      dmg: st.dmg, knock: st.knock, splash: 0, chain: st.chain, tgt, travel: 0, maxTravel: st.range + 30, hit: new Set()});
+      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: st.chain, tgt, travel: 0, maxTravel: st.range + 30, hit: new Set()});
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
@@ -1439,7 +1442,7 @@ function updateLaser(w, wi, st, dt) {
     for (let i = 1; i < line.length; i++) {
       const A = line[i - 1], B = line[i], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
       const u = Math.max(0, Math.min(1, ((e.x - A.x) * dx + (e.y - A.y) * dy) / L2));
-      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg); hit = true; break; }
+      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg, st.stun); hit = true; break; }
     }
   }
   if (hit) useAmmo(w, st);                                        // 빔이 아직 뻗는 중이라 아무도 못 맞혔으면 탄을 안 쓴다
@@ -1526,8 +1529,8 @@ function update(dt) {
   for (const e of G.enemies) {
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
     tickGhost(e, dt);
-    e.flash = Math.max(0, e.flash - dt); e.stopCd = Math.max(0, (e.stopCd || 0) - dt);
-    if (e.stop > 0) {                                             // 히트스톱: 움직임 · 넉백 · 출렁임 모두 멈춤 (넉백은 풀린 뒤 이어짐)
+    e.flash = Math.max(0, e.flash - dt);
+    if (e.stop > 0) {                                             // 경직: 움직임 · 넉백 · 출렁임 모두 멈춤 (넉백은 풀린 뒤 이어짐)
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
     } else {
       if (e.boss) bossTick(e, dt);
@@ -1571,7 +1574,7 @@ function update(dt) {
         const dx = b.x - ox, dy = b.y - oy, u = Math.max(0, Math.min(1, ((e.x - ox) * dx + (e.y - oy) * dy) / (dx * dx + dy * dy || 1)));
         if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + b.rad) continue;
       } else if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
-      hurtEnemy(e, b.dmg); b.hit.add(e);
+      hurtEnemy(e, b.dmg, b.stun); b.hit.add(e);
       if (b.splash) {
         const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
         G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
