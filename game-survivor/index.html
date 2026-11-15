@@ -51,7 +51,9 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .bb .bn{font-size:12px;font-weight:700;color:var(--gc,#fff)}
   .bb .bdef{display:inline-flex;align-items:center;gap:2px;margin-left:6px;color:#c0c8d8;font-size:11px;vertical-align:-1px}
   .bb .bar{height:8px;margin-top:2px;border:1px solid var(--gc,#fff)}
-  .bb .bar>i{background:linear-gradient(90deg,#b22,#f55)}
+  .bb .bar>i{position:absolute;left:0;top:0;bottom:0;height:auto}
+  .bb .bar>i.hp{background:linear-gradient(90deg,#b22,#f55)}
+  .bb .bar>i.gh{background:#fff}
   /* 보스 등장 연출: 화면 가운데쯤 — 큰 얼굴 + '이름 등장!' 이 커지며 나타났다 사라진다 (2.8초) */
   #bossIntro{position:fixed;left:50%;top:calc(var(--topH,0px) + (100vh - var(--topH,0px) - var(--botH,0px)) * .4);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;z-index:5}
   #bossIntro[hidden]{display:none}
@@ -261,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.53.0';
+const VERSION = '0.54.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1246,7 +1248,17 @@ function nearestEnemy(x, y, maxD, skip) {
 }
 
 // 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) · 잠깐 멈춤 (0.53.0)
-const FLASH_T = 0.1, HITSTOP_T = 0.06, HITSTOP_CD = 0.2;
+const FLASH_T = 0.1, HITSTOP_T = 0.1, HITSTOP_CD = 0.25;
+// 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
+const GHOST_WAIT = 0.4;
+function tickGhost(o, dt) {
+  const k = Math.max(0, o.hp / o.maxHp);
+  if (o.gk == null || k >= o.gk) { o.gk = k; o.gw = 0; o.hp0 = o.hp; return; }   // 처음 · 회복: 같이 맞춤
+  if (o.hp < o.hp0) o.gw = GHOST_WAIT;                          // 새로 깎임
+  o.hp0 = o.hp;
+  if (o.gw > 0) { o.gw -= dt; return; }
+  o.gk = Math.max(k, o.gk - Math.max(0.5, (o.gk - k) * 6) * dt); // 처음엔 빠르게, 끝은 부드럽게
+}
 function hurtEnemy(e, dmg) {
   if (e.dead) return;
   const real = armor(dmg, e.def);
@@ -1466,7 +1478,7 @@ function update(dt) {
   if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);
   p.move += (amt - p.move) * Math.min(1, dt * 10);   // 걷기 세기 0~1 (멈추면 서서히 가라앉음)
   p.walk += dt * Math.PI * p.speed / WALK_STRIDE * p.move;   // 한 걸음(통통 한 번 = π) 에 WALK_STRIDE 만큼 나아간다 — 빠른 캐릭터는 발도 빠르게
-  p.inv = Math.max(0, p.inv - dt);
+  p.inv = Math.max(0, p.inv - dt); tickGhost(p, dt);
 
   // 생성: 초당 1.2 + 0.06·초 마리, 1분마다 둘레 무리
   G.spawnAcc += spawnRate() * dt;
@@ -1513,6 +1525,7 @@ function update(dt) {
   const grid = new Map(), CELL = 48;
   for (const e of G.enemies) {
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+    tickGhost(e, dt);
     e.flash = Math.max(0, e.flash - dt); e.stopCd = Math.max(0, (e.stopCd || 0) - dt);
     if (e.stop > 0) {                                             // 히트스톱: 움직임 · 넉백 · 출렁임 모두 멈춤 (넉백은 풀린 뒤 이어짐)
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
@@ -1738,6 +1751,7 @@ function draw() {
     ctx.globalAlpha = 1;
     if (e.hp < e.maxHp && !e.boss) {                              // 보스 체력은 위쪽 큰 줄에
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
+      ctx.fillStyle = '#fff'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * (e.gk ?? 1), 3);
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
     }
     if (e.def > 0 && !e.boss) defMark(e.x + e.r + 3, e.y - e.r * 2.3 + 1.5, e.def);   // 방어: 체력 줄 오른쪽에 방패 + 숫자 (늘 보임)
@@ -1776,6 +1790,7 @@ function draw() {
     const bh = 5, xh = 3, bx = p.x - (tw + gap + bw) / 2 + tw + gap, by = p.y - 60, k = Math.max(0, p.hp / p.maxHp), kx = Math.min(1, G.xp / xpNeed(G.lv));
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + xh + 3);
     ctx.fillStyle = '#3a1416'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, bw * (p.gk ?? k), bh);
     ctx.fillStyle = k > 0.3 ? '#e44' : (Math.floor(G.t * 6) % 2 ? '#f77' : '#c22'); ctx.fillRect(bx, by, bw * k, bh);
     ctx.fillStyle = '#132234'; ctx.fillRect(bx, by + bh + 1, bw, xh);
     ctx.fillStyle = '#5bf'; ctx.fillRect(bx, by + bh + 1, bw * kx, xh);
@@ -1926,9 +1941,11 @@ function hud() {
   const bosses = G.enemies.filter(e => e.boss && !e.dead), key = bosses.map(e => e.bid).join(',');
   if ($('bossBars').dataset.k !== key) {
     $('bossBars').dataset.k = key;
-    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}${e.def > 0 ? `<span class="bdef">${SHIELD_SVG}${e.def}</span>` : ''}</div><div class="bar ticks" style="${hpTicks(e.maxHp)}"><i></i></div></div></div>`).join('');
+    $('bossBars').innerHTML = bosses.map(e => `<div class="bb" style="--gc:${gradeCol(e.boss.grade)}"><i class="bf" style="background-image:url(images/portrait_${e.boss.sprite}.png?v=${VERSION})"></i><div class="bi"><div class="bn">${e.boss.nm}${e.def > 0 ? `<span class="bdef">${SHIELD_SVG}${e.def}</span>` : ''}</div><div class="bar ticks" style="${hpTicks(e.maxHp)}"><i class="gh"></i><i class="hp"></i></div></div></div>`).join('');
   }
-  [...$('bossBars').children].forEach((row, i) => { row.querySelector('.bar>i').style.width = Math.max(0, bosses[i].hp / bosses[i].maxHp * 100) + '%'; });
+  [...$('bossBars').children].forEach((row, i) => { const e = bosses[i];
+    row.querySelector('.bar>.hp').style.width = Math.max(0, e.hp / e.maxHp * 100) + '%';
+    row.querySelector('.bar>.gh').style.width = (e.gk ?? 1) * 100 + '%'; });
   $('banner').hidden = !G.banner;
   if (G.banner) { $('banner').textContent = G.banner.txt; $('banner').style.setProperty('--gc', G.banner.col); $('banner').style.opacity = Math.min(1, G.banner.t); }
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
