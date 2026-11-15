@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.62.0';
+const VERSION = '0.63.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -337,8 +337,8 @@ const UPGRADES = [
   {id: 'scatter',nm: '산탄',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
   {id: 'focus',  nm: '집탄',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
   {id: 'burst',  nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
-  {id: 'pull',   nm: '끌어당김',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 내 쪽으로 당긴다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
-  {id: 'push',   nm: '밀쳐냄',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 뒤로 밀어낸다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
+  {id: 'pull',   nm: '끌어당김',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 탄이 지나는 줄로 당겨 모은다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
+  {id: 'push',   nm: '밀쳐냄',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
   {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
   {id: 'splash', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
@@ -372,7 +372,7 @@ const BADGES = {
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
-  knock:  {nm: '밀당',   col: '#a8d08d', tip: '맞은 적이 움직이는 거리(px, 무게 1 기준 — 무게 2 면 절반). + 는 밀쳐냄, − 는 끌어당김, 0 은 없음. 5칸 저울: 「끌어당김」은 왼쪽, 「밀쳐냄」은 오른쪽으로 한 칸 (한 칸 13 · 두 칸 22).'},
+  knock:  {nm: '밀당',   col: '#a8d08d', tip: '맞은 적이 탄이 지나는 줄 기준으로 옆으로 움직이는 거리(px, 무게 1 기준 — 무게 2 면 절반). + 는 밀쳐냄(줄에서 흩어짐), − 는 끌어당김(줄로 모임, 줄을 넘지는 않음), 0 은 없음. 5칸 저울: 「끌어당김」은 왼쪽, 「밀쳐냄」은 오른쪽으로 한 칸 (한 칸 13 · 두 칸 22).'},
   splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
 };
 // 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지는 0
@@ -1286,6 +1286,7 @@ function nearestEnemy(x, y, maxD, skip) {
 
 // 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) — 보기만. 굳는 건 무기의 경직 stun(초) (0.55.0)
 const FLASH_T = 0.06;
+const KNOCK_DECAY = 8;   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
 // 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
 const GHOST_WAIT = 0.1;
 function tickGhost(o, dt) {
@@ -1590,7 +1591,7 @@ function update(dt) {
       if (e.boss) bossTick(e, dt);
       else { e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt; }
       e.x += e.kbx * dt; e.y += e.kby * dt;
-      const kd = Math.exp(-8 * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
+      const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
     }
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
     (grid.get(k) || grid.set(k, []).get(k)).push(e);
@@ -1646,9 +1647,13 @@ function update(dt) {
         G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
         for (const o of G.enemies) if (o !== e && !o.dead && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
       }
-      if (b.knock) {                                              // 총알이 날던 방향으로 밀림. 무거운 적은 덜 밀림 (거리 = 넉백 ÷ 무게)
-        const sp = Math.hypot(b.vx, b.vy), v0 = Math.sign(b.knock) * knockV(Math.abs(b.knock)) / (e.wt || 1);   // − 면 쏜 쪽으로 당김
-        e.kbx += b.vx / sp * v0; e.kby += b.vy / sp * v0;
+      if (b.knock) {                                              // 밀당 (0.63.0): 탄이 지나는 줄 기준 — 당김은 줄 쪽으로 모으고, 밀침은 줄에서 옆으로 흩는다
+        const sp = Math.hypot(b.vx, b.vy) || 1, nx = -b.vy / sp, ny = b.vx / sp;   // 줄의 옆(법선)
+        const off = (e.x - b.x) * nx + (e.y - b.y) * ny;            // 적이 줄에서 어느 쪽 · 얼마나 떨어졌나
+        const side = Math.sign(off) || (Math.random() < 0.5 ? -1 : 1);   // 정통으로 맞으면 아무 쪽
+        let v0 = knockV(Math.abs(b.knock)) / (e.wt || 1);          // 무거운 적은 덜 움직임 (거리 = 넉백 ÷ 무게)
+        if (b.knock < 0) v0 = -Math.min(v0, Math.abs(off) * KNOCK_DECAY);   // 당김: 줄을 넘어가지 않게 (움직이는 거리 = v0 ÷ 잦아듦)
+        e.kbx += nx * side * v0; e.kby += ny * side * v0;
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
       //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
