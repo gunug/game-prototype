@@ -269,7 +269,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.65.0';
+const VERSION = '0.66.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -374,7 +374,7 @@ const BADGES = {
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
   move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
-  pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). ∞ = 지나는 길의 적을 모두 맞힌다.'},
+  pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). 그보다 많은 적은 피해를 입지 않는다. 레이저는 빔 길의 총구 쪽부터, 부메랑은 한 번 던져 벤 적 수 (벤 적은 오는 길에 다시 벰). 레이저는 「연쇄 +1」마다 같이 +1. ∞ = 지나는 길의 적 모두.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
   burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
@@ -439,8 +439,8 @@ const WEAPONS = {
            badges: ['burst', 'spread']},   // 특성 2개 (0.65.0): 기본 무기 — 발 수를 늘리는 쪽
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
-  laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적은 모두 맞는다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+  laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적을 총구 쪽부터 관통 수만큼 맞힌다',
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, pierce: 3, maxT: 3, stun: 0,   // pierce (0.66.0) = 한 번에 맞히는 적 수, 연쇄 +1 마다 같이 +1   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['chain', 'pierce']},   // 특성 2개: 빔이 적을 잇는다
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
@@ -453,10 +453,10 @@ const WEAPONS = {
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
-  boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길의 적을 모두 벤다',
-           dmg: 0, cd: 0.4, range: 130, spd: 360, acc: 15, maxT: 3, stun: 0.08, rad: 10,   // acc = 고리가 사거리 중간쯤에서 겨눈 쪽에서 비끼는 가장 큰 각 (0.62.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
+  boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길에서 관통 수만큼의 적을 벤다',
+           dmg: 0, cd: 0.4, range: 130, spd: 360, acc: 15, pierce: 4, maxT: 3, stun: 0.08, rad: 10,   // pierce (0.66.0) = 한 번 던져 베는 적 수 (같은 적은 다시 벰)   // acc = 고리가 사거리 중간쯤에서 겨눈 쪽에서 비끼는 가장 큰 각 (0.62.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['spread', 'knock']},   // 특성 2개: 여러 개 던져 길을 쓸고 밀당으로 고리 길에 모은다 · 관통 ∞ 는 설명(ds)에. 발사각(acc)은 능력치 → 산탄 · 집탄 받음
+           badges: ['pierce', 'spread']},   // 특성 2개: 길의 적을 꿰뚫고(관통 4) 여러 개 던져 쓴다. 발사각(acc)은 능력치 → 산탄 · 집탄 받음
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
            dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
@@ -522,7 +522,7 @@ function wstat(id) {
     reload: W.reload * (a('rate') ? s.cdMul : 1),           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
     spd: W.spd * (a('fast') ? spdMulOf(s.spdPos) : 1),       // 탄속 — 저울 왼쪽 칸마다 ×1.25 · 오른쪽 ×0.8
-    pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
+    pierce: (W.pierce || 0) + (W.kind === 'laser' && a('chain') ? s.chain : 0),   // 한 발이 맞히는 적 수 (0 = 제한 없음). 레이저는 연쇄만큼 같이 는다
     count: 1 + (a('count') ? s.count : 0),
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
@@ -1404,7 +1404,7 @@ function fireBoom(st, w, i) {
   const sg = w.bside = -(w.bside || -1), path = boomPath(st.range, st.acc || 0);   // 부푸는 쪽 (번갈아) · 고리 길
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: hx, y: hy, vx: 0, vy: 0, boom: 1, w, sp: st.spd, th: a, sg, path, s: 0, pi: 0, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
+    G.bullets.push({x: hx, y: hy, vx: 0, vy: 0, boom: 1, w, sp: st.spd, th: a, sg, path, s: 0, pi: 0, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: st.pierce || Infinity, tgts: new Set(), rad: W.rad,
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: Infinity, life: 0, hit: new Set()});
   }
 }
@@ -1502,7 +1502,7 @@ function updateLaser(w, wi, st, dt) {
   w.cdT = Math.max(0, w.cdT + st.cd);                           // 남은 몫을 넘긴다 (간격 0.07 이 프레임에 잘려 느려지지 않게)
   const line = beamLine(bm);
   if (line.length < 2) return;
-  let hit = false;
+  const hits = [];                                                // 빔 길의 적 — 총구 쪽부터 관통 수만큼만 맞는다 (0.66.0)
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const q of line) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
   for (const e of G.enemies) {
@@ -1512,10 +1512,12 @@ function updateLaser(w, wi, st, dt) {
     for (let i = 1; i < line.length; i++) {
       const A = line[i - 1], B = line[i], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
       const u = Math.max(0, Math.min(1, ((e.x - A.x) * dx + (e.y - A.y) * dy) / L2));
-      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hurtEnemy(e, st.dmg, st.stun); hit = true; break; }
+      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hits.push([i + u, e]); break; }
     }
   }
-  if (hit) useAmmo(w, st);                                        // 빔이 아직 뻗는 중이라 아무도 못 맞혔으면 탄을 안 쓴다
+  hits.sort((a, b) => a[0] - b[0]);
+  for (const [, e] of hits.slice(0, st.pierce || Infinity)) hurtEnemy(e, st.dmg, st.stun);
+  if (hits.length) useAmmo(w, st);                                        // 빔이 아직 뻗는 중이라 아무도 못 맞혔으면 탄을 안 쓴다
 }
 
 // 총알 연쇄: e 를 맞힌 b 를 다음 적으로 돌린다. 이을 적이 없으면 false
@@ -1657,6 +1659,7 @@ function update(dt) {
     if (!b.boom && b.travel > b.maxTravel) { b.dead = true; continue; }
     for (const e of G.enemies) {
       if (e.dead || b.hit.has(e)) continue;
+      if (b.boom && !b.tgts.has(e) && b.tgts.size >= b.pleft) continue;   // 부메랑: 관통 수만큼 벤 뒤 새 적은 그냥 지나침 (벤 적은 다시 벰)
       if (b.pierce) {                                             // 관통탄: 이번 프레임에 지나온 선분과의 거리
         const dx = b.x - ox, dy = b.y - oy, u = Math.max(0, Math.min(1, ((e.x - ox) * dx + (e.y - oy) * dy) / (dx * dx + dy * dy || 1)));
         if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + b.rad) continue;
@@ -1677,6 +1680,7 @@ function update(dt) {
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
       //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
+      if (b.boom) { b.tgts.add(e); continue; }                     // 부메랑은 관통을 다 써도 떨어지지 않고 돌아온다
       if (b.pierce && --b.pleft > 0) continue;                    // 관통이 남았으면 꿰뚫고 계속 날아간다
       if (b.chain > 0 && chainBullet(b, e)) break;
       b.dead = true;
