@@ -259,7 +259,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.48.0';
+const VERSION = '0.49.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -644,6 +644,7 @@ function newGame(wi, weaponId) {
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
   ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  spawnStartWave();
   buildTimeline();
 }
 
@@ -948,7 +949,9 @@ function navTick(dt) {
 // 레벨업 필요 경험치 — 완벽 플레이(다 잡고 다 줍기)에서 **약 20초마다 한 번** 레벨업 되게 맞춘 곡선 (docs/레벨업_곡선.md)
 //   xpNeed(L) = 25 × 1.124^(L-1). 10분에 Lv 31. 빈도 · 몹 경험치를 바꾸면 콘솔 __fitXp(20) 으로 A · g 를 다시 뽑는다
 const XP_A = 25, XP_G = 1.124;
-const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1));
+// 초반 할인 (0.49.0): Lv1 은 40% 부터 레벨마다 +15% → Lv5 부터 100% (첫 레벨업이 너무 늦어서)
+const XP_EARLY = 0.4, XP_EARLY_STEP = 0.15;
+const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY + XP_EARLY_STEP * (lv - 1)));
 
 function openLevelUp() {
   const pool = UPGRADES.filter(u => G.ups[u.id] < u.max && (!u.ext || G.lv >= EXT_FROM_LV)
@@ -1086,6 +1089,14 @@ function makeEnemy(name, x, y) {
   const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
   return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
     wt: T.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
+}
+// 시작 무리 (0.49.0): 판을 열자마자 둘레 START_R 에 START_N 마리 — 화면 밖에서 걸어오는 첫 10초 공백을 없앤다
+const START_N = 6, START_R = [160, 200];
+function spawnStartWave() {
+  for (let i = 0; i < START_N; i++) {
+    const a = (i + Math.random() * 0.6) / START_N * Math.PI * 2, d = START_R[0] + Math.random() * (START_R[1] - START_R[0]);
+    G.enemies.push(makeEnemy(pickMob(), G.p.x + Math.cos(a) * d, G.p.y + Math.sin(a) * d));
+  }
 }
 function spawnEnemy() {
   if (G.enemies.length >= MAX_ENEMIES) return;
