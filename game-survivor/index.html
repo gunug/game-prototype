@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.60.0';
+const VERSION = '0.60.1';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -453,12 +453,18 @@ const RELOAD_K = 5, RELOAD_MIN = 1.5;
 // 부메랑 물리 (0.60.0 — 중력 없음): 던진 방향 · 속도로 관성을 갖고 날며, 늘 주인공(손) 쪽으로 같은 세기의 힘 pull 을 받는다.
 //   pull = 탄속² ÷ (2 × (사거리 − 던진 거리)) → 서서 던지면 사거리 끝에서 멈췄다 같은 길로 돌아온다.
 //   주인공이 도착 지점을 벗어나면 쌓인 속도로 지나쳐 반대편으로 나간다 — 힘이 거리와 상관없이 같아 멀리 갈수록 되돌리는 일이 쌓여 반드시 다시 온다.
-//   다만 그대로면 영원히 오가므로 감쇠: 돌아선 뒤 free 초가 지나면 주인공 기준 속도 전체를 damp × (지난 시간) 로 줄여 결국 손에 떨어진다.
-// free · damp · 잡히는 거리(손에서 px) · 최대 비행(초) · 같은 적 다시 베기(초) · vcap: 주인공 기준 속도 상한 = 탄속 × vcap
-const BOOM = {free: 1.5, damp: 3, catch: 12, life: 8, rehit: 0.5, vcap: 1.15};
+//   감쇠 (0.60.1): 돌아서기 시작한 뒤 주인공 기준 속도에 늘 같은 저항 drag 를 건다 — 피할 때마다 지나쳐 나가는 거리가 조금씩 줄어 결국 손에 떨어진다.
+//   시간이 갈수록 세지는 감쇠가 아니라서 계속 피하면 계속 피할 수 있다. 줄: 주인공에서 사거리보다 멀리는 못 간다 (바깥으로 가는 속도를 없앰)
+// drag · 잡히는 거리(손에서 px) · 최대 비행(초, 안전장치) · 같은 적 다시 베기(초) · vcap: 주인공 기준 속도 상한 = 탄속 × vcap
+const BOOM = {drag: 1.2, catch: 12, life: 30, rehit: 0.5, vcap: 1.15};
 const boomPull = (spd, range, r0 = 9) => spd * spd / (2 * Math.max(10, range - r0));
-// 서서 던졌을 때 날아갔다 돌아오는 시간 = 가는 데 탄속 ÷ pull, 오는 데 같음 — DPS 맞춤용
-const boomFlight = (range, spd, r0 = 9) => 2 * spd / boomPull(spd, range, r0);
+// 서서 던졌을 때 날아갔다 돌아오는 시간 (수치 적분 — 오는 길엔 저항) — DPS 맞춤용
+function boomFlight(range, spd, r0 = 9) {
+  const A = boomPull(spd, range, r0), h = 1 / 600;
+  let r = r0, v = spd, t = 0;
+  while (t < 20) { v -= (A + (v < 0 ? BOOM.drag * v : 0)) * h; r += v * h; t += h; if (v < 0 && r < BOOM.catch) break; }
+  return t;
+}
 //   부메랑 (0.60.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(일정한 끌림, 서 있을 때 boomFlight) + 쿨다운
 const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd) + W.cd : W.mag * W.cd + W.reload;
 const perCycle = W => W.mag || 2;                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
@@ -1366,7 +1372,7 @@ function fireBoom(st, w, i) {
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.35;
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), pull: boomPull(st.spd, st.range, Math.hypot(m.mx - p.x, m.my - p.y - WPN_CY)), spd0: st.spd, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), pull: boomPull(st.spd, st.range, Math.hypot(m.mx - p.x, m.my - p.y - WPN_CY)), spd0: st.spd, rng: st.range, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: st.range, life: 0, hit: new Set()});
   }
 }
@@ -1609,10 +1615,15 @@ function update(dt) {
       { const rvx = b.vx - p.vx, rvy = b.vy - p.vy, rs = Math.hypot(rvx, rvy), cap = b.spd0 * BOOM.vcap;   // 주인공 기준 속도 상한
         if (rs > cap) { b.vx = p.vx + rvx / rs * cap; b.vy = p.vy + rvy / rs * cap; } }
       if (b.boom === 1 && b.vx * b.lx + b.vy * b.ly <= 0) { b.boom = 2; b.tTurn = b.life; }   // 던진 쪽 속도가 다 줄면 돌아서기 시작
+      if (d >= b.rng) {                                            // 줄: 사거리 밖으로는 못 나감 — 바깥쪽 상대 속도를 없애고 사거리 안에 둔다
+        const out = -((b.vx - p.vx) * ux + (b.vy - p.vy) * uy);
+        if (out > 0) { b.vx += ux * out; b.vy += uy * out; }
+        b.x = p.x - ux * b.rng; b.y = p.y + WPN_CY - uy * b.rng;
+      }
       if (b.boom === 2) {
         if (d < BOOM.catch || b.life > BOOM.life) { b.dead = true; continue; }   // 손에 잡힘
-        // 감쇠: 돌아선 뒤 free 초는 그대로 (지나쳐 나갔다 오고 · 둘레를 돎), 그 뒤 주인공 기준 속도 전체를 갈수록 세게 줄여 손에 떨어진다
-        const k = 1 - Math.exp(-BOOM.damp * Math.max(0, b.life - b.tTurn - BOOM.free) * dt);
+        // 저항: 주인공 기준 속도에 늘 같은 세기 → 지나쳐 나갈 때마다 조금씩 덜 나간다
+        const k = 1 - Math.exp(-BOOM.drag * dt);
         b.vx -= (b.vx - p.vx) * k; b.vy -= (b.vy - p.vy) * k;
       }
       for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
