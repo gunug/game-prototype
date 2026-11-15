@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.57.2';
+const VERSION = '0.58.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -330,6 +330,7 @@ const UPGRADES = [
   {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 3, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
   {id: 'hp',     nm: '체력',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
+  {id: 'move',   nm: '이동속도',   ds: '이동 속도 +10%',       max: 5, badges: ['move'], fx: '+10%', apply: (s, p) => { p.speed *= 1.1; }},
   {id: 'count',  nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
@@ -365,6 +366,7 @@ const BADGES = {
   spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초). 「탄속 증가」는 저울 왼쪽(×1.25), 「탄속 감소」는 오른쪽(×0.8).'},
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다. 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
+  move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). ∞ = 지나는 길의 적을 모두 맞힌다.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
@@ -394,6 +396,7 @@ function badgeVal(id, st) {
     case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
     case 'hp': return st.hp;
     case 'def': return st.def;
+    case 'move': return Math.round(st.move);
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
   }
   return null;
@@ -447,8 +450,8 @@ const WEAPONS = {
 //   단일 DPS = 피해 × mag ÷ 한 바퀴 (평균) — 이것으로 비교 DPS 를 맞춘다
 const DPS_REF = 100;   // 0.44.0 수치 10배 (그 전 10)
 const RELOAD_K = 5, RELOAD_MIN = 1.5;
-//   부메랑 (0.57.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(2 × 사거리 ÷ 탄속, 서 있을 때) + 쿨다운, 한 바퀴에 한 번
-const cycleOf = W => W.kind === 'boom' ? 2 * W.range / W.spd + W.cd : W.mag * W.cd + W.reload;
+//   부메랑 (0.58.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간 + 쿨다운. 끌림 물리라 가는 데 2 × 사거리 ÷ 탄속, 오는 데 같음 (서 있을 때)
+const cycleOf = W => W.kind === 'boom' ? 4 * W.range / W.spd + W.cd : W.mag * W.cd + W.reload;
 const perCycle = W => W.mag || 2;                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
@@ -663,7 +666,7 @@ function newGame(wi, weaponId) {
     wi, world: WORLDS[wi], char: C,
     weapons: [newWeapon(weaponId)], subs: [],
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
+    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0},
     ups: {},
     enemies: [], bullets: [], gems: [], fx: [], texts: [],
@@ -722,7 +725,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'knock', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1021,7 +1024,8 @@ function openLevelUp() {
 function upHtml(u) {
   const fx = `<div class="badges">${u.badges.map(b => badgeHtml(b, u.fx)).join('')}</div>`;
   if (!u.wpn) {
-    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : G.s.def, nx = b === 'hp' ? now + 250 : now + 20;
+    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : b === 'move' ? Math.round(G.p.speed) : G.s.def;
+    const nx = b === 'hp' ? now + 250 : b === 'move' ? Math.round(G.p.speed * 1.1) : now + 20;
     return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
   }
   // 받는 무기만 한 줄씩 (세로): 작은 무기 그림 + '지금→다음' (검은 상자). 이름은 그림 위에 마우스 · 팁 대신 title
@@ -1343,6 +1347,10 @@ function fireRail(st, w, i) {
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
 
+// 부메랑 물리 (0.58.0): 탄속으로 던지면 늘 주인공 쪽으로 같은 힘(pull = 탄속² ÷ (2 × 사거리))에 끌린다.
+//   가만히 서 있으면 사거리 끝에서 멈췄다 같은 길로 돌아온다. 주인공이 옆으로 움직이면 끌림이 비껴서 둘레를 돈다 (빠를수록 더 돎).
+//   돌아서기 시작한 뒤부터 주인공 기준 옆 속도를 BOOM.damp × 지난 시간 만큼 줄여 결국 손에 떨어진다
+const BOOM = {damp: 1, catch: 12, life: 8, rehit: 0.5};   // 감쇠 세기 · 잡히는 거리(손에서 px) · 최대 비행(초) · 같은 적 다시 베기(초)
 // 부메랑: 가까운 적 쪽으로 투사체 수만큼 부채꼴. 사거리(st.range)만큼 날고 → 주인공 쪽으로 따라 돌아온다 (boom: 1 가는 중 · 2 오는 중)
 function fireBoom(st, w, i) {
   const p = G.p, W = WEAPONS[w.id];
@@ -1352,7 +1360,7 @@ function fireBoom(st, w, i) {
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.35;
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), pull: st.spd * st.spd / (2 * st.range), hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: st.range, life: 0, hit: new Set()});
   }
 }
@@ -1493,7 +1501,8 @@ function update(dt) {
   else if (joy.id !== null) { const v = joyVec(); mx = v.x; my = v.y; }   // 조이스틱은 끌어낸 만큼 (0~1)
   else if (pad.v.x || pad.v.y) { const l = Math.max(1, Math.hypot(pad.v.x, pad.v.y)); mx = pad.v.x / l; my = pad.v.y / l; }   // 패드 왼쪽 스틱
   const amt = Math.hypot(mx, my);
-  p.x += mx * p.speed * dt; p.y += my * p.speed * dt;
+  p.vx = mx * p.speed; p.vy = my * p.speed;                     // 부메랑 물리가 쓴다
+  p.x += p.vx * dt; p.y += p.vy * dt;
   // 몸 방향: 움직이는 동안엔 이동 방향만 따른다 (위아래로만 갈 땐 그대로). 서 있을 때만 아래 조준이 공격 방향으로 돌린다
   p.moving = amt > 0.15;
   if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);
@@ -1587,14 +1596,19 @@ function update(dt) {
 
   // 투사체
   for (const b of G.bullets) {
-    if (b.boom) {                                                 // 부메랑: 끝까지 가면 돌아서 주인공을 따라온다. 손에 닿으면 사라짐
+    if (b.boom) {                                                 // 부메랑 물리 (0.58.0) — BOOM 설명 참고
       b.rot += dt * 22; b.life += dt;
-      if (b.boom === 1 && b.travel >= b.maxTravel) { b.boom = 2; b.hit.clear(); }   // 오는 길엔 다시 맞힐 수 있다
+      const dx = p.x - b.x, dy = p.y + WPN_CY - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;   // 끌리는 곳 = 손 높이 (무기 고리 가운데)
+      b.vx += ux * b.pull * dt; b.vy += uy * b.pull * dt;          // 늘 주인공 쪽으로 끌림 → 나갈 땐 느려지고, 돌아올 땐 빨라진다
+      if (b.boom === 1 && b.vx * b.lx + b.vy * b.ly <= 0) { b.boom = 2; b.tTurn = b.life; }   // 던진 쪽 속도가 다 줄면 돌아서기 시작
       if (b.boom === 2) {
-        const sp = Math.hypot(b.vx, b.vy), dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1;
-        if (d < p.r + 6 || b.life > 6) { b.dead = true; continue; }
-        b.vx = dx / d * sp; b.vy = dy / d * sp;
+        if (d < BOOM.catch || b.life > BOOM.life) { b.dead = true; continue; }   // 손에 잡힘
+        // 감쇠: 주인공 기준 옆으로 도는 속도(접선)만 갈수록 세게 줄인다 → 처음엔 공전, 결국 손으로 떨어짐
+        const rvx = b.vx - p.vx, rvy = b.vy - p.vy, rad = rvx * ux + rvy * uy, tx = rvx - rad * ux, ty = rvy - rad * uy;
+        const k = 1 - Math.exp(-BOOM.damp * (b.life - b.tTurn) * dt);
+        b.vx -= tx * k; b.vy -= ty * k;
       }
+      for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
     }
     const st = Math.hypot(b.vx, b.vy) * dt, ox = b.x, oy = b.y;
     b.x += b.vx * dt; b.y += b.vy * dt; b.travel += st;
@@ -1605,7 +1619,7 @@ function update(dt) {
         const dx = b.x - ox, dy = b.y - oy, u = Math.max(0, Math.min(1, ((e.x - ox) * dx + (e.y - oy) * dy) / (dx * dx + dy * dy || 1)));
         if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + b.rad) continue;
       } else if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
-      hurtEnemy(e, b.dmg, b.stun); b.hit.add(e);
+      hurtEnemy(e, b.dmg, b.stun); b.hit.add(e); if (b.boom) b.hitAt.set(e, b.life);
       if (b.splash) {
         const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
         G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
