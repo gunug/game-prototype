@@ -263,7 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.58.0';
+const VERSION = '0.59.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -450,8 +450,21 @@ const WEAPONS = {
 //   단일 DPS = 피해 × mag ÷ 한 바퀴 (평균) — 이것으로 비교 DPS 를 맞춘다
 const DPS_REF = 100;   // 0.44.0 수치 10배 (그 전 10)
 const RELOAD_K = 5, RELOAD_MIN = 1.5;
-//   부메랑 (0.58.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간 + 쿨다운. 끌림 물리라 가는 데 2 × 사거리 ÷ 탄속, 오는 데 같음 (서 있을 때)
-const cycleOf = W => W.kind === 'boom' ? 4 * W.range / W.spd + W.cd : W.mag * W.cd + W.reload;
+// 감쇠 세기 · free: 돌아선 뒤 감쇠 없는 시간(초) · 잡히는 거리(손에서 px) · 최대 비행(초) · 같은 적 다시 베기(초) · soft: 중력 무름 반경(px) — 손 바로 옆에서 힘이 끝없이 커지지 않게
+const BOOM = {damp: 3, free: 1.5, catch: 12, life: 8, rehit: 0.5, soft: 40};
+// 중력 (Plummer): 끌림 = gm × d ÷ (d² + soft²)^1.5 · 위치 에너지 = −gm ÷ √(d² + soft²). 멀면 거리² 에 반비례
+const boomPot = d => 1 / Math.sqrt(d * d + BOOM.soft * BOOM.soft);
+const boomAcc = (gm, d) => gm * d / (d * d + BOOM.soft * BOOM.soft) ** 1.5;
+const boomGM = (spd, range, r0) => spd * spd / 2 / (boomPot(r0) - boomPot(range));   // 던진 거리 r0 에서 탄속 → 사거리에서 멈춤
+// 서서 던졌을 때 날아갔다 돌아오는 시간 (수치 적분, 손 → 무기 끝 9px 에서 던짐) — DPS 맞춤용
+function boomFlight(range, spd, r0 = 9) {
+  const gm = boomGM(spd, range, r0), h = 1 / 600;
+  let r = r0, v = spd, t = 0;
+  while (t < 20) { v -= boomAcc(gm, r) * h; r += v * h; t += h; if (v < 0 && r < BOOM.catch) break; }
+  return t;
+}
+//   부메랑 (0.59.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(중력 물리, 서 있을 때 boomFlight 수치 적분) + 쿨다운
+const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd) + W.cd : W.mag * W.cd + W.reload;
 const perCycle = W => W.mag || 2;                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
@@ -1347,10 +1360,10 @@ function fireRail(st, w, i) {
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.08});
 }
 
-// 부메랑 물리 (0.58.0): 탄속으로 던지면 늘 주인공 쪽으로 같은 힘(pull = 탄속² ÷ (2 × 사거리))에 끌린다.
+// 부메랑 물리 (0.58.0 · 0.59.0 중력): 주인공 손에 중력이 있다 — 끌림 = gm ÷ 거리². 탄속으로 던지면 사거리 끝에서 딱 멈추게 gm 을 정한다
+//   (에너지: 탄속²/2 = gm × (1/던진 거리 − 1/사거리)). 손에서 BOOM.catch 안으로 들어오면 회수.
 //   가만히 서 있으면 사거리 끝에서 멈췄다 같은 길로 돌아온다. 주인공이 옆으로 움직이면 끌림이 비껴서 둘레를 돈다 (빠를수록 더 돎).
 //   돌아서기 시작한 뒤부터 주인공 기준 옆 속도를 BOOM.damp × 지난 시간 만큼 줄여 결국 손에 떨어진다
-const BOOM = {damp: 1, catch: 12, life: 8, rehit: 0.5};   // 감쇠 세기 · 잡히는 거리(손에서 px) · 최대 비행(초) · 같은 적 다시 베기(초)
 // 부메랑: 가까운 적 쪽으로 투사체 수만큼 부채꼴. 사거리(st.range)만큼 날고 → 주인공 쪽으로 따라 돌아온다 (boom: 1 가는 중 · 2 오는 중)
 function fireBoom(st, w, i) {
   const p = G.p, W = WEAPONS[w.id];
@@ -1360,7 +1373,7 @@ function fireBoom(st, w, i) {
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.35;
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), pull: st.spd * st.spd / (2 * st.range), hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
+    G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd, boom: 1, w, lx: Math.cos(a), ly: Math.sin(a), gm: boomGM(st.spd, st.range, Math.hypot(m.mx - p.x, m.my - p.y - WPN_CY)), hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: Infinity, rad: W.rad,
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: st.range, life: 0, hit: new Set()});
   }
 }
@@ -1599,13 +1612,14 @@ function update(dt) {
     if (b.boom) {                                                 // 부메랑 물리 (0.58.0) — BOOM 설명 참고
       b.rot += dt * 22; b.life += dt;
       const dx = p.x - b.x, dy = p.y + WPN_CY - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;   // 끌리는 곳 = 손 높이 (무기 고리 가운데)
-      b.vx += ux * b.pull * dt; b.vy += uy * b.pull * dt;          // 늘 주인공 쪽으로 끌림 → 나갈 땐 느려지고, 돌아올 땐 빨라진다
+      const g = boomAcc(b.gm, d);                                 // 중력: 주인공(손) 쪽으로. 멀면 거리² 에 반비례
+      b.vx += ux * g * dt; b.vy += uy * g * dt;                    // → 나갈 땐 느려지고, 돌아올 땐 빨라진다
       if (b.boom === 1 && b.vx * b.lx + b.vy * b.ly <= 0) { b.boom = 2; b.tTurn = b.life; }   // 던진 쪽 속도가 다 줄면 돌아서기 시작
       if (b.boom === 2) {
         if (d < BOOM.catch || b.life > BOOM.life) { b.dead = true; continue; }   // 손에 잡힘
         // 감쇠: 주인공 기준 옆으로 도는 속도(접선)만 갈수록 세게 줄인다 → 처음엔 공전, 결국 손으로 떨어짐
         const rvx = b.vx - p.vx, rvy = b.vy - p.vy, rad = rvx * ux + rvy * uy, tx = rvx - rad * ux, ty = rvy - rad * uy;
-        const k = 1 - Math.exp(-BOOM.damp * (b.life - b.tTurn) * dt);
+        const k = 1 - Math.exp(-BOOM.damp * Math.max(0, b.life - b.tTurn - BOOM.free) * dt);   // 돌아선 뒤 free 초는 그대로 (공전), 그 뒤 갈수록 세게
         b.vx -= tx * k; b.vy -= ty * k;
       }
       for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
