@@ -261,7 +261,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.52.0';
+const VERSION = '0.53.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1245,10 +1245,13 @@ function nearestEnemy(x, y, maxD, skip) {
   return best;
 }
 
+// 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) · 잠깐 멈춤 (0.53.0)
+const FLASH_T = 0.1, HITSTOP_T = 0.06, HITSTOP_CD = 0.2;
 function hurtEnemy(e, dmg) {
   if (e.dead) return;
   const real = armor(dmg, e.def);
-  e.hp -= real; e.flash = 0.1;
+  e.hp -= real; e.flash = FLASH_T;
+  if (!e.boss && !(e.stopCd > 0)) { e.stop = HITSTOP_T; e.stopCd = HITSTOP_CD; }   // 히트스톱: 잠깐 멈춤 (연사에 계속 굳지 않게 틈을 둔다)
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real <= dmg * 0.5});   // 방어에 반 넘게 막히면 회색
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
@@ -1510,11 +1513,15 @@ function update(dt) {
   const grid = new Map(), CELL = 48;
   for (const e of G.enemies) {
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-    if (e.boss) bossTick(e, dt);
-    else { e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt; }
-    e.x += e.kbx * dt; e.y += e.kby * dt;
-    const kd = Math.exp(-8 * dt); e.kbx *= kd; e.kby *= kd;     // 넉백은 빠르게 잦아든다
-    e.flash = Math.max(0, e.flash - dt);
+    e.flash = Math.max(0, e.flash - dt); e.stopCd = Math.max(0, (e.stopCd || 0) - dt);
+    if (e.stop > 0) {                                             // 히트스톱: 움직임 · 넉백 · 출렁임 모두 멈춤 (넉백은 풀린 뒤 이어짐)
+      e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
+    } else {
+      if (e.boss) bossTick(e, dt);
+      else { e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt; }
+      e.x += e.kbx * dt; e.y += e.kby * dt;
+      const kd = Math.exp(-8 * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
+    }
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
     (grid.get(k) || grid.set(k, []).get(k)).push(e);
   }
@@ -1625,7 +1632,16 @@ function bobOf(name, ph, k, h) {
 // byArea: 적은 **면적**으로 크기를 맞춘다 — 그림 넓이 = (h² × SPRITE_AREA), 가로 · 세로 비율은 그림 그대로. 같은 등급(반지름)이면 같은 넓이
 //   주인공은 예전처럼 높이 h
 const SPRITE_AREA = 0.55;             // 서 있는 좀비(폭/높이 ≈ 0.53)가 예전과 거의 같은 크기가 되는 값
-function drawSprite(name, x, y, h, flip, fallback, bob, byArea) {
+// 그림 모양 그대로 하얀 판 (번쩍임용) — 그림마다 한 번 만들어 둔다
+const WHITE = {};
+function whiteOf(name, img) {
+  if (WHITE[name]) return WHITE[name];
+  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+  const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+  x.globalCompositeOperation = 'source-atop'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  return (WHITE[name] = c);
+}
+function drawSprite(name, x, y, h, flip, fallback, bob, byArea, white) {
   const img = SPRITES[name];
   const b = bob || {lift: 0, sy: 1, tilt: 0};
   if (!img) { ctx.save(); ctx.translate(0, -b.lift); fallback(); ctx.restore(); return; }
@@ -1636,6 +1652,10 @@ function drawSprite(name, x, y, h, flip, fallback, bob, byArea) {
   ctx.rotate(b.tilt);
   ctx.scale((flip ? -1 : 1) / Math.sqrt(b.sy), b.sy);          // 납작해지면 옆으로 퍼짐
   ctx.drawImage(img, -w / 2, -hh, w, hh);
+  if (white > 0) {                                               // 번쩍임: 하얀 판을 덮는다
+    const a = ctx.globalAlpha; ctx.globalAlpha = a * Math.min(1, white) * 0.85;
+    ctx.drawImage(whiteOf(name, img), -w / 2, -hh, w, hh); ctx.globalAlpha = a;
+  }
   ctx.restore();
 }
 
@@ -1706,12 +1726,11 @@ function draw() {
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
     ctx.fillStyle = 'rgba(0,0,0,.3)';
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = e.flash > 0 ? 0.55 : 1;
     if (e.elite != null) {                                        // 엘리트 · 보스: 등급 색 테두리(빛)가 깜빡인다
       ctx.shadowColor = gradeCol(e.elite); ctx.shadowBlur = 6 + 8 * (0.5 + 0.5 * Math.sin(G.t * 8));
     }
     // 왼쪽을 보는 그림은 오른쪽으로 갈 때, 오른쪽을 보는 그림은 왼쪽으로 갈 때 뒤집는다
-    drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob, true);
+    drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob, true, e.flash / FLASH_T);
     if (e.elite != null) {                                        // 빛을 한 번 더 겹쳐 테두리를 또렷하게
       drawSprite(e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob, true);
       ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
