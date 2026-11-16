@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.89.1';
+const VERSION = '0.90.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -350,7 +350,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
-for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
+for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
 for (const n of Object.keys(FACE)) {                     // 그림이 있는 것 = FACE 표 (0.84.0)
   const img = new Image();
   img.onload = () => { SPRITES[n] = trimSprite(img); };
@@ -518,6 +518,14 @@ const WEAPONS = {
            dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['spread', 'splash']},   // 특성 2개: 군중을 쓸고 폭발로 범위 피해
+  // 방패 (0.90.0): 방패 n 개가 주인공 둘레(반지름 = 사거리)를 탄속(px/초)으로 돈다.
+  //   적에 닿으면 피해를 주고 깨짐 · 적 탄(곧은 탄)에 닿으면 탄을 막고 깨짐 (곡사 · 터짐은 못 막음)
+  //   다 깨져야 쿨다운이 돌고, 끝나면 n 개가 다시 생김. 하나라도 남아 있으면 쿨다운 안 돎
+  //   DPS 맞춤: 한 바퀴 = 쿨다운 + 다 쓰는 데 걸린다고 보는 useT, 한 바퀴에 n 번 맞힘
+  shield: {nm: '방패', kind: 'orbit', sh: '둘레를 도는 방패 6개', ds: '방패 6개가 둘레를 돈다. 적에 닿으면 피해를 주고 깨지고, 적 탄을 막으면 깨진다. 다 깨지면 쿨다운 뒤 다시 생긴다',
+           dmg: 0, cd: 3, range: 50, spd: 220, n: 6, useT: 1, maxT: 1, stun: 0.2, rad: 9,
+           len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
+           badges: ['spread', 'knock']},   // 특성 2개: 확산 = 방패 +1 · 밀당 = 맞은 적을 바깥(밀침) · 안(당김)으로
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
@@ -553,14 +561,14 @@ function boomPath(R, acc) {           // 지역 좌표 (x = 겨눈 쪽, y = 옆)
 // 서서 던졌을 때 날아갔다 돌아오는 시간 = 고리 길이 ÷ 탄속 — DPS 맞춤용
 const boomFlight = (range, spd, acc = 0) => boomPath(range, acc).L / spd;
 //   부메랑 (0.61.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(boomFlight) + 쿨다운
-const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.cd : W.mag * W.cd + W.reload;
-const perCycle = W => W.mag || 2;                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
+const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.cd : W.kind === 'orbit' ? W.cd + W.useT : W.mag * W.cd + W.reload;
+const perCycle = W => W.mag || W.n || 2;                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
   W.dmg = Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수
 }
 const dpsOf = W => { const s = W.dmg * perCycle(W) / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.dmg / W.cd}; };
-const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
+const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
@@ -1497,6 +1505,53 @@ function bossTick(e, dt) {
   }
 }
 
+// ── 방패 (0.90.0) ── w.orb = {alive: [방패마다 살아 있나], ph: 돈 각}. 방패 자리 = 몸 가운데 둘레 반지름 st.range
+const orbitN = st => WEAPONS.shield.n + st.count - 1;          // 확산 증가 = 방패 +1
+const ORB_CY = -10;                                              // 고리 중심 = 몸 가운데에서 위로 10px
+function orbitSpots(w, st) {
+  const p = G.p, n = w.orb.alive.length, out = [];
+  for (let i = 0; i < n; i++) if (w.orb.alive[i]) { const a = w.orb.ph + i * Math.PI * 2 / n; out.push({i, a, x: p.x + Math.cos(a) * st.range, y: p.y + ORB_CY + Math.sin(a) * st.range}); }
+  return out;
+}
+function updateOrbit(w, st, dt) {
+  const W = WEAPONS[w.id];
+  if (!w.orb) w.orb = {alive: Array(orbitN(st)).fill(true), ph: 0};
+  w.orb.ph += st.spd / st.range * dt;                           // 탄속 = 방패가 도는 빠르기 (px/초)
+  if (!w.orb.alive.some(Boolean)) {                              // 다 깨짐 → 쿨다운 → 다시 n 개
+    w.cdT -= dt;
+    if (w.cdT <= 0) w.orb.alive = Array(orbitN(st)).fill(true);
+    return;
+  }
+  for (const o of orbitSpots(w, st)) {
+    let hit = false;
+    for (const b of G.eshots) {                                  // 적 탄 막기 (곧은 탄만 — 곡사 · 터짐은 땅에 떨어지는 것)
+      if (b.dead || b.lob || b.blast) continue;
+      if ((b.x - o.x) ** 2 + (b.y - o.y) ** 2 < (b.r + W.rad) ** 2) { b.dead = true; hit = true; break; }
+    }
+    if (!hit) for (const e of G.enemies) {
+      if (e.dead || (e.x - o.x) ** 2 + (e.y - o.y) ** 2 >= (e.r + W.rad) ** 2) continue;
+      hurtEnemy(e, st.dmg, st.stun);
+      if (st.knock) {                                            // 밀침: 주인공에게서 바깥으로 · 당김: 안으로
+        const dx = e.x - G.p.x, dy = e.y - G.p.y, d = Math.hypot(dx, dy) || 1, v0 = knockV(Math.abs(st.knock)) / (e.wt || 1) * Math.sign(st.knock);
+        e.kbx += dx / d * v0; e.kby += dy / d * v0;
+      }
+      hit = true; break;
+    }
+    if (hit) { w.orb.alive[o.i] = false; G.fx.push({kind: 'splash', mine: true, x: o.x, y: o.y, r: W.rad * 1.6, t: 0.2}); }
+  }
+  if (!w.orb.alive.some(Boolean)) w.cdT = st.cd;
+}
+function drawOrbit(w) {
+  const W = WEAPONS[w.id], st = wstat(w.id), img = WEAPON_IMG[w.id], sz = W.rad * 2.4;
+  if (!w.orb) return;
+  ctx.save(); ctx.shadowColor = '#3ef'; ctx.shadowBlur = 8;
+  for (const o of orbitSpots(w, st)) {
+    if (img) ctx.drawImage(img, o.x - sz / 2, o.y - sz / 2, sz, sz);
+    else circle(o.x, o.y, W.rad, '#4af');
+  }
+  ctx.restore();
+}
+
 // ── 적 공격 (0.84.0) ── G.eshots: 곧은 탄 · 곡사(lob) · 부푼 좀비 터짐(blast)
 // 곡사는 주인공 이동을 부드럽게 따라간 속도 G.pv 로 T 초 뒤 자리를 앞질러 겨눈다 (방향을 휙 바꾸면 빗나감)
 const leadPoint = T => ({x: G.p.x + G.pv.x * T, y: G.p.y + G.pv.y * T});
@@ -1554,6 +1609,7 @@ function rangedTick(e, dx, dy, d, dt) {
 function tickEshots(dt) {
   const p = G.p;
   for (const b of G.eshots) {
+    if (b.dead) continue;                                        // 방패에 막힘 (0.90.0)
     if (b.lob || b.blast) {
       b.t += dt;
       if (b.t >= b.T) {
@@ -1924,6 +1980,7 @@ function update(dt) {
       if (reloading(w, st, dt)) { w.beam = null; return; }   // 재장전(과열) 중엔 빔이 꺼진다
       updateLaser(w, wi, st, dt); return;
     }
+    if (kind === 'orbit') { updateOrbit(w, st, dt); return; }
     if (kind === 'boom') {                                         // 부메랑: 날아간 게 하나라도 있으면 못 던짐. 다 받은 뒤부터 쿨다운
       w.out = w.shots.length > 0 || G.bullets.some(b => b.boom && b.w === w);
       if (w.out) { if (!w.shots.length) w.cdT = st.cd; }
@@ -2153,6 +2210,21 @@ function boomMeter(w, i) {
   ctx.fillStyle = ready ? '#c9a93a' : '#ff9a4a';
   ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
 }
+// 방패 미터 (0.90.0): 남은 방패 ÷ 전부 만큼 노랗게 + 남은 수. 다 깨지면 주황 파이가 쿨다운만큼 차오름
+function orbitMeter(w, i) {
+  const st = wstat(w.id), R = 7, {x, y} = meterPos(i);
+  const left = w.orb ? w.orb.alive.filter(Boolean).length : 0, n = w.orb ? w.orb.alive.length : orbitN(st), rl = left === 0;
+  const k = rl ? 1 - Math.max(0, w.cdT) / st.cd : left / n;
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = rl ? '#ff9a4a' : '#c9a93a';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+  if (!rl) {
+    ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(left, x, y + 0.5);
+    ctx.fillStyle = '#fff'; ctx.fillText(left, x, y + 0.5);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+}
 // 날아가는 부메랑: 무기 그림을 돌려 그린다 (그림이 없으면 V 모양)
 function drawBoomerang(x, y, rot, len) {
   const img = WEAPON_IMG.boomerang;
@@ -2269,7 +2341,8 @@ function draw() {
   if (!blink) {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
-  if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
+  if (!blink) poses.forEach(([w, m]) => { if (WEAPONS[w.id].kind !== 'orbit') drawWeapon(w, m); });
+  G.weapons.forEach(w => { if (WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
   // 착탄 범위 (0.88.0): 늘 보임 — 흰 테 + 옅은 붉은 속
   ctx.fillStyle = 'rgba(255,60,60,.45)'; ctx.beginPath(); ctx.arc(p.x, p.y, HITBOX, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -2277,6 +2350,7 @@ function draw() {
   //   다 쓰면 재장전: 주황 파이가 12시부터 시계 방향으로 차오른다 (숫자 없음)
   for (const [i, [w]] of poses.entries()) {
     if (WEAPONS[w.id].kind === 'boom') { boomMeter(w, i); continue; }
+    if (WEAPONS[w.id].kind === 'orbit') { orbitMeter(w, i); continue; }
     const st = wstat(w.id), R = 7, {x, y} = meterPos(i), rl = w.rl > 0;
     const k = rl ? 1 - w.rl / w.rlMax : Math.max(0, w.ammo) / st.mag;
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
