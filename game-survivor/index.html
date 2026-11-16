@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.88.0';
+const VERSION = '0.89.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -298,7 +298,7 @@ const ENEMY_TYPES = {
   //   shield: 방패 횟수 — 남아 있는 동안 어떤 공격이든 1 만 받고 한 번 깎인다. 다 깎이면 방패가 깨진다 (방어와 따로)
   //   burst: 죽으면 그 자리에 T 초 예고 원 → 터져 주인공에게 피해
   spitter:  {nm: '침 좀비',     hp: 90,  def: 0, wt: 0.8, spd: 65, dmg: 60,  r: 15, xp: 2, w: 5, color: '#7a6', faceLeft: FACE.spitter,
-             shot: {range: 170, cd: 2.4, spd: 115, dmg: 70, r: 6, col: '#9f4'}},   // 0.85.2: 탄속 230 → 115 · 앞질러 겨눔
+             shot: {range: 170, cd: 2.4, spd: 115, dmg: 70, r: 6, col: '#ff4a3a'}},   // 0.85.2: 탄속 230 → 115 · 앞질러 겨눔
   grenadier:{nm: '수류탄 좀비', hp: 150, def: 0, wt: 1, spd: 55, dmg: 70,  r: 15, xp: 3, w: 3, color: '#675', faceLeft: FACE.grenadier,
              lob: {range: 210, cd: 3.2, T: 1.1, aoe: 42, dmg: 130}},
   shielder: {nm: '방패 좀비',   hp: 200, def: 0, wt: 2, spd: 38, dmg: 120, r: 15, xp: 4, w: 3, color: '#a44', faceLeft: FACE.shielder, shield: 25},
@@ -1484,7 +1484,7 @@ function bossTick(e, dt) {
     if (e.bt <= 0) {
       const a0 = Math.atan2(dy, dx);
       const off = (e.vw % 2 ? 0 : 0.5) * VOL_ARC / (VOL_N - 1);   // 짝수 번째는 반 칸 엇갈림
-      for (let i = 0; i < VOL_N; i++) { const a = a0 + off + (i / (VOL_N - 1) - 0.5) * VOL_ARC; fireShot(e.x, e.y, a, VOL_SPD, VOL_DMG, 7, '#f84', 700); }
+      for (let i = 0; i < VOL_N; i++) { const a = a0 + off + (i / (VOL_N - 1) - 0.5) * VOL_ARC; fireShot(e.x, e.y, a, VOL_SPD, VOL_DMG, 7, '#ff2a5a', 700); }
       e.bt = VOL_GAP;
       if (--e.vw <= 0) { e.st = 'walk'; e.bt = B.gap; }
     }
@@ -1584,7 +1584,7 @@ function drawEshotsAir() {                                       // 날아가는
     if (b.lob) {
       const k = Math.min(1, b.t / b.T), gx = b.x0 + (b.x - b.x0) * k, gy = b.y0 + (b.y - b.y0) * k, z = 4 * 70 * k * (1 - k);
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
-      circle(gx, gy - z, 5, '#565'); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(gx, gy - z, 5, 0, Math.PI * 2); ctx.stroke();
+      circle(gx, gy - z, 5, '#c33'); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(gx, gy - z, 5, 0, Math.PI * 2); ctx.stroke();
       continue;
     }
     ctx.fillStyle = b.col; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
@@ -1844,7 +1844,7 @@ function updateLaser(w, wi, st, dt) {
     hurtEnemy(e, st.dmg, st.stun);
     if (st.splash) {
       const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
-      if (!(e.sfxT > G.t)) { G.fx.push({kind: 'splash', x: e.x, y: e.y, r: R, t: 0.25}); e.sfxT = G.t + 0.25; }   // 빔은 0.07초마다라 그림은 0.25초에 한 번
+      if (!(e.sfxT > G.t)) { G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: R, t: 0.25}); e.sfxT = G.t + 0.25; }   // 빔은 0.07초마다라 그림은 0.25초에 한 번
       for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
     }
   }
@@ -2024,7 +2024,7 @@ function update(dt) {
       hurtEnemy(e, b.dmg, b.stun); b.hit.add(e); if (b.boom) b.hitAt.set(e, b.life);
       if (b.splash) {
         const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
-        G.fx.push({kind: 'splash', x: b.x, y: b.y, r: R, t: 0.25});
+        G.fx.push({kind: 'splash', mine: true, x: b.x, y: b.y, r: R, t: 0.25});
         for (const o of G.enemies) if (o !== e && !o.dead && (o.x - b.x) ** 2 + (o.y - b.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
       }
       if (b.knock) {                                              // 밀당 (0.63.0): 탄이 지나는 줄 기준 — 당김은 줄 쪽으로 모으고, 밀침은 줄에서 옆으로 흩는다
@@ -2306,21 +2306,24 @@ function draw() {
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
 
   // 투사체
-  // 총알: 날아가는 쪽으로 짧은 노란 꼬리
+  // 총알: 날아가는 쪽으로 짧은 꼬리. 색 (0.89.0): 플레이어가 쏜 것은 파랑 · 청록 계열, 적이 쏜 것은 붉은 계열
   ctx.lineCap = 'round';
   for (const b of G.bullets) {
-    if (b.boom) { drawBoomerang(b.x, b.y, b.rot, WEAPONS.boomerang.len); continue; }
+    if (b.boom) {                                                 // 부메랑: 나무 그림 + 청록 빛
+      ctx.save(); ctx.shadowColor = '#3ef'; ctx.shadowBlur = 10; drawBoomerang(b.x, b.y, b.rot, WEAPONS.boomerang.len); ctx.restore();
+      continue;
+    }
     const sp = Math.hypot(b.vx, b.vy), tl = b.pierce ? 34 : 12, tx = b.vx / sp * tl, ty = b.vy / sp * tl;
-    if (b.pierce) {                                               // 저격탄: 긴 흰 꼬리 + 붉은 빛
-      ctx.strokeStyle = 'rgba(255,110,70,.4)'; ctx.lineWidth = 6;
+    if (b.pierce) {                                               // 저격탄: 긴 흰 꼬리 + 파란 빛
+      ctx.strokeStyle = 'rgba(70,140,255,.45)'; ctx.lineWidth = 6;
       ctx.beginPath(); ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = '#fff6e8'; ctx.lineWidth = 2.2;
+      ctx.strokeStyle = '#eef6ff'; ctx.lineWidth = 2.2;
       ctx.beginPath(); ctx.moveTo(b.x - tx * 0.7, b.y - ty * 0.7); ctx.lineTo(b.x, b.y); ctx.stroke();
       continue;
     }
-    ctx.strokeStyle = 'rgba(255,200,80,.35)'; ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(60,200,255,.4)'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.strokeStyle = '#ffe9a0'; ctx.lineWidth = 2;
+    ctx.strokeStyle = '#c8f4ff'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(b.x - tx * 0.6, b.y - ty * 0.6); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
 
@@ -2348,7 +2351,7 @@ function draw() {
   // 효과: 총구 불꽃 · 스플래시
   for (const f of G.fx) {
     if (f.kind === 'muzzle') {
-      ctx.fillStyle = `rgba(255,220,120,${Math.min(1, f.t * 14)})`;
+      ctx.fillStyle = `rgba(170,240,255,${Math.min(1, f.t * 14)})`;
       ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI * 2); ctx.fill();
       continue;
     }
@@ -2357,7 +2360,7 @@ function draw() {
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.4 - f.t), 0, Math.PI * 2); ctx.stroke();
       continue;
     }
-    ctx.strokeStyle = `rgba(255,170,60,${f.t * 3})`; ctx.lineWidth = 3;
+    ctx.strokeStyle = f.mine ? `rgba(80,230,220,${f.t * 3})` : `rgba(255,60,50,${f.t * 3})`; ctx.lineWidth = 3;   // 색 (0.89.0): 내 것 청록 · 적 것 붉게
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.2 - f.t * 0.8), 0, Math.PI * 2); ctx.stroke();
   }
 
