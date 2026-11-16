@@ -277,12 +277,13 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.83.0';
+const VERSION = '0.84.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false};
+const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
+  spitter: false, grenadier: true, shielder: true, bloater: false, bossmortar: false, bossgeneral: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 // r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
 // wt = 무게: 넉백으로 밀리는 거리 = 넉백 ÷ 무게 (좀비 1 기준)
@@ -292,7 +293,21 @@ const ENEMY_TYPES = {
   brute:  {nm: '거구 좀비', hp: 700, def: 30, wt: 2.5, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
   crawler:{nm: '기는 좀비', hp: 60,  def: 0, wt: 0.8, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
   riot:   {nm: '진압 경찰 좀비', hp: 400, def: 60, wt: 1.5, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 60 — 피해 −38% (0.76.0, 그 전엔 뺄셈이라 약한 연사를 다 막음)
+  // 월드 2 (0.84.0) — 쏘고 · 던지고 · 막고 · 터지는 몹
+  //   shot: 곧게 날아가는 탄 (지금 자리를 겨눔) · lob: 곡사 — 주인공의 이동 방향 · 빠르기로 떨어질 자리를 앞질러 겨눔 (빨간 원 예고)
+  //   range 안에 들고 화면에 보이면 멈춰 서서 cd 마다 쏜다. 멀면 걸어온다
+  //   shield: 방패 횟수 — 남아 있는 동안 어떤 공격이든 1 만 받고 한 번 깎인다. 다 깎이면 방패가 깨진다 (방어와 따로)
+  //   burst: 죽으면 그 자리에 T 초 예고 원 → 터져 주인공에게 피해
+  spitter:  {nm: '침 좀비',     hp: 90,  def: 0, wt: 0.8, spd: 65, dmg: 60,  r: 15, xp: 2, w: 5, color: '#7a6', faceLeft: FACE.spitter,
+             shot: {range: 170, cd: 2.4, spd: 230, dmg: 70, r: 6, col: '#9f4'}},
+  grenadier:{nm: '수류탄 좀비', hp: 150, def: 0, wt: 1, spd: 55, dmg: 70,  r: 15, xp: 3, w: 3, color: '#675', faceLeft: FACE.grenadier,
+             lob: {range: 210, cd: 3.2, T: 1.1, aoe: 42, dmg: 130}},
+  shielder: {nm: '방패 좀비',   hp: 200, def: 0, wt: 2, spd: 38, dmg: 120, r: 15, xp: 4, w: 3, color: '#a44', faceLeft: FACE.shielder, shield: 25},
+  bloater:  {nm: '부푼 좀비',   hp: 160, def: 0, wt: 1.5, spd: 48, dmg: 100, r: 15, xp: 3, w: 3, color: '#cc6', faceLeft: FACE.bloater,
+             burst: {T: 0.7, aoe: 70, dmg: 160}},
 };
+const SHIELD_COL = '#6cf';            // 방패 횟수 표시 색 (방어 DEF_COL 과 다르게)
+const ELITE_SHIELD = 2;               // 엘리트 방패 횟수 배율
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12, wt: 2, spd: 1.15};   // wt: 무게 ×2 · spd: 지금 나오는 잡몹 중 가장 빠른 것(흔들림 최대 ×1.1)보다 ×1.15 (0.81.0 — 무리에 묻히지 않게)
 // 엘리트 등급 (0.73.0): 판마다 무작위 — 등장 확률(w)과 경험치 배율(xp). 일반(0)과 태고(5, 최종 보스)는 안 나옴
@@ -310,7 +325,14 @@ const BOSSES = {
           pats: ['charge'], gap: 3.2},
   final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
+  // 월드 2 (0.84.0) — lob: 앞질러 겨눈 자리 둘레에 수류탄 LOB_N 발 · volley: 부채꼴 탄 VOL_N 발을 VOL_W 번
+  mortar:  {nm: '포격 하사',   sprite: 'bossmortar', grade: 3, fightT: 30, def: 40, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
+            pats: ['lob', 'charge'], gap: 3.0},
+  general: {nm: '기지의 장군', sprite: 'bossgeneral', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
+            pats: ['volley', 'lob', 'summon', 'slam'], gap: 2.6, final: true},
 };
+const LOB_N = 5, LOB_T = 1.2, LOB_AOE = 50, LOB_DMG = 180, LOB_SPREAD = 70;
+const VOL_N = 7, VOL_W = 3, VOL_GAP = 0.3, VOL_ARC = 1.0, VOL_SPD = 250, VOL_DMG = 120;
 // 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
 //   기준 레벨 = 그 보스가 나오는 때의 완벽 플레이 레벨 × BOSS_LV_PCT (지금 75%) — 이 퍼센트로 난이도를 조절한다
 //   기준 빌드 = 권총 하나 · 레벨업의 절반을 공격력 · 공격속도에 번갈아 (나머지는 체력 · 사거리 같은 데) · 보스 방어 뺀 단일 대상 DPS
@@ -327,7 +349,7 @@ const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 �
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
 for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
-for (const n of ['survivor', 'police', 'firefighter', 'zombie', 'dog', 'brute', 'bossmid', 'bossking', 'crawler', 'riot']) {
+for (const n of Object.keys(FACE)) {                     // 그림이 있는 것 = FACE 표 (0.84.0)
   const img = new Image();
   img.onload = () => { SPRITES[n] = trimSprite(img); };
   img.src = `images/portrait_${n}.png?v=${VERSION}`;   // 버전을 붙여 예전 그림이 캐시에 남지 않게
@@ -647,6 +669,11 @@ const WORLDS = [
    mobs: [{type: 'zombie', at: 0}, {type: 'crawler', at: 60}, {type: 'dog', at: 180}, {type: 'brute', at: 360}, {type: 'riot', at: 480}],
    elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],   // 0.73.0: 4 → 8번, 등급은 판마다 무작위 (ELITE_GRADES)
    bosses: [{at: 300, id: 'mid'}, {at: 600, id: 'final'}]},
+  // 월드 2 (0.84.0): 외곽 검문소 — 1 침 좀비(곧은 탄) · 3 방패 좀비 · 6 수류탄 좀비(곡사, 앞질러 겨눔) · 8 부푼 좀비(죽으면 터짐)
+  {id: 2, name: '월드 2', desc: '외곽 검문소 — 좀비 · 침 좀비 · 방패 좀비 · 수류탄 좀비 · 부푼 좀비', dur: 600,
+   mobs: [{type: 'zombie', at: 0}, {type: 'spitter', at: 60}, {type: 'shielder', at: 180}, {type: 'grenadier', at: 360}, {type: 'bloater', at: 480}],
+   elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],
+   bosses: [{at: 300, id: 'mortar'}, {at: 600, id: 'general'}]},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = w => 'survivor.w' + w;
@@ -751,7 +778,7 @@ function newGame(wi, weaponId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0, regen: 0, magnetMul: 1, xpMul: 1},
     ups: {},
-    enemies: [], bullets: [], gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1311,8 +1338,10 @@ function offscreen() {
 }
 function makeEnemy(name, x, y) {
   const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
+  const atk = T.shot || T.lob;
   return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
-    wt: T.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2};
+    wt: T.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2,
+    shield: T.shield || 0, shieldMax: T.shield || 0, atkT: atk ? atk.cd * (0.5 + Math.random() * 0.5) : 0};
 }
 // 시작 무리 (0.49.0): 판을 열자마자 START_N 마리 — 화면 밖에서 걸어오는 첫 10초 공백을 없앤다
 //   0.51.0: 둘레 고리 대신 **게임 칸 안 아무 데나** 흩뿌린다 (주인공에서 START_MIN px 밖, 가장자리 20px 안쪽)
@@ -1336,6 +1365,7 @@ const pushRank = e => e.boss ? 2 : e.elite ? 1 : 0;
 function spawnElite(grade) {
   const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
   e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp * eliteXpMul(grade); e.wt *= ELITE.wt; e.elite = grade;
+  e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
   e.spd = Math.max(...G.world.mobs.filter(m => G.t >= m.at).map(m => ENEMY_TYPES[m.type].spd)) * 1.1 * ELITE.spd;   // 늘 잡몹보다 조금 빠르게   // 경험치: 등급이 높을수록 더
   G.enemies.push(e);
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
@@ -1390,6 +1420,15 @@ function bossTick(e, dt) {
     const pat = B.pats[e.pi++ % B.pats.length];
     if (pat === 'charge') { e.st = 'aimC'; e.bt = 0.8; e.dir = Math.atan2(dy, dx); }
     else if (pat === 'slam') { e.st = 'aimS'; e.bt = 1.0; }
+    else if (pat === 'lob') {                                      // 수류탄 비: 앞질러 겨눈 자리 + 둘레
+      const tg = leadPoint(LOB_T);
+      for (let i = 0; i < LOB_N; i++) {
+        const a = Math.random() * Math.PI * 2, rr = i ? LOB_SPREAD * (0.5 + Math.random() * 0.5) : 0;
+        throwLob(e.x, e.y - e.r, tg.x + Math.cos(a) * rr, tg.y + Math.sin(a) * rr, LOB_T + i * 0.08, LOB_AOE, LOB_DMG);
+      }
+      e.bt = B.gap;
+    }
+    else if (pat === 'volley') { e.st = 'volley'; e.vw = VOL_W; e.bt = 0.5; }
     else if (pat === 'summon') {
       for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2, s = makeEnemy(pickMob(), e.x + Math.cos(a) * (e.r + 40), e.y + Math.sin(a) * (e.r + 40)); s.summon = true; G.enemies.push(s); }
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: e.r + 50, t: 0.3});
@@ -1401,6 +1440,13 @@ function bossTick(e, dt) {
   } else if (e.st === 'dash') {
     e.vx = Math.cos(e.dir) * DASH_SPD; e.x += e.vx * dt; e.y += Math.sin(e.dir) * DASH_SPD * dt;
     if (e.bt <= 0) { e.st = 'walk'; e.bt = B.gap; }
+  } else if (e.st === 'volley') {                               // 부채꼴 탄 VOL_W 번 (처음 0.5초 숨 고름)
+    if (e.bt <= 0) {
+      const a0 = Math.atan2(dy, dx);
+      for (let i = 0; i < VOL_N; i++) { const a = a0 + (i / (VOL_N - 1) - 0.5) * VOL_ARC; fireShot(e.x, e.y, a, VOL_SPD, VOL_DMG, 7, '#f84', 700); }
+      e.bt = VOL_GAP;
+      if (--e.vw <= 0) { e.st = 'walk'; e.bt = B.gap; }
+    }
   } else if (e.st === 'aimS') {
     if (e.bt <= 0) {
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: SLAM_R, t: 0.35});
@@ -1411,6 +1457,81 @@ function bossTick(e, dt) {
       }
       e.st = 'walk'; e.bt = B.gap;
     }
+  }
+}
+
+// ── 적 공격 (0.84.0) ── G.eshots: 곧은 탄 · 곡사(lob) · 부푼 좀비 터짐(blast)
+// 곡사는 주인공 이동을 부드럽게 따라간 속도 G.pv 로 T 초 뒤 자리를 앞질러 겨눈다 (방향을 휙 바꾸면 빗나감)
+const leadPoint = T => ({x: G.p.x + G.pv.x * T, y: G.p.y + G.pv.y * T});
+function fireShot(x, y, a, spd, dmg, r, col, range) {
+  G.eshots.push({x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r, dmg, col, life: range / spd});
+}
+function throwLob(x, y, tx, ty, T, aoe, dmg) {
+  G.eshots.push({lob: true, x0: x, y0: y, x: tx, y: ty, t: 0, T, aoe, dmg});
+}
+// 주인공이 맞음 — 무적 시간 · 방어(뺄셈) · 죽음
+function hurtPlayer(raw) {
+  const p = G.p;
+  if (p.inv > 0 || G.mode === 'over') return;
+  const dmg = armor(raw, G.s.def);
+  p.hp -= dmg; p.inv = 0.5;
+  G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
+  if (p.hp <= 0) gameOver();
+}
+// 쏘는 몹: 사거리 안 · 화면 안이면 서서 쏜다. 아니면 걸어온다. true = 이번 프레임 섰음
+function rangedTick(e, dx, dy, d, dt) {
+  const T = ENEMY_TYPES[e.type], A = T && (T.shot || T.lob);
+  if (!A) return false;
+  const on = Math.abs(e.x - G.p.x) < W / 2 - 10 && Math.abs(e.y - G.p.y) < H / 2 - 10;
+  e.atkT -= dt;
+  if (!on || d > A.range) return false;
+  e.vx = dx / d * 0.01;                                          // 서 있지만 주인공 쪽을 본다
+  if (e.atkT <= 0) {
+    e.atkT = A.cd * (0.9 + Math.random() * 0.2);
+    const k = e.elite != null ? ELITE.dmg : 1;
+    if (T.shot) fireShot(e.x, e.y - e.r * 0.6, Math.atan2(dy, dx), A.spd, A.dmg * k, A.r, A.col, A.range * 1.6);
+    else { const tg = leadPoint(A.T); throwLob(e.x, e.y - e.r, tg.x, tg.y, A.T, A.aoe, A.dmg * k); }
+  }
+  return true;
+}
+function tickEshots(dt) {
+  const p = G.p;
+  for (const b of G.eshots) {
+    if (b.lob || b.blast) {
+      b.t += dt;
+      if (b.t >= b.T) {
+        b.dead = true;
+        G.fx.push({kind: 'splash', x: b.x, y: b.y, r: b.aoe, t: 0.3});
+        if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.aoe + p.r) ** 2) hurtPlayer(b.dmg);
+      }
+      continue;
+    }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if ((b.life -= dt) <= 0) { b.dead = true; continue; }
+    if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.r + p.r) ** 2 && p.inv <= 0) { b.dead = true; hurtPlayer(b.dmg); }
+  }
+  G.eshots = G.eshots.filter(b => !b.dead);
+}
+function drawEshots() {                                          // 떨어질 자리 (땅에): 붉은 원이 차오른다
+  for (const b of G.eshots) {
+    if (!b.lob && !b.blast) continue;
+    const k = Math.min(1, b.t / b.T);
+    ctx.fillStyle = 'rgba(255,60,40,.15)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,60,40,.28)'; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe * k, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,90,60,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+function drawEshotsAir() {                                       // 날아가는 것 (몹 위에)
+  for (const b of G.eshots) {
+    if (b.blast) continue;
+    if (b.lob) {
+      const k = Math.min(1, b.t / b.T), gx = b.x0 + (b.x - b.x0) * k, gy = b.y0 + (b.y - b.y0) * k, z = 4 * 70 * k * (1 - k);
+      ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
+      circle(gx, gy - z, 5, '#565'); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(gx, gy - z, 5, 0, Math.PI * 2); ctx.stroke();
+      continue;
+    }
+    ctx.fillStyle = b.col; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
 }
 
@@ -1448,13 +1569,19 @@ function tickGhost(o, dt) {
 }
 function hurtEnemy(e, dmg, stun = 0) {
   if (e.dead) return;
-  const real = mobArmor(dmg, e.def);
+  let real = mobArmor(dmg, e.def);
+  if (e.shield > 0) {                                           // 방패 (0.84.0): 어떤 공격이든 1 만 받고 한 번 깎임
+    real = 1;
+    if (--e.shield === 0) { G.fx.push({kind: 'shieldbreak', x: e.x, y: e.y - e.r, r: e.r * 1.6, t: 0.4}); G.texts.push({x: e.x, y: e.y - e.r * 2.6, v: '방패 깨짐', t: 0.9, brk: true}); }
+  }
   e.hp -= real; e.flash = FLASH_T;
   if (stun > 0 && !e.boss) e.stop = Math.max(e.stop || 0, stun);   // 경직: 남은 것보다 길 때만 늘림 (쌓이지 않음)
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real < dmg * 0.7});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
     if (e.xp) dropGems(e.x, e.y, e.xp, e.elite != null && !e.boss ? 5 + e.elite * 2 : 1);
+    const bu = (ENEMY_TYPES[e.type] || {}).burst;                // 부푼 좀비: 그 자리에 예고 원 → 터짐 (0.84.0)
+    if (bu) G.eshots.push({blast: true, x: e.x, y: e.y, t: 0, T: bu.T, aoe: bu.aoe * (e.elite != null ? 1.3 : 1), dmg: bu.dmg * (e.elite != null ? ELITE.dmg : 1)});
     if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
     else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
@@ -1694,6 +1821,7 @@ function update(dt) {
   const amt = Math.hypot(mx, my);
   p.vx = mx * p.speed; p.vy = my * p.speed;                     // 부메랑 물리가 쓴다
   p.x += p.vx * dt; p.y += p.vy * dt;
+  { const k = Math.min(1, dt * 4); G.pv.x += (p.vx - G.pv.x) * k; G.pv.y += (p.vy - G.pv.y) * k; }   // 곡사가 보는 이동 (0.84.0)
   // 몸 방향: 움직이는 동안엔 이동 방향만 따른다 (위아래로만 갈 땐 그대로). 서 있을 때만 아래 조준이 공격 방향으로 돌린다
   p.moving = amt > 0.15;
   if (Math.abs(mx) > 0.15) p.face = Math.sign(mx);
@@ -1764,7 +1892,7 @@ function update(dt) {
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
     } else {
       if (e.boss) bossTick(e, dt);
-      else { const sp = chaseSpd(e, d); e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt; }
+      else if (!rangedTick(e, dx, dy, d, dt)) { const sp = chaseSpd(e, d); e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt; }
       e.x += e.kbx * dt; e.y += e.kby * dt;
       const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
     }
@@ -1796,6 +1924,9 @@ function update(dt) {
       if (p.hp <= 0) { gameOver(); return; }
     }
   }
+
+  tickEshots(dt);
+  if (G.mode === 'over') return;
 
   // 투사체
   for (const b of G.bullets) {
@@ -1904,6 +2035,12 @@ const BOB = {
   riot:     {hz: 1.4, amp: 0.04, sq: 0.05, tilt: 0.06},
   bossmid:  {hz: 1.0, amp: 0.04, sq: 0.06, tilt: 0.06},   // 보스: 무겁게
   bossking: {hz: 0.9, amp: 0.03, sq: 0.05, tilt: 0.05},
+  spitter:  {hz: 1.6, amp: 0.05, sq: 0.06, tilt: 0.10},
+  grenadier:{hz: 1.5, amp: 0.05, sq: 0.06, tilt: 0.08},
+  shielder: {hz: 1.0, amp: 0.03, sq: 0.05, tilt: 0.05},   // 무겁게
+  bloater:  {hz: 1.2, amp: 0.04, sq: 0.12, tilt: 0.04},   // 출렁
+  bossmortar:  {hz: 1.0, amp: 0.04, sq: 0.06, tilt: 0.06},
+  bossgeneral: {hz: 0.9, amp: 0.03, sq: 0.05, tilt: 0.05},
 };
 // ph: 위상(라디안), k: 세기 0~1. 들린 높이(px)를 돌려줌 → 그림자 크기에 씀
 function bobOf(name, ph, k, h) {
@@ -2013,6 +2150,7 @@ function draw() {
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
   const es = G.enemies.filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);
+  drawEshots();
   // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
   for (const e of G.enemies) {
     if (!e.boss) continue;
@@ -2050,7 +2188,9 @@ function draw() {
       ctx.fillStyle = '#f44'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2 * e.hp / e.maxHp, 3);
     }
     if (e.def > 0 && !e.boss) defMark(e.x + e.r + 3, e.y - e.r * 2.3 + 1.5, e.def);   // 방어: 체력 줄 오른쪽에 방패 + 숫자 (늘 보임)
+    if (e.shield > 0) shieldMark(e.x, e.y - e.r * 2.3 - 9, e.shield);   // 방패 횟수: 체력 줄 위 가운데 (0.84.0)
   }
+  drawEshotsAir();
 
   // 플레이어
   const pb = bobOf('survivor', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
@@ -2144,6 +2284,11 @@ function draw() {
       ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI * 2); ctx.fill();
       continue;
     }
+    if (f.kind === 'shieldbreak') {
+      ctx.strokeStyle = `rgba(102,204,255,${f.t * 2.5})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.4 - f.t), 0, Math.PI * 2); ctx.stroke();
+      continue;
+    }
     ctx.strokeStyle = `rgba(255,170,60,${f.t * 3})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.2 - f.t * 0.8), 0, Math.PI * 2); ctx.stroke();
   }
@@ -2152,7 +2297,7 @@ function draw() {
   ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
   for (const t of G.texts) {
     ctx.globalAlpha = Math.min(1, t.t * 2);
-    ctx.fillStyle = t.heal ? '#5f5' : t.me ? '#f66' : t.weak ? '#889' : '#fff';
+    ctx.fillStyle = t.brk ? SHIELD_COL : t.heal ? '#5f5' : t.me ? '#f66' : t.weak ? '#889' : '#fff';
     ctx.fillText(t.v, t.x, t.y - (0.8 - t.t) * 30);
   }
   ctx.globalAlpha = 1;
@@ -2220,6 +2365,14 @@ const DEF_COL = '#c0c8d8';
 function shieldPath(x, y, w, h) {                               // 위가 넓고 아래가 뾰족한 방패
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h * 0.45);
   ctx.quadraticCurveTo(x + w, y + h * 0.85, x + w / 2, y + h); ctx.quadraticCurveTo(x, y + h * 0.85, x, y + h * 0.45); ctx.closePath();
+}
+// 방패 횟수 (0.84.0): 하늘색 테두리 둥근 판 + 남은 횟수
+function shieldMark(x, y, n) {
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.roundRect(x - 13, y - 6, 26, 12, 6); ctx.fill();
+  ctx.strokeStyle = SHIELD_COL; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = SHIELD_COL; ctx.fillText(n, x, y + 0.5);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 function defMark(x, y, def) {
   const w = 7, h = 9;
