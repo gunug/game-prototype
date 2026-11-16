@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.67.0';
+const VERSION = '0.68.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -476,7 +476,7 @@ const RELOAD_K = 5, RELOAD_MIN = 1.5;
 //   가는 길 = 3차 베지어 P0 손 · P1 = (0.2R, 0) 겨눈 쪽 곧게 · P2 = (R, c) 끝 옆 · P3 = 끝 (R, 0). 오는 길은 위아래 뒤집어 거꾸로.
 //   이 꼴이면 비낀 각이 사거리 0.5 쯤에서 가장 크다 — c 는 그 가장 큰 각이 acc 가 되게 반으로 나눠 찾는다.
 //   길은 주인공 손을 따라 움직이고 (던질 때 겨눈 방향은 고정), 늘 탄속으로 길이를 따라 나아간다. 끝까지 가면 손에 잡힘
-const BOOM = {rehit: 0.5, seg: 24};   // 같은 적 다시 베기(초) · 베지어 한 쪽을 몇 토막으로 펴는가
+const BOOM = {rehit: 0.5, seg: 24, anchor: 0.4};   // anchor: 고리의 이만큼(길이 비율)까지는 던진 자리 기준, 그 뒤 끝까지 손 기준으로 옮겨 감 (0.68.0)   // 같은 적 다시 베기(초) · 베지어 한 쪽을 몇 토막으로 펴는가
 const BOOM_PATHS = new Map();
 function boomPath(R, acc) {           // 지역 좌표 (x = 겨눈 쪽, y = 옆) 꺾은선 + 누적 길이
   const key = Math.round(R) + '|' + acc.toFixed(2);
@@ -1439,7 +1439,7 @@ function fireBoom(st, w, i) {
   const sg = w.bside = -(w.bside || -1), path = boomPath(st.range, st.acc || 0);   // 부푸는 쪽 (번갈아) · 고리 길
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
-    G.bullets.push({x: hx, y: hy, vx: 0, vy: 0, boom: 1, w, sp: st.spd, th: a, sg, path, s: 0, pi: 0, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: st.pierce || Infinity, tgts: new Set(), rad: W.rad,
+    G.bullets.push({x: hx, y: hy, ax: hx, ay: hy, vx: 0, vy: 0, boom: 1, w, sp: st.spd, th: a, sg, path, s: 0, pi: 0, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: st.pierce || Infinity, tgts: new Set(), rad: W.rad,
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: Infinity, life: 0, hit: new Set()});
   }
 }
@@ -1684,7 +1684,10 @@ function update(dt) {
       while (P.cum[b.pi + 1] < b.s) b.pi++;
       const q = (b.s - P.cum[b.pi]) / (P.cum[b.pi + 1] - P.cum[b.pi] || 1), A = P.pts[b.pi], B = P.pts[b.pi + 1];
       const lx = A[0] + (B[0] - A[0]) * q, ly = (A[1] + (B[1] - A[1]) * q) * b.sg, c = Math.cos(b.th), sn = Math.sin(b.th);
-      const nx = p.x + lx * c - ly * sn, ny = p.y + WPN_CY + lx * sn + ly * c;   // 손(지금 자리) 기준, 던질 때 겨눈 방향으로
+      // 기준점 (0.68.0): 던진 자리(땅)에서 지금 손으로 옮겨 간다 — 가는 길은 땅에 고정돼 겨눈 적까지 가고, 오는 길은 걷는 주인공 손으로 돌아온다
+      const k = Math.max(0, Math.min(1, (b.s / P.L - BOOM.anchor) / (1 - BOOM.anchor))), wk = k * k * (3 - 2 * k);   // 부드럽게 (smoothstep)
+      const ox0 = b.ax + (p.x - b.ax) * wk, oy0 = b.ay + (p.y + WPN_CY - b.ay) * wk;
+      const nx = ox0 + lx * c - ly * sn, ny = oy0 + lx * sn + ly * c;   // 던질 때 겨눈 방향으로
       b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt;
       b.boom = b.s < P.L / 2 ? 1 : 2;
       for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
