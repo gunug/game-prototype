@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.72.0';
+const VERSION = '0.73.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -287,6 +287,14 @@ const ENEMY_TYPES = {
 };
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12, wt: 2};   // wt: 무게 ×2
+// 엘리트 등급 (0.73.0): 판마다 무작위 — 등장 확률(w)과 경험치 배율(xp). 일반(0)과 태고(5, 최종 보스)는 안 나옴
+const ELITE_GRADES = [{g: 1, w: 50, xp: 1}, {g: 2, w: 30, xp: 1.5}, {g: 3, w: 15, xp: 2.5}, {g: 4, w: 5, xp: 4}];
+const eliteXpMul = g => (ELITE_GRADES.find(q => q.g === g) || {xp: 1}).xp;
+function rollEliteGrade() {
+  let r = Math.random() * ELITE_GRADES.reduce((a, q) => a + q.w, 0);
+  for (const q of ELITE_GRADES) if ((r -= q.w) <= 0) return q.g;
+  return ELITE_GRADES[0].g;
+}
 // 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
@@ -614,7 +622,7 @@ const WORLDS = [
   // 1분마다 사건 하나 (0.29.0): 1 새 몹 · 2 엘리트 · 3 새 몹 · 4 엘리트 · 5 중간 보스 · 6 새 몹 · 7 엘리트 · 8 새 몹 · 9 엘리트 · 10 최종 보스
   {id: 1, name: '월드 1', desc: '도심 — 좀비 · 기는 좀비 · 들개 · 거구 좀비 · 진압 경찰 좀비', dur: 600,
    mobs: [{type: 'zombie', at: 0}, {type: 'crawler', at: 60}, {type: 'dog', at: 180}, {type: 'brute', at: 360}, {type: 'riot', at: 480}],
-   elites: [{at: 120, grade: 1}, {at: 240, grade: 2}, {at: 420, grade: 3}, {at: 540, grade: 4}],
+   elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],   // 0.73.0: 4 → 8번, 등급은 판마다 무작위 (ELITE_GRADES)
    bosses: [{at: 300, id: 'mid'}, {at: 600, id: 'final'}]},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
@@ -715,6 +723,7 @@ function newGame(wi, weaponId) {
   G = {
     wi, world: WORLDS[wi], char: C,
     weapons: [newWeapon(weaponId)], subs: [],
+    elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0},
@@ -790,7 +799,7 @@ function openInfo() {
 function gradeInfo(g) {
   const Wd = G ? G.world : WORLDS[selWorld] || WORLDS[0], s = [];
   s.push(g < GRADES.length - 1 ? `업그레이드 칸 ${g * PIP_N + 1}~${(g + 1) * PIP_N}번째` : `업그레이드 칸 ${g * PIP_N + 1}번째부터`);
-  const ev = [...Wd.elites.filter(e => e.grade === g).map(e => [e.at, '엘리트']),
+  const ev = [...(G ? G.elites : []).filter(e => e.grade === g).map(e => [e.at, '엘리트']),
               ...Wd.bosses.filter(e => BOSSES[e.id].grade === g).map(e => [e.at, BOSSES[e.id].nm])].sort((a, b) => a[0] - b[0]);
   return [...s, ...ev.map(([at, nm]) => `${fmt(at)} ${nm}`)].join(' · ');
 }
@@ -1240,7 +1249,7 @@ function spawnEnemy() {
 // 엘리트: 지금 잡몹 하나를 1.3배로 · 체력 ×10 · 피해 ×1.5 · 경험치 ×12, 등급 색 테두리가 깜빡인다
 function spawnElite(grade) {
   const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
-  e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp; e.wt *= ELITE.wt; e.elite = grade;
+  e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp * eliteXpMul(grade); e.wt *= ELITE.wt; e.elite = grade;   // 경험치: 등급이 높을수록 더
   G.enemies.push(e);
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
@@ -1280,7 +1289,7 @@ const setBanner = (txt, col) => {                              // 같은 때 겹
 function timelineTick() {
   const Wd = G.world;
   Wd.mobs.forEach((m, i) => { const k = 'm' + i; if (i && G.t >= m.at && !G.evDone.has(k)) { G.evDone.add(k); setBanner(`${ENEMY_TYPES[m.type].nm} 등장`, '#e8e8ee'); } });
-  Wd.elites.forEach((ev, i) => { const k = 'e' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnElite(ev.grade); } });
+  G.elites.forEach((ev, i) => { const k = 'e' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnElite(ev.grade); } });
   Wd.bosses.forEach((ev, i) => { const k = 'b' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnBoss(ev.id); } });
 }
 // 보스 움직임: 걷기 → (gap 초) → 패턴 차례대로. 돌진은 예고 동안 방향을 따라가다 끝에 굳힌다
@@ -1358,13 +1367,21 @@ function hurtEnemy(e, dmg, stun = 0) {
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real <= dmg * 0.5});   // 방어에 반 넘게 막히면 회색
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
-    if (e.xp) G.gems.push({x: e.x, y: e.y, v: e.xp, pull: false});
+    if (e.xp) dropGems(e.x, e.y, e.xp, e.elite != null && !e.boss ? 5 + e.elite * 2 : 1);
     if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
     else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
   }
 }
 
+// 경험치 보석 떨구기 (0.73.0): n 개로 나눠 사방으로 튀어 오른다 (z = 높이). 땅에 닿기 전엔 못 줍고 끌리지도 않는다
+const GEM_G = 900;                    // 보석 중력 (px/초²)
+function dropGems(x, y, v, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = n > 1 ? 40 + Math.random() * 90 : 15 + Math.random() * 25;
+    G.gems.push({x, y, v: v / n, pull: false, z: 0, vz: n > 1 ? 160 + Math.random() * 100 : 130, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, air: true});
+  }
+}
 // 상자 그림 (캔버스로): 나무 몸통 · 뚜껑 · 금테 · 자물쇠, 둘레에 등급 빛
 function drawChest(x, y, col) {
   ctx.save(); ctx.translate(x, y);
@@ -1743,6 +1760,11 @@ function update(dt) {
   // 보석
   const magnet = 90;
   for (const g of G.gems) {
+    if (g.air) {                                                  // 튀어 오르는 중: 포물선, 땅에 닿으면 한 번 작게 튕기고 멈춤
+      g.x += g.vx * dt; g.y += g.vy * dt; g.vz -= GEM_G * dt; g.z += g.vz * dt;
+      if (g.z <= 0) { g.z = 0; if (g.vz < -120) { g.vz *= -0.35; g.vx *= 0.5; g.vy *= 0.5; } else g.air = false; }
+      continue;
+    }
     const dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
     if (d < magnet) g.pull = true;
     if (g.pull) { const sp = 420 * dt; g.x += dx / d * Math.min(sp, d); g.y += dy / d * Math.min(sp, d); }
@@ -1879,9 +1901,11 @@ function draw() {
 
   // 보석
   for (const g of G.gems) {
+    const r = g.v > 1 ? 7 : 5, z = g.z || 0;
+    if (z > 0) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 2, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }   // 그림자
     ctx.fillStyle = g.v > 1 ? '#fc4' : '#4cf';
-    const r = g.v > 1 ? 7 : 5;
-    ctx.beginPath(); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x + r * 0.7, g.y); ctx.lineTo(g.x, g.y + r); ctx.lineTo(g.x - r * 0.7, g.y); ctx.fill();
+    ctx.save(); ctx.translate(0, -z);
+    ctx.beginPath(); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x + r * 0.7, g.y); ctx.lineTo(g.x, g.y + r); ctx.lineTo(g.x - r * 0.7, g.y); ctx.fill(); ctx.restore();
   }
 
   // 상자: 등급 색으로 빛나며 살짝 뜀
@@ -2115,7 +2139,7 @@ function buildTimeline() {
   const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
   let h = '';
   Wd.mobs.forEach(m => { h += `<div class="tl-m mob" data-at="${m.at}" style="left:${pct(m.at)}" title="${ENEMY_TYPES[m.type].nm} ${fmt(m.at)}"><img src="${img(m.type)}" alt=""></div>`; });
-  Wd.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(ev.grade)}" title="${GRADES[ev.grade].nm} 엘리트 ${fmt(ev.at)}"><i></i></div>`; });
+  G.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(ev.grade)}" title="${GRADES[ev.grade].nm} 엘리트 ${fmt(ev.at)}"><i></i></div>`; });
   Wd.bosses.forEach(ev => { const B = BOSSES[ev.id]; h += `<div class="tl-m boss" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(B.grade)}" title="${B.nm} ${fmt(ev.at)}"><img src="${img(B.sprite)}" alt=""></div>`; });
   $('timeline').querySelector('.tl-marks').innerHTML = h;
 }
@@ -2184,7 +2208,8 @@ window.__perfect = (wi = 0) => {
     let avg = ms.reduce((a, m, i) => a + ENEMY_TYPES[m.type].xp * wt[i] / ws, 0);
     if (intro) avg = avg * (1 - SPAWN.introShare) + ENEMY_TYPES[intro.type].xp * SPAWN.introShare;
     xp += r * avg; mobs += r;
-    WORLDS[wi].elites.forEach(e => { if (e.at === s) xp += avg * ELITE.xp; });   // 엘리트 = 그때 몹 평균 경험치 × 12
+    const exMul = ELITE_GRADES.reduce((a, q) => a + q.w * q.xp, 0) / ELITE_GRADES.reduce((a, q) => a + q.w, 0);   // 등급 기대 배율
+    WORLDS[wi].elites.forEach(e => { if (e.at === s) xp += avg * ELITE.xp * exMul; });   // 엘리트 = 그때 몹 평균 경험치 × 12 × 등급 기대 배율
     WORLDS[wi].bosses.forEach(b => { if (b.at === s) xp += BOSSES[b.id].xp; });
     cum.push(xp);
     while (xp - cur >= xpNeed(lv)) { cur += xpNeed(lv); lv++; }
