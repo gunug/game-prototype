@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.71.0';
+const VERSION = '0.72.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1288,7 +1288,8 @@ function bossTick(e, dt) {
   const p = G.p, B = e.boss, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
   e.bt -= dt;
   if (e.st === 'walk') {
-    e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt;
+    const sp = chaseSpd(e, d);                                  // 화면 밖이면 빠르게 (0.72.0)
+    e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt;
     if (e.bt > 0) return;
     const pat = B.pats[e.pi++ % B.pats.length];
     if (pat === 'charge') { e.st = 'aimC'; e.bt = 0.8; e.dir = Math.atan2(dy, dx); }
@@ -1332,7 +1333,13 @@ const FLASH_T = 0.06;
 const KNOCK_DECAY = 8;
 // 화면 밖 따라잡기 (0.71.0): 화면에 한 번 들어왔다 나간 적(또는 화면 대각선 × FAR_K 보다 멀어진 적)은 OFF_SPD 로 주인공에게 온다.
 //   화면 안에 들어오면 원래 빠르기. 그 전엔 너무 멀면 화면 둘레 아무 각도로 옮겼다 (깎인 체력 그대로 혼자 들어옴)
-const OFF_SPD = 450, FAR_K = 0.9;   // 주인공 최고 이동속도(190 × 1.1⁵ ≈ 306)보다 빠르게   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
+const OFF_SPD = 450, FAR_K = 0.9;   // 주인공 최고 이동속도(190 × 1.1⁵ ≈ 306)보다 빠르게
+// 이번 프레임 걷는 빠르기 — d = 주인공까지 거리. 보스도 걷기 때 같이 (0.72.0)
+function chaseSpd(e, d) {
+  const p = G.p, off = Math.abs(e.x - p.x) > W / 2 + e.r || Math.abs(e.y - p.y) > H / 2 + e.r;
+  if (!off || d > FAR_K * Math.hypot(W, H)) e.seen = true;       // 화면에 들어왔거나 너무 멀어지면 '따라잡을 적'
+  return off && e.seen ? Math.max(e.spd, OFF_SPD) : e.spd;
+}   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
 // 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
 const GHOST_WAIT = 0.1;
 function tickGhost(o, dt) {
@@ -1651,12 +1658,7 @@ function update(dt) {
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
     } else {
       if (e.boss) bossTick(e, dt);
-      else {                                                      // 화면 밖에서 돌아오는 적은 빠르게 (0.71.0)
-        const off = Math.abs(e.x - p.x) > W / 2 + e.r || Math.abs(e.y - p.y) > H / 2 + e.r;
-        if (!off || d > FAR_K * Math.hypot(W, H)) e.seen = true;   // 화면에 들어왔거나 너무 멀어지면 '따라잡을 적'
-        const sp = off && e.seen ? Math.max(e.spd, OFF_SPD) : e.spd;
-        e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt;
-      }
+      else { const sp = chaseSpd(e, d); e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt; }
       e.x += e.kbx * dt; e.y += e.kby * dt;
       const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
     }
@@ -1669,9 +1671,11 @@ function update(dt) {
       const b = grid.get((cx + ox) + ',' + (cy + oy)); if (!b) continue;
       for (const o of b) {
         if (o === e || e.boss) continue;                            // 보스는 밀리지 않는다
+        // 몹은 다른 몹을 밀지 못한다 (0.72.0): 겹치면 주인공에게서 더 먼(뒤에 선) 쪽만 비킨다 — 뒤에서 몰려와도 앞줄이 떠밀려 들어오지 않음
+        if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2) continue;
         const dx = e.x - o.x, dy = e.y - o.y, min = e.r + o.r, d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.01) {
-          const d = Math.sqrt(d2), push = (min - d) * 0.25;
+          const d = Math.sqrt(d2), push = (min - d) * 0.5;   // 한쪽만 비키니 0.25 → 0.5 (0.72.0)
           e.x += dx / d * push; e.y += dy / d * push;
         }
       }
