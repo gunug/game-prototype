@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.69.0';
+const VERSION = '0.70.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -692,12 +692,15 @@ function wcardHtml(id, i) {
 }
 
 // 월드를 시작할 때 무기를 고른다 (해금된 것 중)
-let pickWi = 0;
+let pickWi = 0, pickWpns = [];
+const START_PICK = 3;                // 출발 무기는 해금된 것 중 무작위 3종만 (0.70.0)
 function showWeaponPick(wi) {
   pickWi = wi; G = null;
+  const pool = UNLOCKED_WEAPONS.slice(); pickWpns = [];
+  while (pickWpns.length < START_PICK && pool.length) pickWpns.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   ['worldSel', 'charSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   const box = $('wpnCards'); box.innerHTML = '';
-  UNLOCKED_WEAPONS.forEach((id, i) => {
+  pickWpns.forEach((id, i) => {
     const W = WEAPONS[id], d = document.createElement('div');
     d.className = 'up wcard';
     d.innerHTML = wcardHtml(id, i);
@@ -742,7 +745,7 @@ addEventListener('keydown', e => {
   }
   if (!G) {                                                     // 월드 · 캐릭터 · 무기 선택: 숫자 1~9
     const dg = /^(Digit|Numpad)([1-9])$/.exec(e.code), i = dg ? +dg[2] - 1 : undefined;
-    if (!$('wpnSel').hidden) { if (UNLOCKED_WEAPONS[i]) newGame(pickWi, UNLOCKED_WEAPONS[i]); else if (e.code === 'Escape') showChars(); }
+    if (!$('wpnSel').hidden) { if (pickWpns[i]) newGame(pickWi, pickWpns[i]); else if (e.code === 'Escape') showChars(); }
     else if (!$('charSel').hidden) { if (CHARACTERS[i]) pickChar(i); else if (e.code === 'Escape') showWorlds(); }
     else if (WORLDS[i]) pickWorld(i);
     return;
@@ -932,7 +935,7 @@ function rmItems(scr) {
   }
   if (scr === 'wpnSel') {                                       // 위 절반 = 무기, 아래 절반 = 뒤로
     const cards = [...$('wpnCards').children];
-    return {up: UNLOCKED_WEAPONS.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
+    return {up: pickWpns.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
             down: [{label: '뒤로', el: $('wpnBack'), act: () => showChars()}]};
   }
   if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
