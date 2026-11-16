@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.94.0';
+const VERSION = '0.95.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1410,6 +1410,30 @@ function spawnEnemy() {
   G.enemies.push(makeEnemy(pickMob(), x, y));
 }
 // 엘리트: 지금 잡몹 하나를 1.3배로 · 체력 ×10 · 피해 ×1.5 · 경험치 ×12, 등급 색 테두리가 깜빡인다
+// 가르기 · 기운 (0.95.0): 엘리트 · 보스 둘레(반지름 + PART_PAD) 안의 급 낮은 몹을 밀어낸다 — 앞으로 나와 주인공 가까이 드러나게
+//   앞쪽(주인공 쪽) 반원에 있는 몹은 가는 방향의 **옆으로** (무리가 갈라지듯 — 앞으로 밀면 주인공 쪽으로 쌓여 다시 가림), 뒤쪽은 바깥으로
+//   급 높은 쪽은 낮은 쪽에 막히지 않고 지나간다. 한 프레임에 PART_SPD × dt 까지만 (뚝 끊기지 않게)
+const PART_PAD = {1: 30, 2: 50}, PART_SPD = 260;
+function parting(dt) {
+  const p = G.p;
+  for (const b of G.enemies) {
+    const rb = pushRank(b);
+    if (!rb || b.dead) continue;
+    let hx = p.x - b.x, hy = p.y - b.y; const hl = Math.hypot(hx, hy) || 1; hx /= hl; hy /= hl;
+    const nx = -hy, ny = hx;
+    for (const m of G.enemies) {
+      if (m === b || m.dead || pushRank(m) >= rb) continue;
+      const dx = m.x - b.x, dy = m.y - b.y, R = b.r + m.r + PART_PAD[rb];
+      if (Math.abs(dx) > R || Math.abs(dy) > R) continue;
+      const d = Math.hypot(dx, dy); if (d >= R) continue;
+      let ux, uy;
+      if (dx * hx + dy * hy > 0) { const side = Math.sign(dx * nx + dy * ny) || (Math.random() < 0.5 ? -1 : 1); ux = nx * side; uy = ny * side; }
+      else { ux = dx / (d || 1); uy = dy / (d || 1); }
+      const step = Math.min(R - d, PART_SPD * dt);
+      m.x += ux * step; m.y += uy * step;
+    }
+  }
+}
 // 미는 급 (0.82.0): 잡몹 0 · 엘리트 1 · 보스 2 — 높은 쪽이 낮은 쪽을 밀어낸다
 const pushRank = e => e.boss ? 2 : e.elite ? 1 : 0;
 function spawnElite(grade) {
@@ -2037,6 +2061,7 @@ function update(dt) {
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
     (grid.get(k) || grid.set(k, []).get(k)).push(e);
   }
+  parting(dt);
   for (const e of G.enemies) {
     const cx = (e.x / CELL) | 0, cy = (e.y / CELL) | 0;
     for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
@@ -2046,7 +2071,8 @@ function update(dt) {
         // 몹은 다른 몹을 밀지 못한다 (0.72.0): 겹치면 주인공에게서 더 먼(뒤에 선) 쪽만 비킨다 — 뒤에서 몰려와도 앞줄이 떠밀려 들어오지 않음
         // 엘리트 · 보스는 밀어낸다 (0.82.0): 급이 높은 쪽 앞에선 낮은 쪽이 늘 비킨다. 급이 같을 때만 먼 쪽이 비킴
         const re = pushRank(e), ro = pushRank(o);
-        if (re > ro || (re === ro && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2)) continue;
+        if (re !== ro) continue;                                    // 급이 다르면 아래 parting() 이 맡는다 (0.95.0)
+        if ((re === ro && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2)) continue;
         const dx = e.x - o.x, dy = e.y - o.y, min = e.r + o.r, d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.01) {
           const d = Math.sqrt(d2), push = (min - d) * 0.5;   // 한쪽만 비키니 0.25 → 0.5 (0.72.0)
