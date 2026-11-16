@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.95.1';
+const VERSION = '0.96.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -348,6 +348,7 @@ const mobArmor = (dmg, def) => dmg * 100 / (100 + (def || 0));
 const MAX_ENEMIES = 500;
 const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 후보에
 
+const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
 for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
@@ -1672,7 +1673,11 @@ function drawEshotsAir() {                                       // 날아가는
     if (b.lob) {
       const k = Math.min(1, b.t / b.T), gx = b.x0 + (b.x - b.x0) * k, gy = b.y0 + (b.y - b.y0) * k, z = 4 * 70 * k * (1 - k);
       ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2, 0, 0, Math.PI * 2); ctx.fill();
-      circle(gx, gy - z, 5, '#c33'); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(gx, gy - z, 5, 0, Math.PI * 2); ctx.stroke();
+      // 곡사는 날아가는 동안 판정이 없으니 붉은 탄이 아닌 수류탄 그림 (0.96.0) — 피할 것은 땅의 붉은 원. 곧은 탄(판정 있음)만 붉은 동그라미
+      const im = GRENADE_IMG.complete && GRENADE_IMG.naturalWidth ? GRENADE_IMG : null, gh = 14;
+      ctx.save(); ctx.translate(gx, gy - z); ctx.rotate(b.t * 9);
+      if (im) ctx.drawImage(im, -gh * im.width / im.height / 2, -gh / 2, gh * im.width / im.height, gh); else circle(0, 0, 5, '#565');
+      ctx.restore();
       continue;
     }
     ctx.fillStyle = b.col; ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
