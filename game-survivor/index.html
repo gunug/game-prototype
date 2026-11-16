@@ -147,6 +147,10 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .wrow{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:12px}
   .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
   .wrow .wv b{color:#ffd28a}
+  .up.banning{outline:2px dashed #ff5a5a;outline-offset:-2px}   /* 봉인할 것 고르는 중 */
+  #banBtn.on{background:#a33}
+  #luBtns{margin-top:10px} #luBtns:empty{display:none}
+  .up .udesc{font-size:11px;color:#ccd;margin-top:6px;line-height:1.35}
   .up .sublbl{font-size:10px;color:#5fb0e8;margin-top:1px}
   .up .wimg{width:100%;height:40px;display:flex;align-items:center;justify-content:center;margin-top:4px}
   .up .wimg img{max-width:80%;max-height:34px;image-rendering:pixelated}
@@ -240,6 +244,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <div class="overlay" id="levelup" hidden>
   <h2 id="luTitle">레벨 업!</h2>
   <div class="cards" id="cards"></div>
+  <div class="btns" id="luBtns"></div>
   <div class="hint" id="luHint">1 · 2 · 3 또는 클릭</div>
 </div>
 <div class="overlay" id="pause" hidden>
@@ -270,7 +275,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.77.0';
+const VERSION = '0.78.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -362,6 +367,9 @@ const UPGRADES = [
   {id: 'push',   nm: '밀당 증가',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
   {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
+  // 쓰는 보조 (0.78.0, util): 무기와 상관없이 상자에서 나온다. 단계 없음 (한 번 가지면 끝)
+  {id: 'reroll', sub: '행운 주사위', util: true, nm: '다시 뽑기', ds: '레벨업 · 상자 창마다 한 번, 고를 것을 새로 뽑는다', max: 1, badges: [], apply: () => {}},
+  {id: 'banish', sub: '봉인 부적', util: true, nm: '봉인', ds: '레벨업 · 상자 창마다 하나를 봉인 — 이번 판에서 더 나오지 않는다', max: 1, badges: [], apply: () => {}},
   {id: 'splash', sub: '화약 주머니', nm: '폭발 증가',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
@@ -740,7 +748,7 @@ function newGame(wi, weaponId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0, regen: 0, magnetMul: 1, xpMul: 1},
     ups: {},
-    enemies: [], bullets: [], gems: [], chests: [], chestQ: 0, fx: [], texts: [],
+    enemies: [], bullets: [], gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -774,6 +782,8 @@ addEventListener('keydown', e => {
   if (G.mode === 'levelup') {
     const i = {Digit1: 0, Digit2: 1, Digit3: 2, Numpad1: 0, Numpad2: 1, Numpad3: 2}[e.code];   // 이동 키(WASD)와 겹치지 않게 숫자
     if (i !== undefined && !e.repeat) choose(i);
+    else if (e.code === 'KeyR' && !e.repeat) rerollPicks();
+    else if (e.code === 'KeyB' && !e.repeat) toggleBan();
   } else if (G.mode === 'over' || G.mode === 'clear') {
     if (e.code === 'KeyR') showWeaponPick(G.wi);
     else if (e.code === 'KeyN' && G.mode === 'clear' && WORLDS[G.wi + 1]) showWeaponPick(G.wi + 1);
@@ -834,7 +844,7 @@ const NAV_ROWS = {
   worldSel: ['#worldList > button'],
   charSel:  ['#charList > button', '#charBack'],
   wpnSel:   ['#wpnCards > .up', '#wpnBack'],
-  levelup:  ['#cards > .up'],
+  levelup:  ['#cards > .up', '#luBtns button'],
   pause:    ['#pause .btns button'],
   over:     ['#over .btns button'],
   clear:    ['#clear .btns button'],
@@ -843,7 +853,7 @@ const NAV_ROWS = {
 const NAV_ORDER = ['info', 'levelup', 'pause', 'over', 'clear', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
-const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled));
+const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled)).filter(r => r.length);   // 빈 줄(단추 없음)은 뺀다
 function navSync() {
   const scr = navScreen();
   if (scr === nav.scr) return scr;
@@ -966,8 +976,11 @@ function rmItems(scr) {
     return {up: bs.filter(b => !b.hasAttribute('data-neg')).map(item), down: bs.filter(b => b.hasAttribute('data-neg')).map(item)};
   }
   const cards = [...$('cards').children];
-  const list = G.choices.map((u, i) => ({label: u.sub || u.nm, el: cards[i], act: () => choose(i, true)}));
-  return {up: list, down: []};                                 // 아래 절반은 비워 둠 (나중에 리롤 같은 것)
+  const list = G.choices.map((u, i) => ({label: (G.banMode ? '봉인: ' : '') + (u.sub || u.nm), el: cards[i], act: () => choose(i, true)}));
+  const down = [];                                             // 아래 절반 = 행운 주사위 · 봉인 부적 (0.78.0)
+  if (hasSub('reroll')) down.push({label: '다시 뽑기', img: `images/item_reroll.png?v=${VERSION}`, disabled: !canReroll(), el: $('rerollBtn'), act: rerollPicks});
+  if (hasSub('banish')) down.push({label: G.banMode ? '봉인 취소' : '봉인', img: `images/item_banish.png?v=${VERSION}`, disabled: !canBan(), el: $('banBtn'), act: toggleBan});
+  return {up: list, down};
 }
 // 손가락 위치 → {half, idx}. 가운데면 null
 function rmHit(x, y) {
@@ -1055,9 +1068,9 @@ const XP_A = 25, XP_G = 1.124;
 const XP_EARLY = 0.4, XP_EARLY_STEP = 0.15;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY + XP_EARLY_STEP * (lv - 1)));
 
-function openLevelUp() {
-  const pool = UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
-    && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
+const levelPool = () => UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
+    && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id));   // 영향받는 무기가 없거나 봉인한 것은 안 나온다
+function levelPicks(pool = levelPool()) {
   const picks = [];
   while (picks.length < 3 && pool.length) {
     const tot = pool.reduce((a, u) => a + (u.ext ? 2 : 3), 0);
@@ -1065,27 +1078,38 @@ function openLevelUp() {
     for (; k < pool.length; k++) { r -= pool[k].ext ? 2 : 3; if (r <= 0) break; }
     picks.push(pool.splice(Math.min(k, pool.length - 1), 1)[0]);
   }
-  showPicks(picks, '레벨 업!');
+  return picks;
+}
+function openLevelUp() {
+  G.pickKind = 'lv'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
+  showPicks(levelPicks(), '레벨 업!');
 }
 // 고르기 창 — 레벨업과 상자가 같이 쓴다 (둥근 메뉴 · 키 · 탭이 그대로 붙는다)
-function showPicks(picks, title) {
+function showPicks(picks, title, keep) {
   G.choices = picks;
   G.mode = 'levelup';
-  G.inputLock = 0.35;
+  if (!keep) G.inputLock = 0.35;                                // 봉인 고르기로 다시 그릴 땐 잠그지 않음
   $('luTitle').textContent = title;
   const box = $('cards'); box.innerHTML = '';
   picks.forEach((u, i) => {
     const d = document.createElement('div');
-    d.className = 'up';
+    d.className = 'up' + (G.banMode ? ' banning' : '');
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
     d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${G.subs.some(x => x.id === u.id) ? '보조 강화' : '새 보조'}</div>` : ''}
       ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
-      ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon)) : upHtml(u)}`;
+      ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon))
+        : (u.sub ? `<div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
+  // 행운 주사위 · 봉인 부적 단추 (가진 것만)
+  $('luBtns').innerHTML = (hasSub('reroll') ? `<button id="rerollBtn"${G.pickUse.reroll ? ' disabled' : ''}>다시 뽑기 (R)</button>` : '')
+    + (hasSub('banish') ? `<button id="banBtn" class="${G.banMode ? 'on' : ''}"${G.pickUse.ban ? ' disabled' : ''}>${G.banMode ? '봉인 취소' : '봉인'} (B)</button>` : '');
+  if ($('rerollBtn')) $('rerollBtn').onclick = e => { e.stopPropagation(); rerollPicks(); };
+  if ($('banBtn')) $('banBtn').onclick = e => { e.stopPropagation(); toggleBan(); };
+  $('luHint').textContent = G.banMode ? '봉인할 것을 고르세요' : '1 · 2 · 3 또는 클릭';
   $('levelup').hidden = false;
   // 판 중 누르고 있던 손가락은 메뉴로 잇지 않는다 — 새로 눌러 끌어야 열린다 (0.11.4)
 }
@@ -1094,6 +1118,7 @@ function showPicks(picks, title) {
 //   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
 //   체력 · 방어: 주인공 값 지금 → 다음
 function upHtml(u) {
+  if (u.util) return `<div class="udesc">${u.ds}</div>`;          // 쓰는 보조: 설명만
   const fx = tagsHtml(u.badges, () => u.fx);
   if (!u.wpn) {
     // 주인공 능력치: 복사본에 업그레이드를 걸어 보고 지금 → 다음 (0.74.0 — 체력 재생 · 획득 범위 · 경험치도)
@@ -1151,10 +1176,14 @@ function pipsHtml(done, total) {
 
 function choose(i, click) {
   if (G.mode !== 'levelup' || G.inputLock > 0) return;          // 창이 뜨자마자 누른 탭 · 키는 무시
+  if (G.banMode) { banPick(i); return; }                        // 봉인할 것 고르는 중
   const u = G.choices[i]; if (!u) return;
   G.ups[u.id] = (G.ups[u.id] || 0) + 1;
   u.apply(G.s, G.p);
   if (u.sub && !G.subs.some(x => x.id === u.id)) G.subs.push({id: u.id, nm: u.sub});   // 새 보조 아이템 → 보조 슬롯
+  closePicks();
+}
+function closePicks() {
   $('levelup').hidden = true;
   G.mode = 'play';
   if (G.chestQ > 0) { G.chestQ--; openChest(); }               // 쌓인 상자 먼저, 그다음 밀린 레벨업
@@ -1165,16 +1194,49 @@ function choose(i, click) {
 // 엘리트(특수몹)가 죽으면 상자를 떨군다. 주인공이 닿으면 열려 보조 아이템 3개 중 하나를 고른다
 //   보조 아이템 = 연속 · 투사체 · 연쇄 · 폭발 (레벨업에서 뺀 것). 처음 고르면 보조 슬롯 하나를 차지, 다시 고르면 단계 +1 (최대 5)
 //   슬롯이 다 차면 가진 것만 나온다. 가진 무기가 받지 못하는 것은 안 나온다
-const chestPool = () => UPGRADES.filter(u => u.sub && G.ups[u.id] < u.max && affectedBy(u.id).length
+const chestPool = () => UPGRADES.filter(u => u.sub && G.ups[u.id] < u.max && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id)
   && (G.subs.some(x => x.id === u.id) || G.subs.length < G.char.sSlots));
 // 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
-const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id))
+const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id) && !G.banned.has('new_' + id))
   .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => G.weapons.push(newWeapon(id))}));
-function openChest() {
-  const pool = [...chestPool(), ...newWeaponPool()], picks = [];
+function chestPicks(pool = [...chestPool(), ...newWeaponPool()]) {
+  const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  return picks;
+}
+function openChest() {
+  const picks = chestPicks();
   if (!picks.length) { if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); } return; }   // 고를 것이 없으면 빈 상자
+  G.pickKind = 'chest'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
   showPicks(picks, '상자');
+}
+
+// ───── 행운 주사위 · 봉인 부적 (0.78.0) ─────
+// 가진 보조면 고르기 창(레벨업 · 상자)마다 한 번씩: 다시 뽑기 = 세 장을 새로 · 봉인 = 고른 하나를 이번 판에서 빼고 그 자리를 새로 채움
+const hasSub = id => G.subs.some(x => x.id === id);
+const canReroll = () => G && G.mode === 'levelup' && hasSub('reroll') && !G.pickUse.reroll;
+const canBan = () => G && G.mode === 'levelup' && hasSub('banish') && !G.pickUse.ban;
+const pickTitle = () => G.pickKind === 'chest' ? '상자' : '레벨 업!';
+function rerollPicks() {
+  if (!canReroll() || G.inputLock > 0) return;
+  G.pickUse.reroll = 1; G.banMode = false;
+  showPicks(G.pickKind === 'chest' ? chestPicks() : levelPicks(), pickTitle());
+}
+function toggleBan() {
+  if (!canBan() || G.inputLock > 0) return;
+  G.banMode = !G.banMode; showPicks(G.choices, pickTitle(), true);
+}
+function banPick(i) {
+  const u = G.choices[i]; if (!u) return;
+  const nm = u.newWeapon ? WEAPONS[u.newWeapon].nm : u.sub || u.nm;
+  if (!confirm(`「${nm}」 봉인\n이번 게임에서 더이상 등장하지 않습니다.`)) { G.banMode = false; showPicks(G.choices, pickTitle(), true); return; }
+  G.banned.add(u.id); G.pickUse.ban = 1; G.banMode = false;
+  const shown = new Set(G.choices.map(x => x.id));                 // 그 자리를 아직 안 보인 것으로 채운다
+  const pool = (G.pickKind === 'chest' ? [...chestPool(), ...newWeaponPool()] : levelPool()).filter(x => !shown.has(x.id));
+  const [nx] = G.pickKind === 'chest' ? chestPicks(pool) : levelPicks(pool);
+  if (nx) G.choices[i] = nx; else G.choices.splice(i, 1);
+  if (!G.choices.length) { closePicks(); return; }               // 고를 것이 남지 않으면 그냥 닫힘
+  showPicks(G.choices, pickTitle(), true);
 }
 
 function gainXp(n) {
