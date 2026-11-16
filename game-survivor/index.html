@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.95.0';
+const VERSION = '0.95.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1839,7 +1839,7 @@ function fireBoom(st, w, i) {
 
 const LASER_BEND = [60, 35, 18, 10];   // 마디별 휨(도) — 마디가 출발할 때 곧은 선에서 벌어지는 각. 첫 마디가 가장 크게
 const LASER_HANDLE = 0.42;             // 베지어 손잡이 길이 (마디 길이 비율)
-const LASER_SPEED = 420;              // 빔 끝이 다음 적으로 뻗어 가는 빠르기 (px/초)
+const LASER_SPEED = 1200;             // 빔 끝이 다음 적으로 뻗어 가는 빠르기 (px/초) — 0.95.1: 420 → 1200 (폭발보다 빔이 늦게 보였음)
 const LASER_SAMPLES = 16;             // 마디 하나를 몇 조각 꺾은선으로 (그리기 · 맞힘 판정 공용)
 // 점들(총구 · 적 …)을 지나는 매끄러운 곡선 — 마디마다 3차 베지어, 이음점은 앞뒤 마디가 같은 접선 (꺾이지 않게)
 // 마디 k 가 원하는 출발각 = 곧은 각 + 휨, 도착각 = 곧은 각 - 휨. 이음점 접선 = 앞 마디 도착각과 뒤 마디 출발각의 평균
@@ -1883,7 +1883,7 @@ function beamLine(bm) {
 // 처음엔 총구에서 첫 적으로 천천히 뻗어 가고(prog), 닿으면 그 적 둘레(hop)의 다음 적으로 또 뻗는다 (최대 chain)
 // 겨누던 적이 죽거나 멀어지면 **빔을 거두지 않고** 그 마디가 지금 자리에서 새 적으로 미끄러져 옮겨 간다 (LASER_MOVE)
 // 맞힘: 쿨다운마다 **빔이 지나는 길 위의 적 모두** 한 번씩 (연쇄 대상이 아니어도)
-const LASER_MOVE = 700;               // 마디가 새 적으로 옮겨 가는 빠르기 (px/초)
+const LASER_MOVE = 2400;              // 마디가 새 적으로 옮겨 가는 빠르기 (px/초) — 0.95.1: 700 → 2400. 맞힘은 바로 새 적에 들어가므로 빔이 거의 같이 닿게
 function updateLaser(w, wi, st, dt) {
   const p = G.p, W = WEAPONS[w.id], hop = W.hop * st.range / W.range;
   let bm = w.beam;
