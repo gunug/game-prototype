@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.70.0';
+const VERSION = '0.71.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1329,7 +1329,10 @@ function nearestEnemy(x, y, maxD, skip) {
 
 // 맞으면 하얗게 번쩍 (FLASH_T 동안 옅어짐) — 보기만. 굳는 건 무기의 경직 stun(초) (0.55.0)
 const FLASH_T = 0.06;
-const KNOCK_DECAY = 8;   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
+const KNOCK_DECAY = 8;
+// 화면 밖 따라잡기 (0.71.0): 화면에 한 번 들어왔다 나간 적(또는 화면 대각선 × FAR_K 보다 멀어진 적)은 OFF_SPD 로 주인공에게 온다.
+//   화면 안에 들어오면 원래 빠르기. 그 전엔 너무 멀면 화면 둘레 아무 각도로 옮겼다 (깎인 체력 그대로 혼자 들어옴)
+const OFF_SPD = 450, FAR_K = 0.9;   // 주인공 최고 이동속도(190 × 1.1⁵ ≈ 306)보다 빠르게   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
 // 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
 const GHOST_WAIT = 0.1;
 function tickGhost(o, dt) {
@@ -1648,7 +1651,12 @@ function update(dt) {
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
     } else {
       if (e.boss) bossTick(e, dt);
-      else { e.vx = dx / d * e.spd; e.x += e.vx * dt; e.y += dy / d * e.spd * dt; }
+      else {                                                      // 화면 밖에서 돌아오는 적은 빠르게 (0.71.0)
+        const off = Math.abs(e.x - p.x) > W / 2 + e.r || Math.abs(e.y - p.y) > H / 2 + e.r;
+        if (!off || d > FAR_K * Math.hypot(W, H)) e.seen = true;   // 화면에 들어왔거나 너무 멀어지면 '따라잡을 적'
+        const sp = off && e.seen ? Math.max(e.spd, OFF_SPD) : e.spd;
+        e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt;
+      }
       e.x += e.kbx * dt; e.y += e.kby * dt;
       const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
     }
@@ -1743,12 +1751,6 @@ function update(dt) {
   }
   G.chests = G.chests.filter(c => !c.dead);
 
-  // 너무 멀어진 적은 다시 둘레로 (버려진 적이 쌓이지 않게)
-  const far = Math.hypot(W, H) * 0.9;
-  for (const e of G.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) > far) {
-    const a = Math.random() * Math.PI * 2, d = Math.hypot(W, H) / 2 + 60;
-    e.x = p.x + Math.cos(a) * d; e.y = p.y + Math.sin(a) * d;
-  }
 
   G.enemies = G.enemies.filter(e => !e.dead);
   G.bullets = G.bullets.filter(b => !b.dead);
