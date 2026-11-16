@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.91.0';
+const VERSION = '0.92.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -376,6 +376,11 @@ function trimSprite(img) {
 const UPGRADES = [
   {id: 'dmg',    nm: '피해 증가',     ds: '피해 +20%',            max: 99, wpn: true, badges: ['dmg'], fx: '+20%', apply: s => s.dmgMul *= 1.2},
   {id: 'rate',   nm: '쿨다운 감소',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, badges: ['cd'], fx: '×0.85', apply: s => s.cdMul *= 0.85},
+  // 0.92.0: 치명 · 재장전 · 장탄. 치명 확률은 모든 무기 (치명 피해는 치명 확률을 받은 뒤에만 나옴)
+  {id: 'crit',   nm: '치명 확률 증가', ds: '치명타 확률 +10% — 터지면 피해 × 치명 피해', max: 5, badges: ['crit'], fx: '+10%', apply: s => s.crit += 0.1},
+  {id: 'critdmg',nm: '치명 피해 증가', ds: '치명타 피해 배율 +25%',  max: 5, badges: ['critdmg'], fx: '+25%', apply: s => s.critDmg += 0.25},
+  {id: 'reload', nm: '재장전 감소',   ds: '재장전 ×0.8',          max: 5, wpn: true, badges: ['reload'], fx: '×0.8', apply: s => s.reloadMul *= 0.8},
+  {id: 'mag',    nm: '장탄 증가',     ds: '장탄 +25%',            max: 5, wpn: true, badges: ['mag'], fx: '+25%', apply: s => s.magMul += 0.25},
   {id: 'range',  nm: '사거리 증가',     ds: '사거리 +15%',          max: 3, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
   {id: 'hp',     nm: '체력 증가',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
   {id: 'def',    nm: '방어 증가',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
@@ -387,11 +392,7 @@ const UPGRADES = [
   {id: 'count',  sub: '갈래 총구', nm: '확산 증가',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
-  {id: 'scatter',nm: '발사각 증가',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
-  {id: 'focus',  nm: '발사각 감소',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
   {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
-  {id: 'pull',   nm: '밀당 감소',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 탄이 지나는 줄로 당겨 모은다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
-  {id: 'push',   nm: '밀당 증가',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
   {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
   // 쓰는 보조 (0.78.0, util): 무기와 상관없이 상자에서 나온다. 단계 = 창마다 쓸 수 있는 횟수 (0.79.0, 최대 5)
@@ -402,10 +403,9 @@ const UPGRADES = [
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
 const AXIS_MAX = 2;
-const AXES = {accPos: {l: '산탄', r: '집탄'}, knockPos: {l: '당김', r: '밀침'}, spdPos: {l: '빠름', r: '느림'}};
+const AXES = {spdPos: {l: '빠름', r: '느림'}};   // 0.92.0: 발사각(산탄 · 집탄) · 밀당 저울은 뺌
 const axisOk = u => { const v = G.s[u.axis] + u.dir; return v >= -AXIS_MAX && v <= AXIS_MAX; };
 // 발사각 배율: 오른쪽(집탄) 한 칸 ×0.8, 왼쪽(산탄) 한 칸 ×1.25
-const accMulOf = pos => pos > 0 ? 0.8 ** pos : 1.25 ** -pos;
 // 탄속 배율: 왼쪽(증가) 한 칸 ×1.25, 오른쪽(감소) 한 칸 ×0.8
 const spdMulOf = pos => pos < 0 ? 1.25 ** -pos : 0.8 ** pos;
 
@@ -415,12 +415,14 @@ const BADGES = {
   // 능력치 뱃지 — 모든 무기가 가진다 (발사각은 탄이 있는 무기만). 값은 숫자로 붙는다
   dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「피해 증가」를 받으면 +20%.'},
   cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '한 발 쏘고 다음 발까지 걸리는 초. 「쿨다운 감소」를 받으면 ×0.85 (짧을수록 좋음).'},
-  mag:    {nm: '장탄',   col: '#ffe27a', tip: '재장전 없이 쏘는 수. 다 쏘면 재장전.'},
-  reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「쿨다운 감소」를 받으면 ×0.85.'},
+  mag:    {nm: '장탄',   col: '#ffe27a', tip: '재장전 없이 쏘는 수. 다 쏘면 재장전. 「장탄 증가」를 받으면 기본의 +25%.'},
+  reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「재장전 감소」를 받으면 ×0.8, 「쿨다운 감소」도 ×0.85.'},
+  crit:   {nm: '치명 확률', col: '#ffd84a', tip: '한 번 맞힐 때 치명타가 터질 확률. 터지면 피해 × 치명 피해 (노란 큰 숫자). 「치명 확률 증가」를 받으면 +10%.'},
+  critdmg:{nm: '치명 피해', col: '#ffb84a', tip: '치명타가 터졌을 때 피해 배율. 기본 ×1.5. 「치명 피해 증가」를 받으면 +25%.'},
   stun:   {nm: '경직',   col: '#d8c8ff', tip: '맞은 적이 이만큼(초) 그 자리에 굳는다 (움직임 · 넉백 멈춤). 보스는 굳지 않는다.'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리 증가」를 받으면 +15%.'},
   spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초). 「탄속 증가」는 저울 왼쪽(×1.25), 「탄속 감소」는 오른쪽(×0.8).'},
-  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 고리 길이 사거리 중간쯤에서 겨눈 쪽에서 이만큼씩 부풀고, 끝에서는 0°). 「발사각 감소」를 받으면 좁아지고(×0.8, 잘 모임) 「발사각 증가」를 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
+  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 고리 길이 사거리 중간쯤에서 겨눈 쪽에서 이만큼씩 부풀고, 끝에서는 0°).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력 증가」를 받으면 +250 하고 그만큼 회복.'},
   move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도 증가」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
@@ -459,6 +461,8 @@ function badgeVal(id, st) {
     case 'regen': return st.regen + '/s';
     case 'magnet': return Math.round(st.magnet);
     case 'xpmul': return Math.round(st.xpMul * 100) + '%';
+    case 'crit': return Math.round(st.crit * 100) + '%';
+    case 'critdmg': return '×' + num(st.critDmg);
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
   }
   return null;
@@ -466,7 +470,7 @@ function badgeVal(id, st) {
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 공통 능력치 (0.64.0): 뱃지가 아니라 '이름 … 값' 수치 줄로 쓴다. 특성(관통 · 연쇄 …)만 뱃지
-const STATS = new Set(['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']);
+const STATS = new Set(['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul', 'crit', 'critdmg']);
 const statHtml = (id, val) => `<div class="stat" data-badge="${id}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></div>`;
 const statsHtml = (ids, st) => `<div class="stats">${ids.map(id => statHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 능력치는 수치 줄, 특성은 뱃지 — 한 묶음씩
@@ -505,7 +509,7 @@ const WEAPONS = {
   sniper: {nm: '저격총', kind: 'rail', sh: '적을 꿰뚫는 센 탄', ds: '가장 가까운 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다',
            dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2, stun: 0.3,   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
-           badges: ['pierce', 'knock']},   // 특성 2개: 당김으로 적을 탄 줄에 모아 다음 관통탄이 줄줄이 꿰뚫는다
+           badges: ['pierce']},   // 0.92.0: 밀당 업그레이드를 빼서 특성 밀당도 뺌 (그 전 관통 · 밀당)
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
@@ -525,7 +529,7 @@ const WEAPONS = {
   shield: {nm: '방패', kind: 'orbit', sh: '둘레를 도는 방패 6개', ds: '방패 6개가 둘레를 돈다. 적에 닿으면 피해를 주고 깨지고, 적 탄을 막으면 깨진다. 다 깨지면 쿨다운 뒤 다시 생긴다',
            dmg: 0, cd: 3, range: 50, spd: 220, n: 6, useT: 1, maxT: 1, stun: 0.2, rad: 9,
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['spread', 'knock']},   // 특성 2개: 확산 = 방패 +1 · 밀당 = 맞은 적을 바깥(밀침) · 안(당김)으로
+           badges: ['spread']},   // 0.92.0: 밀당 뺌   // 특성 2개: 확산 = 방패 +1 · 밀당 = 맞은 적을 바깥(밀침) · 안(당김)으로
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
@@ -581,18 +585,18 @@ function wstat(id) {
   return {
     dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1),
     cd: W.cd * (a('rate') ? s.cdMul : 1),
-    mag: W.mag,
+    mag: W.mag && Math.round(W.mag * (a('mag') ? s.magMul : 1)),   // 장탄 증가 (0.92.0)
     stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
-    reload: W.reload * (a('rate') ? s.cdMul : 1),           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
+    reload: W.reload * (a('rate') ? s.cdMul : 1) * (a('reload') ? s.reloadMul : 1),   // 재장전 감소 (0.92.0)           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
     spd: W.spd * (a('fast') ? spdMulOf(s.spdPos) : 1),       // 탄속 — 저울 왼쪽 칸마다 ×1.25 · 오른쪽 ×0.8
     pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
     count: 1 + (a('count') ? s.count : 0),
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
-    knock: a('push') ? s.knockPos : 0,                        // 밀당 저울 자리: + 밀쳐냄 · − 끌어당김
+    knock: 0,                                                 // 밀당 업그레이드 뺌 (0.92.0)
     splash: a('splash') ? s.splash : 0,
-    acc: W.acc != null ? W.acc * (a('focus') ? accMulOf(s.accPos) : 1) : undefined,   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
+    acc: W.acc,                                              // 발사각 업그레이드 뺌 (0.92.0)   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
 }
 const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).map(w => WEAPONS[w.id].nm);
@@ -786,7 +790,7 @@ function newGame(wi, weaponId) {
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0, regen: 0, magnetMul: 1, xpMul: 1},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, spdPos: 0, crit: 0, critDmg: 1.5, reloadMul: 1, magMul: 1, regen: 0, magnetMul: 1, xpMul: 1},
     ups: {},
     enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
@@ -848,7 +852,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'crit', 'critdmg', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1146,7 +1150,7 @@ const XP_A = 25, XP_G = 1.124;
 const XP_EARLY = 0.08, XP_EARLY_MUL = 1.6;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY * XP_EARLY_MUL ** (lv - 1)));
 
-const levelPool = () => UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
+const levelPool = () => UPGRADES.filter(u => !u.sub && (u.id !== 'critdmg' || G.s.crit > 0) && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
     && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id));   // 영향받는 무기가 없거나 봉인한 것은 안 나온다
 function levelPicks(pool = levelPool()) {
   const picks = [];
@@ -1204,7 +1208,7 @@ function upHtml(u) {
   const fx = tagsHtml(u.badges, () => u.fx);
   if (!u.wpn) {
     // 주인공 능력치: 복사본에 업그레이드를 걸어 보고 지금 → 다음 (0.74.0 — 체력 재생 · 획득 범위 · 경험치도)
-    const pv = (s, p) => badgeVal(b, {hp: p.maxHp, def: s.def, move: p.speed, regen: s.regen, magnet: MAGNET * s.magnetMul, xpMul: s.xpMul});
+    const pv = (s, p) => badgeVal(b, {hp: p.maxHp, def: s.def, move: p.speed, regen: s.regen, magnet: MAGNET * s.magnetMul, xpMul: s.xpMul, crit: s.crit, critDmg: s.critDmg});
     const b = u.badges[0], s1 = {...G.s}, p1 = {...G.p}; u.apply(s1, p1);
     const now = pv(G.s, G.p), nx = pv(s1, p1);
     return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
@@ -1685,6 +1689,8 @@ function tickGhost(o, dt) {
 }
 function hurtEnemy(e, dmg, stun = 0) {
   if (e.dead) return;
+  const crit = G.s.crit > 0 && Math.random() < G.s.crit;        // 치명타 (0.92.0)
+  if (crit) dmg *= G.s.critDmg;
   let real = mobArmor(dmg, e.def);
   if (e.shield > 0) {                                           // 방패 (0.84.0): 어떤 공격이든 1 만 받고 한 번 깎임
     real = 1;
@@ -1692,7 +1698,7 @@ function hurtEnemy(e, dmg, stun = 0) {
   }
   e.hp -= real; e.flash = FLASH_T;
   if (stun > 0 && !e.boss) e.stop = Math.max(e.stop || 0, stun);   // 경직: 남은 것보다 길 때만 늘림 (쌓이지 않음)
-  G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: 0.6, weak: real < dmg * 0.7});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
+  G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: crit ? 0.8 : 0.6, weak: !crit && real < dmg * 0.7, crit});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
   if (e.hp <= 0) {
     e.dead = true; G.kills++;
     if (e.xp) dropGems(e.x, e.y, e.xp, e.elite != null && !e.boss ? 5 + e.elite * 2 : 1);
@@ -2449,8 +2455,10 @@ function draw() {
   ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
   for (const t of G.texts) {
     ctx.globalAlpha = Math.min(1, t.t * 2);
-    ctx.fillStyle = t.brk ? SHIELD_COL : t.heal ? '#5f5' : t.me ? '#f66' : t.weak ? '#889' : '#fff';
+    ctx.fillStyle = t.crit ? '#ffd84a' : t.brk ? SHIELD_COL : t.heal ? '#5f5' : t.me ? '#f66' : t.weak ? '#889' : '#fff';
+    if (t.crit) { ctx.font = 'bold 18px system-ui'; ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(t.v, t.x, t.y - (0.8 - t.t) * 30); }
     ctx.fillText(t.v, t.x, t.y - (0.8 - t.t) * 30);
+    if (t.crit) ctx.font = 'bold 13px system-ui';
   }
   ctx.globalAlpha = 1;
   ctx.restore();
