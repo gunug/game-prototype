@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.87.0';
+const VERSION = '0.88.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1491,7 +1491,7 @@ function bossTick(e, dt) {
   } else if (e.st === 'aimS') {
     if (e.bt <= 0) {
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: SLAM_R, t: 0.35});
-      if (d < SLAM_R + p.r) hurtPlayer(SLAM_DMG);
+      if (d < SLAM_R + HITBOX) hurtPlayer(SLAM_DMG);
       e.st = 'walk'; e.bt = B.gap;
     }
   }
@@ -1529,6 +1529,8 @@ function hurtPlayer(raw) {
   G.shake = Math.max(G.shake || 0, SHAKE_PX * (0.5 + 0.5 * k));
   if (p.hp <= 0) gameOver();
 }
+// 착탄 범위 (0.88.0): 탄막 슈팅처럼 탄 · 곡사 · 터짐 · 내려찍기는 이 작은 원에 닿아야 맞음 (침 반지름 6 보다 살짝 큼). 몸으로 닿는 건 그대로 몸 크기(p.r)
+const HITBOX = 8;
 const HIT_T = 0.4, SHAKE_PX = 7, SHAKE_DECAY = 18;   // 붉은 가장자리 지속(초) · 흔들림 최대(px) · 잦아드는 빠르기
 // 쏘는 몹: 사거리 안 · 화면 안이면 서서 쏜다. 아니면 걸어온다. true = 이번 프레임 섰음
 function rangedTick(e, dx, dy, d, dt) {
@@ -1557,13 +1559,13 @@ function tickEshots(dt) {
       if (b.t >= b.T) {
         b.dead = true;
         G.fx.push({kind: 'splash', x: b.x, y: b.y, r: b.aoe, t: 0.3});
-        if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.aoe + p.r) ** 2) hurtPlayer(b.dmg);
+        if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.aoe + HITBOX) ** 2) hurtPlayer(b.dmg);
       }
       continue;
     }
     b.x += b.vx * dt; b.y += b.vy * dt;
     if ((b.life -= dt) <= 0) { b.dead = true; continue; }
-    if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.r + p.r) ** 2 && p.inv <= 0) { b.dead = true; hurtPlayer(b.dmg); }
+    if ((p.x - b.x) ** 2 + (p.y - b.y) ** 2 < (b.r + HITBOX) ** 2 && p.inv <= 0) { b.dead = true; hurtPlayer(b.dmg); }
   }
   G.eshots = G.eshots.filter(b => !b.dead);
 }
@@ -2262,6 +2264,9 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => drawWeapon(w, m));
+  // 착탄 범위 (0.88.0): 늘 보임 — 흰 테 + 옅은 붉은 속
+  ctx.fillStyle = 'rgba(255,60,60,.45)'; ctx.beginPath(); ctx.arc(p.x, p.y, HITBOX, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
   // 탄 미터: 총마다 손잡이 밑 파이 — 남은 탄 ÷ 장탄 만큼 노랗게 + 가운데 남은 탄 수.
   //   다 쓰면 재장전: 주황 파이가 12시부터 시계 방향으로 차오른다 (숫자 없음)
   for (const [w, m] of poses) {
