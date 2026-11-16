@@ -292,7 +292,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.85.0';
+const VERSION = '0.85.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -346,7 +346,9 @@ const BOSSES = {
   general: {nm: '기지의 장군', sprite: 'bossgeneral', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
             pats: ['volley', 'lob', 'summon', 'slam'], gap: 2.6, final: true},
 };
-const LOB_N = 5, LOB_T = 1.2, LOB_AOE = 50, LOB_DMG = 180, LOB_SPREAD = 70;
+const LOB_N = 5, LOB_T = 1.2, LOB_AOE = 50, LOB_DMG = 180;
+// 수류탄 비 배치 (0.85.1): 가운데 하나 + 둘레 LOB_N-1 개를 고르게. 원끼리 LOB_GAP 이상 띄워 사이로 빠져나갈 틈 (주인공 지름 28)
+const LOB_GAP = 40, LOB_RING = 2 * LOB_AOE + LOB_GAP;   // 가운데 ↔ 둘레 중심 거리 140 — 둘레끼리는 이보다 멀다 (4개면 198)
 const VOL_N = 7, VOL_W = 3, VOL_GAP = 0.3, VOL_ARC = 1.0, VOL_SPD = 250, VOL_DMG = 120;
 // 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
 //   기준 레벨 = 그 보스가 나오는 때의 완벽 플레이 레벨 × BOSS_LV_PCT (지금 75%) — 이 퍼센트로 난이도를 조절한다
@@ -1474,8 +1476,9 @@ function bossTick(e, dt) {
     else if (pat === 'slam') { e.st = 'aimS'; e.bt = 1.0; }
     else if (pat === 'lob') {                                      // 수류탄 비: 앞질러 겨눈 자리 + 둘레
       const tg = leadPoint(LOB_T);
+      const a0 = Math.random() * Math.PI * 2;
       for (let i = 0; i < LOB_N; i++) {
-        const a = Math.random() * Math.PI * 2, rr = i ? LOB_SPREAD * (0.5 + Math.random() * 0.5) : 0;
+        const a = a0 + (i - 1) / (LOB_N - 1) * Math.PI * 2, rr = i ? LOB_RING : 0;
         throwLob(e.x, e.y - e.r, tg.x + Math.cos(a) * rr, tg.y + Math.sin(a) * rr, LOB_T + i * 0.08, LOB_AOE, LOB_DMG);
       }
       e.bt = B.gap;
