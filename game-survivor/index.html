@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.93.1';
+const VERSION = '0.94.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -393,8 +393,6 @@ const UPGRADES = [
   {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
   {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
-  {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
-  {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
   // 쓰는 보조 (0.78.0, util): 무기와 상관없이 상자에서 나온다. 단계 = 창마다 쓸 수 있는 횟수 (0.79.0, 최대 5)
   {id: 'reroll', sub: '주사위', util: true, nm: '다시 뽑기', ds: '레벨업 · 상자 창마다 단계 수만큼, 고를 것을 새로 뽑는다', max: 5, badges: [], apply: () => {}},
   {id: 'banish', sub: '봉인 부적', util: true, nm: '봉인', ds: '레벨업 · 상자 창마다 단계 수만큼 하나를 봉인 — 이번 판에서 더 나오지 않는다', max: 5, badges: [], apply: () => {}},
@@ -403,11 +401,10 @@ const UPGRADES = [
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
 const AXIS_MAX = 2;
-const AXES = {spdPos: {l: '빠름', r: '느림'}};   // 0.92.0: 발사각(산탄 · 집탄) · 밀당 저울은 뺌
+const AXES = {};   // 저울 업그레이드 — 0.92.0 발사각 · 밀당, 0.94.0 탄속 저울을 빼서 지금은 없음 (틀만 남김)
 const axisOk = u => { const v = G.s[u.axis] + u.dir; return v >= -AXIS_MAX && v <= AXIS_MAX; };
 // 발사각 배율: 오른쪽(집탄) 한 칸 ×0.8, 왼쪽(산탄) 한 칸 ×1.25
 // 탄속 배율: 왼쪽(증가) 한 칸 ×1.25, 오른쪽(감소) 한 칸 ×0.8
-const spdMulOf = pos => pos < 0 ? 1.25 ** -pos : 0.8 ** pos;
 
 // 뱃지 — 무기의 특성. 업그레이드에 붙은 뱃지(연속 · 넉백 · 폭발 · 확산 · 연쇄)는 '그 업그레이드를 받는다' 는 뜻도 된다
 // 색은 --bc. 팁은 마우스를 올리거나 터치하면 뜬다
@@ -421,7 +418,7 @@ const BADGES = {
   critdmg:{nm: '치명 피해', col: '#ffb84a', tip: '치명타가 터졌을 때 피해 배율. 기본 ×1.5. 「치명 피해 증가」를 받으면 +25%.'},
   stun:   {nm: '경직',   col: '#d8c8ff', tip: '맞은 적이 이만큼(초) 그 자리에 굳는다 (움직임 · 넉백 멈춤). 보스는 굳지 않는다.'},
   range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리 증가」를 받으면 +15%.'},
-  spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초). 「탄속 증가」는 저울 왼쪽(×1.25), 「탄속 감소」는 오른쪽(×0.8).'},
+  spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초).'},
   acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 고리 길이 사거리 중간쯤에서 겨눈 쪽에서 이만큼씩 부풀고, 끝에서는 0°).'},
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력 증가」를 받으면 +250 하고 그만큼 회복.'},
   move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도 증가」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
@@ -589,7 +586,7 @@ function wstat(id) {
     stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
     reload: W.reload * (a('rate') ? s.cdMul : 1) * (a('reload') ? s.reloadMul : 1),   // 재장전 감소 (0.92.0)           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
-    spd: W.spd * (a('fast') ? spdMulOf(s.spdPos) : 1),       // 탄속 — 저울 왼쪽 칸마다 ×1.25 · 오른쪽 ×0.8
+    spd: W.spd,                                              // 탄속 업그레이드 뺌 (0.94.0)
     pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
     count: 1 + (a('count') ? s.count : 0),
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
@@ -791,7 +788,7 @@ function newGame(wi, weaponId) {
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, spdPos: 0, crit: 0, critDmg: 1.5, reloadMul: 1, magMul: 1, regen: 0, magnetMul: 1, xpMul: 1},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, crit: 0, critDmg: 1.5, reloadMul: 1, magMul: 1, regen: 0, magnetMul: 1, xpMul: 1},
     ups: {},
     enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
