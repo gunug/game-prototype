@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.92.2';
+const VERSION = '0.93.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -451,7 +451,7 @@ function badgeVal(id, st) {
     case 'acc': return '±' + num(st.acc) + '°';
     case 'spd': return Math.round(st.spd);
     case 'chain': return st.chain;
-    case 'spread': return st.count;
+    case 'spread': return st.shields || st.count;            // 방패는 방패 수
     case 'burst': return st.burst;
     case 'knock': return st.knock ? (st.knock > 0 ? '+' : '−') + Math.round(knockV(Math.abs(st.knock)) / 8) : 0;
     case 'splash': return st.splash ? `${splashR(st.splash)}·${Math.round(splashPct(st.splash) * 100)}%` : 0;
@@ -500,14 +500,14 @@ const WEAPONS = {
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 닿은 적만 맞고 (관통 없음), 길 위 다른 적은 안 맞는다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, splash: 1, hop: 150, maxT: 3, stun: 0,   // splash 1 (0.93.0): 기본 특성은 0 이 아니게   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['chain', 'splash']},   // 특성 2개 (0.75.0): 빔이 적을 잇고, 닿은 자리마다 폭발
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '적을 꿰뚫는 센 탄', ds: '가장 가까운 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다. 연쇄를 받으면 꿰뚫은 뒤 다음 적으로 튄다',
-           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2, stun: 0.3,   // maxT = 관통 수       // 탄속 1500 (권총 620)
+           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, chain: 1, maxT: 2, stun: 0.3,   // chain 1 (0.93.0)   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
            badges: ['pierce', 'chain']},   // 0.92.2: 관통 · 연쇄 — 꿰뚫은 마지막 적에서 다음 적으로 튄다 (0.92.0 에 밀당을 빼고 채움)
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
@@ -519,7 +519,7 @@ const WEAPONS = {
            badges: ['pierce', 'spread']},   // 특성 2개: 길의 적을 꿰뚫고(관통 4) 여러 개 던져 쓴다. 발사각(acc)은 능력치 → 산탄 · 집탄 받음
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
-           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,
+           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, splash: 1, maxT: 1, stun: 0.04,   // splash 1 (0.93.0)
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
            badges: ['spread', 'splash']},   // 특성 2개: 군중을 쓸고 폭발로 범위 피해
   // 방패 (0.90.0): 방패 n 개가 주인공 둘레(반지름 = 사거리)를 탄속(px/초)으로 돈다.
@@ -527,7 +527,7 @@ const WEAPONS = {
   //   다 깨져야 쿨다운이 돌고, 끝나면 n 개가 다시 생김. 하나라도 남아 있으면 쿨다운 안 돎
   //   DPS 맞춤: 한 바퀴 = 쿨다운 + 다 쓰는 데 걸린다고 보는 useT, 한 바퀴에 n 번 맞힘
   shield: {nm: '방패', kind: 'orbit', sh: '둘레를 도는 방패 6개', ds: '방패 6개가 둘레를 돈다. 적에 닿으면 피해를 주고 깨지고, 적 탄을 막으면 깨진다. 다 깨지면 쿨다운 뒤 다시 생긴다',
-           dmg: 0, cd: 3, range: 50, spd: 220, n: 6, useT: 1, maxT: 1, stun: 0.2, rad: 9,
+           dmg: 0, cd: 3, range: 50, spd: 220, n: 6, splash: 1, useT: 1, maxT: 1, stun: 0.2, rad: 9,   // splash 1 (0.93.0)
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['spread', 'splash']},   // 0.92.2: 확산 · 폭발 — 적에 닿아 깨질 때 둘레 피해 (0.92.0 에 밀당을 빼고 채움)   // 특성 2개: 확산 = 방패 +1 · 밀당 = 맞은 적을 바깥(밀침) · 안(당김)으로
 };
@@ -578,7 +578,7 @@ const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shiel
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
 const RANGE_CAP = 1.4;
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
-const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, mag: W.mag, reload: W.reload, stun: W.stun || 0, range: W.range, spd: W.spd, acc: W.acc, pierce: W.pierce || 0, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: 0}; };
+const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, mag: W.mag, reload: W.reload, stun: W.stun || 0, range: W.range, spd: W.spd, acc: W.acc, pierce: W.pierce || 0, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: W.splash || 0, shields: W.n}; };
 // 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
 function wstat(id) {
   const W = WEAPONS[id], s = G.s, a = k => wpnTakes(W, k), c = G.char;
@@ -595,7 +595,8 @@ function wstat(id) {
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
     knock: 0,                                                 // 밀당 업그레이드 뺌 (0.92.0)
-    splash: a('splash') ? s.splash : 0,
+    splash: (W.splash || 0) + (a('splash') ? s.splash : 0),   // 기본 폭발 (0.93.0): 폭발 특성 무기는 1 부터
+    shields: W.n && W.n + (a('count') ? s.count : 0),        // 방패 수 (확산 뱃지에 보임)
     acc: W.acc,                                              // 발사각 업그레이드 뺌 (0.92.0)   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
 }
@@ -1511,7 +1512,7 @@ function bossTick(e, dt) {
 }
 
 // ── 방패 (0.90.0) ── w.orb = {alive: [방패마다 살아 있나], ph: 돈 각}. 방패 자리 = 몸 가운데 둘레 반지름 st.range
-const orbitN = st => WEAPONS.shield.n + st.count - 1;          // 확산 증가 = 방패 +1
+const orbitN = st => st.shields;                                 // 확산 증가 = 방패 +1
 const ORB_CY = -10;                                              // 고리 중심 = 몸 가운데에서 위로 10px
 function orbitSpots(w, st) {
   const p = G.p, n = w.orb.alive.length, out = [];
