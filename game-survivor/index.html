@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.68.0';
+const VERSION = '0.69.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1034,10 +1034,6 @@ const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY +
 function openLevelUp() {
   const pool = UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
     && (!u.wpn || affectedBy(u.id).length));                     // 영향받는 무기가 없으면 안 나온다
-  if (G.weapons.length < G.char.wSlots)                         // 빈 무기 슬롯 → 해금된 새 무기
-    for (const id of UNLOCKED_WEAPONS) if (!G.weapons.some(w => w.id === id))
-      pool.push({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id,
-                 apply: () => G.weapons.push(newWeapon(id))});
   const picks = [];
   while (picks.length < 3 && pool.length) {
     const tot = pool.reduce((a, u) => a + (u.ext ? 2 : 3), 0);
@@ -1145,11 +1141,14 @@ function choose(i, click) {
 //   슬롯이 다 차면 가진 것만 나온다. 가진 무기가 받지 못하는 것은 안 나온다
 const chestPool = () => UPGRADES.filter(u => u.sub && G.ups[u.id] < u.max && affectedBy(u.id).length
   && (G.subs.some(x => x.id === u.id) || G.subs.length < G.char.sSlots));
+// 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
+const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id))
+  .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => G.weapons.push(newWeapon(id))}));
 function openChest() {
-  const pool = chestPool(), picks = [];
+  const pool = [...chestPool(), ...newWeaponPool()], picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   if (!picks.length) { if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); } return; }   // 고를 것이 없으면 빈 상자
-  showPicks(picks, '보조 아이템');
+  showPicks(picks, '상자');
 }
 
 function gainXp(n) {
@@ -2062,6 +2061,23 @@ function offscreenMarks(ox, oy) {
     }
     ctx.globalAlpha = e.boss ? 1 : 0.55 + 0.45 * Math.sin(G.t * 8);
     ctx.strokeStyle = col; ctx.lineWidth = e.boss ? 3 : 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  // 화면 밖 상자 (0.69.0): 같은 꼴 — 동그라미 안에 상자 그림, 테두리는 떨군 엘리트 등급 색 (깜빡이지 않음)
+  for (const c of G.chests) {
+    const sx = c.x + ox, sy = c.y + oy, m = 14;
+    if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
+    const R = 12, M = R + 10, dx = sx - W / 2, dy = sy - H / 2;
+    const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx), col = gradeCol(c.g);
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
+    ctx.lineTo(Math.cos(a + 0.5) * (R + 1), Math.sin(a + 0.5) * (R + 1));
+    ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
+    ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.scale(0.75, 0.75); drawChest(0, 4, col); ctx.restore();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 }
