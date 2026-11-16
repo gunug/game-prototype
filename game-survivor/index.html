@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.86.0';
+const VERSION = '0.87.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1491,11 +1491,7 @@ function bossTick(e, dt) {
   } else if (e.st === 'aimS') {
     if (e.bt <= 0) {
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: SLAM_R, t: 0.35});
-      if (p.inv <= 0 && d < SLAM_R + p.r) {
-        const dmg = armor(SLAM_DMG, G.s.def); p.hp -= dmg; p.inv = 0.5;
-        G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
-        if (p.hp <= 0) gameOver();
-      }
+      if (d < SLAM_R + p.r) hurtPlayer(SLAM_DMG);
       e.st = 'walk'; e.bt = B.gap;
     }
   }
@@ -1527,8 +1523,13 @@ function hurtPlayer(raw) {
   const dmg = armor(raw, G.s.def);
   p.hp -= dmg; p.inv = 0.5;
   G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
+  // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
+  const k = Math.min(1, dmg / p.maxHp * 6);
+  G.hitT = HIT_T; G.hitK = Math.max(0.4, k);
+  G.shake = Math.max(G.shake || 0, SHAKE_PX * (0.5 + 0.5 * k));
   if (p.hp <= 0) gameOver();
 }
+const HIT_T = 0.4, SHAKE_PX = 7, SHAKE_DECAY = 18;   // 붉은 가장자리 지속(초) · 흔들림 최대(px) · 잦아드는 빠르기
 // 쏘는 몹: 사거리 안 · 화면 안이면 서서 쏜다. 아니면 걸어온다. true = 이번 프레임 섰음
 function rangedTick(e, dx, dy, d, dt) {
   const T = ENEMY_TYPES[e.type], A = T && (T.shot || T.lob);
@@ -1884,6 +1885,7 @@ function update(dt) {
   p.move += (amt - p.move) * Math.min(1, dt * 10);   // 걷기 세기 0~1 (멈추면 서서히 가라앉음)
   p.walk += dt * Math.PI * p.speed / WALK_STRIDE * p.move;   // 한 걸음(통통 한 번 = π) 에 WALK_STRIDE 만큼 나아간다 — 빠른 캐릭터는 발도 빠르게
   p.inv = Math.max(0, p.inv - dt); tickGhost(p, dt);
+  G.hitT = Math.max(0, (G.hitT || 0) - dt); G.shake = (G.shake || 0) * Math.exp(-SHAKE_DECAY * dt);
   // 체력 재생 (0.74.0) — 0.83.0 부터 REGEN_T 초마다 한 번에 (초당 양은 그대로). 찰 때마다 녹색 +숫자
   if (G.s.regen && p.hp < p.maxHp) {
     if ((G.regenAcc = (G.regenAcc || 0) + dt) >= REGEN_T) {
@@ -1974,10 +1976,8 @@ function update(dt) {
     }
     // 닿으면 피해
     if (p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
-      const dmg = armor(e.dmg, s.def);
-      p.hp -= dmg; p.inv = 0.5;
-      G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
-      if (p.hp <= 0) { gameOver(); return; }
+      hurtPlayer(e.dmg);
+      if (G.mode === 'over') return;
     }
   }
 
@@ -2169,7 +2169,8 @@ function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#1f2125'; ctx.fillRect(0, 0, W, H);             // 아스팔트
   if (!G) return;
-  const p = G.p, ox = W / 2 - p.x, oy = H / 2 - p.y;
+  const p = G.p, sk = G.shake > 0.3 ? G.shake : 0;               // 맞으면 흔들림 (0.87.0)
+  const ox = W / 2 - p.x + (Math.random() * 2 - 1) * sk, oy = H / 2 - p.y + (Math.random() * 2 - 1) * sk;
 
   // 바닥: 블록 줄 + 큰 간격마다 노란 점선 차선
   ctx.strokeStyle = '#272a2f'; ctx.lineWidth = 1; ctx.beginPath();
@@ -2279,9 +2280,14 @@ function draw() {
   }
   // 머리 위: 레벨 글 + 체력 줄 + 그 바로 밑 경험치 줄 (총 고리보다 위) — 늘 보인다. 레벨 글까지 합친 폭을 캐릭터 가운데에
   ctx.font = 'bold 10px system-ui';
-  { const lt = 'Lv' + G.lv, tw = ctx.measureText(lt).width, gap = 3, bw = 36;
-    const bh = 5, xh = 3, bx = p.x - (tw + gap + bw) / 2 + tw + gap, by = p.y - 60, k = Math.max(0, p.hp / p.maxHp), kx = Math.min(1, G.xp / xpNeed(G.lv));
+  { const lt = 'Lv' + G.lv, tw = ctx.measureText(lt).width, gap = 3, bw = 44;   // 0.87.0: 36 → 44, 높이 5 → 6
+    const bh = 6, xh = 3, bx = p.x - (tw + gap + bw) / 2 + tw + gap, by = p.y - 60, k = Math.max(0, p.hp / p.maxHp), kx = Math.min(1, G.xp / xpNeed(G.lv));
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + xh + 3);
+    if (G.hitT > 0) {                                           // 맞으면 체력 줄 둘레가 붉게 빛남 (0.87.0)
+      ctx.save(); ctx.shadowColor = '#f22'; ctx.shadowBlur = 10 * G.hitT / HIT_T;
+      ctx.strokeStyle = `rgba(255,80,80,${G.hitT / HIT_T})`; ctx.lineWidth = 2; ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 3);
+      ctx.restore();
+    }
     ctx.fillStyle = '#3a1416'; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, bw * (p.gk ?? k), bh);
     ctx.fillStyle = k > 0.3 ? '#e44' : (Math.floor(G.t * 6) % 2 ? '#f77' : '#c22'); ctx.fillRect(bx, by, bw * k, bh);
@@ -2361,6 +2367,14 @@ function draw() {
   ctx.restore();
 
   offscreenMarks(ox, oy);
+
+  // 맞으면 화면 가장자리 붉게 (0.87.0) — 맞은 세기 · 남은 체력이 적을수록 진하게
+  if (G.hitT > 0) {
+    const a = G.hitT / HIT_T * Math.min(1, G.hitK * 0.6 + (1 - Math.max(0, p.hp / p.maxHp)) * 0.5);
+    const gr = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) / 2);
+    gr.addColorStop(0, 'rgba(255,0,0,0)'); gr.addColorStop(1, `rgba(255,20,20,${a * 0.85})`);
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+  }
 
   // 조이스틱 (화면 좌표)
   if (joy.id !== null) {
