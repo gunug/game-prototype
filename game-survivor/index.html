@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.73.0';
+const VERSION = '0.74.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -346,6 +346,10 @@ const UPGRADES = [
   {id: 'hp',     nm: '체력',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
   {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
   {id: 'move',   nm: '이동속도',   ds: '이동 속도 +10%',       max: 5, badges: ['move'], fx: '+10%', apply: (s, p) => { p.speed *= 1.1; }},
+  // 0.74.0: 체력 재생 · 획득 범위 · 경험치
+  {id: 'regen',  nm: '체력 재생',  ds: '초마다 체력 +5 회복',  max: 5, badges: ['regen'], fx: '+5/s', apply: s => s.regen += 5},
+  {id: 'magnet', nm: '획득 범위',  ds: '경험치를 끌어오는 거리 +25%', max: 5, badges: ['magnet'], fx: '+25%', apply: s => s.magnetMul += 0.25},
+  {id: 'xpup',   nm: '경험치 증가',ds: '얻는 경험치 +10%',     max: 5, badges: ['xpmul'], fx: '+10%', apply: s => s.xpMul += 0.1},
   {id: 'count',  sub: '갈래 총구', nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  sub: '도약 회로', nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
@@ -383,6 +387,9 @@ const BADGES = {
   hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
   move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
+  regen:  {nm: '체력 재생', col: '#ff8fb0', tip: '초마다 저절로 차는 체력. 「체력 재생」을 받으면 +5.'},
+  magnet: {nm: '획득 범위', col: '#4cf', tip: '경험치 보석을 끌어오기 시작하는 거리(px). 「획득 범위」를 받으면 기본의 +25%.'},
+  xpmul:  {nm: '경험치',  col: '#fc4', tip: '보석에서 얻는 경험치 배율(%). 「경험치 증가」를 받으면 +10%.'},
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). 그보다 많은 적은 피해를 입지 않는다. 레이저는 빔 길의 총구 쪽부터, 부메랑은 한 번 던져 벤 적 수 (벤 적은 오는 길에 다시 벰). 레이저는 「연쇄 +1」마다 같이 +1. ∞ = 지나는 길의 적 모두.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
@@ -412,6 +419,9 @@ function badgeVal(id, st) {
     case 'hp': return st.hp;
     case 'def': return st.def;
     case 'move': return Math.round(st.move);
+    case 'regen': return st.regen + '/s';
+    case 'magnet': return Math.round(st.magnet);
+    case 'xpmul': return Math.round(st.xpMul * 100) + '%';
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
   }
   return null;
@@ -419,7 +429,7 @@ function badgeVal(id, st) {
 const badgeHtml = (id, val) => `<span class="badge" data-badge="${id}" style="--bc:${BADGES[id].col}"><span>${BADGES[id].nm}</span>${val === false ? '' : `<b>${val == null || val === '' ? 0 : val}</b>`}</span>`;   // 값이 없으면 0 · false 면 이름만
 const badgesHtml = (ids, st) => `<div class="badges">${ids.map(id => badgeHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 공통 능력치 (0.64.0): 뱃지가 아니라 '이름 … 값' 수치 줄로 쓴다. 특성(관통 · 연쇄 …)만 뱃지
-const STATS = new Set(['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move']);
+const STATS = new Set(['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']);
 const statHtml = (id, val) => `<div class="stat" data-badge="${id}"><span>${BADGES[id].nm}</span><b>${val == null || val === '' ? 0 : val}</b></div>`;
 const statsHtml = (ids, st) => `<div class="stats">${ids.map(id => statHtml(id, st ? badgeVal(id, st) : null)).join('')}</div>`;
 // 능력치는 수치 줄, 특성은 뱃지 — 한 묶음씩
@@ -726,7 +736,7 @@ function newGame(wi, weaponId) {
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0},
+    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, accPos: 0, knockPos: 0, spdPos: 0, regen: 0, magnetMul: 1, xpMul: 1},
     ups: {},
     enemies: [], bullets: [], gems: [], chests: [], chestQ: 0, fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
@@ -784,7 +794,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'knock', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'knock', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1084,8 +1094,10 @@ function showPicks(picks, title) {
 function upHtml(u) {
   const fx = tagsHtml(u.badges, () => u.fx);
   if (!u.wpn) {
-    const b = u.badges[0], now = b === 'hp' ? G.p.maxHp : b === 'move' ? Math.round(G.p.speed) : G.s.def;
-    const nx = b === 'hp' ? now + 250 : b === 'move' ? Math.round(G.p.speed * 1.1) : now + 20;
+    // 주인공 능력치: 복사본에 업그레이드를 걸어 보고 지금 → 다음 (0.74.0 — 체력 재생 · 획득 범위 · 경험치도)
+    const pv = (s, p) => badgeVal(b, {hp: p.maxHp, def: s.def, move: p.speed, regen: s.regen, magnet: MAGNET * s.magnetMul, xpMul: s.xpMul});
+    const b = u.badges[0], s1 = {...G.s}, p1 = {...G.p}; u.apply(s1, p1);
+    const now = pv(G.s, G.p), nx = pv(s1, p1);
     return fx + `<div class="wrows"><div class="wrow"><span class="wch on">${BADGES[b].nm}</span><span class="wv">${now} → <b>${nx}</b></span></div></div>`;
   }
   // 받는 무기만 한 줄씩 (세로): 작은 무기 그림 + '지금→다음' (검은 상자). 이름은 그림 위에 마우스 · 팁 대신 title
@@ -1375,6 +1387,7 @@ function hurtEnemy(e, dmg, stun = 0) {
 }
 
 // 경험치 보석 떨구기 (0.73.0): n 개로 나눠 사방으로 튀어 오른다 (z = 높이). 땅에 닿기 전엔 못 줍고 끌리지도 않는다
+const MAGNET = 90;                    // 보석을 끌어오기 시작하는 거리 (기본)
 const GEM_G = 900;                    // 보석 중력 (px/초²)
 function dropGems(x, y, v, n) {
   for (let i = 0; i < n; i++) {
@@ -1619,6 +1632,7 @@ function update(dt) {
   p.move += (amt - p.move) * Math.min(1, dt * 10);   // 걷기 세기 0~1 (멈추면 서서히 가라앉음)
   p.walk += dt * Math.PI * p.speed / WALK_STRIDE * p.move;   // 한 걸음(통통 한 번 = π) 에 WALK_STRIDE 만큼 나아간다 — 빠른 캐릭터는 발도 빠르게
   p.inv = Math.max(0, p.inv - dt); tickGhost(p, dt);
+  if (G.s.regen && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + G.s.regen * dt);   // 체력 재생 (0.74.0)
 
   // 생성: 초당 1.2 + 0.06·초 마리, 1분마다 둘레 무리
   G.spawnAcc += spawnRate() * dt;
@@ -1758,7 +1772,7 @@ function update(dt) {
   }
 
   // 보석
-  const magnet = 90;
+  const magnet = MAGNET * G.s.magnetMul;                        // 획득 범위 (업그레이드 +25% 씩)
   for (const g of G.gems) {
     if (g.air) {                                                  // 튀어 오르는 중: 포물선, 땅에 닿으면 한 번 작게 튕기고 멈춤
       g.x += g.vx * dt; g.y += g.vy * dt; g.vz -= GEM_G * dt; g.z += g.vz * dt;
@@ -1768,7 +1782,7 @@ function update(dt) {
     const dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
     if (d < magnet) g.pull = true;
     if (g.pull) { const sp = 420 * dt; g.x += dx / d * Math.min(sp, d); g.y += dy / d * Math.min(sp, d); }
-    if (d < p.r + 6) { g.dead = true; gainXp(g.v); }
+    if (d < p.r + 6) { g.dead = true; gainXp(g.v * G.s.xpMul); }   // 경험치 증가 배율
   }
   // 상자: 닿으면 연다 (레벨업 창이 떠 있으면 줄 세워 두었다가 닫힐 때)
   for (const c of G.chests) {
