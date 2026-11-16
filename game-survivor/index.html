@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.74.0';
+const VERSION = '0.75.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -458,10 +458,10 @@ const WEAPONS = {
            badges: ['burst', 'spread']},   // 특성 2개 (0.65.0): 기본 무기 — 발 수를 늘리는 쪽
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
-  laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 지나는 길의 적을 총구 쪽부터 관통 수만큼 맞힌다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, pierce: 3, maxT: 3, stun: 0,   // pierce (0.66.0) = 한 번에 맞히는 적 수, 연쇄 +1 마다 같이 +1   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+  laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 닿은 적만 맞고 (관통 없음), 길 위 다른 적은 안 맞는다',
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
-           badges: ['chain', 'pierce']},   // 특성 2개: 빔이 적을 잇는다
+           badges: ['chain', 'splash']},   // 특성 2개 (0.75.0): 빔이 적을 잇고, 닿은 자리마다 폭발
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
@@ -541,7 +541,7 @@ function wstat(id) {
     reload: W.reload * (a('rate') ? s.cdMul : 1),           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
     range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
     spd: W.spd * (a('fast') ? spdMulOf(s.spdPos) : 1),       // 탄속 — 저울 왼쪽 칸마다 ×1.25 · 오른쪽 ×0.8
-    pierce: (W.pierce || 0) + (W.kind === 'laser' && a('chain') ? s.chain : 0),   // 한 발이 맞히는 적 수 (0 = 제한 없음). 레이저는 연쇄만큼 같이 는다
+    pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
     count: 1 + (a('count') ? s.count : 0),
     chain: (W.chain || 0) + (a('chain') ? s.chain : 0),      // 연쇄: 첫 적 다음에 더 이어 가는 수
     burst: 1 + (a('burst') ? s.burst : 0),
@@ -1577,23 +1577,16 @@ function updateLaser(w, wi, st, dt) {
   w.cdT -= dt;
   if (w.cdT > 0) return;
   w.cdT = Math.max(0, w.cdT + st.cd);                           // 남은 몫을 넘긴다 (간격 0.07 이 프레임에 잘려 느려지지 않게)
-  const line = beamLine(bm);
-  if (line.length < 2) return;
-  const hits = [];                                                // 빔 길의 적 — 총구 쪽부터 관통 수만큼만 맞는다 (0.66.0)
-  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-  for (const q of line) { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x); y1 = Math.max(y1, q.y); }
-  for (const e of G.enemies) {
-    if (e.dead) continue;
-    const r = e.r + 4;
-    if (e.x < x0 - r || e.x > x1 + r || e.y < y0 - r || e.y > y1 + r) continue;
-    for (let i = 1; i < line.length; i++) {
-      const A = line[i - 1], B = line[i], dx = B.x - A.x, dy = B.y - A.y, L2 = dx * dx + dy * dy || 1;
-      const u = Math.max(0, Math.min(1, ((e.x - A.x) * dx + (e.y - A.y) * dy) / L2));
-      if (Math.hypot(A.x + dx * u - e.x, A.y + dy * u - e.y) <= r) { hits.push([i + u, e]); break; }
+  // 맞힘 (0.75.0): 관통 없음 — 빔이 다 뻗어 닿은 마디의 적만. 폭발이 있으면 닿은 자리마다 둘레 피해
+  const hits = bm.nodes.filter((n, k) => bm.prog >= k + 1 && !n.e.dead).map(n => n.e);
+  for (const e of hits) {
+    hurtEnemy(e, st.dmg, st.stun);
+    if (st.splash) {
+      const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
+      if (!(e.sfxT > G.t)) { G.fx.push({kind: 'splash', x: e.x, y: e.y, r: R, t: 0.25}); e.sfxT = G.t + 0.25; }   // 빔은 0.07초마다라 그림은 0.25초에 한 번
+      for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (R + o.r) ** 2) hurtEnemy(o, sd);
     }
   }
-  hits.sort((a, b) => a[0] - b[0]);
-  for (const [, e] of hits.slice(0, st.pierce || Infinity)) hurtEnemy(e, st.dmg, st.stun);
   if (hits.length) useAmmo(w, st);                                        // 빔이 아직 뻗는 중이라 아무도 못 맞혔으면 탄을 안 쓴다
 }
 
@@ -1724,7 +1717,14 @@ function update(dt) {
   for (const b of G.bullets) {
     if (b.boom) {                                                 // 부메랑 길 (0.62.0) — BOOM 설명 참고. 길 위 다음 자리를 정하고 속도로 바꿔 넣는다
       b.rot += dt * 22; b.life += dt;
-      const P = b.path; b.s += b.sp * dt;
+      const P = b.path;
+      if (b.ret) {                                                // 관통을 다 써서 되돌아오는 중 (0.75.0): 손으로 곧장, 탄속 그대로
+        const hx = p.x - b.x, hy = p.y + WPN_CY - b.y, hd = Math.hypot(hx, hy);
+        if (hd <= b.sp * dt + 4) { b.dead = true; continue; }
+        b.vx = hx / hd * b.sp; b.vy = hy / hd * b.sp; b.boom = 2;
+        for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }
+      } else {
+      b.s += b.sp * dt;
       if (b.s >= P.L) { b.dead = true; continue; }                // 고리를 다 돌면 손에 잡힘
       while (P.cum[b.pi + 1] < b.s) b.pi++;
       const q = (b.s - P.cum[b.pi]) / (P.cum[b.pi + 1] - P.cum[b.pi] || 1), A = P.pts[b.pi], B = P.pts[b.pi + 1];
@@ -1736,6 +1736,7 @@ function update(dt) {
       b.vx = (nx - b.x) / dt; b.vy = (ny - b.y) / dt;
       b.boom = b.s < P.L / 2 ? 1 : 2;
       for (const [e, t] of b.hitAt) if (b.life - t > BOOM.rehit) { b.hit.delete(e); b.hitAt.delete(e); }   // 같은 적도 조금 뒤 다시 벤다
+      }
     }
     const st = Math.hypot(b.vx, b.vy) * dt, ox = b.x, oy = b.y;
     b.x += b.vx * dt; b.y += b.vy * dt; b.travel += st;
@@ -1763,7 +1764,7 @@ function update(dt) {
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
       //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
-      if (b.boom) { b.tgts.add(e); continue; }                     // 부메랑은 관통을 다 써도 떨어지지 않고 돌아온다
+      if (b.boom) { b.tgts.add(e); if (b.tgts.size >= b.pleft && b.boom === 1) b.ret = true; continue; }   // 관통을 다 쓰면 가던 길을 접고 손으로 돌아온다 (0.75.0)
       if (b.pierce && --b.pleft > 0) continue;                    // 관통이 남았으면 꿰뚫고 계속 날아간다
       if (b.chain > 0 && chainBullet(b, e)) break;
       b.dead = true;
