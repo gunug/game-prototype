@@ -30,18 +30,18 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .bar.ticks::after{content:'';position:absolute;inset:0;pointer-events:none;
     background:repeating-linear-gradient(90deg,transparent 0 calc(var(--s10) - 2px),rgba(0,0,0,.85) calc(var(--s10) - 2px) var(--s10)),
                repeating-linear-gradient(90deg,transparent 0 calc(var(--s1) - 1px),rgba(0,0,0,.5) calc(var(--s1) - 1px) var(--s1))}
-  /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(등급 색 마름모) · 보스(큰 그림, 등급 색 고리) */
-  #timeline{position:relative;margin:0 4px;height:26px;pointer-events:none}
+  /* 월드 타임라인 — 체력 · 경험치 줄 아래. 잡몹이 풀리는 때(그림) · 엘리트(회색 마름모 — 등급 색은 나온 뒤에) · 보스(큰 그림, 등급 색 고리) */
+  #timeline{position:relative;margin:0 4px;height:40px;pointer-events:none}
   #timeline[hidden],#banner[hidden]{display:none}
-  .tl-track{position:absolute;left:0;right:0;top:12px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
+  .tl-track{position:absolute;left:0;right:0;top:19px;height:3px;background:#2a2d38;border-radius:2px;overflow:hidden}
   .tl-fill{display:block;height:100%;width:0;background:#9ab}
   .tl-marks{position:absolute;inset:0}
-  .tl-m{position:absolute;top:13px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center}
-  .tl-m img{width:18px;height:18px;object-fit:cover;object-position:top;border-radius:50%;background:#232634;border:1px solid #556}
-  .tl-m.boss img{width:24px;height:24px;border:2px solid var(--gc)}
-  .tl-m.elite i{display:block;width:9px;height:9px;transform:rotate(45deg);background:var(--gc);border:1px solid #000}
+  .tl-m{position:absolute;top:20px;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center}
+  .tl-m img{width:28px;height:28px;object-fit:cover;object-position:top;border-radius:50%;background:#232634;border:1px solid #556}
+  .tl-m.boss img{width:38px;height:38px;border:2px solid var(--gc)}
+  .tl-m.elite i{display:block;width:13px;height:13px;transform:rotate(45deg);background:var(--gc,#bbb);border:1px solid #000}
   .tl-m.done{opacity:.4}
-  .tl-now{position:absolute;top:2px;width:2px;height:22px;background:#fff;border-radius:1px;transform:translateX(-1px)}
+  .tl-now{position:absolute;top:2px;width:2px;height:36px;background:#fff;border-radius:1px;transform:translateX(-1px)}
   /* 보스 체력 줄: 보스마다 한 줄, 아래로 쌓인다. 왼쪽에 얼굴(초상화 위쪽을 잘라) · 오른쪽에 이름 + 줄. 알림은 그 아래 */
   /* 보스 줄 자리는 늘 두 줄(중간 + 최종 보스) 비워 둔다 — 보스가 나오고 죽어도 위 칸 높이 · 게임 칸이 안 바뀐다 */
   #bossBars{display:flex;flex-direction:column;gap:5px;width:min(420px,100%);align-self:center;min-height:65px}
@@ -277,7 +277,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.79.0';
+const VERSION = '0.80.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -2225,7 +2225,7 @@ function buildTimeline() {
   const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
   let h = '';
   Wd.mobs.forEach(m => { h += `<div class="tl-m mob" data-at="${m.at}" style="left:${pct(m.at)}" title="${ENEMY_TYPES[m.type].nm} ${fmt(m.at)}"><img src="${img(m.type)}" alt=""></div>`; });
-  G.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(ev.grade)}" title="${GRADES[ev.grade].nm} 엘리트 ${fmt(ev.at)}"><i></i></div>`; });
+  G.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" data-g="${ev.grade}" style="left:${pct(ev.at)}" title="엘리트 ${fmt(ev.at)}"><i></i></div>`; });
   Wd.bosses.forEach(ev => { const B = BOSSES[ev.id]; h += `<div class="tl-m boss" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(B.grade)}" title="${B.nm} ${fmt(ev.at)}"><img src="${img(B.sprite)}" alt=""></div>`; });
   $('timeline').querySelector('.tl-marks').innerHTML = h;
 }
@@ -2237,7 +2237,11 @@ function hud() {
   const tp = Math.min(1, G.t / G.world.dur) * 100;
   $('timeline').querySelector('.tl-fill').style.width = tp + '%';
   $('timeline').querySelector('.tl-now').style.left = tp + '%';
-  $('timeline').querySelectorAll('.tl-m').forEach(m => m.classList.toggle('done', G.t >= +m.dataset.at && !m.classList.contains('boss')));
+  $('timeline').querySelectorAll('.tl-m').forEach(m => {
+    const on = G.t >= +m.dataset.at;
+    m.classList.toggle('done', on && !m.classList.contains('boss'));
+    if (on && m.dataset.g && !m.style.getPropertyValue('--gc')) m.style.setProperty('--gc', gradeCol(+m.dataset.g));   // 엘리트 등급은 나온 뒤에만
+  });
   // 보스 체력 줄 — 살아 있는 보스마다 한 줄 (나온 차례대로 아래로 쌓임). 보스가 바뀔 때만 다시 만들고 줄 길이만 매번
   const bosses = G.enemies.filter(e => e.boss && !e.dead), key = bosses.map(e => e.bid).join(',');
   if ($('bossBars').dataset.k !== key) {
