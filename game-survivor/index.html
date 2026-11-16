@@ -277,7 +277,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.81.0';
+const VERSION = '0.82.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -1330,6 +1330,8 @@ function spawnEnemy() {
   G.enemies.push(makeEnemy(pickMob(), x, y));
 }
 // 엘리트: 지금 잡몹 하나를 1.3배로 · 체력 ×10 · 피해 ×1.5 · 경험치 ×12, 등급 색 테두리가 깜빡인다
+// 미는 급 (0.82.0): 잡몹 0 · 엘리트 1 · 보스 2 — 높은 쪽이 낮은 쪽을 밀어낸다
+const pushRank = e => e.boss ? 2 : e.elite ? 1 : 0;
 function spawnElite(grade) {
   const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
   e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp * eliteXpMul(grade); e.wt *= ELITE.wt; e.elite = grade;
@@ -1768,7 +1770,9 @@ function update(dt) {
       for (const o of b) {
         if (o === e || e.boss) continue;                            // 보스는 밀리지 않는다
         // 몹은 다른 몹을 밀지 못한다 (0.72.0): 겹치면 주인공에게서 더 먼(뒤에 선) 쪽만 비킨다 — 뒤에서 몰려와도 앞줄이 떠밀려 들어오지 않음
-        if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2) continue;
+        // 엘리트 · 보스는 밀어낸다 (0.82.0): 급이 높은 쪽 앞에선 낮은 쪽이 늘 비킨다. 급이 같을 때만 먼 쪽이 비킴
+        const re = pushRank(e), ro = pushRank(o);
+        if (re > ro || (re === ro && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2)) continue;
         const dx = e.x - o.x, dy = e.y - o.y, min = e.r + o.r, d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.01) {
           const d = Math.sqrt(d2), push = (min - d) * 0.5;   // 한쪽만 비키니 0.25 → 0.5 (0.72.0)
