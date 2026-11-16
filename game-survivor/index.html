@@ -270,7 +270,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.76.0';
+const VERSION = '0.77.0';
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
@@ -342,27 +342,27 @@ function trimSprite(img) {
 // wpn: 무기 업그레이드. badges: 이 뱃지 중 하나라도 가진 무기만 영향받는다 (없으면 모든 무기)
 // 가진 무기 중 영향받는 것이 하나라도 있어야 후보에 나온다. 카드 밑에 뱃지 · 영향받는/안 받는 무기 표시
 const UPGRADES = [
-  {id: 'dmg',    nm: '공격력',     ds: '피해 +20%',            max: 99, wpn: true, badges: ['dmg'], fx: '+20%', apply: s => s.dmgMul *= 1.2},
-  {id: 'rate',   nm: '공격속도',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, badges: ['cd'], fx: '×0.85', apply: s => s.cdMul *= 0.85},
-  {id: 'range',  nm: '사거리',     ds: '사거리 +15%',          max: 3, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
-  {id: 'hp',     nm: '체력',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
-  {id: 'def',    nm: '방어력',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
-  {id: 'move',   nm: '이동속도',   ds: '이동 속도 +10%',       max: 5, badges: ['move'], fx: '+10%', apply: (s, p) => { p.speed *= 1.1; }},
+  {id: 'dmg',    nm: '피해 증가',     ds: '피해 +20%',            max: 99, wpn: true, badges: ['dmg'], fx: '+20%', apply: s => s.dmgMul *= 1.2},
+  {id: 'rate',   nm: '쿨다운 감소',   ds: '쿨다운 ×0.85',         max: 99, wpn: true, badges: ['cd'], fx: '×0.85', apply: s => s.cdMul *= 0.85},
+  {id: 'range',  nm: '사거리 증가',     ds: '사거리 +15%',          max: 3, wpn: true, badges: ['range'], fx: '+15%', apply: s => s.rangeMul *= 1.15},
+  {id: 'hp',     nm: '체력 증가',       ds: '최대 체력 +250, 회복', max: 99, badges: ['hp'], fx: '+250', apply: (s, p) => { p.maxHp += 250; p.hp = Math.min(p.maxHp, p.hp + 250); }},
+  {id: 'def',    nm: '방어 증가',     ds: '받는 피해 -20',        max: 99, badges: ['def'], fx: '+20', apply: s => s.def += 20},
+  {id: 'move',   nm: '이동속도 증가',   ds: '이동 속도 +10%',       max: 5, badges: ['move'], fx: '+10%', apply: (s, p) => { p.speed *= 1.1; }},
   // 0.74.0: 체력 재생 · 획득 범위 · 경험치
-  {id: 'regen',  nm: '체력 재생',  ds: '초마다 체력 +5 회복',  max: 5, badges: ['regen'], fx: '+5/s', apply: s => s.regen += 5},
-  {id: 'magnet', nm: '획득 범위',  ds: '경험치를 끌어오는 거리 +25%', max: 5, badges: ['magnet'], fx: '+25%', apply: s => s.magnetMul += 0.25},
+  {id: 'regen',  nm: '체력 재생 증가',  ds: '초마다 체력 +5 회복',  max: 5, badges: ['regen'], fx: '+5/s', apply: s => s.regen += 5},
+  {id: 'magnet', nm: '획득 범위 증가',  ds: '경험치를 끌어오는 거리 +25%', max: 5, badges: ['magnet'], fx: '+25%', apply: s => s.magnetMul += 0.25},
   {id: 'xpup',   nm: '경험치 증가',ds: '얻는 경험치 +10%',     max: 5, badges: ['xpmul'], fx: '+10%', apply: s => s.xpMul += 0.1},
-  {id: 'count',  sub: '갈래 총구', nm: '투사체 +1',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
-  {id: 'chain',  sub: '도약 회로', nm: '연쇄 +1',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
+  {id: 'count',  sub: '갈래 총구', nm: '확산 증가',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
+  {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
-  {id: 'scatter',nm: '산탄',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
-  {id: 'focus',  nm: '집탄',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
-  {id: 'burst',  sub: '연발 장치', nm: '연속공격 +1',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
-  {id: 'pull',   nm: '끌어당김',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 탄이 지나는 줄로 당겨 모은다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
-  {id: 'push',   nm: '밀쳐냄',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
+  {id: 'scatter',nm: '발사각 증가',       ds: '발사각 저울을 왼쪽으로 — 탄이 넓게 흩어진다', axis: 'accPos', dir: -1, ext: true, wpn: true, badges: ['acc'], fx: '←', apply: s => s.accPos--},
+  {id: 'focus',  nm: '발사각 감소',       ds: '발사각 저울을 오른쪽으로 — 탄이 잘 모인다', axis: 'accPos', dir: 1, ext: true, wpn: true, badges: ['acc'], fx: '→', apply: s => s.accPos++},
+  {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
+  {id: 'pull',   nm: '밀당 감소',   ds: '밀당 저울을 왼쪽으로 — 맞은 적을 탄이 지나는 줄로 당겨 모은다', axis: 'knockPos', dir: -1, ext: true, wpn: true, badges: ['knock'], fx: '←', apply: s => s.knockPos--},
+  {id: 'push',   nm: '밀당 증가',     ds: '밀당 저울을 오른쪽으로 — 맞은 적을 탄이 지나는 줄에서 옆으로 밀어 흩는다', axis: 'knockPos', dir: 1, ext: true, wpn: true, badges: ['knock'], fx: '→', apply: s => s.knockPos++},
   {id: 'fast',   nm: '탄속 증가',  ds: '탄속 저울을 왼쪽으로 — 탄이 빨리 날아간다', axis: 'spdPos', dir: -1, ext: true, wpn: true, badges: ['spd'], fx: '←', apply: s => s.spdPos--},
   {id: 'slow',   nm: '탄속 감소',  ds: '탄속 저울을 오른쪽으로 — 탄이 느리게 날아간다 (부메랑은 오래 머문다)', axis: 'spdPos', dir: 1, ext: true, wpn: true, badges: ['spd'], fx: '→', apply: s => s.spdPos++},
-  {id: 'splash', sub: '화약 주머니', nm: '폭발',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
+  {id: 'splash', sub: '화약 주머니', nm: '폭발 증가',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
@@ -378,26 +378,26 @@ const spdMulOf = pos => pos < 0 ? 1.25 ** -pos : 0.8 ** pos;
 // 색은 --bc. 팁은 마우스를 올리거나 터치하면 뜬다
 const BADGES = {
   // 능력치 뱃지 — 모든 무기가 가진다 (발사각은 탄이 있는 무기만). 값은 숫자로 붙는다
-  dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「공격력」을 받으면 +20%.'},
-  cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '한 발 쏘고 다음 발까지 걸리는 초. 「공격속도」를 받으면 ×0.85 (짧을수록 좋음).'},
+  dmg:    {nm: '피해',   col: '#ff9f9f', tip: '한 번 맞힐 때 피해. 「피해 증가」를 받으면 +20%.'},
+  cd:     {nm: '쿨다운', col: '#9fd3ff', tip: '한 발 쏘고 다음 발까지 걸리는 초. 「쿨다운 감소」를 받으면 ×0.85 (짧을수록 좋음).'},
   mag:    {nm: '장탄',   col: '#ffe27a', tip: '재장전 없이 쏘는 수. 다 쏘면 재장전.'},
-  reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「공격속도」를 받으면 ×0.85.'},
+  reload: {nm: '재장전', col: '#ff9a4a', tip: '탄을 다 쓴 뒤 다시 채우는 초. 「쿨다운 감소」를 받으면 ×0.85.'},
   stun:   {nm: '경직',   col: '#d8c8ff', tip: '맞은 적이 이만큼(초) 그 자리에 굳는다 (움직임 · 넉백 멈춤). 보스는 굳지 않는다.'},
-  range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리」를 받으면 +15%.'},
+  range:  {nm: '사거리', col: '#b6f0a0', tip: '겨누는 거리(px). 「사거리 증가」를 받으면 +15%.'},
   spd:    {nm: '탄속',   col: '#9fe0ff', tip: '탄 · 부메랑이 날아가는 빠르기(px/초). 「탄속 증가」는 저울 왼쪽(×1.25), 「탄속 감소」는 오른쪽(×0.8).'},
-  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 고리 길이 사거리 중간쯤에서 겨눈 쪽에서 이만큼씩 부풀고, 끝에서는 0°). 「집탄」을 받으면 좁아지고(×0.8, 잘 모임) 「산탄」을 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
-  hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력」을 받으면 +250 하고 그만큼 회복.'},
-  move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
+  acc:    {nm: '발사각', col: '#e0e0e0', tip: '한 발마다 겨눈 쪽에서 ± 이만큼 빗나간다 (부메랑은 고리 길이 사거리 중간쯤에서 겨눈 쪽에서 이만큼씩 부풀고, 끝에서는 0°). 「발사각 감소」를 받으면 좁아지고(×0.8, 잘 모임) 「발사각 증가」를 받으면 넓어진다(×1.25, 넓게 흩어짐).'},
+  hp:     {nm: '체력',   col: '#ff8fb0', tip: '최대 체력. 「체력 증가」를 받으면 +250 하고 그만큼 회복.'},
+  move:   {nm: '이동속도', col: '#ffd59a', tip: '주인공이 걷는 빠르기(px/초). 「이동속도 증가」를 받으면 +10%. 빠르면 부메랑이 둘레를 더 돈다.'},
   def:    {nm: '방어',   col: '#c0c8d8', tip: '받는 피해를 이만큼 줄인다.'},
-  regen:  {nm: '체력 재생', col: '#ff8fb0', tip: '초마다 저절로 차는 체력. 「체력 재생」을 받으면 +5.'},
-  magnet: {nm: '획득 범위', col: '#4cf', tip: '경험치 보석을 끌어오기 시작하는 거리(px). 「획득 범위」를 받으면 기본의 +25%.'},
+  regen:  {nm: '체력 재생', col: '#ff8fb0', tip: '초마다 저절로 차는 체력. 「체력 재생 증가」를 받으면 +5.'},
+  magnet: {nm: '획득 범위', col: '#4cf', tip: '경험치 보석을 끌어오기 시작하는 거리(px). 「획득 범위 증가」를 받으면 기본의 +25%.'},
   xpmul:  {nm: '경험치',  col: '#fc4', tip: '보석에서 얻는 경험치 배율(%). 「경험치 증가」를 받으면 +10%.'},
-  pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). 그보다 많은 적은 피해를 입지 않는다. 레이저는 빔 길의 총구 쪽부터, 부메랑은 한 번 던져 벤 적 수 (벤 적은 오는 길에 다시 벰). 레이저는 「연쇄 +1」마다 같이 +1. ∞ = 지나는 길의 적 모두.'},
-  chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 +1」을 받으면 +1.'},
-  spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「투사체 +1」을 받으면 +1.'},
-  burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속공격 +1」을 받으면 +1.'},
-  knock:  {nm: '밀당',   col: '#a8d08d', tip: '맞은 적이 탄이 지나는 줄 기준으로 옆으로 움직이는 거리(px, 무게 1 기준 — 무게 2 면 절반). + 는 밀쳐냄(줄에서 흩어짐), − 는 끌어당김(줄로 모임, 줄을 넘지는 않음), 0 은 없음. 5칸 저울: 「끌어당김」은 왼쪽, 「밀쳐냄」은 오른쪽으로 한 칸 (한 칸 13 · 두 칸 22).'},
-  splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발」을 받으면 늘어난다.'},
+  pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). 그보다 많은 적은 피해를 입지 않는다. 레이저는 빔 길의 총구 쪽부터, 부메랑은 한 번 던져 벤 적 수 (벤 적은 오는 길에 다시 벰). 레이저는 「연쇄 증가」마다 같이 +1. ∞ = 지나는 길의 적 모두.'},
+  chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 「연쇄 증가」를 받으면 +1.'},
+  spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수. 「확산 증가」를 받으면 +1.'},
+  burst:  {nm: '연속',   col: '#ffb070', tip: '한 번에 잇달아 쏘는 발 수 (발마다 새로 겨눔). 「연속 증가」를 받으면 +1.'},
+  knock:  {nm: '밀당',   col: '#a8d08d', tip: '맞은 적이 탄이 지나는 줄 기준으로 옆으로 움직이는 거리(px, 무게 1 기준 — 무게 2 면 절반). + 는 밀쳐냄(줄에서 흩어짐), − 는 끌어당김(줄로 모임, 줄을 넘지는 않음), 0 은 없음. 5칸 저울: 「밀당 감소」는 왼쪽, 「밀당 증가」는 오른쪽으로 한 칸 (한 칸 13 · 두 칸 22).'},
+  splash: {nm: '폭발',   col: '#ff7a6b', tip: '맞은 자리 둘레 반경(px) · 그 둘레 피해(%). 「폭발 증가」를 받으면 늘어난다.'},
 };
 // 뱃지 값 — st 는 wstat 결과(판 중) 또는 무기 기본값. 값이 없는 뱃지는 0
 const num = v => +v.toFixed(Math.abs(v) < 10 && v % 1 ? 2 : 1);
