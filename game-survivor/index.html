@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.93.0';
+const VERSION = '0.93.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1922,6 +1922,17 @@ function updateLaser(w, wi, st, dt) {
 
 // 총알 연쇄: e 를 맞힌 b 를 다음 적으로 돌린다. 이을 적이 없으면 false
 const CHAIN_HOP = 170;                // 연쇄로 다음 적을 찾는 거리 (px)
+// 탄이 남은 길(maxTravel 까지)에서 아직 안 맞힌 적과 닿을까 (0.93.1)
+function enemyAhead(b) {
+  const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp, left = b.maxTravel - b.travel;
+  for (const o of G.enemies) {
+    if (o.dead || b.hit.has(o)) continue;
+    const t = (o.x - b.x) * ux + (o.y - b.y) * uy;
+    if (t < 0 || t > left) continue;
+    if (Math.abs((o.x - b.x) * uy - (o.y - b.y) * ux) <= o.r + (b.rad || 5)) return true;
+  }
+  return false;
+}
 function chainBullet(b, e) {
   const nx = nearestEnemy(e.x, e.y, CHAIN_HOP, b.hit);
   if (!nx) return false;
@@ -2108,7 +2119,11 @@ function update(dt) {
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
       //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
       if (b.boom) { b.tgts.add(e); if (b.tgts.size >= b.pleft && b.boom === 1) b.ret = true; continue; }   // 관통을 다 쓰면 가던 길을 접고 손으로 돌아온다 (0.75.0)
-      if (b.pierce && --b.pleft > 0) continue;                    // 관통이 남았으면 꿰뚫고 계속 날아간다
+      if (b.pierce && --b.pleft > 0) {                            // 관통이 남았으면 꿰뚫고 계속 날아간다
+        // 0.93.1: 남은 길(사거리 안)에 꿰뚫을 적이 없으면 관통을 기다리지 않고 바로 연쇄 — 튄 뒤엔 한 마리씩
+        if (b.chain > 0 && !enemyAhead(b) && chainBullet(b, e)) { b.pleft = 1; break; }
+        continue;
+      }
       if (b.chain > 0 && chainBullet(b, e)) break;
       b.dead = true;
       break;
