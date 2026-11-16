@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.90.1';
+const VERSION = '0.91.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1141,9 +1141,10 @@ function navTick(dt) {
 // 레벨업 필요 경험치 — 완벽 플레이(다 잡고 다 줍기)에서 **약 20초마다 한 번** 레벨업 되게 맞춘 곡선 (docs/레벨업_곡선.md)
 //   xpNeed(L) = 25 × 1.124^(L-1). 10분에 Lv 31. 빈도 · 몹 경험치를 바꾸면 콘솔 __fitXp(20) 으로 A · g 를 다시 뽑는다
 const XP_A = 25, XP_G = 1.124;
-// 초반 할인 (0.49.0): Lv1 은 40% 부터 레벨마다 +15% → Lv5 부터 100% (첫 레벨업이 너무 늦어서)
-const XP_EARLY = 0.4, XP_EARLY_STEP = 0.15;
-const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY + XP_EARLY_STEP * (lv - 1)));
+// 초반 할인 (0.91.0): 첫 레벨업 = 잡몹 두 마리 (경험치 2). Lv1 은 8% 부터 레벨마다 ×1.6 → Lv7 부터 100%
+//   필요 경험치 2 · 4 · 6 · 12 · 21 · 38 · 50 … (그 전 0.49.0: 40% 부터 +15% → 10 · 15 · 22 · 30 · 40)
+const XP_EARLY = 0.08, XP_EARLY_MUL = 1.6;
+const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY * XP_EARLY_MUL ** (lv - 1)));
 
 const levelPool = () => UPGRADES.filter(u => !u.sub && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
     && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id));   // 영향받는 무기가 없거나 봉인한 것은 안 나온다
