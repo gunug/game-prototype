@@ -277,7 +277,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.84.0';
+const VERSION = '0.84.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1550,12 +1550,14 @@ const FLASH_T = 0.06;
 const KNOCK_DECAY = 8;
 // 화면 밖 따라잡기 (0.71.0): 화면에 한 번 들어왔다 나간 적(또는 화면 대각선 × FAR_K 보다 멀어진 적)은 OFF_SPD 로 주인공에게 온다.
 //   화면 안에 들어오면 원래 빠르기. 그 전엔 너무 멀면 화면 둘레 아무 각도로 옮겼다 (깎인 체력 그대로 혼자 들어옴)
-const OFF_SPD = 450, FAR_K = 0.9;   // 주인공 최고 이동속도(190 × 1.1⁵ ≈ 306)보다 빠르게
+const OFF_SPD = 450, FAR_K = 0.9, OFF_MARGIN = 90;   // OFF_MARGIN (0.84.1): 화면 가장자리에서 이만큼 더 밖이어야 빨라짐 — 경계에서 빨라지는 게 보이지 않게   // 주인공 최고 이동속도(190 × 1.1⁵ ≈ 306)보다 빠르게
 // 이번 프레임 걷는 빠르기 — d = 주인공까지 거리. 보스도 걷기 때 같이 (0.72.0)
 function chaseSpd(e, d) {
-  const p = G.p, off = Math.abs(e.x - p.x) > W / 2 + e.r || Math.abs(e.y - p.y) > H / 2 + e.r;
+  const p = G.p, ax = Math.abs(e.x - p.x), ay = Math.abs(e.y - p.y);
+  const off = ax > W / 2 + e.r || ay > H / 2 + e.r;
+  const far = ax > W / 2 + e.r * 3.4 + OFF_MARGIN || ay > H / 2 + e.r * 3.4 + OFF_MARGIN;   // 그림 키(r × 3.4) + 여유만큼 밖
   if (!off || d > FAR_K * Math.hypot(W, H)) e.seen = true;       // 화면에 들어왔거나 너무 멀어지면 '따라잡을 적'
-  return off && e.seen ? Math.max(e.spd, OFF_SPD) : e.spd;
+  return far && e.seen ? Math.max(e.spd, OFF_SPD) : e.spd;
 }   // 넉백 속도가 잦아드는 빠르기 (/초) — 움직이는 거리 = 처음 속도 ÷ 이것
 // 체력 겹침 (0.54.0): 빨간 줄은 바로, 하얀 줄(gk)은 GHOST_WAIT 만큼 기다렸다가 새 체력까지 줄어든다. 맞을 때마다 기다림이 다시 시작
 const GHOST_WAIT = 0.1;
