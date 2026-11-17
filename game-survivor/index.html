@@ -89,6 +89,8 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .char .kit span{font-weight:700}
   .char .kit small{font-size:10px;line-height:1.3;color:#aab;font-weight:400}
   .char .kit.kp small{color:#d9a}
+  .char .kit .kb{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
+  .char .kit .badge{width:auto;font-size:9px;line-height:13px;padding:1px 1px 1px 5px}.char .kit .badge b{padding:0 4px}
   .char .kit.kp{color:#f9a;border:1px solid #6a3344}
   .char .kit.kw{border:1px solid #3a4a66}.char .kit.ks{border:1px solid #3a5a4a}
   #slots .penTag{font-style:normal;color:#f9a}
@@ -318,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.111.2';
+const VERSION = '0.111.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -821,7 +823,8 @@ function showChars() {
     // 시작 구성 (0.111.0) · 설명 글 (0.111.1): 그림 옆에 이름 + 짧은 설명
     // 0.111.2: 더 짧게 — 무기 '피해 n 장탄 n 재장전 n 특성' · 패널티 short · 보조 subShort
     const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
-      return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : '', ...W.badges.map(b => BADGES[b].nm)].filter(Boolean).join(' '); };
+      return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : ''].filter(Boolean).join(' ')
+        + (W.badges.length ? `<span class="kb">${W.badges.map(b => badgeHtml(b, badgeVal(b, st))).join('')}</span>` : ''); };   // 특성은 공통 뱃지 + 숫자 (0.111.3)
     const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.nm;
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
