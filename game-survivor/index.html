@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.97.0';
+const VERSION = '0.97.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1591,12 +1591,6 @@ function drawOrbit(w) {
     else circle(o.x, o.y, W.rad, '#4af');
   }
   ctx.restore();
-  ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';   // 남은 버팀 (0.97.0)
-  for (const o of spots) {
-    ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.strokeText(w.orb.alive[o.i], o.x, o.y + 0.5);
-    ctx.fillStyle = '#fff'; ctx.fillText(w.orb.alive[o.i], o.x, o.y + 0.5);
-  }
-  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 // ── 적 공격 (0.84.0) ── G.eshots: 곧은 탄 · 곡사(lob) · 부푼 좀비 터짐(blast)
@@ -2282,18 +2276,24 @@ function boomMeter(w, i) {
 }
 // 방패 미터 (0.90.0): 남은 방패 ÷ 전부 만큼 노랗게 + 남은 수. 다 깨지면 주황 파이가 쿨다운만큼 차오름
 function orbitMeter(w, i) {
-  const st = wstat(w.id), R = 7, {x, y} = meterPos(i);
-  const left = w.orb ? w.orb.alive.filter(h => h > 0).length : 0, n = w.orb ? w.orb.alive.length : orbitN(st), rl = left === 0;
-  const k = rl ? 1 - Math.max(0, w.cdT) / st.reload : left / n;
+  // 0.97.1: 방패 수만큼 나뉜 파이 — 칸 하나 = 방패 하나, 칸이 찬 길이(반지름) = 남은 버팀 ÷ 처음 버팀. 깨진 칸은 비움. 다 깨지면 주황 파이가 재장전만큼 차오름
+  const st = wstat(w.id), R = 8, {x, y} = meterPos(i);
+  const hp = w.orb ? w.orb.alive : [], n = hp.length || orbitN(st), max = orbitHp(st), rl = !hp.some(h => h > 0);
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = rl ? '#ff9a4a' : '#c9a93a';
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
-  if (!rl) {
-    ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(left, x, y + 0.5);
-    ctx.fillStyle = '#fff'; ctx.fillText(left, x, y + 0.5);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  if (rl) {
+    const k = 1 - Math.max(0, w.cdT) / st.reload;
+    ctx.fillStyle = '#ff9a4a'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+    return;
   }
+  const a0 = -Math.PI / 2, da = Math.PI * 2 / n;
+  for (let k = 0; k < n; k++) {
+    if (!(hp[k] > 0)) continue;
+    ctx.fillStyle = hp[k] >= max ? '#c9a93a' : '#8a7428';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R * Math.min(1, hp[k] / max), a0 + k * da, a0 + (k + 1) * da); ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.lineWidth = 1.2; ctx.beginPath();   // 칸 나눔 선
+  for (let k = 0; k < n; k++) { const a = a0 + k * da; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); }
+  ctx.stroke();
 }
 // 날아가는 부메랑: 무기 그림을 돌려 그린다 (그림이 없으면 V 모양)
 function drawBoomerang(x, y, rot, len) {
