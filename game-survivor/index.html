@@ -302,7 +302,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.108.1';
+const VERSION = '0.108.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1473,6 +1473,9 @@ const chestAll = () => [...chestPool(), ...oneNewWeapon(), ...weaponUpPool()];
 function chestPicks(pool = chestAll()) {
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  // 0.108.2: 세 장을 채우는 게 먼저 — 다른 후보가 모자라면 남은 새 무기로 채움 (그땐 새 무기가 여러 장)
+  const rest = newWeaponPool().filter(u => !picks.some(x => x.id === u.id));
+  while (picks.length < 3 && rest.length) picks.push(rest.splice(Math.floor(Math.random() * rest.length), 1)[0]);
   return picks;
 }
 function openChest() {
