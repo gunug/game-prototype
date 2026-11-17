@@ -303,7 +303,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.106.0';
+const VERSION = '0.106.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2184,6 +2184,7 @@ function update(dt) {
   p.walk += dt * Math.PI * p.speed / WALK_STRIDE * p.move;   // 한 걸음(통통 한 번 = π) 에 WALK_STRIDE 만큼 나아간다 — 빠른 캐릭터는 발도 빠르게
   p.inv = Math.max(0, p.inv - dt); tickGhost(p, dt);
   G.hitT = Math.max(0, (G.hitT || 0) - dt); G.shake = (G.shake || 0) * Math.exp(-SHAKE_DECAY * dt);
+  { const sk = G.shake > 0.3 ? G.shake : 0; G.skx = (Math.random() * 2 - 1) * sk; G.sky = (Math.random() * 2 - 1) * sk; }   // 흔들림 자리는 판이 돌 때만 바뀜 — 멈추면 같이 멈춤 (0.106.1)
   // 체력 재생 (0.74.0) — 0.83.0 부터 REGEN_T 초마다 한 번에 (초당 양은 그대로). 찰 때마다 녹색 +숫자
   if (G.s.regen && p.hp < p.maxHp) {
     if ((G.regenAcc = (G.regenAcc || 0) + dt) >= REGEN_T) {
@@ -2501,8 +2502,8 @@ function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#1f2125'; ctx.fillRect(0, 0, W, H);             // 아스팔트
   if (!G) return;
-  const p = G.p, sk = G.shake > 0.3 ? G.shake : 0;               // 맞으면 흔들림 (0.87.0)
-  const ox = W / 2 - p.x + (Math.random() * 2 - 1) * sk, oy = H / 2 - p.y + (Math.random() * 2 - 1) * sk;
+  const p = G.p;                                                 // 맞으면 흔들림 (0.87.0) — 흔드는 양은 update 에서 (0.106.1)
+  const ox = W / 2 - p.x + (G.skx || 0), oy = H / 2 - p.y + (G.sky || 0);
 
   // 바닥: 블록 줄 + 큰 간격마다 노란 점선 차선
   ctx.strokeStyle = '#272a2f'; ctx.lineWidth = 1; ctx.beginPath();
