@@ -318,7 +318,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.111.1';
+const VERSION = '0.111.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -658,9 +658,9 @@ const wupLv = id => G && G.weapons ? ((G.weapons.find(w => w.id === id) || {}).l
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
 // ── 패널티 보조 (0.110.0) ── 상자에서 안 나옴. 얻는 길은 아직 정하지 않음. 가지면 판 동안 불리한 효과 (G.pens)
 const PENALTIES = [
-  {id: 'civilian', nm: '민간인', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
-  {id: 'ration',   nm: '규정 탄약', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
-  {id: 'heavy',    nm: '무거운 장비', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
+  {id: 'civilian', nm: '민간인', short: '발사각×2', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
+  {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
+  {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
 ];
 const PEN = Object.fromEntries(PENALTIES.map(q => [q.id, q]));
 const hasPen = id => !!(G && G.pens && G.pens.includes(id));
@@ -819,12 +819,15 @@ function showChars() {
     const b = document.createElement('button');
     b.className = 'char';
     // 시작 구성 (0.111.0) · 설명 글 (0.111.1): 그림 옆에 이름 + 짧은 설명
-    const short = t => t.split(' — ')[0].replace(/\s*\(.*?\)/g, '');
+    // 0.111.2: 더 짧게 — 무기 '피해 n 장탄 n 재장전 n 특성' · 패널티 short · 보조 subShort
+    const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
+      return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : '', ...W.badges.map(b => BADGES[b].nm)].filter(Boolean).join(' '); };
+    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.nm;
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
-      ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, WEAPONS[c.weapon].sh)}
-      ${kit('kp', `images/item_pen_${c.pen}.png`, PEN[c.pen].nm, short(PEN[c.pen].ds))}
-      ${kit('ks', `images/item_${c.sub}.png`, UPG[c.sub].sub, short(UPG[c.sub].ds))}`;
+      ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, wShort(c.weapon))}
+      ${kit('kp', `images/item_pen_${c.pen}.png`, PEN[c.pen].nm, PEN[c.pen].short)}
+      ${kit('ks', `images/item_${c.sub}.png`, UPG[c.sub].sub, subShort(UPG[c.sub]))}`;
     b.onclick = () => pickChar(i);
     cl.appendChild(b);
   });
