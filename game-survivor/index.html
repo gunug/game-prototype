@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.116.0';
+const VERSION = '0.117.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1848,6 +1848,13 @@ function curseOn(b, e) {
     G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: e.r * 1.8, t: 0.3});
   } else hurtEnemy(e, b.dmg, b.stun);
 }
+// 아군이 맞음: 방패가 있으면 1 만 받고 한 번 깎임 (0.116.0), 아니면 방어 적용. 몸 · 탄 · 곡사 · 터짐 모두 (0.117.0)
+function hurtAlly(a, raw) {
+  if (a.dead) return;
+  if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }
+  else a.hp -= mobArmor(raw, a.def);
+  a.flash = FLASH_T;
+}
 // 아군 움직임 · 싸움: 가까운 적에게 달려가 닿으면 hitT 초마다 무기 피해. 닿아 있는 적들의 피해(초당)만큼 깎이고 0 이면 쓰러짐
 function tickAllies(dt) {
   for (const a of G.allies) {
@@ -1877,9 +1884,7 @@ function tickAllies(dt) {
     for (const e of G.enemies) {                                 // 닿은 적이 MOB_HIT_T 초마다 자기 피해로 때림 (아군 방어 적용)
       if (e.dead || (e.x - a.x) ** 2 + (e.y - a.y) ** 2 >= (e.r + a.r) ** 2) continue;
       if ((e.atkT = (e.atkT || 0) - dt) > 0) continue;
-      if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }   // 방패: 1 만 받고 한 번 깎임 (0.116.0)
-      else a.hp -= mobArmor(e.dmg, a.def);
-      a.flash = FLASH_T; e.atkT = MOB_HIT_T;
+      hurtAlly(a, e.dmg); e.atkT = MOB_HIT_T;
     }
     if (a.hp <= 0) { a.dead = true; G.fx.push({kind: 'splash', mine: true, x: a.x, y: a.y, r: a.r * 1.6, t: 0.25}); if (a.xp) dropGems(a.x, a.y, a.xp, 1);
       const bu = (ENEMY_TYPES[a.type] || {}).burst;              // 부푼 좀비 아군: 쓰러진 자리에서 터져 적에게 (0.116.0)
@@ -2021,11 +2026,13 @@ function rangedTick(e, dx, dy, d, dt) {
   if (e.atkT <= 0) {
     e.atkT = A.cd * (0.9 + Math.random() * 0.2);
     const k = e.elite != null ? ELITE.dmg : 1;
+    const al = G.allies.length && foeTarget(e);                  // 0.117.0: 가장 가까운 게 아군이면 아군을 (지금 자리로)
+    const ally = al && al !== G.p ? al : null;
     if (T.shot) {                                                  // 예측 사격 (0.85.2): 탄이 닿을 때 주인공이 있을 자리로
-      const sy = e.y - e.r * 0.6, tg = leadPoint(interceptT(e.x, sy, A.spd));
+      const sy = e.y - e.r * 0.6, tg = ally ? {x: ally.x, y: ally.y - ally.r * 0.3} : leadPoint(interceptT(e.x, sy, A.spd));
       fireShot(e.x, sy, Math.atan2(tg.y - sy, tg.x - e.x), A.spd, A.dmg * k, A.r, A.col, A.range * 2.5);
     }
-    else { const tg = leadPoint(A.T); throwLob(e.x, e.y - e.r, tg.x, tg.y, A.T, A.aoe, A.dmg * k); }
+    else { const tg = ally ? {x: ally.x, y: ally.y} : leadPoint(A.T); throwLob(e.x, e.y - e.r, tg.x, tg.y, A.T, A.aoe, A.dmg * k); }
   }
   return true;
 }
@@ -2039,6 +2046,7 @@ function tickEshots(dt) {
         b.dead = true;
         G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3});
         if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.aoe + e.r) ** 2) hurtEnemy(e, b.dmg); continue; }   // 아군 것은 적에게 (0.116.0)
+        for (const a of G.allies) if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 < (b.aoe + a.r) ** 2) hurtAlly(a, b.dmg);   // 적 것은 아군에게도 (0.117.0)
         if ((p.x - b.x) ** 2 + (p.y + HIT_CY - b.y) ** 2 < (b.aoe + HITBOX) ** 2) hurtPlayer(b.dmg);
       }
       continue;
@@ -2046,6 +2054,8 @@ function tickEshots(dt) {
     b.x += b.vx * dt; b.y += b.vy * dt;
     if ((b.life -= dt) <= 0) { b.dead = true; continue; }
     if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.r + e.r) ** 2) { b.dead = true; hurtEnemy(e, b.dmg); break; } continue; }
+    for (const a of G.allies) if (!a.dead && (a.x - b.x) ** 2 + (a.y - a.r * 0.3 - b.y) ** 2 < (b.r + a.r) ** 2) { b.dead = true; hurtAlly(a, b.dmg); break; }   // 적 탄이 아군에 맞음 (0.117.0)
+    if (b.dead) continue;
     if ((p.x - b.x) ** 2 + (p.y + HIT_CY - b.y) ** 2 < (b.r + HITBOX) ** 2 && p.inv <= 0) { b.dead = true; hurtPlayer(b.dmg); }
   }
   G.eshots = G.eshots.filter(b => !b.dead);
