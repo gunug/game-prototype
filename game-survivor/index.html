@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.114.2';
+const VERSION = '0.114.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -619,7 +619,7 @@ const WEAPONS = {
   //   0.114.2: 아군의 체력 · 공격력 · 공격 빈도 · 방어 · 빠르기는 원래 몬스터 그대로 (닿은 적에게 MOB_HIT_T 초마다 자기 피해)
   //   DPS 맞춤: 인형 자체 — 한 바퀴 = 재장전, 한 바퀴에 1 번 (아군 몫은 덤)
   doll:   {nm: '주술인형', kind: 'charm', sh: '맞힌 적을 아군으로', ds: '저주인형을 던져 맞힌 잡몹을 아군으로 만든다. 아군은 가까운 적에게 달려가 싸우고, 적도 가장 가까운 아군이나 주인공을 노린다. 아군은 저주 수만큼 — 다 차면 인형은 피해만 준다',
-           dmg: 0, reload: 3, range: 160, spd: 300, acc: 6, curse: 2, maxT: 1, stun: 0.1,   // curse: 아군 상한 (저주 뱃지)
+           dmg: 0, fixedDmg: 100, reload: 3, range: 160, spd: 300, acc: 6, curse: 2, maxT: 1, stun: 0.1,   // curse: 아군 상한 (저주 뱃지) · fixedDmg: 맞춤 대신 정한 피해 (0.114.3, 사용자)
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['curse']},
 };
@@ -661,7 +661,7 @@ const cycleOf = W => W.kind === 'charm' ? W.reload : W.kind === 'boom' ? boomFli
 const perCycle = W => W.kind === 'charm' ? 1 : W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
-  W.dmg = Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수
+  W.dmg = W.fixedDmg ?? Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수 — fixedDmg 가 있으면 그것 (주술인형 100)
 }
 const dpsOf = W => { const s = W.dmg * perCycle(W) / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.cd ? W.dmg / W.cd : 0}; };
 const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
