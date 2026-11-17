@@ -303,7 +303,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.105.0';
+const VERSION = '0.106.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -375,6 +375,8 @@ const mobArmor = (dmg, def) => dmg * 100 / (100 + (def || 0));
 const MAX_ENEMIES = 500;
 const TRAIT_MAX = 10;             // 특성 보조 최대 단계 (0.100.0, 그 전 5) — 부여 1 + 강화 9
 
+const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}`;   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
+const MAGDROP_P = 0.005;   // 자석 떨굴 확률 (적 하나마다)
 const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
@@ -427,6 +429,8 @@ const UPGRADES = [
     //   부여 보조(give): 얻으면 끝. 그 특성이 없는 무기(앞으로 얻을 무기도)에 특성을 붙인다 — 붙는 값은 지금 단계 그대로
   //   레벨업 특성 강화(tup): 가진 특성(기본 · 부여)이면 나옴. 단계 +1 — 특성 강화는 이것뿐 (0.104.0). 카드 그림은 그 특성의 인장
   // 강화 보조(텅스텐 탄심 · 도약 회로 · 갈래 총구 · 화약 주머니)는 0.104.0 에 뺌 — 보조는 부여 · 기능형만, 특성 강화는 레벨업에서만 (보조 칸 안 씀)
+  // 자석 출현 (0.106.0): 얻으면 끝. 적(보스 빼고)이 MAGDROP_P 확률로 자석을 떨군다 — 주우면 필드의 보석을 모두 끌어옴. 겹쳐 쌓임
+  {id: 'magdrop', sub: '자석 출현', passive: true, nm: '자석 출현', ds: '적이 0.5% 확률로 자석을 떨군다. 주우면 필드의 경험치를 모두 끌어온다', max: 1, badges: [], apply: () => {}},
   {id: 'give_pierce', give: 'pierce', sub: '송곳 인장', nm: '관통 부여', ds: '관통이 없는 무기에 관통을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['pierce'], fx: '부여', apply: () => {}},
   {id: 'give_chain',  give: 'chain',  sub: '사슬 인장', nm: '연쇄 부여', ds: '연쇄가 없는 무기에 연쇄를 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['chain'], fx: '부여', apply: () => {}},
   {id: 'give_spread', give: 'spread', sub: '부채 인장', nm: '확산 부여', ds: '확산이 없는 무기에 확산을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['spread'], fx: '부여', apply: () => {}},
@@ -879,7 +883,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1015,11 +1019,11 @@ function wbookHtml() {
 }
 function sbookHtml() {
   const row = u => `<div class="foeRow wb"><img src="images/item_${u.id}.png?v=${VERSION}" alt=""><div style="flex:1;min-width:0">
-      <div class="fn">${u.sub}<small>${u.give ? '특성 부여 · 얻으면 끝' : `기능 · 최대 ${u.max}단계`}</small></div><div class="fd">${u.ds}</div>
+      <div class="fn">${u.sub}<small>${u.give ? '특성 부여 · 얻으면 끝' : u.max === 1 ? '기능 · 얻으면 끝' : `기능 · 최대 ${u.max}단계`}</small></div><div class="fd">${u.ds}</div>
       ${u.give ? `<div class="fx">받는 무기 ${Object.values(WEAPONS).filter(W => giveable(W, u.give)).map(W => W.nm).join(' · ')}</div>` : ''}</div></div>`;
   const lv = {pierce: '기본 관통(저격 2 · 부메랑 4, 부여 2) + 단계−1', chain: '기본 연쇄(레이저 2, 부여 1) + 단계−1', spread: '1단계 = 한 발 더, 단계마다 +1 (방패는 6 + 단계−1)', splash: `반경 ${splashR(1)} → ${splashR(TRAIT_MAX)} · 둘레 피해 ${Math.round(splashPct(1) * 100)}% → ${Math.round(splashPct(TRAIT_MAX) * 100)}% (맞은 적은 늘 100%)`};
   return `<h3>특성 부여</h3>` + UPGRADES.filter(u => u.give).map(row).join('')
-    + `<h3>기능</h3>` + UPGRADES.filter(u => u.util).map(row).join('')
+    + `<h3>기능</h3>` + UPGRADES.filter(u => u.util || u.passive).map(row).join('')
     + `<h3>특성 강화 (레벨업)</h3><div class="infoRow"><span>보조가 아니라 레벨업에서 고른다 (보조 칸 안 씀). 가진 특성(기본 · 부여)마다 나오고, 판 전체에 단계가 하나 — 모든 무기가 같은 단계. 1 ~ ${TRAIT_MAX}단계</span></div>`
     + TRAITS.map(t => `<div class="infoRow"><span class="chip" style="--bc:${BADGES[t].col}">${TRAIT_NM(t)}</span><span>${lv[t]}</span></div>`).join('')
     + `<h3>보조 칸</h3><div class="infoRow"><span>${CHARACTERS.map(c => `${c.nm} ${c.sSlots}칸`).join(' · ')} — 칸이 다 차면 새 보조는 안 나온다</span></div>`;
@@ -1355,6 +1359,7 @@ function wupHtml(id) {
 //   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
 //   체력 · 방어: 주인공 값 지금 → 다음
 function upHtml(u) {
+  if (u.passive) return `<div class="udesc">${u.ds}</div>`;    // 얻으면 끝인 기능 보조 (자석 출현)
   if (u.util) {                                                  // 쓰는 보조: 설명 + 창마다 횟수 지금 → 다음
     const lv = G.ups[u.id] || 0;
     return `<div class="udesc">${u.ds}</div><div class="wrows"><div class="wrow"><span class="wch on">창마다</span><span class="wv">${lv}회 → <b>${lv + 1}회</b></span></div></div>`;
@@ -1919,6 +1924,7 @@ function hurtEnemy(e, dmg, stun = 0) {
     if (e.xp) dropGems(e.x, e.y, e.xp, e.elite != null && !e.boss ? 5 + e.elite * 2 : 1);
     const bu = (ENEMY_TYPES[e.type] || {}).burst;                // 부푼 좀비: 그 자리에 예고 원 → 터짐 (0.84.0)
     if (bu) G.eshots.push({blast: true, x: e.x, y: e.y, t: 0, T: bu.T, aoe: bu.aoe * (e.elite != null ? 1.3 : 1), dmg: bu.dmg * (e.elite != null ? ELITE.dmg : 1)});
+    if (!e.boss && ownsSub('magdrop') && Math.random() < MAGDROP_P) G.mags.push({x: e.x, y: e.y, t: 0});   // 자석 출현 (0.106.0)
     if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
     else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
@@ -2361,6 +2367,12 @@ function update(dt) {
     if (Math.hypot(p.x - c.x, p.y - c.y) < p.r + 14) { c.dead = true; if (G.mode === 'levelup') G.chestQ++; else openChest(); }
   }
   G.chests = G.chests.filter(c => !c.dead);
+  // 자석 (0.106.0): 닿으면 필드의 보석을 모두 끌어옴 (공중에 뜬 것은 땅에 닿자마자)
+  for (const m of G.mags) {
+    m.t += dt;
+    if (Math.hypot(p.x - m.x, p.y - m.y) < p.r + 12) { m.dead = true; for (const g of G.gems) g.pull = true; G.fx.push({kind: 'splash', mine: true, x: p.x, y: p.y, r: 40, t: 0.3}); }
+  }
+  G.mags = G.mags.filter(m => !m.dead);
 
 
   G.enemies = G.enemies.filter(e => !e.dead);
@@ -2523,6 +2535,13 @@ function draw() {
 
   // 상자: 등급 색으로 빛나며 살짝 뜀
   for (const c of G.chests) drawChest(c.x, c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4, gradeCol(c.g));
+  // 자석 (0.106.0): 청록 빛 + 살짝 뜀
+  for (const m of G.mags) {
+    const y = m.y - 4 - Math.abs(Math.sin(m.t * 3)) * 4, sz = 20;
+    ctx.save(); ctx.shadowColor = '#3ef'; ctx.shadowBlur = 10;
+    if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 7, '#e44');
+    ctx.restore();
+  }
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
@@ -2828,7 +2847,7 @@ function hud() {
   const s = G.s;
   // 슬롯 줄 (0.79.0): 그림 + 이름, 보조는 단계도
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => `<img src="images/weapon_${w.id}.png?v=${VERSION}" alt="">${WEAPONS[w.id].nm}`))
-    + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => { const u = UPG[x.id], n = u.give ? '' : G.ups[x.id] || 1; return `<img src="images/item_${x.id}.png?v=${VERSION}" alt="">${x.nm}${n === '' ? '' : `<b>${n}</b>`}`; }));
+    + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => { const u = UPG[x.id], n = u.give || u.max === 1 ? '' : G.ups[x.id] || 1; return `<img src="images/item_${x.id}.png?v=${VERSION}" alt="">${x.nm}${n === '' ? '' : `<b>${n}</b>`}`; }));
   if ($('slots').dataset.k !== sl) { $('slots').innerHTML = sl; $('slots').dataset.k = sl; }
   $('stats').textContent =
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
