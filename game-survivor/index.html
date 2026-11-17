@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.100.1';
+const VERSION = '0.101.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -592,19 +592,22 @@ const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shiel
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
 const RANGE_CAP = 1.4;
+// 무기 강화 (0.101.0, 상자): 한 자루의 기본 능력치가 한꺼번에 조금씩. 단계마다 곱함, 최대치 없음 (사거리만 RANGE_CAP 안에서)
+const WUP = {dmg: 1.1, cd: 0.95, reload: 0.95, range: 1.05};
+const wupLv = id => G && G.weapons ? ((G.weapons.find(w => w.id === id) || {}).lv || 0) : 0;
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
 const baseStat = id => { const W = WEAPONS[id]; return {dmg: W.dmg, cd: W.cd, mag: W.mag, reload: W.reload, stun: W.stun || 0, range: W.range, spd: W.spd, acc: W.acc, pierce: W.pierce || 0, chain: W.chain || 0, count: 1, burst: 1, knock: 0, splash: W.splash || 0, shields: W.n}; };
 // 무기 한 자루의 지금 능력치 (업그레이드 중 영향받는 것만 적용)
 function wstat(id) {
-  const W = WEAPONS[id], s = G.s, a = k => wpnTakes(W, k), c = G.char;
+  const W = WEAPONS[id], s = G.s, a = k => wpnTakes(W, k), c = G.char, L = wupLv(id);
   return {
-    dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1),
-    cd: (W.cd || 0) * (a('rate') ? s.cdMul : 1),
+    dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1) * WUP.dmg ** L,
+    cd: (W.cd || 0) * (a('rate') ? s.cdMul : 1) * WUP.cd ** L,
     mag: W.mag && Math.round(W.mag * (a('mag') ? s.magMul : 1)),   // 장탄 증가 (0.92.0)
     stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
-    reload: (W.reload || 0) * (a('reload') ? s.reloadMul : 1),   // 0.97.0: 쿨다운 감소는 쿨다운만 (그 전엔 재장전도 ×0.85)
+    reload: (W.reload || 0) * (a('reload') ? s.reloadMul : 1) * WUP.reload ** L,   // 0.97.0: 쿨다운 감소는 쿨다운만 (그 전엔 재장전도 ×0.85)
       // 재장전 감소 (0.92.0)           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
-    range: W.range * Math.min(RANGE_CAP, a('range') ? s.rangeMul : 1),   // 상한: 기본 × RANGE_CAP
+    range: W.range * Math.min(RANGE_CAP, (a('range') ? s.rangeMul : 1) * WUP.range ** L),   // 상한: 기본 × RANGE_CAP (무기 강화 포함)
     spd: W.spd,                                              // 탄속 업그레이드 뺌 (0.94.0)
     pierce: W.pierce || 0,                                   // 한 발이 맞히는 적 수 (0 = 제한 없음)
     count: 1 + (a('count') ? s.count : 0),
@@ -1199,9 +1202,10 @@ function showPicks(picks, title, keep) {
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
-    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${!G.subs.some(x => x.id === u.id) ? '새 보조' : G.pickKind === 'lv' ? '특성 강화' : '보조 강화'}</div>` : ''}
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${!G.subs.some(x => x.id === u.id) ? '새 보조' : G.pickKind === 'lv' ? '특성 강화' : '보조 강화'}</div>` : u.wup ? '<div class="sublbl">무기 강화</div>' : ''}
       ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon))
+        : u.wup ? `<div class="wimg"><img src="images/weapon_${u.wup}.png?v=${VERSION}" alt=""></div>` + wupHtml(u.wup)
         : (u.sub ? `<div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;
     d.onclick = () => choose(i, true);
     box.appendChild(d);
@@ -1217,6 +1221,12 @@ function showPicks(picks, title, keep) {
   // 판 중 누르고 있던 손가락은 메뉴로 잇지 않는다 — 새로 눌러 끌어야 열린다 (0.11.4)
 }
 
+// 무기 강화 카드 (0.101.0): 오르는 능력치마다 지금 → 다음
+function wupHtml(id) {
+  const W = WEAPONS[id], w = G.weapons.find(x => x.id === id), ids = ['dmg', ...(W.cd ? ['cd'] : []), ...(W.reload ? ['reload'] : []), 'range'];
+  const a = wstat(id); w.lv++; const b = wstat(id); w.lv--;
+  return `<div class="stats">${ids.map(k => statHtml(k, `${badgeVal(k, a)} → ${badgeVal(k, b)}`)).join('')}</div>`;
+}
 // 업그레이드 카드: 바뀌는 뱃지 + 늘어나는 양(fx) → 숫자로 지금 → 다음
 //   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
 //   체력 · 방어: 주인공 값 지금 → 다음
@@ -1305,7 +1315,11 @@ const chestPool = () => UPGRADES.filter(u => u.sub && G.ups[u.id] < u.max && (!u
 // 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
 const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id) && !G.banned.has('new_' + id))
   .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => G.weapons.push(newWeapon(id))}));
-function chestPicks(pool = [...chestPool(), ...newWeaponPool()]) {
+// 무기 강화 (0.101.0): 가진 무기마다 하나. 최대치 없음 → 상자가 비지 않음
+const weaponUpPool = () => G.weapons.filter(w => !G.banned.has('wup_' + w.id))
+  .map(w => ({id: 'wup_' + w.id, nm: WEAPONS[w.id].nm + ' 강화', max: 99, wup: w.id, apply: () => { w.lv = (w.lv || 0) + 1; }}));
+const chestAll = () => [...chestPool(), ...newWeaponPool(), ...weaponUpPool()];
+function chestPicks(pool = chestAll()) {
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
   return picks;
@@ -1339,7 +1353,7 @@ function banPick(i) {
   if (!confirm(`「${nm}」 봉인\n이번 게임에서 더이상 등장하지 않습니다.`)) { G.banMode = false; showPicks(G.choices, pickTitle(), true); return; }
   G.banned.add(u.id); G.pickUse.ban++; G.banMode = false;
   const shown = new Set(G.choices.map(x => x.id));                 // 그 자리를 아직 안 보인 것으로 채운다
-  const pool = (G.pickKind === 'chest' ? [...chestPool(), ...newWeaponPool()] : levelPool()).filter(x => !shown.has(x.id));
+  const pool = (G.pickKind === 'chest' ? chestAll() : levelPool()).filter(x => !shown.has(x.id));
   const [nx] = G.pickKind === 'chest' ? chestPicks(pool) : levelPicks(pool);
   if (nx) G.choices[i] = nx; else G.choices.splice(i, 1);
   if (!G.choices.length) { closePicks(); return; }               // 고를 것이 남지 않으면 그냥 닫힘
@@ -1796,7 +1810,7 @@ function drawChest(x, y, col) {
 // ───── 공격 ─────
 const spreadRnd = st => (Math.random() * 2 - 1) * (st.acc || 0) * Math.PI / 180;   // 발사각: 한 발마다 ±acc 도
 const AIM_T = 0.07;                   // 쏘기 직전 대상 쪽으로 도는 시간 (초)
-const newWeapon = id => ({id, cdT: 0, shots: [], aim: 0, kick: 0, ammo: WEAPONS[id].mag, rl: 0, rlMax: 0});
+const newWeapon = id => ({id, lv: 0, cdT: 0, shots: [], aim: 0, kick: 0, ammo: WEAPONS[id].mag, rl: 0, rlMax: 0});
 // 재장전 중이면 시간을 흘리고 true. 다 채우면 바로 쏠 수 있게
 function reloading(w, st, dt) {
   if (!(w.rl > 0)) return false;
