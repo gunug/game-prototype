@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.114.1';
+const VERSION = '0.114.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -615,10 +615,11 @@ const WEAPONS = {
            badges: ['spread']},   // 0.99.0: 정체성 특성 확산(방패 수)만
   // 주술인형 (0.113.0) → 0.114.0: 저주인형을 던져 맞힌 잡몹(엘리트 · 보스 빼고)을 아군으로. 한 번에 부릴 수 있는 아군 수 = 저주(curse)
   //   관통 = 인형이 꿰뚫으며 여럿 · 연쇄 = 맞힌 뒤 다음 적으로 튐 · 확산 = 한 번에 던지는 인형 수 · 폭발 = 맞은 자리 둘레에도 저주
-  //   아군이 다 찼거나 데려올 수 없는 적(엘리트 · 보스)에 맞으면 그냥 피해. 아군은 가까운 적에게 달려가 hitT 초마다 피해
-  //   DPS 맞춤: 한 바퀴 = hitT, 한 바퀴에 1 번 — 아군 하나가 다른 무기 한 자루만큼
+  //   아군이 다 찼거나 데려올 수 없는 적(엘리트 · 보스)에 맞으면 그냥 피해
+  //   0.114.2: 아군의 체력 · 공격력 · 공격 빈도 · 방어 · 빠르기는 원래 몬스터 그대로 (닿은 적에게 MOB_HIT_T 초마다 자기 피해)
+  //   DPS 맞춤: 인형 자체 — 한 바퀴 = 재장전, 한 바퀴에 1 번 (아군 몫은 덤)
   doll:   {nm: '주술인형', kind: 'charm', sh: '맞힌 적을 아군으로', ds: '저주인형을 던져 맞힌 잡몹을 아군으로 만든다. 아군은 가까운 적에게 달려가 싸우고, 적도 가장 가까운 아군이나 주인공을 노린다. 아군은 저주 수만큼 — 다 차면 인형은 피해만 준다',
-           dmg: 0, reload: 3, range: 160, spd: 300, acc: 6, curse: 2, hitT: 0.5, maxT: 1, stun: 0.1, guard: 0.5,   // guard: 아군이 받는 피해 배율 · curse: 아군 상한 (저주 뱃지)
+           dmg: 0, reload: 3, range: 160, spd: 300, acc: 6, curse: 2, maxT: 1, stun: 0.1,   // curse: 아군 상한 (저주 뱃지)
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['curse']},
 };
@@ -656,7 +657,7 @@ function boomPath(R, acc) {           // 지역 좌표 (x = 겨눈 쪽, y = 옆)
 // 서서 던졌을 때 날아갔다 돌아오는 시간 = 고리 길이 ÷ 탄속 — DPS 맞춤용
 const boomFlight = (range, spd, acc = 0) => boomPath(range, acc).L / spd;
 //   부메랑 (0.61.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(boomFlight) + 쿨다운
-const cycleOf = W => W.kind === 'charm' ? W.hitT : W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
+const cycleOf = W => W.kind === 'charm' ? W.reload : W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
 const perCycle = W => W.kind === 'charm' ? 1 : W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
@@ -1809,7 +1810,7 @@ function orbitSpots(w, st) {
 }
 const orbitFill = (w, st) => { const n = orbitN(st); w.orb.alive = Array(n).fill(orbitHp(st)); w.orb.ht = Array(n).fill(0); };
 // ── 주술인형 (0.113.0) ── G.allies: 아군이 된 적. 적 목록(G.enemies)에서 빠져 무기 · 적 탄의 대상이 아님
-const ALLY_SPD = 1.3, ALLY_MIN_SPD = 90;                         // 아군 빠르기 = 원래 × 1.3 (적어도 90)
+const MOB_HIT_T = 0.5;                                           // 몬스터가 닿은 상대를 때리는 간격 (주인공이 맞은 뒤 무적 0.5초와 같음) — 아군 · 아군을 때리는 적 모두 (0.114.2)
 const charmCount = w => G.allies.filter(a => a.w === w).length;
 const curseOk = e => !e.dead && !e.boss && e.elite == null && !e.summon;   // 데려올 수 있는 적 (엘리트 · 보스 · 보스가 부른 몹 빼고)
 // 던지기 (0.114.0): 재장전마다 사거리 안 적에게 인형을 (확산 수만큼 부채꼴)
@@ -1841,19 +1842,22 @@ function curseOn(b, e) {
 // 아군 움직임 · 싸움: 가까운 적에게 달려가 닿으면 hitT 초마다 무기 피해. 닿아 있는 적들의 피해(초당)만큼 깎이고 0 이면 쓰러짐
 function tickAllies(dt) {
   for (const a of G.allies) {
-    const W = WEAPONS[a.w.id], st = wstat(a.w.id);
     let t = null, td = Infinity;
     for (const e of G.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < td) { td = d; t = e; } }
     a.ph = (a.ph || 0); tickGhost(a, dt); a.flash = Math.max(0, (a.flash || 0) - dt);
     if (t) {
-      const sp = Math.max(ALLY_MIN_SPD, a.spd * ALLY_SPD), reach = a.r + t.r;
+      const sp = a.spd, reach = a.r + t.r;                       // 빠르기도 원래 몬스터 그대로 (0.114.2)
       if (td > reach * 0.9) { a.vx = (t.x - a.x) / td * sp; a.x += a.vx * dt; a.y += (t.y - a.y) / td * sp * dt; }
-      if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, st.dmg, st.stun); a.hitT = W.hitT; }
+      if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }   // 원래 몬스터 피해
     } else {                                                     // 적이 없으면 주인공 곁으로
       const dx = G.p.x - a.x, dy = G.p.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 50) { const sp = Math.max(ALLY_MIN_SPD, a.spd * ALLY_SPD); a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
+      if (d > 50) { const sp = a.spd; a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
     }
-    for (const e of G.enemies) if (!e.dead && (e.x - a.x) ** 2 + (e.y - a.y) ** 2 < (e.r + a.r) ** 2) { a.hp -= e.dmg * W.guard * dt; a.flash = FLASH_T; }
+    for (const e of G.enemies) {                                 // 닿은 적이 MOB_HIT_T 초마다 자기 피해로 때림 (아군 방어 적용)
+      if (e.dead || (e.x - a.x) ** 2 + (e.y - a.y) ** 2 >= (e.r + a.r) ** 2) continue;
+      if ((e.atkT = (e.atkT || 0) - dt) > 0) continue;
+      a.hp -= mobArmor(e.dmg, a.def); a.flash = FLASH_T; e.atkT = MOB_HIT_T;
+    }
     if (a.hp <= 0) { a.dead = true; G.fx.push({kind: 'splash', mine: true, x: a.x, y: a.y, r: a.r * 1.6, t: 0.25}); }
   }
   G.allies = G.allies.filter(a => !a.dead);
