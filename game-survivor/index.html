@@ -135,6 +135,9 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .wrow .wv{color:#ccd;font-variant-numeric:tabular-nums;white-space:nowrap}
   .wrow .wv b{color:#ffd28a}
   .up.banning{outline:2px dashed #ff5a5a;outline-offset:-2px}   /* 봉인할 것 고르는 중 */
+  .up.banned{position:relative;cursor:default;pointer-events:none;border-color:#5a2a2a}   /* 봉인됨 (0.102.1): 자리 그대로, 못 고름 */
+  .up.banned>:not(.banTag){filter:grayscale(1) brightness(.45)}
+  .up .banTag{position:absolute;left:6px;right:6px;top:50%;transform:translateY(-50%);padding:8px 4px;border-radius:8px;background:rgba(0,0,0,.85);border:1px solid #ff5a5a;color:#ff8a8a;font-size:13px;font-weight:800;line-height:1.4}
   #banBtn.on{background:#a33}
   #luBtns{margin-top:10px} #luBtns:empty{display:none}
   .up .udesc{font-size:11px;color:#ccd;margin-top:6px;line-height:1.35}
@@ -282,7 +285,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.102.0';
+const VERSION = '0.102.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1123,7 +1126,7 @@ function rmItems(scr) {
     return {up: bs.filter(b => !b.hasAttribute('data-neg')).map(item), down: bs.filter(b => b.hasAttribute('data-neg')).map(item)};
   }
   const cards = [...$('cards').children];
-  const list = G.choices.map((u, i) => ({label: (G.banMode ? '봉인: ' : '') + (u.sub || u.nm), el: cards[i], act: () => choose(i, true)}));
+  const list = G.choices.map((u, i) => ({label: G.banned.has(u.id) ? '봉인됨' : (G.banMode ? '봉인: ' : '') + (u.sub || u.nm), disabled: G.banned.has(u.id), el: cards[i], act: () => choose(i, true)}));
   const down = [];                                             // 아래 절반 = 행운 주사위 · 봉인 부적 (0.78.0)
   if (hasSub('reroll')) down.push({label: '다시 뽑기', img: `images/item_reroll.png?v=${VERSION}`, disabled: !canReroll(), el: $('rerollBtn'), act: rerollPicks});
   if (hasSub('banish')) down.push({label: G.banMode ? '봉인 취소' : '봉인', img: `images/item_banish.png?v=${VERSION}`, disabled: !canBan(), el: $('banBtn'), act: toggleBan});
@@ -1241,7 +1244,9 @@ function showPicks(picks, title, keep) {
   const box = $('cards'); box.innerHTML = '';
   picks.forEach((u, i) => {
     const d = document.createElement('div');
-    d.className = 'up' + (G.banMode ? ' banning' : '');
+    const banned = G.banned.has(u.id);                          // 봉인됨 (0.102.1): 다른 것으로 채우지 않고 자리에 남겨 막음
+    d.className = 'up' + (banned ? ' banned' : G.banMode ? ' banning' : '');
+    if (banned) d.disabled = true;
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
@@ -1250,7 +1255,8 @@ function showPicks(picks, title, keep) {
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon))
         : u.wup ? `<div class="wimg"><img src="images/weapon_${u.wup}.png?v=${VERSION}" alt=""></div>` + wupHtml(u.wup)
         : (u.sub ? `<div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;
-    d.onclick = () => choose(i, true);
+    if (banned) d.insertAdjacentHTML('beforeend', '<div class="banTag">봉인됨<br>이번 게임 동안 출현하지 않음</div>');
+    else d.onclick = () => choose(i, true);
     box.appendChild(d);
   });
   // 행운 주사위 · 봉인 부적 단추 (가진 것만)
@@ -1336,7 +1342,7 @@ function pipsHtml(done, total) {
 function choose(i, click) {
   if (G.mode !== 'levelup' || G.inputLock > 0) return;          // 창이 뜨자마자 누른 탭 · 키는 무시
   if (G.banMode) { banPick(i); return; }                        // 봉인할 것 고르는 중
-  const u = G.choices[i]; if (!u) return;
+  const u = G.choices[i]; if (!u || G.banned.has(u.id)) return;   // 봉인한 카드는 못 고름
   G.ups[u.id] = (G.ups[u.id] || 0) + 1;
   u.apply(G.s, G.p);
   if (u.sub && !G.subs.some(x => x.id === u.id)) G.subs.push({id: u.id, nm: u.sub});   // 새 보조 아이템 → 보조 슬롯
@@ -1391,15 +1397,12 @@ function toggleBan() {
   G.banMode = !G.banMode; showPicks(G.choices, pickTitle(), true);
 }
 function banPick(i) {
-  const u = G.choices[i]; if (!u) return;
+  const u = G.choices[i]; if (!u || G.banned.has(u.id)) return;
   const nm = u.newWeapon ? WEAPONS[u.newWeapon].nm : u.sub || u.nm;
   if (!confirm(`「${nm}」 봉인\n이번 게임에서 더이상 등장하지 않습니다.`)) { G.banMode = false; showPicks(G.choices, pickTitle(), true); return; }
   G.banned.add(u.id); G.pickUse.ban++; G.banMode = false;
-  const shown = new Set(G.choices.map(x => x.id));                 // 그 자리를 아직 안 보인 것으로 채운다
-  const pool = (G.pickKind === 'chest' ? chestAll() : levelPool()).filter(x => !shown.has(x.id));
-  const [nx] = G.pickKind === 'chest' ? chestPicks(pool) : levelPicks(pool);
-  if (nx) G.choices[i] = nx; else G.choices.splice(i, 1);
-  if (!G.choices.length) { closePicks(); return; }               // 고를 것이 남지 않으면 그냥 닫힘
+  // 0.102.1: 그 자리를 새것으로 채우지 않는다 — 카드는 '봉인됨' 으로 남고 못 고름
+  if (G.choices.every(x => G.banned.has(x.id))) { closePicks(); return; }   // 다 봉인하면 고를 게 없어 닫힘
   showPicks(G.choices, pickTitle(), true);
 }
 
