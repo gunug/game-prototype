@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.111.4';
+const VERSION = '0.111.5';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2570,8 +2570,9 @@ function boomMeter(w, i) {
 // 방패 미터 (0.90.0): 남은 방패 ÷ 전부 만큼 노랗게 + 남은 수. 다 깨지면 주황 파이가 쿨다운만큼 차오름
 function orbitMeter(w, i) {                                    // 다른 무기와 같은 꼴: 남은 방패 ÷ 전부 노란 파이 + 남은 수, 다 깨지면 주황 파이가 재장전만큼
   const st = wstat(w.id), R = 7, {x, y} = meterPos(i);
-  const left = w.orb ? w.orb.alive.filter(h => h > 0).length : 0, n = w.orb ? w.orb.alive.length : orbitN(st), rl = left === 0;
-  const k = rl ? 1 - Math.max(0, w.cdT) / st.reload : left / n;
+  // 0.111.5: 숫자 · 파이 = 남은 버팀 총량 (방패마다 남은 버팀의 합, 관통 포함) ÷ 처음 총량 (방패 수 × 버팀)
+  const left = w.orb ? w.orb.alive.reduce((a, h) => a + Math.max(0, h), 0) : 0, n = (w.orb ? w.orb.alive.length : orbitN(st)) * orbitHp(st), rl = left === 0;
+  const k = rl ? 1 - Math.max(0, w.cdT) / st.reload : Math.min(1, left / n);
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = rl ? '#ff9a4a' : '#c9a93a';
   ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
