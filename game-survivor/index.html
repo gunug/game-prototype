@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.117.0';
+const VERSION = '0.118.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1898,12 +1898,12 @@ function foeTarget(e) {
   for (const a of G.allies) { const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }
   return t;
 }
-// 주술인형 미터 (0.115.0): 파이 = 현재 아군 ÷ 최대 아군 (노랑) · 숫자 '현재/최대'
+// 주술인형 미터: 숫자 '현재/최대' 아군 (0.115.0) · 파이 = 재장전 (0.118.0 — 3초마다 던지는 건 재장전). 차는 동안 주황, 다 차면 노랑
 function charmMeter(w, i) {
   const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), mx = st.curse;
-  const k = Math.min(1, n / Math.max(1, mx));
+  const k = 1 - Math.max(0, w.cdT) / st.reload, ready = k >= 1;
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#c9a93a';
+  ctx.fillStyle = ready ? '#c9a93a' : '#ff9a4a';
   ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
   const tx = n + '/' + mx;
   ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
