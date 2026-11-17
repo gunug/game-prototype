@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.114.6';
+const VERSION = '0.115.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1878,15 +1878,16 @@ function foeTarget(e) {
   for (const a of G.allies) { const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }
   return t;
 }
-// 주술인형 미터: 아군 수 (숫자) · 다 차지 않았으면 재장전만큼 주황 파이, 다 찼으면 노랑 가득
+// 주술인형 미터 (0.115.0): 파이 = 현재 아군 ÷ 최대 아군 (노랑) · 숫자 '현재/최대'
 function charmMeter(w, i) {
-  const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), full = n >= st.curse;
-  const k = 1 - Math.max(0, w.cdT) / st.reload;                  // 0.114.1: 다 차도 던지니 늘 재장전만큼 (다 차면 노랑)
+  const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), mx = st.curse;
+  const k = Math.min(1, n / Math.max(1, mx));
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = full ? '#c9a93a' : '#ff9a4a';
+  ctx.fillStyle = '#c9a93a';
   ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+  const tx = n + '/' + mx;
   ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(n, x, y + 0.5); ctx.fillStyle = '#fff'; ctx.fillText(n, x, y + 0.5);
+  ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(tx, x, y + 0.5); ctx.fillStyle = '#fff'; ctx.fillText(tx, x, y + 0.5);
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 function updateOrbit(w, st, dt) {
