@@ -67,7 +67,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   /* 월드 선택 화면: 월드는 위, 캐릭터는 아래 — 둘 다 가로 스크롤 */
   #worldSel{padding:56px 0 28px;gap:12px}
   #worldSel h2{margin-top:8px}
-  #startHint,#charHint,#wpnHint{padding:0 16px;text-align:center}
+  #startHint,#charHint,#wpnHint,#subHint{padding:0 16px;text-align:center}
   #worldSel,#charSel{justify-content:center}
   .world{width:240px;padding:14px 16px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;text-align:left;cursor:pointer}
   .world:hover:not(:disabled){border-color:#7cf}
@@ -175,7 +175,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
   .row1{display:flex;flex-wrap:nowrap;flex-direction:row;justify-content:center;gap:10px;width:100%;max-width:900px;padding:6px 12px 12px;touch-action:none;box-sizing:border-box}
-  #wpnCards.row1{flex-direction:row;flex-wrap:nowrap}
+  #wpnCards.row1,#subCards.row1{flex-direction:row;flex-wrap:nowrap}
   .row1>.world,.row1>.char,.row1>.up{flex:1 1 0;width:auto;min-width:0;max-width:250px;box-sizing:border-box}
   @media (max-width:700px){.row1{gap:6px;padding:4px 8px 10px}.row1>.world,.row1>.char,.row1>.up{padding:8px 6px}
     .row1>.world .wn{font-size:15px}.row1 .wd,.row1 .ct{font-size:10px}.row1>.char img{width:56px;height:75px}}
@@ -232,9 +232,15 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 </div>
 <div class="overlay" id="wpnSel" hidden>
   <h2>출발 무기</h2>
-  <div class="hint" id="wpnHint">3단계 — 들고 나갈 무기를 고르면 바로 시작 (숫자 키)</div>
+  <div class="hint" id="wpnHint">3단계 — 들고 나갈 무기를 고른다 (숫자 키)</div>
   <div class="cards row1" id="wpnCards"></div>
   <div class="btns"><button class="sub" id="wpnBack" data-neg>뒤로</button></div>
+</div>
+<div class="overlay" id="subSel" hidden>
+  <h2>출발 보조</h2>
+  <div class="hint" id="subHint">4단계 — 보조를 고르면 바로 시작 (숫자 키)</div>
+  <div class="cards row1" id="subCards"></div>
+  <div class="btns"><button class="sub" id="subBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="levelup" hidden>
   <h2 id="luTitle">레벨 업!</h2>
@@ -276,7 +282,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.101.0';
+const VERSION = '0.102.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -695,7 +701,8 @@ if (matchMedia('(pointer: coarse)').matches) {
   document.getElementById('startHint').textContent = '1단계 — 월드를 누르거나, 끌면 둥근 메뉴 (가운데서 떼면 취소). 판 중엔 누른 채 끌면 움직인다.';
   document.getElementById('luHint').textContent = '카드를 누르거나, 끌어서 둥근 메뉴로 (가운데서 떼면 취소)';
   document.getElementById('pauseHint').textContent = '화면을 누르면 계속';
-  document.getElementById('wpnHint').textContent = '3단계 — 무기를 누르면 바로 시작. 끌면 둥근 메뉴 (위 = 무기 · 아래 = 뒤로)';
+  document.getElementById('wpnHint').textContent = '3단계 — 무기를 누른다. 끌면 둥근 메뉴 (위 = 무기 · 아래 = 뒤로)';
+  document.getElementById('subHint').textContent = '4단계 — 보조를 누르면 바로 시작. 끌면 둥근 메뉴 (위 = 보조 · 아래 = 뒤로)';
 }
 // ───── 월드 ─────
 // 한 월드 = dur 초. 타임라인: mobs(잡몹이 풀리는 때, 월드 1 은 5종) · elites(엘리트, 차례로 등급이 오른다) · bosses
@@ -719,7 +726,7 @@ const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
   G = null;
-  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'charSel'].forEach(id => $(id).hidden = true);
+  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
     const w = WORLDS[i], b = document.createElement('button');
@@ -742,7 +749,7 @@ function pickWorld(i) { if (!WORLDS[i]) return; selWorld = i; showChars(); }
 let selWorld = 0;
 function showChars() {
   G = null;
-  ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['worldSel', 'wpnSel', 'subSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   $('charHint').textContent = `2단계 — ${WORLDS[selWorld].name} 에 나갈 캐릭터를 고른다 (다음은 출발 무기)`;
   const cl = $('charList'); cl.innerHTML = '';
   CHARACTERS.forEach((c, i) => {
@@ -793,19 +800,44 @@ function showWeaponPick(wi) {
   pickWi = wi; G = null;
   const pool = UNLOCKED_WEAPONS.slice(); pickWpns = [];
   while (pickWpns.length < START_PICK && pool.length) pickWpns.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  ['worldSel', 'charSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  ['worldSel', 'charSel', 'subSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   const box = $('wpnCards'); box.innerHTML = '';
   pickWpns.forEach((id, i) => {
     const W = WEAPONS[id], d = document.createElement('div');
     d.className = 'up wcard';
     d.innerHTML = wcardHtml(id, i);
-    d.onclick = () => newGame(wi, id);
+    d.onclick = () => showSubPick(id);
     box.appendChild(d);
   });
   $('wpnSel').hidden = false;
 }
 
-function newGame(wi, weaponId) {
+// 출발 보조 (0.102.0): 무기를 고른 뒤 보조도 무작위 3개 중 하나 — 특성 보조 · 기능형(주사위 · 봉인 부적) 모두.
+//   특성 보조는 고른 무기가 받을 수 있는 것만 후보. 카드 밑에 받는 무기 줄 (상자 카드와 같음)
+let pickWid = null, pickSubs = [];
+const backToWpn = () => { $('subSel').hidden = true; $('wpnSel').hidden = false; };   // 뒤로: 같은 무기 세 장 그대로
+const newStats = C => ({dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, crit: 0, critDmg: 1.5, reloadMul: 1, magMul: 1, regen: 0, magnetMul: 1, xpMul: 1});
+function showSubPick(wid) {
+  pickWid = wid;
+  const W = WEAPONS[wid], pool = UPGRADES.filter(u => u.sub && (!u.wpn || grantable(W, u.id))); pickSubs = [];
+  while (pickSubs.length < START_PICK && pool.length) pickSubs.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+  $('wpnSel').hidden = true;
+  const box = $('subCards'); box.innerHTML = '';
+  const C = CHARACTERS[charIdx], ups = Object.fromEntries(UPGRADES.map(u => [u.id, 0]));
+  G = {char: C, weapons: [newWeapon(wid)], s: newStats(C), ups, subs: []};   // 카드 값 계산용 (그리기 전에 되돌림)
+  pickSubs.forEach((id, i) => {
+    const u = UPG[id], d = document.createElement('div');
+    d.className = 'up';
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub}</div>
+      <div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` + upHtml(u);
+    d.onclick = () => newGame(pickWi, wid, id);
+    box.appendChild(d);
+  });
+  G = null;
+  $('subSel').hidden = false;
+}
+
+function newGame(wi, weaponId, subId) {
   const C = CHARACTERS[charIdx];
   G = {
     wi, world: WORLDS[wi], char: C,
@@ -813,14 +845,15 @@ function newGame(wi, weaponId) {
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
-    s: {dmgMul: 1, cdMul: 1, rangeMul: 1, def: C.def || 0, count: 0, chain: 0, burst: 0, splash: 0, crit: 0, critDmg: 1.5, reloadMul: 1, magMul: 1, regen: 0, magnetMul: 1, xpMul: 1},
+    s: newStats(C),
     ups: {},
     enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
-  ['worldSel', 'wpnSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
+  if (subId) { const u = UPG[subId]; G.ups[subId] = 1; u.apply(G.s, G.p); G.subs.push({id: subId, nm: u.sub}); }   // 출발 보조 (0.102.0)
+  ['worldSel', 'wpnSel', 'subSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   spawnStartWave();
   buildTimeline();
 }
@@ -843,7 +876,8 @@ addEventListener('keydown', e => {
   }
   if (!G) {                                                     // 월드 · 캐릭터 · 무기 선택: 숫자 1~9
     const dg = /^(Digit|Numpad)([1-9])$/.exec(e.code), i = dg ? +dg[2] - 1 : undefined;
-    if (!$('wpnSel').hidden) { if (pickWpns[i]) newGame(pickWi, pickWpns[i]); else if (e.code === 'Escape') showChars(); }
+    if (!$('subSel').hidden) { if (pickSubs[i]) newGame(pickWi, pickWid, pickSubs[i]); else if (e.code === 'Escape') backToWpn(); }
+    else if (!$('wpnSel').hidden) { if (pickWpns[i]) showSubPick(pickWpns[i]); else if (e.code === 'Escape') showChars(); }
     else if (!$('charSel').hidden) { if (CHARACTERS[i]) pickChar(i); else if (e.code === 'Escape') showWorlds(); }
     else if (WORLDS[i]) pickWorld(i);
     return;
@@ -870,6 +904,7 @@ $('pause').onclick = () => { if (G && G.mode === 'pause') togglePause(); };
 $('retryBtn').onclick = () => showWeaponPick(G.wi);
 $('clearRetry').onclick = () => showWeaponPick(G.wi);
 $('clearNext').onclick = () => showWeaponPick(G.wi + 1);
+$('subBack').onclick = () => backToWpn();
 $('wpnBack').onclick = () => showChars();   // 뒤로: 캐릭터 선택으로
 $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
@@ -946,6 +981,7 @@ const NAV_ROWS = {
   worldSel: ['#worldList > button'],
   charSel:  ['#charList > button', '#charBack'],
   wpnSel:   ['#wpnCards > .up', '#wpnBack'],
+  subSel:   ['#subCards > .up', '#subBack'],
   levelup:  ['#cards > .up', '#luBtns button'],
   pause:    ['#pause .btns button'],
   over:     ['#over .btns button'],
@@ -953,7 +989,7 @@ const NAV_ROWS = {
   info:     ['#info .btns button'],
   foes:     ['#foes .btns button'],
 };
-const NAV_ORDER = ['info', 'foes', 'levelup', 'pause', 'over', 'clear', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const NAV_ORDER = ['info', 'foes', 'levelup', 'pause', 'over', 'clear', 'subSel', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
 const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled)).filter(r => r.length);   // 빈 줄(단추 없음)은 뺀다
@@ -993,6 +1029,7 @@ function navConfirm() {
 function navBack() {
   const scr = navSync();
   if (scr === 'wpnSel') showChars();
+  else if (scr === 'subSel') backToWpn();
   else if (scr === 'charSel' || scr === 'over' || scr === 'clear') showWorlds();
   else if (scr === 'pause') togglePause();
   else if (scr === 'info') closeInfo();
@@ -1040,7 +1077,8 @@ function setPadHints() {
   $('startHint').textContent = '패드: 스틱 · 십자키로 고르고 A 로 정한다 (B 뒤로). 판 중엔 왼쪽 스틱으로 움직이고 Start 로 멈춘다.';
   $('luHint').textContent = '스틱으로 고르고 A';
   $('pauseHint').textContent = 'Start 로 계속';
-  $('wpnHint').textContent = '3단계 — 스틱으로 고르고 A 면 바로 시작 (B 뒤로)';
+  $('wpnHint').textContent = '3단계 — 스틱으로 고르고 A (B 뒤로)';
+  $('subHint').textContent = '4단계 — 스틱으로 고르고 A 면 바로 시작 (B 뒤로)';
 }
 addEventListener('gamepadconnected', () => { pad.on = true; setPadHints(); });
 
@@ -1070,8 +1108,13 @@ function rmItems(scr) {
   }
   if (scr === 'wpnSel') {                                       // 위 절반 = 무기, 아래 절반 = 뒤로
     const cards = [...$('wpnCards').children];
-    return {up: pickWpns.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => newGame(pickWi, id)})),
+    return {up: pickWpns.map((id, i) => ({label: WEAPONS[id].nm, img: `images/weapon_${id}.png?v=${VERSION}`, wide: true, el: cards[i], act: () => showSubPick(id)})),
             down: [{label: '뒤로', el: $('wpnBack'), act: () => showChars()}]};
+  }
+  if (scr === 'subSel') {                                       // 위 절반 = 보조, 아래 절반 = 뒤로 (0.102.0)
+    const cards = [...$('subCards').children];
+    return {up: pickSubs.map((id, i) => ({label: UPG[id].sub, img: `images/item_${id}.png?v=${VERSION}`, el: cards[i], act: () => newGame(pickWi, pickWid, id)})),
+            down: [{label: '뒤로', el: $('subBack'), act: () => backToWpn()}]};
   }
   if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info' || scr === 'foes') {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
@@ -1142,7 +1185,7 @@ function rmEnd() {
   if (it && !it.disabled) it.act();
   rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'charSel', 'wpnSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'charSel', 'wpnSel', 'subSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
