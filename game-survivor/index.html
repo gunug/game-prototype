@@ -285,7 +285,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.102.2';
+const VERSION = '0.102.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -403,7 +403,7 @@ const UPGRADES = [
   {id: 'count',  sub: '갈래 총구', nm: '확산 증가',  ds: '부채꼴로 한 발 더',    max: TRAIT_MAX, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
   {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: TRAIT_MAX, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
-  {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: TRAIT_MAX, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
+  // 연발 장치(연속) 뺌 (0.102.3) — 발 수를 늘리는 건 확산(갈래 총구) 하나로. 쏘는 쪽 st.burst 는 늘 1
   // 쓰는 보조 (0.78.0, util): 무기와 상관없이 상자에서 나온다. 단계 = 창마다 쓸 수 있는 횟수 (0.79.0, 최대 5)
   {id: 'reroll', sub: '주사위', util: true, nm: '다시 뽑기', ds: '레벨업 · 상자 창마다 단계 수만큼, 고를 것을 새로 뽑는다', max: 5, badges: [], apply: () => {}},
   {id: 'banish', sub: '봉인 부적', util: true, nm: '봉인', ds: '레벨업 · 상자 창마다 하나를 봉인 — 이번 판에서 더 나오지 않는다', max: 1,   // 강화 없음 (0.102.2) — 얻으면 끝, 창마다 1번
@@ -496,7 +496,6 @@ const wpnStats = W => ['dmg', ...(W.cd ? ['cd'] : []), ...(W.mag ? ['mag'] : [])
 // 부여 (0.99.0): 특성 보조(ext)는 **모든 무기에 그 특성을 부여**한다. 무기 종류가 그 특성을 쓸 수 있어야 받는다 (못 쓰면 효과 없음 · 안 보임)
 //   보조 id → 받는 무기 종류. 뱃지는 업그레이드의 badges[0]
 const GRANT_KINDS = {
-  burst:  ['gun', 'rail', 'boom'],             // 연속: 잇달아 한 번 더 (레이저는 늘 쏨 · 방패는 돎)
   count:  ['gun', 'rail', 'boom', 'orbit'],    // 확산: 부채꼴 한 발 더 · 방패는 방패 +1
   chain:  ['gun', 'rail', 'laser'],            // 연쇄: 맞힌 뒤 다음 적으로 (부메랑 · 방패는 길이 따로)
   splash: ['gun', 'laser', 'orbit'],           // 폭발: 맞은 자리 둘레 (관통탄 · 부메랑은 아직 못 씀)
@@ -914,7 +913,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'crit', 'critdmg', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'burst', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'crit', 'critdmg', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'splash']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
