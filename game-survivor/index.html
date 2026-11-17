@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.100.0';
+const VERSION = '0.100.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -634,8 +634,11 @@ let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해�
 const slotRow = (label, n, cls, items = []) =>
   `<div class="slotrow">${label}${Array.from({length: n}, (_, i) => items[i]
     ? `<span class="slot ${cls}">${items[i]}</span>` : `<span class="slot ${cls} empty"></span>`).join('')}</div>`;
-const splashR = lv => 45 + (lv - 1) * 12;
-const splashPct = lv => 0.4 + (lv - 1) * 0.15;
+// 폭발 (0.100.1): 1단계 → 10단계(TRAIT_MAX) 사이를 곧게. 반경 45 → 90 (단계마다 +5) · 둘레 피해 40% → 100% (+6.7%p). 맞은 적은 늘 100%
+const SPLASH_R = [45, 90], SPLASH_PCT = [0.4, 1];
+const splashK = lv => Math.min(1, (lv - 1) / (TRAIT_MAX - 1));
+const splashR = lv => Math.round(SPLASH_R[0] + (SPLASH_R[1] - SPLASH_R[0]) * splashK(lv));
+const splashPct = lv => SPLASH_PCT[0] + (SPLASH_PCT[1] - SPLASH_PCT[0]) * splashK(lv);
 const knockV = lv => (320 + (lv - 1) * 200) / 3;   // 처음 속도. 밀리는 거리 ≈ v/8 (한 칸 13px · 두 칸 22px — 0.51.1 에 1/3)
 
 // ───── 상태 ─────
