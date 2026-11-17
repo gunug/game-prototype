@@ -303,7 +303,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.107.1';
+const VERSION = '0.107.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2782,6 +2782,23 @@ function offscreenMarks(ox, oy) {
     ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
     ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
     ctx.save(); ctx.scale(0.75, 0.75); drawChest(0, 4, col); ctx.restore();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  // 화면 밖 자석 (0.107.2): 상자와 같은 꼴 — 동그라미 안에 자석 그림, 테두리 · 화살표는 청록
+  for (const mg of G.mags) {
+    const sx = mg.x + ox, sy = mg.y + oy, m = 12;
+    if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
+    const R = 11, M = R + 10, dx = sx - W / 2, dy = sy - H / 2;
+    const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx), col = '#3ef';
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = col; ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
+    ctx.lineTo(Math.cos(a + 0.5) * (R + 1), Math.sin(a + 0.5) * (R + 1));
+    ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
+    ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, -8, -8, 16, 16); else circle(0, 0, 5, '#e44');
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
