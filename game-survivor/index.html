@@ -303,7 +303,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.107.0';
+const VERSION = '0.107.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -377,9 +377,10 @@ const TRAIT_MAX = 10;             // 특성 보조 최대 단계 (0.100.0, 그 �
 
 const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}`;   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
 const MAGDROP_P = 0.005;   // 자석 떨굴 기본 확률 (적 하나마다)
-// 가변 출현율 (0.107.0): 못 떨군 처치마다 확률이 오름 — 확률 = 기본 × (1 + 못 떨군 수 ÷ MAGDROP_RAMP). 3배(MAGDROP_MAX)에 이르면 100%. 떨구면 처음으로
-const MAGDROP_RAMP = 200, MAGDROP_MAX = 3;
-const magDropP = n => { const k = 1 + n / MAGDROP_RAMP; return k >= MAGDROP_MAX ? 1 : MAGDROP_P * k; };
+// 가변 출현율 (0.107.0): 못 떨군 처치마다 확률이 오름. 3배(MAGDROP_MAX)에 이르면 100%. 떨구면 처음으로
+//   0.107.1: 곧게 말고 끝으로 갈수록 가파르게 — 확률 = 기본 × (1 + 2 × (못 떨군 수 ÷ MAGDROP_N)²). MAGDROP_N 마리째에 3배 → 100%
+const MAGDROP_N = 400, MAGDROP_MAX = 3;
+const magDropP = n => { const k = 1 + (MAGDROP_MAX - 1) * (n / MAGDROP_N) ** 2; return k >= MAGDROP_MAX ? 1 : MAGDROP_P * k; };
 const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
