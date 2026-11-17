@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.98.0';
+const VERSION = '0.99.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -478,12 +478,25 @@ const tagsHtml = (ids, val) => {
        + (b.length ? `<div class="badges">${b.map(id => badgeHtml(id, val(id))).join('')}</div>` : '');
 };
 // 무기 카드 몸통: 수치 표(능력치) + 특성 뱃지
-const wpnInfoHtml = (W, st) => statsHtml(wpnStats(W), st) + (W.badges.length ? badgesHtml(W.badges, st) : '');
+const wpnInfoHtml = (W, st) => { const b = [...W.badges, ...grantedBadges(W)]; return statsHtml(wpnStats(W), st) + (b.length ? badgesHtml(b, st) : ''); };   // 기본 특성 + 부여받은 특성
 // 무기의 능력치 = 피해 · 쿨다운 · (장탄 · 재장전) · 경직 · 사거리 · (탄속) · (발사각)
 const wpnStats = W => ['dmg', ...(W.cd ? ['cd'] : []), ...(W.mag ? ['mag'] : []), ...(W.reload ? ['reload'] : []), 'stun',   // 부메랑 · 방패는 쿨다운 없이 재장전만 (0.97.0)
                          'range', ...(W.spd ? ['spd'] : []), ...(W.acc != null ? ['acc'] : [])];
-// 무기가 가진 뱃지 전부 = 능력치 + 특성 뱃지(badges) — 업그레이드가 닿는 범위도 이것
-const wpnBadges = W => [...wpnStats(W), ...W.badges];
+// 부여 (0.99.0): 특성 보조(ext)는 **모든 무기에 그 특성을 부여**한다. 무기 종류가 그 특성을 쓸 수 있어야 받는다 (못 쓰면 효과 없음 · 안 보임)
+//   보조 id → 받는 무기 종류. 뱃지는 업그레이드의 badges[0]
+const GRANT_KINDS = {
+  burst:  ['gun', 'rail', 'boom'],             // 연속: 잇달아 한 번 더 (레이저는 늘 쏨 · 방패는 돎)
+  count:  ['gun', 'rail', 'boom', 'orbit'],    // 확산: 부채꼴 한 발 더 · 방패는 방패 +1
+  chain:  ['gun', 'rail', 'laser'],            // 연쇄: 맞힌 뒤 다음 적으로 (부메랑 · 방패는 길이 따로)
+  splash: ['gun', 'laser', 'orbit'],           // 폭발: 맞은 자리 둘레 (관통탄 · 부메랑은 아직 못 씀)
+};
+const grantable = (W, uid) => (GRANT_KINDS[uid] || []).includes(W.kind);
+// 무기가 받을 수 있는 특성 뱃지 = 기본 특성 + 부여받을 수 있는 것
+const grantBadges = W => Object.keys(GRANT_KINDS).filter(uid => grantable(W, uid)).map(uid => UPG[uid].badges[0]);
+// 지금 부여받은 특성 뱃지 (판 중 · 받은 보조만, 기본 특성과 겹치면 하나)
+const grantedBadges = W => G && G.ups ? Object.keys(GRANT_KINDS).filter(uid => G.ups[uid] > 0 && grantable(W, uid)).map(uid => UPG[uid].badges[0]).filter(b => !W.badges.includes(b)) : [];
+// 무기가 가진 뱃지 전부 = 능력치 + 특성 뱃지(badges) + 부여받을 수 있는 특성 — 업그레이드가 닿는 범위도 이것
+const wpnBadges = W => [...wpnStats(W), ...new Set([...W.badges, ...grantBadges(W)])];
 // 무기가 업그레이드 uid 를 받는가 — 그 업그레이드의 뱃지 중 하나를 가진 무기만
 const wpnTakes = (W, uid) => { const u = UPG[uid]; return !!u && !!u.wpn && u.badges.some(b => wpnBadges(W).includes(b)); };
 
@@ -495,20 +508,20 @@ const WEAPONS = {
            dmg: 0, cd: 0.5, mag: 8, range: 145, spd: 620, acc: 4, maxT: 1, stun: 0.12,
            // 그림: 화면 길이(px) · 회전 축(그림 안 비율, x 0 = 총 뒤끝) · 총구(그림 안 비율) · 도는 빠르기(라디안/초)
            len: 22, pivot: [0, 0.5], muzzle: [1.0, 0.22], turn: 16,
-           badges: ['burst', 'spread']},   // 특성 2개 (0.65.0): 기본 무기 — 발 수를 늘리는 쪽
+           badges: []},   // 0.99.0: 기본 특성 없음 — 특성은 보조로 부여받는다 (그 전 연속 · 확산)
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 닿은 적만 맞고 (관통 없음), 길 위 다른 적은 안 맞는다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, splash: 1, hop: 150, maxT: 3, stun: 0,   // splash 1 (0.93.0): 기본 특성은 0 이 아니게   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // splash 1 (0.93.0): 기본 특성은 0 이 아니게   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
-           badges: ['chain', 'splash']},   // 특성 2개 (0.75.0): 빔이 적을 잇고, 닿은 자리마다 폭발
+           badges: ['chain']},   // 0.99.0: 정체성 특성 연쇄만 (폭발은 뺌 — 보조로 부여)
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
   //   관통을 2 로 묶어 한 발 피해를 권총보다 세게 (0.43.0, 그 전엔 길 위의 적 모두 · maxT 8)
   // 투사체 업그레이드 = 부채꼴로 한 발 더
   sniper: {nm: '저격총', kind: 'rail', sh: '적을 꿰뚫는 센 탄', ds: '가장 가까운 적을 공격한다. 한 발이 세고 적 2마리까지 꿰뚫는다. 연쇄를 받으면 꿰뚫은 뒤 다음 적으로 튄다',
-           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, chain: 1, maxT: 2, stun: 0.3,   // chain 1 (0.93.0)   // maxT = 관통 수       // 탄속 1500 (권총 620)
+           dmg: 0, cd: 1.07, mag: 4, range: 215, spd: 1500, width: 8, acc: 0.5, pierce: 2, maxT: 2, stun: 0.3,   // chain 1 (0.93.0)   // maxT = 관통 수       // 탄속 1500 (권총 620)
            len: 30, pivot: [0, 0.6], muzzle: [1.0, 0.38], turn: 10,
-           badges: ['pierce', 'chain']},   // 0.92.2: 관통 · 연쇄 — 꿰뚫은 마지막 적에서 다음 적으로 튄다 (0.92.0 에 밀당을 빼고 채움)
+           badges: ['pierce']},   // 0.99.0: 정체성 특성 관통만 (연쇄는 뺌 — 보조로 부여하면 꿰뚫은 마지막 적에서 튄다)
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
@@ -516,21 +529,21 @@ const WEAPONS = {
            dmg: 0, reload: 0.4, range: 130, spd: 360, acc: 15, pierce: 4,   // reload (0.97.0, 그 전 cd): 다 받은 뒤 다음 던지기까지
            maxT: 3, stun: 0.08, rad: 10,   // pierce (0.66.0) = 한 번 던져 베는 적 수 (같은 적은 다시 벰)   // acc = 고리가 사거리 중간쯤에서 겨눈 쪽에서 비끼는 가장 큰 각 (0.62.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['pierce', 'spread']},   // 특성 2개: 길의 적을 꿰뚫고(관통 4) 여러 개 던져 쓴다. 발사각(acc)은 능력치 → 산탄 · 집탄 받음
+           badges: ['pierce']},   // 0.99.0: 정체성 특성 관통만 (확산은 뺌 — 보조로 부여)
   // 기관총: 권총처럼 가장 가까운 적에게. 한 발은 약하지만 연사가 아주 빠르고, 발사각이 넓어 흩어진다
   mg:     {nm: '기관총', kind: 'gun', sh: '빠르게 퍼붓는 탄', ds: '가까운 적에게 빠르게 퍼붓는다. 발사각이 넓어 탄이 흩어진다',
-           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, splash: 1, maxT: 1, stun: 0.04,   // splash 1 (0.93.0)
+           dmg: 0, cd: 0.08, mag: 30, range: 130, spd: 720, acc: 12, maxT: 1, stun: 0.04,   // splash 1 (0.93.0)
            len: 30, pivot: [0, 0.45], muzzle: [1.0, 0.37], turn: 16,
-           badges: ['spread', 'splash']},   // 특성 2개: 군중을 쓸고 폭발로 범위 피해
+           badges: []},   // 0.99.0: 기본 특성 없음 (그 전 확산 · 폭발)
   // 방패 (0.90.0): 방패 n 개가 주인공 둘레(반지름 = 사거리)를 탄속(px/초)으로 돈다.
   //   적에 닿으면 피해를 주고 깨짐 · 적 탄(곧은 탄)에 닿으면 탄을 막고 깨짐 (곡사 · 터짐은 못 막음)
   //   다 깨져야 쿨다운이 돌고, 끝나면 n 개가 다시 생김. 하나라도 남아 있으면 쿨다운 안 돎
   //   DPS 맞춤: 한 바퀴 = 쿨다운 + 다 쓰는 데 걸린다고 보는 useT, 한 바퀴에 n 번 맞힘
-  shield: {nm: '방패', kind: 'orbit', sh: '둘레를 도는 방패 6개', ds: '방패 6개가 둘레를 돈다. 적에 닿으면 피해를 주고, 적 탄을 막는다. 방패 위 숫자만큼 버틴 뒤 깨지고, 다 깨지면 재장전 뒤 다시 생긴다',
+  shield: {nm: '방패', kind: 'orbit', sh: '둘레를 도는 방패 6개', ds: '방패 6개가 둘레를 돈다. 적에 닿거나 적 탄을 막으면 깨지고, 다 깨지면 재장전 뒤 다시 생긴다',
            dmg: 0, reload: 3, range: 50, spd: 110, n: 6,   // spd 220 → 110 (0.97.3, 도는 빠르기 절반)
-           chain: 1, useT: 1, maxT: 1, stun: 0.2, rad: 9,   // reload (0.97.0, 그 전 cd) = 다 깨진 뒤 다시 생기기까지 · chain 1 = 방패 하나가 1번 버팀 (2번째에 깨짐)
+           useT: 1, maxT: 1, stun: 0.2, rad: 9,   // reload (0.97.0, 그 전 cd) = 다 깨진 뒤 다시 생기기까지 · 버팀(0.97.0 연쇄)은 0.99.0 에 뺌 — 한 번 맞으면 깨짐
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['spread', 'chain']},   // 0.97.0: 확산(방패 수) · 연쇄(방패마다 버티는 횟수, 방패 위 숫자). 폭발(0.92.2)은 뺌 — 특성 2개
+           badges: ['spread']},   // 0.99.0: 정체성 특성 확산(방패 수)만
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
@@ -567,7 +580,7 @@ function boomPath(R, acc) {           // 지역 좌표 (x = 겨눈 쪽, y = 옆)
 const boomFlight = (range, spd, acc = 0) => boomPath(range, acc).L / spd;
 //   부메랑 (0.61.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(boomFlight) + 쿨다운
 const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
-const perCycle = W => W.mag || (W.n ? W.n * (1 + (W.chain || 0)) : 2);   // 방패 = 방패 수 × (1 + 버티는 횟수)                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
+const perCycle = W => W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
   W.dmg = Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수
@@ -1543,7 +1556,7 @@ function bossTick(e, dt) {
 // ── 방패 (0.90.0) ── w.orb = {alive: [방패마다 남은 버팀 (0 = 깨짐)], ht: [방패마다 맞은 뒤 잠깐 쉬는 시간], ph: 돈 각}
 //   0.97.0: 버팀 = 1 + 연쇄. 적에 닿거나 적 탄을 막을 때마다 1 씩 깎이고 0 이면 깨짐. 남은 버팀은 방패 위 숫자. 맞은 뒤 ORB_REST 초는 같은 방패가 다시 안 맞힘 (붙은 적에게 한 번에 다 깎이지 않게)
 const orbitN = st => st.shields;                                 // 확산 증가 = 방패 +1
-const orbitHp = st => 1 + st.chain;                              // 연쇄 = 버티는 횟수
+const orbitHp = () => 1;                                         // 버팀 없음 (0.99.0, 0.97.0 엔 1 + 연쇄)
 const ORB_CY = -10, ORB_REST = 0.25;                             // 고리 중심 = 몸 가운데에서 위로 10px
 function orbitSpots(w, st) {
   const p = G.p, n = w.orb.alive.length, out = [];
@@ -1595,8 +1608,6 @@ function drawOrbit(w) {
     else circle(o.x, o.y, W.rad, '#4af');
   }
   ctx.restore();
-  const max = orbitHp(st);
-  for (const o of spots) hpPie(o.x, o.y, w.orb.alive[o.i], Math.max(max, w.orb.alive[o.i]));
 }
 
 // ── 적 공격 (0.84.0) ── G.eshots: 곧은 탄 · 곡사(lob) · 부푼 좀비 터짐(blast)
@@ -2293,18 +2304,6 @@ function orbitMeter(w, i) {                                    // 다른 무기�
     ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(left, x, y + 0.5);
     ctx.fillStyle = '#fff'; ctx.fillText(left, x, y + 0.5);
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  }
-}
-// 방패 위 버팀 파이 (0.97.2): 처음 버팀 수만큼 나뉜 칸 · 남은 칸만 채움 (흰색) — 도는 숫자는 안 보여서
-function hpPie(x, y, left, max) {
-  const R = 5, a0 = -Math.PI / 2, da = Math.PI * 2 / max;
-  ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.beginPath(); ctx.arc(x, y, R + 1.2, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  for (let k = 0; k < left; k++) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, a0 + k * da, a0 + (k + 1) * da); ctx.closePath(); ctx.fill(); }
-  if (max > 1) {
-    ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.lineWidth = 1; ctx.beginPath();
-    for (let k = 0; k < max; k++) { const a = a0 + k * da; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); }
-    ctx.stroke();
   }
 }
 // 날아가는 부메랑: 무기 그림을 돌려 그린다 (그림이 없으면 V 모양)
