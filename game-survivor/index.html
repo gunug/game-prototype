@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.97.3';
+const VERSION = '0.98.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -901,7 +901,7 @@ function openFoes() {
     + Wd.bosses.map(b => { const B = BOSSES[b.id];
         return `<div class="foeRow boss" style="border-color:${gradeCol(B.grade)}">${img(B.sprite)}<div><div class="fn" style="color:${gradeCol(B.grade)}">${B.nm}<small>${B.final ? '최종 보스' : '중간 보스'} · ${fmt(b.at)}</small></div>
           <div class="fs">체력 ${bossPlan(b.id, wi, b.at).hp} · 방어 ${B.def} · 이동 ${B.spd} · 피해 ${B.dmg}</div><div class="fx">${[...new Set(B.pats)].map(k => PAT_NM[k]).join(' · ')}</div></div></div>`; }).join('')
-  ).join('') + `<h3>엘리트</h3><div class="infoRow"><span>그때 나오는 잡몹 하나가 ${ELITE.size}배 크기 · 체력 ×${ELITE.hp} · 피해 ×${ELITE.dmg} — 늘 잡몹보다 조금 빠르고, 잡몹을 밀어냄. 죽으면 상자</span></div>`;
+  ).join('') + `<h3>엘리트</h3><div class="infoRow"><span>그때 나오는 잡몹 하나(원거리형 빼고)가 ${ELITE.size}배 크기 · 체력 ×${ELITE.hp} · 피해 ×${ELITE.dmg} — 늘 잡몹보다 조금 빠르고, 잡몹을 밀어냄. 죽으면 상자</span></div>`;
   $('foes').dataset.resume = G && G.mode === 'play' ? '1' : '';
   if (G && G.mode === 'play') G.mode = 'pause';
   joy.id = null;
@@ -1340,9 +1340,12 @@ function gainXp(n) {
 // ───── 적 ─────
 // 지금 풀린 잡몹 (월드 타임라인 mobs 중 at 이 지난 것)
 const mobTypes = () => G.world.mobs.filter(m => G.t >= m.at).map(m => m.type);
-function pickMob() {
-  const ms = G.world.mobs.filter(m => G.t >= m.at);
-  const intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);   // 새 몹 소개: 처음 15초는 그 몹이 절반
+// noRanged (0.98.0): 엘리트용 — 멈춰 서서 쏘는 원거리형(shot · lob)은 뺌. 무리 뒤에 머물러 잡히지 않으므로
+const isRanged = type => { const T = ENEMY_TYPES[type]; return !!(T.shot || T.lob); };
+function pickMob(noRanged) {
+  let ms = G.world.mobs.filter(m => G.t >= m.at);
+  if (noRanged) { const near = ms.filter(m => !isRanged(m.type)); if (near.length) ms = near; }
+  const intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);   // 새 몹 소개 (엘리트는 원거리형을 뺀 목록에서): 처음 15초는 그 몹이 절반
   if (intro && Math.random() < SPAWN.introShare) return intro.type;
   const wt = ms.map((m, i) => ENEMY_TYPES[m.type].w * SPAWN.ageDecay ** (ms.length - 1 - i));   // 뒤에 나온 몹 하나마다 ×0.8
   let r = Math.random() * wt.reduce((a, b) => a + b, 0);
@@ -1442,7 +1445,7 @@ function parting(dt) {
 // 미는 급 (0.82.0): 잡몹 0 · 엘리트 1 · 보스 2 — 높은 쪽이 낮은 쪽을 밀어낸다
 const pushRank = e => e.boss ? 2 : e.elite ? 1 : 0;
 function spawnElite(grade) {
-  const [x, y] = offscreen(), e = makeEnemy(pickMob(), x, y);
+  const [x, y] = offscreen(), e = makeEnemy(pickMob(true), x, y);   // 원거리형은 엘리트로 안 나옴 (0.98.0)
   e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp * eliteXpMul(grade); e.wt *= ELITE.wt; e.elite = grade;
   e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
   e.spd = Math.max(...G.world.mobs.filter(m => G.t >= m.at).map(m => ENEMY_TYPES[m.type].spd)) * 1.1 * ELITE.spd;   // 늘 잡몹보다 조금 빠르게   // 경험치: 등급이 높을수록 더
