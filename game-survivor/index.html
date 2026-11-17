@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.99.0';
+const VERSION = '0.100.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -346,6 +346,7 @@ const armor = (dmg, def) => Math.max(1, dmg - def);            // 주인공이 �
 // 몹 · 보스가 받는 피해 (0.76.0): 비율로 깎는다 — 방어 30 = −23%, 60 = −38%, 100 = −50%. 그 전엔 뺄셈이라 한 발 약한 무기(기관총 · 레이저 · 부메랑)는 1만 들어갔다
 const mobArmor = (dmg, def) => dmg * 100 / (100 + (def || 0));
 const MAX_ENEMIES = 500;
+const TRAIT_MAX = 10;             // 특성 보조 최대 단계 (0.100.0, 그 전 5) — 부여 1 + 강화 9
 const EXT_FROM_LV = 3;          // 확장 업그레이드는 이 레벨부터 후보에
 
 const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
@@ -390,14 +391,14 @@ const UPGRADES = [
   {id: 'regen',  nm: '체력 재생 증가',  ds: '초마다 체력 +5 회복',  max: 5, badges: ['regen'], fx: '+5/s', apply: s => s.regen += 5},
   {id: 'magnet', nm: '획득 범위 증가',  ds: '경험치를 끌어오는 거리 +25%', max: 5, badges: ['magnet'], fx: '+25%', apply: s => s.magnetMul += 0.25},
   {id: 'xpup',   nm: '경험치 증가',ds: '얻는 경험치 +10%',     max: 5, badges: ['xpmul'], fx: '+10%', apply: s => s.xpMul += 0.1},
-  {id: 'count',  sub: '갈래 총구', nm: '확산 증가',  ds: '부채꼴로 한 발 더',    max: 5, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
-  {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: 5, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
+  {id: 'count',  sub: '갈래 총구', nm: '확산 증가',  ds: '부채꼴로 한 발 더',    max: TRAIT_MAX, ext: true, wpn: true, badges: ['spread'], fx: '+1', apply: s => s.count++},
+  {id: 'chain',  sub: '도약 회로', nm: '연쇄 증가',    ds: '맞힌 뒤 다음 적으로 한 번 더 이어 간다', max: TRAIT_MAX, ext: true, wpn: true, badges: ['chain'], fx: '+1', apply: s => s.chain++},
   // 저울 업그레이드 (axis): 레벨이 쌓이지 않고 5칸 저울 위 자리가 한 칸 옮겨 간다 (가운데 = 기본). dir -1 = 왼쪽, +1 = 오른쪽
-  {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: 5, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
+  {id: 'burst',  sub: '연발 장치', nm: '연속 증가',ds: '한 번에 한 번 더 쏜다',max: TRAIT_MAX, ext: true, wpn: true, badges: ['burst'], fx: '+1', apply: s => s.burst++},
   // 쓰는 보조 (0.78.0, util): 무기와 상관없이 상자에서 나온다. 단계 = 창마다 쓸 수 있는 횟수 (0.79.0, 최대 5)
   {id: 'reroll', sub: '주사위', util: true, nm: '다시 뽑기', ds: '레벨업 · 상자 창마다 단계 수만큼, 고를 것을 새로 뽑는다', max: 5, badges: [], apply: () => {}},
   {id: 'banish', sub: '봉인 부적', util: true, nm: '봉인', ds: '레벨업 · 상자 창마다 단계 수만큼 하나를 봉인 — 이번 판에서 더 나오지 않는다', max: 5, badges: [], apply: () => {}},
-  {id: 'splash', sub: '화약 주머니', nm: '폭발 증가',       ds: '맞은 지점 둘레 피해',  max: 5, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
+  {id: 'splash', sub: '화약 주머니', nm: '폭발 증가',       ds: '맞은 지점 둘레 피해',  max: TRAIT_MAX, ext: true, wpn: true, badges: ['splash'], fx: '+1', apply: s => s.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
 // 저울: 5칸 (-2 … +2), 가운데 0 이 기본. 양 끝 이름 = 그쪽으로 옮기는 업그레이드
@@ -1166,7 +1167,7 @@ const XP_A = 25, XP_G = 1.124;
 const XP_EARLY = 0.08, XP_EARLY_MUL = 1.6;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY * XP_EARLY_MUL ** (lv - 1)));
 
-const levelPool = () => UPGRADES.filter(u => !u.sub && (u.id !== 'critdmg' || G.s.crit > 0) && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || G.lv >= EXT_FROM_LV)   // 보조 아이템(sub)은 상자에서만 (0.67.0)
+const levelPool = () => UPGRADES.filter(u => (!u.sub || (u.ext && hasSub(u.id))) && (u.id !== 'critdmg' || G.s.crit > 0) && (u.axis ? axisOk(u) : G.ups[u.id] < u.max) && (!u.ext || u.sub || G.lv >= EXT_FROM_LV)   // 새 보조는 상자에서만 (0.67.0). 가진 특성 보조의 강화는 레벨업에도 섞여 나옴 (0.100.0)
     && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id));   // 영향받는 무기가 없거나 봉인한 것은 안 나온다
 function levelPicks(pool = levelPool()) {
   const picks = [];
@@ -1195,7 +1196,7 @@ function showPicks(picks, title, keep) {
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
-    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${G.subs.some(x => x.id === u.id) ? '보조 강화' : '새 보조'}</div>` : ''}
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${!G.subs.some(x => x.id === u.id) ? '새 보조' : G.pickKind === 'lv' ? '특성 강화' : '보조 강화'}</div>` : ''}
       ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon))
         : (u.sub ? `<div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;
