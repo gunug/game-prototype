@@ -320,12 +320,12 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.111.5';
+const VERSION = '0.112.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
+const FACE = {survivor: false, police: false, firefighter: false, scientist: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
   spitter: false, grenadier: true, shielder: true, bloater: false, bossmortar: false, bossgeneral: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 // r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
@@ -452,6 +452,8 @@ const UPGRADES = [
   // 강화 보조(텅스텐 탄심 · 도약 회로 · 갈래 총구 · 화약 주머니)는 0.104.0 에 뺌 — 보조는 부여 · 기능형만, 특성 강화는 레벨업에서만 (보조 칸 안 씀)
   // 자석 출현 (0.106.0): 얻으면 끝. 적(보스 빼고)이 MAGDROP_P 확률로 자석을 떨군다 — 주우면 필드의 보석을 모두 끌어옴. 겹쳐 쌓임
   {id: 'magdrop', sub: '자석 출현', passive: true, nm: '자석 출현', ds: '적이 0.5% 확률로 자석을 떨군다 — 못 떨굴수록 확률이 올라 3배(1.5%)에 이르면 반드시 떨군다. 주우면 필드의 경험치를 모두 끌어온다', max: 1, badges: [], apply: () => {}},
+  // 연구 일지 (0.112.0): 얻으면 끝. 얻는 경험치 ×2 (경험치 증가 업그레이드와 따로 곱함)
+  {id: 'xp2', sub: '연구 일지', passive: true, nm: '경험치 두 배', ds: '얻는 경험치가 두 배', max: 1, badges: [], apply: () => {}},
   {id: 'give_pierce', give: 'pierce', sub: '송곳 인장', nm: '관통 부여', ds: '관통이 없는 무기에 관통을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['pierce'], fx: '부여', apply: () => {}},
   {id: 'give_chain',  give: 'chain',  sub: '사슬 인장', nm: '연쇄 부여', ds: '연쇄가 없는 무기에 연쇄를 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['chain'], fx: '부여', apply: () => {}},
   {id: 'give_spread', give: 'spread', sub: '부채 인장', nm: '확산 부여', ds: '확산이 없는 무기에 확산을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['spread'], fx: '부여', apply: () => {}},
@@ -663,6 +665,7 @@ const PENALTIES = [
   {id: 'civilian', nm: '민간인', short: '발사각×2', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
+  {id: 'weak',     nm: '약골', short: '체력×0.5', ds: '최대 체력이 절반'},                                               // 0.112.0 과학자
 ];
 const PEN = Object.fromEntries(PENALTIES.map(q => [q.id, q]));
 const hasPen = id => !!(G && G.pens && G.pens.includes(id));
@@ -701,6 +704,7 @@ const CHARACTERS = [
   {id: 'survivor',    nm: '생존자', sprite: 'survivor',    weapon: 'pistol', pen: 'civilian', sub: 'reroll'},
   {id: 'police',      nm: '경찰',   sprite: 'police',      weapon: 'sniper', pen: 'ration',   sub: 'give_chain'},
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
+  {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
 ].map(c => ({...c, wSlots: W_SLOTS, sSlots: S_SLOTS, hp: 1000, speed: 190}));
 let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
 // 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
@@ -817,7 +821,11 @@ function showChars() {
   ['worldSel', 'wpnSel', 'subSel', 'over', 'clear', 'levelup', 'pause'].forEach(id => $(id).hidden = true);
   $('charHint').textContent = `2단계 — ${WORLDS[selWorld].name} 에 나갈 캐릭터를 고르면 바로 시작. 칸은 모두 무기 ${W_SLOTS} · 보조 ${S_SLOTS} (패널티 포함)`;
   const cl = $('charList'); cl.innerHTML = '';
-  CHARACTERS.forEach((c, i) => {
+  // 0.112.0: 캐릭터는 무작위 3명만 나옴 (창을 열 때마다 새로)
+  const pool = CHARACTERS.map((_, i) => i); pickChars = [];
+  while (pickChars.length < 3 && pool.length) pickChars.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  pickChars.sort((a, b) => a - b);
+  pickChars.forEach(i => { const c = CHARACTERS[i];
     const b = document.createElement('button');
     b.className = 'char';
     // 시작 구성 (0.111.0) · 설명 글 (0.111.1): 그림 옆에 이름 + 짧은 설명
@@ -825,7 +833,7 @@ function showChars() {
     const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
       return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : ''].filter(Boolean).join(' ')
         + (W.badges.length ? `<span class="kb">${W.badges.map(b => badgeHtml(b, badgeVal(b, st))).join('')}</span>` : ''); };   // 특성은 공통 뱃지 + 숫자 (0.111.3)
-    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.nm;
+    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.nm;
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
       ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, wShort(c.weapon))}
@@ -836,6 +844,7 @@ function showChars() {
   });
   $('charSel').hidden = false;
 }
+let pickChars = [0, 1, 2];
 function pickChar(i) { charIdx = i; localStorage.setItem('survivor.char', CHARACTERS[i].id); newGame(selWorld); }   // 0.111.0: 무기 · 보조 고르기 없이 바로 시작
 $('charBack').onclick = () => showWorlds();
 
@@ -920,7 +929,7 @@ function newGame(wi, weaponId, subId) {
     weapons: [newWeapon(weaponId)], subs: [], pens: [C.pen],
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp, maxHp: C.hp, inv: 0, face: 1, walk: 0, move: 0},
+    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp * (C.pen === 'weak' ? 0.5 : 1), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
     enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
@@ -955,7 +964,7 @@ addEventListener('keydown', e => {
     const dg = /^(Digit|Numpad)([1-9])$/.exec(e.code), i = dg ? +dg[2] - 1 : undefined;
     if (!$('subSel').hidden) { if (pickSubs[i]) newGame(pickWi, pickWid, pickSubs[i]); else if (e.code === 'Escape') backToWpn(); }
     else if (!$('wpnSel').hidden) { if (pickWpns[i]) showSubPick(pickWpns[i]); else if (e.code === 'Escape') showChars(); }
-    else if (!$('charSel').hidden) { if (CHARACTERS[i]) pickChar(i); else if (e.code === 'Escape') showWorlds(); }
+    else if (!$('charSel').hidden) { if (pickChars[i] != null) pickChar(pickChars[i]); else if (e.code === 'Escape') showWorlds(); }
     else if (WORLDS[i]) pickWorld(i);
     return;
   }
@@ -1129,7 +1138,7 @@ function navSync() {
   const rows = navRows();
   nav.r = 0; nav.cs = rows.map(() => 0);
   if (scr === 'worldSel') nav.cs[0] = selWorld;
-  if (scr === 'charSel') nav.cs[0] = charIdx;
+  if (scr === 'charSel') nav.cs[0] = Math.max(0, pickChars.indexOf(charIdx));
   if (scr === 'over' || scr === 'clear') nav.cs[0] = rows[0].length - 1;   // 다시하기 · 다음 월드
   return scr;
 }
@@ -1233,7 +1242,7 @@ function rmItems(scr) {
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
     const cb = [...$('charList').children];
-    return {up: CHARACTERS.map((c, i) => ({label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, el: cb[i], act: () => pickChar(i)})),
+    return {up: pickChars.map((i, k) => { const c = CHARACTERS[i]; return {label: c.nm, img: `images/portrait_${c.sprite}.png?v=${VERSION}`, el: cb[k], act: () => pickChar(i)}; }),
             down: [{label: '뒤로', el: $('charBack'), act: () => showWorlds()}]};
   }
   if (scr === 'wpnSel') {                                       // 위 절반 = 무기, 아래 절반 = 뒤로
@@ -2464,7 +2473,7 @@ function update(dt) {
     const dx = p.x - g.x, dy = p.y - g.y, d = Math.hypot(dx, dy);
     if (d < magnet) g.pull = true;
     if (g.pull) { const sp = 420 * dt; g.x += dx / d * Math.min(sp, d); g.y += dy / d * Math.min(sp, d); }
-    if (d < p.r + 6) { g.dead = true; gainXp(g.v * G.s.xpMul); }   // 경험치 증가 배율
+    if (d < p.r + 6) { g.dead = true; gainXp(g.v * G.s.xpMul * (ownsSub('xp2') ? 2 : 1)); }   // 경험치 증가 배율 · 연구 일지 ×2 (0.112.0)
   }
   // 상자: 닿으면 연다 (레벨업 창이 떠 있으면 줄 세워 두었다가 닫힐 때)
   for (const c of G.chests) {
