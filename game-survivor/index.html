@@ -320,12 +320,12 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.112.0';
+const VERSION = '0.113.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, scientist: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
+const FACE = {survivor: false, police: false, firefighter: false, scientist: false, shaman: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
   spitter: false, grenadier: true, shielder: true, bloater: false, bossmortar: false, bossgeneral: false};
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
 // r = 크기 등급: 잡몹은 모두 15 (그림 넓이가 같다). 엘리트 ×1.3, 보스는 BOSSES 의 r
@@ -401,7 +401,7 @@ const magDropP = n => { const k = 1 + (MAGDROP_MAX - 1) * (n / MAGDROP_N) ** 2; 
 const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
-for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
+for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
 for (const n of Object.keys(FACE)) {                     // 그림이 있는 것 = FACE 표 (0.84.0)
   const img = new Image();
   img.onload = () => { SPRITES[n] = trimSprite(img); };
@@ -609,6 +609,13 @@ const WEAPONS = {
            useT: 1, maxT: 1, stun: 0.2, rad: 9,   // reload (0.97.0, 그 전 cd) = 다 깨진 뒤 다시 생기기까지 · 버팀(0.97.0 연쇄)은 0.99.0 에 뺌 — 한 번 맞으면 깨짐
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['spread']},   // 0.99.0: 정체성 특성 확산(방패 수)만
+  // 주술인형 (0.113.0): 사거리 안 가장 가까운 잡몹(엘리트 · 보스 빼고)을 아군으로 만든다. 아군은 가까운 적에게 달려가 닿으면 hitT 초마다 피해
+  //   아군은 n 마리까지. 모자라면 재장전(reload)이 돌고 차면 하나 더. 아군은 체력을 다 채운 채 넘어오고, 적에게 닿아 있으면 그 적의 피해(초당)만큼 깎임
+  //   DPS 맞춤: 한 바퀴 = hitT, 한 바퀴에 1 번 — 아군 하나가 다른 무기 한 자루만큼 (데려오는 동안 · 쓰러질 때 빈 틈이 있어서)
+  doll:   {nm: '주술인형', kind: 'charm', sh: '적을 아군으로', ds: '가까운 잡몹 하나를 아군으로 만든다. 아군은 가까운 적에게 달려가 싸우고, 적도 가장 가까운 아군이나 주인공을 노린다. 아군은 2마리까지 — 쓰러지면 재장전 뒤 또 하나',
+           dmg: 0, reload: 3, range: 140, n: 2, hitT: 0.5, maxT: 1, stun: 0.1, guard: 0.5,   // guard: 아군이 받는 피해 배율
+           len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
+           badges: []},
 };
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
@@ -644,14 +651,14 @@ function boomPath(R, acc) {           // 지역 좌표 (x = 겨눈 쪽, y = 옆)
 // 서서 던졌을 때 날아갔다 돌아오는 시간 = 고리 길이 ÷ 탄속 — DPS 맞춤용
 const boomFlight = (range, spd, acc = 0) => boomPath(range, acc).L / spd;
 //   부메랑 (0.61.0): 장탄 없음 — 한 바퀴 = 날아갔다 돌아오는 시간(boomFlight) + 쿨다운
-const cycleOf = W => W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
-const perCycle = W => W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
+const cycleOf = W => W.kind === 'charm' ? W.hitT : W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
+const perCycle = W => W.kind === 'charm' ? 1 : W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
   if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
   W.dmg = Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수
 }
 const dpsOf = W => { const s = W.dmg * perCycle(W) / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.cd ? W.dmg / W.cd : 0}; };
-const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
+const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
@@ -665,7 +672,8 @@ const PENALTIES = [
   {id: 'civilian', nm: '민간인', short: '발사각×2', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
-  {id: 'weak',     nm: '약골', short: '체력×0.5', ds: '최대 체력이 절반'},                                               // 0.112.0 과학자
+  {id: 'weak',     nm: '약골', short: '체력×0.5', ds: '최대 체력이 절반'},
+  {id: 'slow',     nm: '족쇄', short: '이동×0.5', ds: '이동 속도가 절반'},                                             // 0.113.0 주술사                                               // 0.112.0 과학자
 ];
 const PEN = Object.fromEntries(PENALTIES.map(q => [q.id, q]));
 const hasPen = id => !!(G && G.pens && G.pens.includes(id));
@@ -688,6 +696,7 @@ function wstat(id) {
     burst: 1,                                                // 연속 뺌 (0.102.3)
     knock: 0,                                                 // 밀당 업그레이드 뺌 (0.92.0)
     splash: has('splash') ? T('splash') : 0,                 // 폭발 단계 (반경 · 둘레 피해는 splashR · splashPct)
+    n: W.n,                                                  // 주술인형 아군 수 (0.113.0)
     shields: W.n && W.n + T('spread') - 1,                   // 방패 수 (확산 뱃지에 보임) — 확산 단계마다 +1
     acc: W.acc == null ? W.acc : W.acc * (hasPen('civilian') ? 2 : 1),   // 발사각 업그레이드 뺌 (0.92.0) · 패널티 '민간인' ×2 (0.110.0)   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
@@ -705,6 +714,7 @@ const CHARACTERS = [
   {id: 'police',      nm: '경찰',   sprite: 'police',      weapon: 'sniper', pen: 'ration',   sub: 'give_chain'},
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
   {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
+  {id: 'shaman',      nm: '주술사', sprite: 'shaman',      weapon: 'doll',   pen: 'slow',     sub: 'banish'},   // 0.113.0
 ].map(c => ({...c, wSlots: W_SLOTS, sSlots: S_SLOTS, hp: 1000, speed: 190}));
 let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
 // 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
@@ -833,7 +843,7 @@ function showChars() {
     const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
       return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : ''].filter(Boolean).join(' ')
         + (W.badges.length ? `<span class="kb">${W.badges.map(b => badgeHtml(b, badgeVal(b, st))).join('')}</span>` : ''); };   // 특성은 공통 뱃지 + 숫자 (0.111.3)
-    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.nm;
+    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.nm;   // 봉인 부적 = '봉인×1'
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
       ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, wShort(c.weapon))}
@@ -929,10 +939,10 @@ function newGame(wi, weaponId, subId) {
     weapons: [newWeapon(weaponId)], subs: [], pens: [C.pen],
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed, hp: C.hp * (C.pen === 'weak' ? 0.5 : 1), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
+    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1792,6 +1802,61 @@ function orbitSpots(w, st) {
   return out;
 }
 const orbitFill = (w, st) => { const n = orbitN(st); w.orb.alive = Array(n).fill(orbitHp(st)); w.orb.ht = Array(n).fill(0); };
+// ── 주술인형 (0.113.0) ── G.allies: 아군이 된 적. 적 목록(G.enemies)에서 빠져 무기 · 적 탄의 대상이 아님
+const ALLY_SPD = 1.3, ALLY_MIN_SPD = 90;                         // 아군 빠르기 = 원래 × 1.3 (적어도 90)
+const charmCount = w => G.allies.filter(a => a.w === w).length;
+function updateCharm(w, st, dt) {
+  if (charmCount(w) >= st.n) { w.cdT = st.reload; return; }      // 다 찼으면 재장전 멈춤 (가득)
+  if ((w.cdT -= dt) > 0) return;
+  const p = G.p;
+  let best = null, bd = st.range * st.range;
+  for (const e of G.enemies) {
+    if (e.dead || e.boss || e.elite != null || e.summon) continue;   // 엘리트 · 보스 · 보스가 부른 몹은 못 데려옴
+    const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2; if (d2 < bd) { bd = d2; best = e; }
+  }
+  if (!best) return;                                             // 데려올 적이 없으면 다 찬 채로 기다림
+  G.enemies.splice(G.enemies.indexOf(best), 1);
+  G.allies.push({...best, w, hp: best.maxHp, hitT: 0, stop: 0, kbx: 0, kby: 0, shield: 0});
+  G.fx.push({kind: 'splash', mine: true, x: best.x, y: best.y, r: best.r * 1.8, t: 0.3});
+  w.cdT = st.reload;
+}
+// 아군 움직임 · 싸움: 가까운 적에게 달려가 닿으면 hitT 초마다 무기 피해. 닿아 있는 적들의 피해(초당)만큼 깎이고 0 이면 쓰러짐
+function tickAllies(dt) {
+  for (const a of G.allies) {
+    const W = WEAPONS[a.w.id], st = wstat(a.w.id);
+    let t = null, td = Infinity;
+    for (const e of G.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < td) { td = d; t = e; } }
+    a.ph = (a.ph || 0); tickGhost(a, dt); a.flash = Math.max(0, (a.flash || 0) - dt);
+    if (t) {
+      const sp = Math.max(ALLY_MIN_SPD, a.spd * ALLY_SPD), reach = a.r + t.r;
+      if (td > reach * 0.9) { a.vx = (t.x - a.x) / td * sp; a.x += a.vx * dt; a.y += (t.y - a.y) / td * sp * dt; }
+      if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, st.dmg, st.stun); a.hitT = W.hitT; }
+    } else {                                                     // 적이 없으면 주인공 곁으로
+      const dx = G.p.x - a.x, dy = G.p.y - a.y, d = Math.hypot(dx, dy) || 1;
+      if (d > 50) { const sp = Math.max(ALLY_MIN_SPD, a.spd * ALLY_SPD); a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
+    }
+    for (const e of G.enemies) if (!e.dead && (e.x - a.x) ** 2 + (e.y - a.y) ** 2 < (e.r + a.r) ** 2) { a.hp -= e.dmg * W.guard * dt; a.flash = FLASH_T; }
+    if (a.hp <= 0) { a.dead = true; G.fx.push({kind: 'splash', mine: true, x: a.x, y: a.y, r: a.r * 1.6, t: 0.25}); }
+  }
+  G.allies = G.allies.filter(a => !a.dead);
+}
+// 적이 노리는 것: 가장 가까운 아군이나 주인공 (0.113.0)
+function foeTarget(e) {
+  let t = G.p, td = (G.p.x - e.x) ** 2 + (G.p.y - e.y) ** 2;
+  for (const a of G.allies) { const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }
+  return t;
+}
+// 주술인형 미터: 아군 수 (숫자) · 다 차지 않았으면 재장전만큼 주황 파이, 다 찼으면 노랑 가득
+function charmMeter(w, i) {
+  const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), full = n >= st.n;
+  const k = full ? 1 : 1 - Math.max(0, w.cdT) / st.reload;
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = full ? '#c9a93a' : '#ff9a4a';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.closePath(); ctx.fill();
+  ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2; ctx.strokeStyle = '#000'; ctx.strokeText(n, x, y + 0.5); ctx.fillStyle = '#fff'; ctx.fillText(n, x, y + 0.5);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
 function updateOrbit(w, st, dt) {
   const W = WEAPONS[w.id];
   if (!w.orb) { w.orb = {ph: 0}; orbitFill(w, st); }
@@ -2314,6 +2379,7 @@ function update(dt) {
       updateLaser(w, wi, st, dt); return;
     }
     if (kind === 'orbit') { updateOrbit(w, st, dt); return; }
+    if (kind === 'charm') { updateCharm(w, st, dt); return; }
     if (kind === 'boom') {                                         // 부메랑: 날아간 게 하나라도 있으면 못 던짐. 다 받은 뒤부터 쿨다운
       w.out = w.shots.length > 0 || G.bullets.some(b => b.boom && b.w === w);
       if (w.out) { if (!w.shots.length) w.cdT = st.reload; }   // 0.97.0: 쿨다운 → 재장전
@@ -2334,8 +2400,10 @@ function update(dt) {
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
+  tickAllies(dt);                                                // 아군 (0.113.0)
   for (const e of G.enemies) {
-    const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+    const tg = G.allies.length ? foeTarget(e) : p;               // 가장 가까운 아군이나 주인공 쪽으로 (0.113.0)
+    const dx = tg.x - e.x, dy = tg.y - e.y, d = Math.hypot(dx, dy) || 1;
     tickGhost(e, dt);
     e.flash = Math.max(0, e.flash - dt);
     if (e.stop > 0) {                                             // 경직: 움직임 · 넉백 · 출렁임 모두 멈춤 (넉백은 풀린 뒤 이어짐)
@@ -2702,6 +2770,18 @@ function draw() {
     if (e.def > 0 && !e.boss) defMark(e.x + e.r + 3, e.y - e.r * 2.3 + 1.5, e.def);   // 방어: 체력 줄 오른쪽에 방패 + 숫자 (늘 보임)
     if (e.shield > 0) shieldMark(e.x, e.y - e.r * 2.3 - 9, e.shield);   // 방패 횟수: 체력 줄 위 가운데 (0.84.0)
   }
+  // 아군 (0.113.0): 발밑에 초록 고리 + 초록 빛, 머리 위 초록 체력 줄
+  for (const a of G.allies) {
+    if (!view(a.x, a.y, a.r * 4)) continue;
+    const T = ENEMY_TYPES[a.type] || {faceLeft: FACE[a.type], color: '#4a4'}, eh = a.r * 3.4;
+    const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
+    ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10;
+    drawSprite(a.type, a.x, a.y, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
+    ctx.restore();
+    ctx.fillStyle = '#031'; ctx.fillRect(a.x - a.r, a.y - a.r * 2.3, a.r * 2, 3);
+    ctx.fillStyle = '#5f8'; ctx.fillRect(a.x - a.r, a.y - a.r * 2.3, a.r * 2 * Math.max(0, a.hp) / a.maxHp, 3);
+  }
   drawEshotsAir();
 
   // 플레이어
@@ -2725,6 +2805,7 @@ function draw() {
   for (const [i, [w]] of poses.entries()) {
     if (WEAPONS[w.id].kind === 'boom') { boomMeter(w, i); continue; }
     if (WEAPONS[w.id].kind === 'orbit') { orbitMeter(w, i); continue; }
+    if (WEAPONS[w.id].kind === 'charm') { charmMeter(w, i); continue; }
     const st = wstat(w.id), R = 7, {x, y} = meterPos(i), rl = w.rl > 0;
     const k = rl ? 1 - w.rl / w.rlMax : Math.max(0, w.ammo) / st.mag;
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
