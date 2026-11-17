@@ -285,7 +285,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.103.0';
+const VERSION = '0.104.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -406,13 +406,9 @@ const UPGRADES = [
   {id: 'banish', sub: '봉인 부적', util: true, nm: '봉인', ds: '레벨업 · 상자 창마다 하나를 봉인 — 이번 판에서 더 나오지 않는다', max: 1,   // 강화 없음 (0.102.2) — 얻으면 끝, 창마다 1번
    badges: [], apply: () => {}},
   // ── 특성 (0.103.0) ── 특성 뱃지 4가지(관통 · 연쇄 · 확산 · 폭발)는 판 전체에 단계 하나씩 (G.tl, 1 ~ TRAIT_MAX). 모든 무기 · 보조가 같은 단계를 쓴다
-  //   강화 보조(enh): 얻거나 상자에서 다시 고르면 그 특성 단계 +1 — 그 특성을 가진 무기만 오름
-  //   부여 보조(give): 얻으면 끝. 그 특성이 없는 무기(앞으로 얻을 무기도)에 특성을 붙인다 — 붙는 값은 지금 단계 그대로
-  //   레벨업 특성 강화(tup): 강화 보조가 없어도 가진 특성이면 나옴. 단계 +1
-  {id: 'pierce', enh: 'pierce', sub: '텅스텐 탄심', nm: '관통 강화', ds: '관통 단계 +1 — 관통을 가진 무기만', max: 99, badges: ['pierce'], fx: '+1', apply: () => G.tl.pierce++},
-  {id: 'chain',  enh: 'chain',  sub: '도약 회로',   nm: '연쇄 강화', ds: '연쇄 단계 +1 — 연쇄를 가진 무기만', max: 99, badges: ['chain'], fx: '+1', apply: () => G.tl.chain++},
-  {id: 'count',  enh: 'spread', sub: '갈래 총구',   nm: '확산 강화', ds: '확산 단계 +1 — 확산을 가진 무기만', max: 99, badges: ['spread'], fx: '+1', apply: () => G.tl.spread++},
-  {id: 'splash', enh: 'splash', sub: '화약 주머니', nm: '폭발 강화', ds: '폭발 단계 +1 — 폭발을 가진 무기만', max: 99, badges: ['splash'], fx: '+1', apply: () => G.tl.splash++},
+    //   부여 보조(give): 얻으면 끝. 그 특성이 없는 무기(앞으로 얻을 무기도)에 특성을 붙인다 — 붙는 값은 지금 단계 그대로
+  //   레벨업 특성 강화(tup): 가진 특성(기본 · 부여)이면 나옴. 단계 +1 — 특성 강화는 이것뿐 (0.104.0). 카드 그림은 그 특성의 인장
+  // 강화 보조(텅스텐 탄심 · 도약 회로 · 갈래 총구 · 화약 주머니)는 0.104.0 에 뺌 — 보조는 부여 · 기능형만, 특성 강화는 레벨업에서만 (보조 칸 안 씀)
   {id: 'give_pierce', give: 'pierce', sub: '송곳 인장', nm: '관통 부여', ds: '관통이 없는 무기에 관통을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['pierce'], fx: '부여', apply: () => {}},
   {id: 'give_chain',  give: 'chain',  sub: '사슬 인장', nm: '연쇄 부여', ds: '연쇄가 없는 무기에 연쇄를 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['chain'], fx: '부여', apply: () => {}},
   {id: 'give_spread', give: 'spread', sub: '부채 인장', nm: '확산 부여', ds: '확산이 없는 무기에 확산을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['spread'], fx: '부여', apply: () => {}},
@@ -1265,11 +1261,11 @@ function showPicks(picks, title, keep) {
     const lv = G.ups[u.id] || 0;
     // 업그레이드 단계 = 칸: 채운 칸(찍은 횟수) + 깜빡이는 칸(이번에 찍을 것) + 빈 칸(남은 것). 끝없는(99) 것은 빈 칸 없이
     // 새 무기 = 무기 슬롯 칸 (가진 무기 수 + 깜빡이는 새 칸)
-    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${!G.subs.some(x => x.id === u.id) ? '새 보조 · ' + (u.give ? '특성 부여' : u.enh ? '특성 강화' : '기능') : '보조 강화'}</div>` : u.tup ? '<div class="sublbl">특성 강화</div>' : u.wup ? '<div class="sublbl">무기 강화</div>' : ''}
-      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : (u.enh || u.tup) ? pipsHtml(G.tl[u.enh || u.tup], TRAIT_MAX) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
+    d.innerHTML = `<div class="key">${i + 1}</div><div class="nm">${u.sub || u.nm}</div>${u.sub ? `<div class="sublbl">${!G.subs.some(x => x.id === u.id) ? '새 보조 · ' + (u.give ? '특성 부여' : '기능') : '보조 강화'}</div>` : u.tup ? '<div class="sublbl">특성 강화</div>' : u.wup ? '<div class="sublbl">무기 강화</div>' : ''}
+      ${u.newWeapon ? pipsHtml(G.weapons.length, G.char.wSlots) : u.axis ? axisHtml(u) : u.tup ? pipsHtml(G.tl[u.tup], TRAIT_MAX) : pipsHtml(lv, u.max < 99 ? u.max : Infinity)}
       ${u.newWeapon ? `<div class="wimg"><img src="images/weapon_${u.newWeapon}.png?v=${VERSION}" alt=""></div>` + wpnInfoHtml(WEAPONS[u.newWeapon], wstat(u.newWeapon))
         : u.wup ? `<div class="wimg"><img src="images/weapon_${u.wup}.png?v=${VERSION}" alt=""></div>` + wupHtml(u.wup)
-        : (u.sub ? `<div class="wimg"><img src="images/item_${u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;
+        : (u.sub || u.tup ? `<div class="wimg"><img src="images/item_${u.tup ? 'give_' + u.tup : u.id}.png?v=${VERSION}" alt="" onerror="this.parentNode.remove()"></div>` : '') + upHtml(u)}`;   // 특성 강화 = 그 특성 인장 그림 (0.104.0)
     if (banned) d.insertAdjacentHTML('beforeend', '<div class="banTag">봉인됨<br>이번 게임 동안 출현하지 않음</div>');
     else d.onclick = () => choose(i, true);
     box.appendChild(d);
@@ -1299,7 +1295,7 @@ function upHtml(u) {
     const lv = G.ups[u.id] || 0;
     return `<div class="udesc">${u.ds}</div><div class="wrows"><div class="wrow"><span class="wch on">창마다</span><span class="wv">${lv}회 → <b>${lv + 1}회</b></span></div></div>`;
   }
-  const t = u.enh || u.tup || u.give;
+  const t = u.tup || u.give;
   if (t) {                                                       // 특성 (0.103.0): 받는 무기만 한 줄씩 — 부여는 '없음 → 값', 강화는 '지금 → 다음'
     const vals = () => G.weapons.map(w => hasTrait(WEAPONS[w.id], t) ? badgeVal(t, wstat(w.id)) : null);
     const a = vals();
@@ -1389,8 +1385,8 @@ function closePicks() {
 const traitOwned = t => G.weapons.some(w => hasTrait(WEAPONS[w.id], t));
 const enhOk = t => traitOwned(t) && G.tl[t] < TRAIT_MAX;
 const giveOk = t => !ownsSub('give_' + t) && G.weapons.some(w => giveable(WEAPONS[w.id], t));
-const subOk = u => u.enh ? enhOk(u.enh) : u.give ? giveOk(u.give) : G.ups[u.id] < u.max;
-const subKind = u => u.give ? '<div class="sublbl">특성 부여</div>' : u.enh ? '<div class="sublbl">특성 강화</div>' : '';
+const subOk = u => u.give ? giveOk(u.give) : G.ups[u.id] < u.max;
+const subKind = u => u.give ? '<div class="sublbl">특성 부여</div>' : '<div class="sublbl">기능</div>';
 const chestPool = () => UPGRADES.filter(u => u.sub && subOk(u) && !G.banned.has(u.id)
   && (G.subs.some(x => x.id === u.id) || G.subs.length < G.char.sSlots));
 // 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
@@ -2768,7 +2764,7 @@ function hud() {
   const s = G.s;
   // 슬롯 줄 (0.79.0): 그림 + 이름, 보조는 단계도
   const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => `<img src="images/weapon_${w.id}.png?v=${VERSION}" alt="">${WEAPONS[w.id].nm}`))
-    + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => { const u = UPG[x.id], n = u.enh ? G.tl[u.enh] : u.give ? '' : G.ups[x.id] || 1; return `<img src="images/item_${x.id}.png?v=${VERSION}" alt="">${x.nm}${n === '' ? '' : `<b>${n}</b>`}`; }));
+    + slotRow('보조 ', G.char.sSlots, 's', G.subs.map(x => { const u = UPG[x.id], n = u.give ? '' : G.ups[x.id] || 1; return `<img src="images/item_${x.id}.png?v=${VERSION}" alt="">${x.nm}${n === '' ? '' : `<b>${n}</b>`}`; }));
   if ($('slots').dataset.k !== sl) { $('slots').innerHTML = sl; $('slots').dataset.k = sl; }
   $('stats').textContent =
     `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
