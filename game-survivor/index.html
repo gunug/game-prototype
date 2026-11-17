@@ -285,7 +285,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.102.3';
+const VERSION = '0.102.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1367,7 +1367,9 @@ const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WE
 // 무기 강화 (0.101.0): 가진 무기마다 하나. 최대치 없음 → 상자가 비지 않음
 const weaponUpPool = () => G.weapons.filter(w => !G.banned.has('wup_' + w.id))
   .map(w => ({id: 'wup_' + w.id, nm: WEAPONS[w.id].nm + ' 강화', max: 99, wup: w.id, apply: () => { w.lv = (w.lv || 0) + 1; }}));
-const chestAll = () => [...chestPool(), ...newWeaponPool(), ...weaponUpPool()];
+// 새 무기는 상자 한 번에 1장만 (0.102.4) — 해금된 무기가 여럿이면 그중 하나만 후보에 (그 전엔 전부 들어가 보조를 밀어냄)
+const oneNewWeapon = () => { const a = newWeaponPool(); return a.length ? [a[Math.floor(Math.random() * a.length)]] : []; };
+const chestAll = () => [...chestPool(), ...oneNewWeapon(), ...weaponUpPool()];
 function chestPicks(pool = chestAll()) {
   const picks = [];
   while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
