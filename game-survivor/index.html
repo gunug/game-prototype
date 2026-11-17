@@ -320,7 +320,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.114.4';
+const VERSION = '0.114.5';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -679,7 +679,8 @@ const PENALTIES = [
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
   {id: 'weak',     nm: '약골', short: '체력×0.5', ds: '최대 체력이 절반'},
-  {id: 'slow',     nm: '족쇄', short: '이동×0.5', ds: '이동 속도가 절반'},                                             // 0.113.0 주술사                                               // 0.112.0 과학자
+  {id: 'slow',     nm: '족쇄', short: '이동×0.5', ds: '이동 속도가 절반'},                                             // 0.113.0 (지금 쓰는 직업 없음)
+  {id: 'noregen',  nm: '마른 피', short: '체력 재생 불가', ds: '체력이 저절로 차지 않는다 — 「체력 재생 증가」도 나오지 않음'},   // 0.114.5 주술사                                               // 0.112.0 과학자
 ];
 const PEN = Object.fromEntries(PENALTIES.map(q => [q.id, q]));
 const hasPen = id => !!(G && G.pens && G.pens.includes(id));
@@ -721,7 +722,7 @@ const CHARACTERS = [
   {id: 'police',      nm: '경찰',   sprite: 'police',      weapon: 'sniper', pen: 'ration',   sub: 'give_chain'},
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
   {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
-  {id: 'shaman',      nm: '주술사', sprite: 'shaman',      weapon: 'doll',   pen: 'slow',     sub: 'banish'},   // 0.113.0
+  {id: 'shaman',      nm: '주술사', sprite: 'shaman',      weapon: 'doll',   pen: 'noregen',  sub: 'banish'},   // 0.113.0 · 패널티 족쇄 → 마른 피 (0.114.5)
 ].map(c => ({...c, wSlots: W_SLOTS, sSlots: S_SLOTS, hp: 1000, speed: 190}));
 let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
 // 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
@@ -1372,7 +1373,7 @@ const XP_A = 25, XP_G = 1.124;
 const XP_EARLY = 0.08, XP_EARLY_MUL = 1.6;
 const xpNeed = lv => Math.round(XP_A * XP_G ** (lv - 1) * Math.min(1, XP_EARLY * XP_EARLY_MUL ** (lv - 1)));
 
-const levelPool = () => UPGRADES.filter(u => !u.sub && (u.tup ? enhOk(u.tup) : true) && (u.id !== 'critdmg' || G.s.crit > 0) && (u.axis ? axisOk(u) : G.ups[u.id] < u.max)   // 보조는 상자에서만 (0.67.0). 특성 강화(tup)는 가진 특성이면 (0.103.0)
+const levelPool = () => UPGRADES.filter(u => !u.sub && (u.tup ? enhOk(u.tup) : true) && !(u.id === 'regen' && hasPen('noregen')) && (u.id !== 'critdmg' || G.s.crit > 0) && (u.axis ? axisOk(u) : G.ups[u.id] < u.max)   // 보조는 상자에서만 (0.67.0). 특성 강화(tup)는 가진 특성이면 (0.103.0)
     && (!u.wpn || affectedBy(u.id).length) && !G.banned.has(u.id));   // 영향받는 무기가 없거나 봉인한 것은 안 나온다
 function levelPicks(pool = levelPool()) {
   const picks = [];
@@ -2365,7 +2366,7 @@ function update(dt) {
   G.hitT = Math.max(0, (G.hitT || 0) - dt); G.shake = (G.shake || 0) * Math.exp(-SHAKE_DECAY * dt);
   { const sk = G.shake > 0.3 ? G.shake : 0; G.skx = (Math.random() * 2 - 1) * sk; G.sky = (Math.random() * 2 - 1) * sk; }   // 흔들림 자리는 판이 돌 때만 바뀜 — 멈추면 같이 멈춤 (0.106.1)
   // 체력 재생 (0.74.0) — 0.83.0 부터 REGEN_T 초마다 한 번에 (초당 양은 그대로). 찰 때마다 녹색 +숫자
-  if (G.s.regen && p.hp < p.maxHp) {
+  if (G.s.regen && p.hp < p.maxHp && !hasPen('noregen')) {      // 패널티 '마른 피' 면 재생 없음 (0.114.5)
     if ((G.regenAcc = (G.regenAcc || 0) + dt) >= REGEN_T) {
       G.regenAcc -= REGEN_T;
       const h = Math.min(p.maxHp - p.hp, G.s.regen * REGEN_T); p.hp += h;

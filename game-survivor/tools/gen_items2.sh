@@ -10,3 +10,4 @@ gen --id magdrop --seed 3901 --prompt "a chunky red and silver horseshoe magnet 
 gen --id pen_civilian --seed 4001 --prompt "a cheap cracked plastic toy pistol with a bent barrel and peeling orange paint, clearly unreliable"
 gen --id pen_ration --seed 4002 --prompt "a nearly empty olive green ammunition box with only two bullets left inside and a paper ration slip"
 gen --id pen_heavy --seed 4003 --prompt "a heavy yellow firefighter oxygen tank backpack with thick straps and a pressure gauge"
+gen --id pen_noregen --seed 4103 --prompt "a cracked empty glass vial with a dried dark red stain inside and a broken cork stopper"
