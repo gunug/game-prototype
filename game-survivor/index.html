@@ -302,7 +302,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.109.0';
+const VERSION = '0.109.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -530,7 +530,7 @@ const wpnStats = W => ['dmg', ...(W.cd ? ['cd'] : []), ...(W.mag ? ['mag'] : [])
 const TRAITS = ['pierce', 'chain', 'spread', 'splash'];
 const GRANT_KINDS = {
   pierce: ['gun', 'orbit'],                    // 관통: 총알이 꿰뚫음 (저격총 · 부메랑은 기본) · 방패는 관통 수만큼 버팀 (0.109.0)
-  chain:  ['gun', 'rail', 'laser', 'orbit'],   // 연쇄: 맞힌 뒤 다음 적으로 (레이저는 기본 · 부메랑은 길이 따로) · 방패는 깨질 때 다음 적으로 날아감 (0.109.0)
+  chain:  ['gun', 'rail', 'laser', 'orbit', 'boom'],   // 연쇄: 맞힌 뒤 다음 적으로 (레이저는 기본) · 방패는 깨질 때 다음 적으로 날아감 (0.109.0) · 부메랑은 관통을 다 쓰면 다음 적으로 날아간 뒤 돌아옴 (0.109.1)
   spread: ['gun', 'rail', 'boom', 'orbit'],    // 확산: 부채꼴 한 발 더 · 방패는 방패 +1 (방패는 기본)
   splash: ['gun', 'laser', 'orbit'],           // 폭발: 맞은 자리 둘레 (관통탄 · 부메랑은 아직 못 씀)
 };
@@ -570,7 +570,7 @@ const WEAPONS = {
   // 부메랑 (0.56.0): 가장 가까운 적 쪽으로 던지면 사거리만큼 날아갔다가 주인공에게 돌아온다.
   //   가는 길 · 오는 길에서 닿는 적을 모두 한 번씩 맞힌다 (관통 ∞). 투사체 = 부채꼴로 여러 개 · 연속공격 = 잇달아 더 던짐
   //   장탄 · 재장전 없음 (0.57.0): 던진 것이 다 돌아와야 다시 던진다. 쿨다운 = 다 받은 뒤 다음 던지기까지
-  boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길에서 관통 수만큼의 적을 벤다',
+  boomerang: {nm: '부메랑', kind: 'boom', sh: '날아갔다 돌아오는 날', ds: '가까운 적 쪽으로 던지면 사거리 끝까지 날아갔다가 돌아온다. 가는 길 · 오는 길에서 관통 수만큼의 적을 벤다. 연쇄를 받으면 관통을 다 쓴 뒤 다음 적으로 날아갔다 돌아온다',
            dmg: 0, reload: 0.4, range: 130, spd: 360, acc: 15, pierce: 4,   // reload (0.97.0, 그 전 cd): 다 받은 뒤 다음 던지기까지
            maxT: 3, stun: 0.08, rad: 10,   // pierce (0.66.0) = 한 번 던져 베는 적 수 (같은 적은 다시 벰)   // acc = 고리가 사거리 중간쯤에서 겨눈 쪽에서 비끼는 가장 큰 각 (0.62.0)   // maxT 3 = 가고 오며 맞히는 적 (가늠) · 장탄 없음
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
@@ -2065,7 +2065,7 @@ function fireBoom(st, w, i) {
   for (let k = 0; k < st.count; k++) {
     const a = base + (k - (st.count - 1) / 2) * spread;
     G.bullets.push({x: hx, y: hy, ax: hx, ay: hy, vx: 0, vy: 0, boom: 1, w, sp: st.spd, th: a, sg, path, s: 0, pi: 0, hitAt: new Map(), rot: Math.random() * 6, pierce: true, pleft: st.pierce || Infinity, tgts: new Set(), rad: W.rad,
-      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: 0, travel: 0, maxTravel: Infinity, life: 0, hit: new Set()});
+      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: 0, chain: st.chain, travel: 0, maxTravel: Infinity, life: 0, hit: new Set()});   // chain (0.109.1)
   }
 }
 
@@ -2328,6 +2328,19 @@ function update(dt) {
     if (b.boom) {                                                 // 부메랑 길 (0.62.0) — BOOM 설명 참고. 길 위 다음 자리를 정하고 속도로 바꿔 넣는다
       b.rot += dt * 22; b.life += dt;
       const P = b.path;
+      if (b.chase) {                                              // 연쇄 (0.109.1): 관통을 다 쓴 뒤 가까운 적으로 곧장 날아가 벰 — 연쇄 수만큼, 그다음 손으로 돌아옴
+        let t = b.chase;
+        if (t.dead) t = b.chase = b.chain > 0 ? nearestEnemy(b.x, b.y, CHAIN_HOP, b.hit) : null;
+        if (!t) { b.chase = null; b.ret = true; continue; }
+        const dx = t.x - b.x, dy = t.y - b.y, d = Math.hypot(dx, dy) || 1;
+        if (d <= b.sp * dt + t.r) {
+          b.x = t.x; b.y = t.y; hurtEnemy(t, b.dmg, b.stun); b.hit.add(t); b.hitAt.set(t, b.life); b.chain--;
+          G.fx.push({kind: 'muzzle', x: t.x, y: t.y, t: 0.05});
+          b.chase = b.chain > 0 ? nearestEnemy(t.x, t.y, CHAIN_HOP, b.hit) : null;
+          if (!b.chase) b.ret = true;
+        } else { b.vx = dx / d * b.sp; b.vy = dy / d * b.sp; b.x += b.vx * dt; b.y += b.vy * dt; }
+        continue;
+      }
       if (b.ret) {                                                // 관통을 다 써서 되돌아오는 중 (0.75.0): 손으로 곧장, 탄속 그대로
         const hx = p.x - b.x, hy = p.y + WPN_CY - b.y, hd = Math.hypot(hx, hy);
         if (hd <= b.sp * dt + 4) { b.dead = true; continue; }
@@ -2374,7 +2387,15 @@ function update(dt) {
       }
       // 연쇄: 남은 수가 있으면 맞힌 자리에서 아직 안 맞은 가장 가까운 적(CHAIN_HOP 안)으로 방향을 틀어 더 날아간다
       //   관통탄은 관통을 먼저 다 쓰고 (pleft 마리 꿰뚫음) 마지막으로 꿰뚫은 적에서 연쇄한다. 튄 뒤엔 한 마리씩 (관통 없음)
-      if (b.boom) { b.tgts.add(e); if (b.tgts.size >= b.pleft && b.boom === 1) b.ret = true; continue; }   // 관통을 다 쓰면 가던 길을 접고 손으로 돌아온다 (0.75.0)
+      if (b.boom) {
+        b.tgts.add(e);
+        if (b.tgts.size >= b.pleft && !b.chased && b.chain > 0) {   // 연쇄 (0.109.1): 관통을 다 쓰면 다음 적으로 (한 번 던질 때 한 번)
+          b.chased = true; b.chase = nearestEnemy(e.x, e.y, CHAIN_HOP, b.hit);
+          if (b.chase) break;
+        }
+        if (b.tgts.size >= b.pleft && b.boom === 1) b.ret = true;
+        continue;
+      }   // 관통을 다 쓰면 가던 길을 접고 손으로 돌아온다 (0.75.0)
       if (b.pierce && --b.pleft > 0) {                            // 관통이 남았으면 꿰뚫고 계속 날아간다
         // 0.93.1: 남은 길(사거리 안)에 꿰뚫을 적이 없으면 관통을 기다리지 않고 바로 연쇄 — 튄 뒤엔 한 마리씩
         if (b.chain > 0 && !enemyAhead(b) && chainBullet(b, e)) { b.pleft = 1; break; }
