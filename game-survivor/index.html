@@ -302,7 +302,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.108.0';
+const VERSION = '0.108.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1211,7 +1211,7 @@ function rmItems(scr) {
   const list = G.choices.map((u, i) => ({label: G.banned.has(u.id) ? '봉인됨' : (G.banMode ? '봉인: ' : '') + (u.sub || u.nm), disabled: G.banned.has(u.id), el: cards[i], act: () => choose(i, true)}));
   const down = [];                                             // 아래 절반 = 행운 주사위 · 봉인 부적 (0.78.0)
   if (hasSub('reroll')) down.push({label: '다시 뽑기', img: `images/item_reroll.png?v=${VERSION}`, disabled: !canReroll(), el: $('rerollBtn'), act: rerollPicks});
-  if (hasSub('banish')) down.push({label: G.banMode ? '봉인 취소' : '봉인', img: `images/item_banish.png?v=${VERSION}`, disabled: !canBan(), el: $('banBtn'), act: toggleBan});
+  if (hasSub('banish')) down.push({label: G.banMode ? '봉인 취소' : canUnban() ? '봉인 해제' : '봉인', img: `images/item_banish.png?v=${VERSION}`, disabled: !canBan(), el: $('banBtn'), act: toggleBan});
   return {up: list, down};
 }
 // 손가락 위치 → {half, idx}. 가운데면 null
@@ -1344,7 +1344,7 @@ function showPicks(picks, title, keep) {
   // 행운 주사위 · 봉인 부적 단추 (가진 것만)
   const nR = usesLeft('reroll', 'reroll'), nB = usesLeft('banish', 'ban');   // 남은 횟수를 단추에
   $('luBtns').innerHTML = (hasSub('reroll') ? `<button id="rerollBtn"${nR > 0 ? '' : ' disabled'}>다시 뽑기 ${nR} (R)</button>` : '')
-    + (hasSub('banish') ? `<button id="banBtn" class="${G.banMode ? 'on' : ''}"${nB > 0 ? '' : ' disabled'}>${G.banMode ? '봉인 취소' : '봉인 ' + nB} (B)</button>` : '');
+    + (hasSub('banish') ? `<button id="banBtn" class="${G.banMode ? 'on' : ''}"${nB > 0 || canUnban() ? '' : ' disabled'}>${G.banMode ? '봉인 취소' : canUnban() ? '봉인 해제' : '봉인 ' + nB} (B)</button>` : '');
   if ($('rerollBtn')) $('rerollBtn').onclick = e => { e.stopPropagation(); rerollPicks(); };
   if ($('banBtn')) $('banBtn').onclick = e => { e.stopPropagation(); toggleBan(); };
   $('luHint').textContent = G.banMode ? '봉인할 것을 고르세요' : '1 · 2 · 3 또는 클릭';
@@ -1487,7 +1487,9 @@ function openChest() {
 const hasSub = id => G.subs.some(x => x.id === id);
 const usesLeft = (id, k) => hasSub(id) ? (G.ups[id] || 0) - G.pickUse[k] : 0;   // 이 창에서 남은 횟수
 const canReroll = () => G && G.mode === 'levelup' && usesLeft('reroll', 'reroll') > 0;
-const canBan = () => G && G.mode === 'levelup' && usesLeft('banish', 'ban') > 0;
+const winBans = () => G.pickUse.bans || (G.pickUse.bans = []);   // 이 창에서 봉인한 것 (0.108.1 — 봉인 해제용)
+const canUnban = () => G && G.mode === 'levelup' && hasSub('banish') && usesLeft('banish', 'ban') <= 0 && winBans().length > 0;
+const canBan = () => G && G.mode === 'levelup' && (usesLeft('banish', 'ban') > 0 || canUnban());
 const pickTitle = () => G.pickKind === 'chest' ? '상자' : '레벨 업!';
 function rerollPicks() {
   if (!canReroll() || G.inputLock > 0) return;
@@ -1496,13 +1498,15 @@ function rerollPicks() {
 }
 function toggleBan() {
   if (!canBan() || G.inputLock > 0) return;
+  if (canUnban()) {                                              // 0.108.1: 봉인을 다 쓴 뒤 한 번 더 누르면 이 창에서 마지막에 봉인한 것을 풂
+    G.banned.delete(winBans().pop()); G.pickUse.ban--; G.banMode = false;
+    showPicks(G.choices, pickTitle(), true); return;
+  }
   G.banMode = !G.banMode; showPicks(G.choices, pickTitle(), true);
 }
 function banPick(i) {
   const u = G.choices[i]; if (!u || G.banned.has(u.id)) return;
-  const nm = u.newWeapon ? WEAPONS[u.newWeapon].nm : u.sub || u.nm;
-  if (!confirm(`「${nm}」 봉인\n이번 게임에서 더이상 등장하지 않습니다.`)) { G.banMode = false; showPicks(G.choices, pickTitle(), true); return; }
-  G.banned.add(u.id); G.pickUse.ban++; G.banMode = false;
+  G.banned.add(u.id); G.pickUse.ban++; G.banMode = false; winBans().push(u.id);   // 0.108.1: 묻지 않고 바로 봉인 (봉인 단추를 한 번 더 누르면 풂)
   // 0.102.1: 그 자리를 새것으로 채우지 않는다 — 카드는 '봉인됨' 으로 남고 못 고름
   if (G.choices.every(x => G.banned.has(x.id))) { closePicks(); return; }   // 다 봉인하면 고를 게 없어 닫힘
   showPicks(G.choices, pickTitle(), true);
