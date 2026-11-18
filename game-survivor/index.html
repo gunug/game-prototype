@@ -315,7 +315,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.121.1';
+const VERSION = '0.122.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1508,9 +1508,11 @@ function choose(i, click) {
   if (u.sub && !G.subs.some(x => x.id === u.id)) G.subs.push({id: u.id, nm: u.sub});   // 새 보조 아이템 → 보조 슬롯
   closePicks();
 }
+const PICK_INV = 1;                                              // 업그레이드 · 상자를 고른 뒤 무적 (초)
 function closePicks() {
   $('levelup').hidden = true;
   G.mode = 'play';
+  G.p.inv = Math.max(G.p.inv, PICK_INV);                         // 고른 직후 무적 (0.122.0) — 깜빡임으로 보임
   if (G.chestQ > 0) { G.chestQ--; openChest(); }               // 쌓인 상자 먼저, 그다음 밀린 레벨업
   else if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); }
 }
