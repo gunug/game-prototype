@@ -14,12 +14,11 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#12141a;color:#e8e8ee;font-family:system-ui,"Malgun Gothic",sans-serif;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
   #pauseBtn{position:fixed;right:10px;top:6px;pointer-events:auto;padding:4px 12px;font-size:14px;background:#2a2d38;color:#ccd}
-  /* 화면 세 구획: 위 정보칸(#hudTop) · 가운데 게임(canvas) · 아래 정보칸(#hudBot). 정보는 게임 위에 겹치지 않는다.
-     구획 높이는 내용대로 — resize() 가 재서 canvas 를 그 사이에 둔다 (--topH · --botH) */
-  canvas{display:block;position:fixed;left:0;width:100vw;top:var(--topH,0px);height:calc(100vh - var(--topH,0px) - var(--botH,0px))}
-  #hudTop,#hudBot{position:fixed;left:0;right:0;background:#0c0e13;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+  /* 화면 두 구획 (0.121.0 — 아래 정보칸 없앰): 위 정보칸(#hudTop, 단추 줄 포함) · 그 아래 게임(canvas). 정보는 게임 위에 겹치지 않는다.
+     위 칸 높이는 내용대로 — resize() 가 재서 canvas 를 그 아래에 둔다 (--topH) */
+  canvas{display:block;position:fixed;left:0;width:100vw;top:var(--topH,0px);height:calc(100vh - var(--topH,0px))}   /* 0.121.0: 아래 정보칸 없음 */
+  #hudTop{position:fixed;left:0;right:0;background:#0c0e13;display:flex;flex-direction:column;gap:4px;pointer-events:none}
   #hudTop{top:0;padding:6px 12px 6px;border-bottom:1px solid #2a2d38}
-  #hudBot{bottom:0;padding:6px 12px calc(54px + env(safe-area-inset-bottom)) 12px;border-top:1px solid #2a2d38;min-height:52px}   /* 0.110.0: 아래 48px 는 오른쪽 아래 단추 줄 자리 (글을 안 가리게) */
   .top{padding:2px 56px 2px 0;min-height:22px;display:flex;gap:14px;align-items:center;font-size:14px;pointer-events:none}
   .top a{pointer-events:auto;color:#9ab;text-decoration:none}
   .top b{color:#fff}
@@ -204,7 +203,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   /* 무기 · 보조 버튼 (0.105.0) — 적 버튼 왼쪽으로 차례로 */
   #wbookBtn,#sbookBtn,#pbookBtn{padding:4px 12px;font-size:12px;background:#2a2d38;color:#ccd;border:1px solid #3a3f55}
   /* 오른쪽 아래 단추 줄 (0.110.0): 무기 · 보조 · 패널티 · 적 · 정보 — 한 줄로 오른쪽부터 붙임 */
-  #corner{position:fixed;right:8px;bottom:24px;z-index:2147483645;display:flex;gap:2px}
+  #corner{display:flex;justify-content:flex-end;gap:2px;pointer-events:auto}   /* 0.121.0: 위 정보칸 안 한 줄 (아래 정보칸은 없앰) */
   #corner[hidden]{display:none}
   #corner>button{position:static}
   #pbookBtn{color:#f9a}
@@ -234,13 +233,10 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <span class="hint">WASD 이동 · P 일시정지</span>
   <button id="pauseBtn">II</button>
 </div>
+<div id="corner"><button id="wbookBtn">무기</button><button id="sbookBtn">보조</button><button id="pbookBtn">패널티</button><button id="foeBtn">적</button><button id="infoBtn">정보</button></div>
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i><div id="banner" hidden></div><div id="bossIntro" hidden></div></div>
 </div>
 <canvas id="cv"></canvas>
-<div id="hudBot">
-<div id="slots" hidden></div>
-<div class="stats" id="stats"></div>
-</div>
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
@@ -290,7 +286,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 
 <div id="radial" hidden></div>
 <div id="ver"></div>
-<div id="corner"><button id="wbookBtn">무기</button><button id="sbookBtn">보조</button><button id="pbookBtn">패널티</button><button id="foeBtn">적</button><button id="infoBtn">정보</button></div>
 <div class="overlay" id="foes" hidden>
   <h2>적</h2>
   <div class="infoList" id="foeList"></div>
@@ -320,7 +315,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.120.0';
+const VERSION = '0.121.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -745,14 +740,13 @@ let W = 0, H = 0, DPR = 1, cvTop = 0;
 function resize() {
   let pz = 1; try { pz = (parent !== window && parent.__phoneZoom) || 1; } catch (_) {}   // PC 폰 틀에서 확대하면 캔버스도 그만큼 촘촘히
   DPR = (window.devicePixelRatio || 1) * pz;
-  const tH = $('hudTop').offsetHeight, bH = $('hudBot').offsetHeight;
+  const tH = $('hudTop').offsetHeight;                           // 0.121.0: 아래 정보칸 없앰 — 게임 칸은 위 정보칸 아래 전부
   document.documentElement.style.setProperty('--topH', tH + 'px');
-  document.documentElement.style.setProperty('--botH', bH + 'px');
-  cvTop = tH; W = innerWidth; H = Math.max(100, innerHeight - tH - bH);
+  cvTop = tH; W = innerWidth; H = Math.max(100, innerHeight - tH);
   cv.width = W * DPR; cv.height = H * DPR;
 }
 addEventListener('resize', resize); resize();
-if (window.ResizeObserver) { const ro = new ResizeObserver(() => resize()); ro.observe($('hudTop')); ro.observe($('hudBot')); }
+if (window.ResizeObserver) { const ro = new ResizeObserver(() => resize()); ro.observe($('hudTop')); }
 
 let G;   // 판 상태
 
@@ -3166,7 +3160,6 @@ function buildTimeline() {
 }
 
 function hud() {
-  $('slots').hidden = !G;
   $('timeline').hidden = !G;
   if (!G) { $('bossIntro').hidden = true; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
@@ -3182,15 +3175,7 @@ function hud() {
   $('time').textContent = G.t >= G.world.dur && !G.finalDead ? `${fmt(G.world.dur)} 보스!` : `${fmt(G.t)} / ${fmt(G.world.dur)}`;
   $('kills').textContent = G.kills;
   const s = G.s;
-  // 슬롯 줄 (0.79.0): 그림 + 이름, 보조는 단계도
-  const sl = slotRow('무기 ', G.char.wSlots, 'w', G.weapons.map(w => `<img src="images/weapon_${w.id}.png?v=${VERSION}" alt="">${WEAPONS[w.id].nm}`))
-    + slotRow('보조 ', G.char.sSlots, 's', [...G.pens.map(id => `<img src="images/item_pen_${id}.png?v=${VERSION}" alt=""><i class="penTag">${PEN[id].nm}</i>`), ...G.subs.map(x => { const u = UPG[x.id], n = u.give || u.max === 1 ? '' : G.ups[x.id] || 1; return `<img src="images/item_${x.id}.png?v=${VERSION}" alt="">${x.nm}${n === '' ? '' : `<b>${n}</b>`}`; })]);   // 패널티가 앞 칸부터 (분홍)
-  if ($('slots').dataset.k !== sl) { $('slots').innerHTML = sl; $('slots').dataset.k = sl; }
-  $('stats').textContent =
-    `체력 ${Math.ceil(G.p.hp)}/${G.p.maxHp}  방어 ${s.def}\n` +
-    G.weapons.map(w => { const t = wstat(w.id);
-      return `${WEAPONS[w.id].nm}  피해 ${t.dmg.toFixed(1)}  쿨 ${t.cd.toFixed(2)}s  사거리 ${Math.round(t.range)}  탄 ${t.count}  연속 ${t.burst}  밀당 ${t.knock}  스플 ${t.splash}\n`; }).join('') +
-    `적 ${G.enemies.length}`;
+  // 0.121.0: 아래 정보칸(슬롯 줄 · 체력 · 방어 · 무기 수치) 없앰
 }
 
 let last = performance.now();
