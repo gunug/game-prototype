@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.125.4';
+const VERSION = '0.126.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -359,9 +359,9 @@ const FACE = {survivor: false, police: false, firefighter: false, scientist: fal
 const ENEMY_TYPES = {
   zombie: {nm: '좀비',      hp: 120, def: 0, wt: 1, spd: 70,  dmg: 80,  r: 15, xp: 1, w: 10, color: '#7a9a6a', faceLeft: FACE.zombie},
   dog:    {nm: '들개',      hp: 60,  def: 0, wt: 0.6, spd: 135, dmg: 50,  r: 15, xp: 1, w: 6,  color: '#8a6a4a', faceLeft: FACE.dog},
-  brute:  {nm: '거구 좀비', hp: 700, def: 30, wt: 2.5, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
+  brute:  {nm: '거구 좀비', hp: 700, def: 10, wt: 2.5, spd: 42,  dmg: 180, r: 15, xp: 5, w: 2,  color: '#888',    faceLeft: FACE.brute},
   crawler:{nm: '기는 좀비', hp: 60,  def: 0, wt: 0.8, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
-  riot:   {nm: '진압 경찰 좀비', hp: 400, def: 60, wt: 1.5, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 방어 60 — 피해 −38% (0.76.0, 그 전엔 뺄셈이라 약한 연사를 다 막음)
+  riot:   {nm: '진압 경찰 좀비', hp: 400, def: 14, wt: 1.5, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 0.126.0: 방어 60 → 14 (뺄셈) · 엘리트로만
   // 월드 2 (0.84.0) — 쏘고 · 던지고 · 막고 · 터지는 몹
   //   shot: 곧게 날아가는 탄 (지금 자리를 겨눔) · lob: 곡사 — 주인공의 이동 방향 · 빠르기로 떨어질 자리를 앞질러 겨눔 (빨간 원 예고)
   //   range 안에 들고 화면에 보이면 멈춰 서서 cd 마다 쏜다. 멀면 걸어온다
@@ -376,7 +376,7 @@ const ENEMY_TYPES = {
              burst: {T: 0.7, aoe: 70, dmg: 160}},
 };
 const SHIELD_COL = '#6cf';            // 방패 횟수 표시 색 (방어 DEF_COL 과 다르게)
-const ELITE_SHIELD = 2;               // 엘리트 방패 횟수 배율
+const ELITE_SHIELD = 1;               // 엘리트 방패 횟수 배율 (0.126.0: 2 → 1 — 방패 좀비는 엘리트로만 나와서)
 // 엘리트: 그 시점 잡몹 하나를 키운다 (1.3배 · 등급 색 테두리 깜빡임)
 const ELITE = {size: 1.3, hp: 10, dmg: 1.5, xp: 12, wt: 2, spd: 1.15};   // wt: 무게 ×2 · spd: 지금 나오는 잡몹 중 가장 빠른 것(흔들림 최대 ×1.1)보다 ×1.15 (0.81.0 — 무리에 묻히지 않게)
 // 엘리트 등급 (0.73.0): 판마다 무작위 — 등장 확률(w)과 경험치 배율(xp). 일반(0)과 태고(5, 최종 보스)는 안 나옴
@@ -390,14 +390,14 @@ function rollEliteGrade() {
 // 보스 — 그림 sprite = images/portrait_<sprite>.png (make_character_sheet --only full, seed 1601 · 1602). pats: 특수 패턴 차례 (돌진 · 범위 · 부르기)
 //   돌진: 0.8초 붉은 띠로 예고 → 그 방향으로 빠르게 · 범위: 1초 붉은 원 예고 → 원 안이면 큰 피해 · 부르기: 둘레에 잡몹
 const BOSSES = {
-  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 40, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
+  mid:   {nm: '거구 우두머리', sprite: 'bossmid', grade: 3, fightT: 30, def: 8, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
           pats: ['charge'], gap: 3.2},
-  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
+  final: {nm: '도심의 왕',     sprite: 'bossking', grade: 5, fightT: 60, def: 12, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
           pats: ['charge', 'slam', 'summon', 'slam'], gap: 2.6, final: true},
   // 월드 2 (0.84.0) — lob: 앞질러 겨눈 자리 둘레에 수류탄 LOB_N 발 · volley: 부채꼴 탄 VOL_N 발을 VOL_W 번
-  mortar:  {nm: '포격 하사',   sprite: 'bossmortar', grade: 3, fightT: 30, def: 40, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
+  mortar:  {nm: '포격 하사',   sprite: 'bossmortar', grade: 3, fightT: 30, def: 8, wt: 5, spd: 55, dmg: 220, r: 44, xp: 60,
             pats: ['lob', 'charge'], gap: 3.0},
-  general: {nm: '기지의 장군', sprite: 'bossgeneral', grade: 5, fightT: 60, def: 60, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
+  general: {nm: '기지의 장군', sprite: 'bossgeneral', grade: 5, fightT: 60, def: 12, wt: 8, spd: 60, dmg: 300, r: 58, xp: 0,
             pats: ['volley', 'lob', 'summon', 'slam'], gap: 2.6, final: true},
 };
 const LOB_N = 5, LOB_T = 1.2, LOB_AOE = 50, LOB_DMG = 180;
@@ -413,8 +413,9 @@ const DASH_SPD = 560, DASH_T = 0.55, SLAM_R = 150, SLAM_DMG = 320;
 // 적 체력 · 방어는 시간이 가도 그대로 (0.27.3 — 그 전엔 분당 체력 +45% · 방어 +1.5). 어려움은 나오는 수 · 엘리트 · 보스로
 // 받는 피해 = 공격력 - 방어력, 그래도 최소 1 (플레이어 · 적 같은 규칙)
 const armor = (dmg, def) => Math.max(1, dmg - def);            // 주인공이 받는 피해: 뺄셈 (최소 1)
-// 몹 · 보스가 받는 피해 (0.76.0): 비율로 깎는다 — 방어 30 = −23%, 60 = −38%, 100 = −50%. 그 전엔 뺄셈이라 한 발 약한 무기(기관총 · 레이저 · 부메랑)는 1만 들어갔다
-const mobArmor = (dmg, def) => dmg * 100 / (100 + (def || 0));
+// 몹 · 보스가 받는 피해: 0.126.0 부터 다시 뺄셈 (최소 1). 0.76.0 ~ 0.125 는 비율(방어 30 = −23%)이었다.
+//   방어 몹(거구 · 진압)은 엘리트로만 나오고 방어를 낮춤 — 한 발 약한 무기(기관총 · 레이저)는 곤란하지만 피해 증가로 풀림
+const mobArmor = (dmg, def) => Math.max(1, dmg - (def || 0));
 const MAX_ENEMIES = 500;
 const TRAIT_MAX = 10;             // 특성 보조 최대 단계 (0.100.0, 그 전 5) — 부여 1 + 강화 9
 
@@ -822,12 +823,12 @@ if (matchMedia('(pointer: coarse)').matches) {
 const WORLDS = [
   // 1분마다 사건 하나 (0.29.0): 1 새 몹 · 2 엘리트 · 3 새 몹 · 4 엘리트 · 5 중간 보스 · 6 새 몹 · 7 엘리트 · 8 새 몹 · 9 엘리트 · 10 최종 보스
   {id: 1, name: '월드 1', desc: '도심 — 좀비 · 기는 좀비 · 들개 · 거구 좀비 · 진압 경찰 좀비', dur: 600,
-   mobs: [{type: 'zombie', at: 0}, {type: 'crawler', at: 60}, {type: 'dog', at: 180}, {type: 'brute', at: 360}, {type: 'riot', at: 480}],
+   mobs: [{type: 'zombie', at: 0}, {type: 'crawler', at: 60}, {type: 'dog', at: 180}, {type: 'brute', at: 360, eliteOnly: true}, {type: 'riot', at: 480, eliteOnly: true}],   // 0.126.0: 방어 몹은 엘리트로만
    elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],   // 0.73.0: 4 → 8번, 등급은 판마다 무작위 (ELITE_GRADES)
    bosses: [{at: 300, id: 'mid'}, {at: 600, id: 'final'}]},
   // 월드 2 (0.84.0): 외곽 검문소 — 1 침 좀비(곧은 탄) · 3 방패 좀비 · 6 수류탄 좀비(곡사, 앞질러 겨눔) · 8 부푼 좀비(죽으면 터짐)
   {id: 2, name: '월드 2', desc: '외곽 검문소 — 좀비 · 침 좀비 · 방패 좀비 · 수류탄 좀비 · 부푼 좀비', dur: 600,
-   mobs: [{type: 'zombie', at: 0}, {type: 'spitter', at: 60}, {type: 'shielder', at: 180}, {type: 'grenadier', at: 360}, {type: 'bloater', at: 480}],
+   mobs: [{type: 'zombie', at: 0}, {type: 'spitter', at: 60}, {type: 'shielder', at: 180, eliteOnly: true},   /* 0.126.0: 방패 몹은 엘리트로만 */ {type: 'grenadier', at: 360}, {type: 'bloater', at: 480}],
    elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],
    bosses: [{at: 300, id: 'mortar'}, {at: 600, id: 'general'}]},
 ];
@@ -1139,7 +1140,7 @@ function openFoes() {
   const img = n => `<img src="images/portrait_${n}.png?v=${VERSION}" alt="">`;
   $('foeList').innerHTML = WORLDS.map((Wd, wi) => `<h3>${Wd.name} — ${Wd.desc.split(' — ')[0]}</h3>`
     + Wd.mobs.map(m => { const T = ENEMY_TYPES[m.type];
-        return `<div class="foeRow">${img(m.type)}<div><div class="fn">${T.nm}<small>${fmt(m.at)} 부터</small></div>
+        return `<div class="foeRow">${img(m.type)}<div><div class="fn">${T.nm}<small>${fmt(m.at)} 부터${m.eliteOnly ? ' · 엘리트로만' : ''}</small></div>
           <div class="fs">체력 ${T.hp} · 방어 ${T.def} · 이동 ${T.spd} · 피해 ${T.dmg} · 경험치 ${T.xp}</div><div class="fx">${foeSpecial(T)}</div></div></div>`; }).join('')
     + Wd.bosses.map(b => { const B = BOSSES[b.id];
         return `<div class="foeRow boss" style="border-color:${gradeCol(B.grade)}">${img(B.sprite)}<div><div class="fn" style="color:${gradeCol(B.grade)}">${B.nm}<small>${B.final ? '최종 보스' : '중간 보스'} · ${fmt(b.at)}</small></div>
@@ -1703,11 +1704,11 @@ function gainXp(n) {
 
 // ───── 적 ─────
 // 지금 풀린 잡몹 (월드 타임라인 mobs 중 at 이 지난 것)
-const mobTypes = () => G.world.mobs.filter(m => G.t >= m.at).map(m => m.type);
+const mobTypes = () => G.world.mobs.filter(m => G.t >= m.at && !m.eliteOnly).map(m => m.type);
 // noRanged (0.98.0): 엘리트용 — 멈춰 서서 쏘는 원거리형(shot · lob)은 뺌. 무리 뒤에 머물러 잡히지 않으므로
 const isRanged = type => { const T = ENEMY_TYPES[type]; return !!(T.shot || T.lob); };
-function pickMob(noRanged) {
-  let ms = G.world.mobs.filter(m => G.t >= m.at);
+function pickMob(noRanged) {                                     // noRanged = 엘리트용. 엘리트 전용(eliteOnly) 몹은 엘리트로만 (0.126.0)
+  let ms = G.world.mobs.filter(m => G.t >= m.at && (noRanged || !m.eliteOnly));
   if (noRanged) { const near = ms.filter(m => !isRanged(m.type)); if (near.length) ms = near; }
   const intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);   // 새 몹 소개 (엘리트는 원거리형을 뺀 목록에서): 처음 15초는 그 몹이 절반
   if (intro && Math.random() < SPAWN.introShare) return intro.type;
@@ -1812,7 +1813,7 @@ function spawnElite(grade) {
   const [x, y] = offscreen(), e = makeEnemy(pickMob(true), x, y);   // 원거리형은 엘리트로 안 나옴 (0.98.0)
   e.r *= ELITE.size; e.hp = e.maxHp = e.maxHp * ELITE.hp; e.dmg *= ELITE.dmg; e.xp *= ELITE.xp * eliteXpMul(grade); e.wt *= ELITE.wt; e.elite = grade;
   e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
-  e.spd = Math.max(...G.world.mobs.filter(m => G.t >= m.at).map(m => ENEMY_TYPES[m.type].spd)) * 1.1 * ELITE.spd;   // 늘 잡몹보다 조금 빠르게   // 경험치: 등급이 높을수록 더
+  e.spd = Math.max(...G.world.mobs.filter(m => G.t >= m.at && !m.eliteOnly).map(m => ENEMY_TYPES[m.type].spd)) * 1.1 * ELITE.spd;   // 늘 잡몹보다 조금 빠르게   // 경험치: 등급이 높을수록 더
   G.enemies.push(e);
   setBanner(`${GRADES[grade].nm} 엘리트 ${ENEMY_TYPES[e.type].nm}!`, gradeCol(grade));
 }
@@ -1851,7 +1852,7 @@ const setBanner = (txt, col) => {                              // 같은 때 겹
 // 타임라인 사건 (엘리트 · 보스 · 새 잡몹 알림) — 때가 되면 한 번씩
 function timelineTick() {
   const Wd = G.world;
-  Wd.mobs.forEach((m, i) => { const k = 'm' + i; if (i && G.t >= m.at && !G.evDone.has(k)) { G.evDone.add(k); setBanner(`${ENEMY_TYPES[m.type].nm} 등장`, '#e8e8ee'); } });
+  Wd.mobs.forEach((m, i) => { const k = 'm' + i; if (i && !m.eliteOnly && G.t >= m.at && !G.evDone.has(k)) { G.evDone.add(k); setBanner(`${ENEMY_TYPES[m.type].nm} 등장`, '#e8e8ee'); } });
   G.elites.forEach((ev, i) => { const k = 'e' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnElite(ev.grade); } });
   Wd.bosses.forEach((ev, i) => { const k = 'b' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnBoss(ev.id); } });
 }
@@ -3287,7 +3288,7 @@ function defMark(x, y, def) {
 function buildTimeline() {
   const Wd = G.world, pct = at => Math.min(100, at / Wd.dur * 100) + '%', img = n => `images/portrait_${n}.png?v=${VERSION}`;
   let h = '';
-  Wd.mobs.forEach(m => { h += `<div class="tl-m mob" data-at="${m.at}" style="left:${pct(m.at)}" title="${ENEMY_TYPES[m.type].nm} ${fmt(m.at)}"><img src="${img(m.type)}" alt=""></div>`; });
+  Wd.mobs.filter(m => !m.eliteOnly).forEach(m => { h += `<div class="tl-m mob" data-at="${m.at}" style="left:${pct(m.at)}" title="${ENEMY_TYPES[m.type].nm} ${fmt(m.at)}"><img src="${img(m.type)}" alt=""></div>`; });
   G.elites.forEach(ev => { h += `<div class="tl-m elite" data-at="${ev.at}" data-g="${ev.grade}" style="left:${pct(ev.at)}" title="엘리트 ${fmt(ev.at)}"><i></i></div>`; });
   Wd.bosses.forEach(ev => { const B = BOSSES[ev.id]; h += `<div class="tl-m boss" data-at="${ev.at}" style="left:${pct(ev.at)};--gc:${gradeCol(B.grade)}" title="${B.nm} ${fmt(ev.at)}"><img src="${img(B.sprite)}" alt=""></div>`; });
   $('timeline').querySelector('.tl-marks').innerHTML = h;
@@ -3345,7 +3346,7 @@ window.__perfect = (wi = 0) => {
     let r = SPAWN.base(G.t / 60) * (G.t >= WORLDS[wi].dur - 60 ? SPAWN.lastMin : SPAWN.rhythm(G.t % 60));
     if (boss.has(s)) r *= SPAWN.boss; else if (elite.has(s)) r *= SPAWN.elite;
     // 그 초의 몹 섞임 평균 경험치
-    const ms = WORLDS[wi].mobs.filter(m => G.t >= m.at), intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);
+    const ms = WORLDS[wi].mobs.filter(m => G.t >= m.at && !m.eliteOnly), intro = ms.find(m => m.at > 0 && G.t < m.at + SPAWN.introT);
     const wt = ms.map((m, i) => ENEMY_TYPES[m.type].w * SPAWN.ageDecay ** (ms.length - 1 - i)), ws = wt.reduce((a, b) => a + b, 0);
     let avg = ms.reduce((a, m, i) => a + ENEMY_TYPES[m.type].xp * wt[i] / ws, 0);
     if (intro) avg = avg * (1 - SPAWN.introShare) + ENEMY_TYPES[intro.type].xp * SPAWN.introShare;
