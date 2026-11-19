@@ -221,11 +221,14 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .pbanCnt{font-size:15px;color:#ccd}.pbanCnt b{color:#ffd84a}
   .pbanList{width:min(520px,94vw)}.pbanList h3{margin:10px 0 6px;font-size:13px;color:#9ab;letter-spacing:.1em}
   .pbanGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-  .pbTog{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:8px;background:#232634;border:2px solid #3a3f55;color:#ccd;font-size:12px;cursor:pointer}
-  .pbTog img{height:30px;max-width:48px;object-fit:contain;image-rendering:pixelated}
-  .pbTog i{font-style:normal;font-size:10px;font-weight:700;color:#778}
-  .pbTog.on{border-color:#ff5a8a;background:#3a1f2e}.pbTog.on i{color:#ff5a8a}
-  .pbTog:disabled{opacity:.4;cursor:default}
+  /* 0.125.1: 봉인 안 한 것 = 밝게 (활성), 봉인한 것 = 그림 · 글 회색 + 봉인 부적 그림을 겹침 */
+  .pbTog{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:8px;background:#2c3044;border:2px solid #5a6488;color:#fff;font-size:12px;cursor:pointer}
+  .pbTog img.pi{height:30px;max-width:48px;object-fit:contain;image-rendering:pixelated}
+  .pbTog i{font-style:normal;font-size:10px;font-weight:700;color:#ff5a8a;min-height:12px}
+  .pbTog.on{background:#1a1c24;border-color:#3a3d48;color:#777}
+  .pbTog.on img.pi,.pbTog.on span{filter:grayscale(1);opacity:.45}
+  .pbTog img.seal{position:absolute;left:50%;top:4px;transform:translateX(-50%) rotate(-12deg);height:34px;image-rendering:pixelated;filter:drop-shadow(0 1px 2px #000)}
+  .pbTog:disabled{cursor:default}
   .permRow img{width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
   .permRow .pl{color:#ffd84a;font-size:12px}
   .permRow .pv{color:#ffd84a}
@@ -342,7 +345,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.125.0';
+const VERSION = '0.125.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -871,7 +874,7 @@ function showPban() {
   const o = getPban(), on = new Set(pbanOn()), full = on.size >= o.n;
   $('pbanCnt').innerHTML = `봉인 <b>${on.size}</b> / ${o.n} 칸` + (o.n ? '' : ' — 보스 상자에서 칸을 얻는다');
   $('pbanList').innerHTML = PBAN_GROUPS().map(([g, list]) => `<h3>${g}</h3><div class="pbanGrid">` + list.map(q =>
-    `<button class="pbTog${on.has(q.id) ? ' on' : ''}" data-id="${q.id}"${!on.has(q.id) && full ? ' disabled' : ''}><img src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span><i>${on.has(q.id) ? 'ON' : 'OFF'}</i></button>`).join('') + '</div>').join('');
+    `<button class="pbTog${on.has(q.id) ? ' on' : ''}" data-id="${q.id}"${!on.has(q.id) && full ? ' disabled' : ''}><img class="pi" src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span><i>${on.has(q.id) ? '봉인됨' : ''}</i>${on.has(q.id) ? `<img class="seal" src="images/item_banish.png?v=${VERSION}" alt="">` : ''}</button>`).join('') + '</div>').join('');
   $('pbanList').querySelectorAll('.pbTog').forEach(b => b.onclick = () => pbanToggle(b.dataset.id));
   $('pban').hidden = false;
 }
