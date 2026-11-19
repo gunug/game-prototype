@@ -217,6 +217,15 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .foeRow .fn small{font-size:11px;font-weight:400;color:#9ab;margin-left:6px}
   .foeRow .fs{color:#aab;font-variant-numeric:tabular-nums}
   .foeRow .fx{color:#ffcf8a}
+  #pban{justify-content:flex-start;padding:48px 0 24px;overflow-y:auto;z-index:20}
+  .pbanCnt{font-size:15px;color:#ccd}.pbanCnt b{color:#ffd84a}
+  .pbanList{width:min(520px,94vw)}.pbanList h3{margin:10px 0 6px;font-size:13px;color:#9ab;letter-spacing:.1em}
+  .pbanGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .pbTog{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:8px;background:#232634;border:2px solid #3a3f55;color:#ccd;font-size:12px;cursor:pointer}
+  .pbTog img{height:30px;max-width:48px;object-fit:contain;image-rendering:pixelated}
+  .pbTog i{font-style:normal;font-size:10px;font-weight:700;color:#778}
+  .pbTog.on{border-color:#ff5a8a;background:#3a1f2e}.pbTog.on i{color:#ff5a8a}
+  .pbTog:disabled{opacity:.4;cursor:default}
   .permRow img{width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
   .permRow .pl{color:#ffd84a;font-size:12px}
   .permRow .pv{color:#ffd84a}
@@ -247,7 +256,14 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="hint" id="startHint">1단계 — 월드를 고른다. 방향키로 고르고 Enter (또는 1 · 2 · 3). WASD 로 피하고, 총은 저절로 쏜다.</div>
   <div class="sec">월드</div>
   <div class="row1" id="worldList"></div>
-  <div class="btns"><button id="permBtn">영구 업그레이드</button></div>
+  <div class="btns"><button id="permBtn">영구 업그레이드</button><button id="pbanBtn">영구 봉인</button></div>
+</div>
+<div class="overlay" id="pban" hidden>
+  <h2>영구 봉인</h2>
+  <div class="hint">보스 상자에서 칸을 얻는다. 켜 둔 것은 다음 판부터 레벨업 · 상자에 나오지 않는다 (시작 무기 · 보조는 그대로).</div>
+  <div class="pbanCnt" id="pbanCnt"></div>
+  <div class="pbanList" id="pbanList"></div>
+  <div class="btns"><button class="sub" id="pbanBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="perm" hidden>
   <h2>영구 업그레이드</h2>
@@ -326,7 +342,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.124.0';
+const VERSION = '0.125.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -818,7 +834,7 @@ const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
   G = null;
-  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel', 'perm'].forEach(id => $(id).hidden = true);
+  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel', 'perm', 'pban'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
     const w = WORLDS[i], b = document.createElement('button');
@@ -844,6 +860,29 @@ function showPerm() {                                          // 영구 업그�
   $('perm').hidden = false;
 }
 $('permBtn').onclick = () => showPerm();
+// 영구 봉인 페이지 (0.125.0): 무기(새 무기로 나옴) · 보조 · 업그레이드를 켜고 끔. 켠 수 ≤ 칸
+const PBAN_GROUPS = () => [
+  ['무기', UNLOCKED_WEAPONS.map(id => ({id: 'new_' + id, nm: WEAPONS[id].nm, img: `weapon_${id}`}))],
+  ['보조', UPGRADES.filter(u => u.sub).map(u => ({id: u.id, nm: u.sub, img: `item_${u.id}`}))],
+  ['업그레이드', UPGRADES.filter(u => !u.sub).map(u => ({id: u.id, nm: u.nm, img: u.tup ? `item_give_${u.tup}` : `item_${u.id}`}))],
+];
+function showPban() {
+  $('worldSel').hidden = true;
+  const o = getPban(), on = new Set(pbanOn()), full = on.size >= o.n;
+  $('pbanCnt').innerHTML = `봉인 <b>${on.size}</b> / ${o.n} 칸` + (o.n ? '' : ' — 보스 상자에서 칸을 얻는다');
+  $('pbanList').innerHTML = PBAN_GROUPS().map(([g, list]) => `<h3>${g}</h3><div class="pbanGrid">` + list.map(q =>
+    `<button class="pbTog${on.has(q.id) ? ' on' : ''}" data-id="${q.id}"${!on.has(q.id) && full ? ' disabled' : ''}><img src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span><i>${on.has(q.id) ? 'ON' : 'OFF'}</i></button>`).join('') + '</div>').join('');
+  $('pbanList').querySelectorAll('.pbTog').forEach(b => b.onclick = () => pbanToggle(b.dataset.id));
+  $('pban').hidden = false;
+}
+function pbanToggle(id) {
+  const o = getPban(); o.on = pbanOn();
+  const k = o.on.indexOf(id);
+  if (k >= 0) o.on.splice(k, 1); else if (o.on.length < o.n) o.on.push(id); else return;
+  setPban(o); const y = $('pban').scrollTop; showPban(); $('pban').scrollTop = y;
+}
+$('pbanBtn').onclick = () => showPban();
+$('pbanBack').onclick = () => showWorlds();
 $('permBack').onclick = () => showWorlds();
 function pickWorld(i) { if (!WORLDS[i]) return; selWorld = i; showChars(); }
 let selWorld = 0;
@@ -940,11 +979,17 @@ const PERMS = [
   {id: 'reload', nm: '재장전', step: -0.03, img: 'item_perm_reload'},
 ];
 const PERM = Object.fromEntries(PERMS.map(q => [q.id, q]));
+// 영구 봉인 (0.125.0): 보스 상자에서 칸(횟수)을 얻고, 그 수만큼 무기 · 보조 · 업그레이드를 골라 안 나오게 (켜고 끔). localStorage 'survivor.pban' = {n: 칸, on: [id]}
+PERM.seal = {id: 'seal', nm: '영구 봉인', img: 'item_banish'};
+const getPban = () => { try { const o = JSON.parse(localStorage.getItem('survivor.pban') || '{}'); return {n: o.n || 0, on: Array.isArray(o.on) ? o.on : []}; } catch (_) { return {n: 0, on: []}; } };
+const setPban = o => localStorage.setItem('survivor.pban', JSON.stringify(o));
+const pbanOn = () => { const o = getPban(); return o.on.slice(0, o.n); };   // 칸보다 많이 켜져 있으면 앞에서부터 칸 수만
 const getPerm = () => { try { return JSON.parse(localStorage.getItem('survivor.perm') || '{}'); } catch (_) { return {}; } };
 const permLv = id => getPerm()[id] || 0;
 const permMul = (id, n = permLv(id)) => Math.max(0.5, 1 + PERM[id].step * n);
 const permPct = (id, n = permLv(id)) => { const v = Math.round(PERM[id].step * n * 100); return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%'; };
 function permUp(id) {                                            // 한 단계 올려 저장 + 지금 판에도 (있으면)
+  if (id === 'seal') { const o = getPban(); o.n++; setPban(o); return; }   // 영구 봉인 칸 +1 (다음 판부터 — 고르기는 월드 화면에서)
   const P = getPerm(), n0 = P[id] || 0; P[id] = n0 + 1; localStorage.setItem('survivor.perm', JSON.stringify(P));
   if (!G || !G.s) return;
   const k = permMul(id, n0 + 1) / permMul(id, n0);
@@ -983,7 +1028,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, bossQ: 0, banned: new Set(), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1164,7 +1209,8 @@ function togglePause() {
 // ───── 고르는 테두리 (커서) — 키보드 · 게임패드 · 화면 조이스틱 공통 ─────
 // 창마다 줄(행) 목록. 위아래 = 줄 바꿈, 좌우 = 줄 안에서 옆 칸. 결정 = 그 칸을 누른 것과 같다
 const NAV_ROWS = {
-  worldSel: ['#worldList > button', '#permBtn'],
+  worldSel: ['#worldList > button', '#worldSel .btns button'],
+  pban:     ['#pbanList .pbTog', '#pban .btns button'],
   perm:     ['#perm .btns button'],
   charSel:  ['#charList > button', '#charBack'],
   wpnSel:   ['#wpnCards > .up', '#wpnBack'],
@@ -1179,7 +1225,7 @@ const NAV_ROWS = {
   sbook:    ['#sbook .btns button'],
   pbook:    ['#pbook .btns button'],
 };
-const NAV_ORDER = ['perm', 'info', 'foes', 'wbook', 'sbook', 'pbook', 'levelup', 'pause', 'over', 'clear', 'subSel', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const NAV_ORDER = ['pban', 'perm', 'info', 'foes', 'wbook', 'sbook', 'pbook', 'levelup', 'pause', 'over', 'clear', 'subSel', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
 const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled)).filter(r => r.length);   // 빈 줄(단추 없음)은 뺀다
@@ -1220,7 +1266,7 @@ function navBack() {
   const scr = navSync();
   if (scr === 'wpnSel') showChars();
   else if (scr === 'subSel') backToWpn();
-  else if (scr === 'charSel' || scr === 'over' || scr === 'clear' || scr === 'perm') showWorlds();
+  else if (scr === 'charSel' || scr === 'over' || scr === 'clear' || scr === 'perm' || scr === 'pban') showWorlds();
   else if (scr === 'pause') togglePause();
   else if (scr === 'info') closeInfo();
   else if (scr === 'foes') closeFoes();
@@ -1290,7 +1336,7 @@ function rmItems(scr) {
   if (scr === 'worldSel') {
     const wb = [...$('worldList').children];
     return {up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
-              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}]};   // 0.123.0
+              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()}]};   // 0.123.0 · 0.125.0
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
     const cb = [...$('charList').children];
@@ -1306,6 +1352,11 @@ function rmItems(scr) {
     const cards = [...$('subCards').children];
     return {up: pickSubs.map((id, i) => ({label: UPG[id].sub, img: `images/item_${id}.png?v=${VERSION}`, el: cards[i], act: () => newGame(pickWi, pickWid, id)})),
             down: [{label: '뒤로', el: $('subBack'), act: () => backToWpn()}]};
+  }
+  if (scr === 'pban') {                                          // 0.125.0: 위 = 켜고 끌 것 (지금 켤 수 있는 것만), 아래 = 뒤로
+    const ts = [...$('pbanList').querySelectorAll('.pbTog')].filter(b => !b.disabled);
+    return {up: ts.map(b => ({label: b.querySelector('span').textContent, on: b.classList.contains('on'), el: b, act: () => pbanToggle(b.dataset.id)})),
+            down: [{label: '뒤로', el: $('pbanBack'), act: () => showWorlds()}]};
   }
   if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info' || scr === 'foes' || scr === 'perm' || BOOKS.includes(scr)) {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
@@ -1377,7 +1428,7 @@ function rmEnd() {
   if (it && !it.disabled) it.act();
   rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'perm', 'charSel', 'wpnSel', 'subSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes', 'wbook', 'sbook', 'pbook'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'perm', 'pban', 'charSel', 'wpnSel', 'subSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes', 'wbook', 'sbook', 'pbook'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
@@ -1469,6 +1520,8 @@ function wupHtml(id) {
 //   무기 업그레이드: 가진 무기마다 한 줄 — 받는 무기는 '권총 10 → 12' (주황), 안 받는 무기는 회색 취소선
 //   체력 · 방어: 주인공 값 지금 → 다음
 function upHtml(u) {
+  if (u.perm === 'seal') { const n = getPban().n;                // 영구 봉인 칸 (0.125.0)
+    return `<div class="udesc">영구 봉인 칸 +1 — 월드 화면 '영구 봉인'에서 안 나올 것을 고름</div><div class="wrows"><div class="wrow"><span class="wch on">칸</span><span class="wv">${n} → <b>${n + 1}</b></span></div></div>`; }
   if (u.perm) { const q = PERM[u.perm], n = permLv(u.perm);   // 영구 (0.123.0): 한 단계 몫 + 지금 → 다음
     return `<div class="udesc">기본 ${q.nm} ${permPct(u.perm, 1)} · 판이 끝나도 남음</div><div class="wrows"><div class="wrow"><span class="wch on">${n}단계</span><span class="wv">${permPct(u.perm, n) || '0%'} → <b>${permPct(u.perm, n + 1)}</b></span></div></div>`; }
   if (u.passive) return `<div class="udesc">${u.ds}</div>`;    // 얻으면 끝인 기능 보조 (자석 출현)
@@ -1593,7 +1646,7 @@ function chestPicks(pool = chestAll()) {
 // 보스 상자 (0.123.0): 영구 업그레이드 넷 중 셋. 다시 뽑기 · 봉인 없음
 const permPick = q => ({id: 'perm_' + q.id, perm: q.id, nm: q.nm, apply: () => permUp(q.id)});
 function openBossChest() {
-  const pool = PERMS.slice(), picks = [];
+  const pool = [...PERMS, PERM.seal], picks = [];               // 영구 봉인 칸도 후보 (0.125.0)
   while (picks.length < 3 && pool.length) picks.push(permPick(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]));
   G.pickKind = 'boss'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
   showPicks(picks, '보스 상자');
