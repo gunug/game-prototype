@@ -217,7 +217,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .foeRow .fn small{font-size:11px;font-weight:400;color:#9ab;margin-left:6px}
   .foeRow .fs{color:#aab;font-variant-numeric:tabular-nums}
   .foeRow .fx{color:#ffcf8a}
-  #pban{justify-content:flex-start;padding:48px 0 24px;overflow-y:auto;z-index:20}
+  #pban,#perm{justify-content:flex-start;padding:48px 0 24px;overflow-y:auto;z-index:20}   /* 영구 업그레이드도 같은 꼴 (0.125.3) */
   .pbanCnt{font-size:15px;color:#ccd}.pbanCnt b{color:#ffd84a}
   .pbanList{width:min(520px,94vw)}.pbanList h3{margin:10px 0 6px;font-size:13px;color:#9ab;letter-spacing:.1em}
   .pbanGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}   /* 0.125.2: 한 줄 4칸 */
@@ -229,6 +229,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .pbTog.on img.pi,.pbTog.on span{filter:grayscale(1);opacity:.45}
   .pbTog img.seal{position:absolute;left:50%;top:4px;transform:translateX(-50%) rotate(-12deg);height:30px;image-rendering:pixelated;filter:drop-shadow(0 1px 2px #000)}
   .pbTog:disabled{cursor:default}
+  .permCell{cursor:default}.permCell .pl{font-size:10.5px;color:#ffd84a}.permCell small{font-size:9.5px;color:#9ab}
   .permRow img{width:40px;height:40px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
   .permRow .pl{color:#ffd84a;font-size:12px}
   .permRow .pv{color:#ffd84a}
@@ -271,7 +272,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <div class="overlay" id="perm" hidden>
   <h2>영구 업그레이드</h2>
   <div class="hint">보스(중간 · 최종)를 잡으면 나오는 보스 상자에서 고른다. 판이 끝나도 남고, 모든 캐릭터 · 월드에 붙는다.</div>
-  <div class="infoList" id="permList"></div>
+  <div class="pbanList" id="permList"></div>
   <div class="btns"><button class="sub" id="permBack" data-neg>뒤로</button></div>
 </div>
 <div class="overlay" id="charSel" hidden>
@@ -345,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.125.2';
+const VERSION = '0.125.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -858,8 +859,9 @@ function showWorlds() {
 }
 function showPerm() {                                          // 영구 업그레이드 보기 (0.123.0)
   $('worldSel').hidden = true;
-  $('permList').innerHTML = PERMS.map(q => { const n = permLv(q.id);
-    return `<div class="infoRow permRow"><img src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><div><b>${q.nm}</b> <span class="pl">${n}단계</span><br>기본 ${q.nm} <b class="pv">${n ? permPct(q.id, n) : '0%'}</b> <span class="hint">(단계마다 ${permPct(q.id, 1)})</span></div></div>`; }).join('');
+  // 0.125.3: 영구 봉인 페이지와 같은 4칸 — 그림 · 이름 · 단계 · 지금 몫 (단계마다 몫)
+  $('permList').innerHTML = '<div class="pbanGrid">' + PERMS.map(q => { const n = permLv(q.id);
+    return `<div class="pbTog permCell"><img class="pi" src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span><b class="pl">${n}단계 · ${n ? permPct(q.id, n) : '0%'}</b><small>단계마다 ${permPct(q.id, 1)}</small></div>`; }).join('') + '</div>';
   $('perm').hidden = false;
 }
 $('permBtn').onclick = () => showPerm();
