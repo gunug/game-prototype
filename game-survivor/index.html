@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.129.0';
+const VERSION = '0.130.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1058,7 +1058,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1944,7 +1944,7 @@ function bossTick(e, dt) {
       if (--e.vw <= 0) { e.st = 'walk'; e.bt = B.gap; }
     }
   } else if (e.st === 'bleapAim') {                              // 보스 도약: 예고 원이 차는 동안 서 있음
-    if (e.bt <= 0) { e.st = 'bleapFly'; e.bt = BLEAP_FLY; }
+    if (e.bt <= 0) { e.st = 'bleapFly'; e.bt = BLEAP_FLY; e.air = true; }   // 공중 (0.130.0)
   } else if (e.st === 'bleapFly') {
     const q = e.lp, k = 1 - Math.max(0, e.bt) / BLEAP_FLY;
     e.x = q.x0 + (q.tx - q.x0) * k; e.y = q.y0 + (q.ty - q.y0) * k; e.vx = q.tx - q.x0;
@@ -2019,7 +2019,7 @@ function curseOn(b, e) {
 }
 // 아군이 맞음: 방패가 있으면 1 만 받고 한 번 깎임 (0.116.0), 아니면 방어 적용. 몸 · 탄 · 곡사 · 터짐 모두 (0.117.0)
 function hurtAlly(a, raw) {
-  if (a.dead || a.ret || a.inv > 0) return;                                   // 돌아오는 중엔 무적 (0.128.3)
+  if (a.dead || a.ret || a.inv > 0 || a.air) return;                                   // 돌아오는 중엔 무적 (0.128.3)
   a.hitAgo = 0;                                                  // 재생 아군: 맞으면 다시 기다림 (0.128.2)
   if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }
   else a.hp -= mobArmor(raw, a.def);
@@ -2050,7 +2050,7 @@ function tickAllies(dt) {
     const L = AT.leap;
     if (L && a.lp) {                                              // 도약 중: 예고 → 날기 (적과 같은 박자)
       const q = a.lp; q.t += dt;
-      if (q.t >= L.aim) { const k = Math.min(1, (q.t - L.aim) / L.fly); a.x = q.x0 + (q.tx - q.x0) * k; a.y = q.y0 + (q.ty - q.y0) * k; a.vx = q.tx - q.x0; if (k >= 1) { a.lp = null; a.atkT = L.cd * (0.9 + Math.random() * 0.2); } }
+      if (q.t >= L.aim) { const k = Math.min(1, (q.t - L.aim) / L.fly); a.x = q.x0 + (q.tx - q.x0) * k; a.y = q.y0 + (q.ty - q.y0) * k; a.vx = q.tx - q.x0; a.air = k < 1; a.airK = k; if (k >= 1) { a.lp = null; a.air = false; a.atkT = L.cd * (0.9 + Math.random() * 0.2); } }   // 공중 = 무적 (0.130.0)
     } else if (L && t && td <= L.range && (a.atkT = (a.atkT || 0) - dt) <= 0) {
       a.lp = {t: 0, x0: a.x, y0: a.y, tx: t.x, ty: t.y};
       G.eshots.push({ally: true, blast: true, x: t.x, y: t.y, t: 0, T: L.aim + L.fly, aoe: L.aoe, dmg: L.dmg * a.mul});
@@ -2088,7 +2088,7 @@ function tickAllies(dt) {
 // 적이 노리는 것: 가장 가까운 아군이나 주인공 (0.113.0)
 function foeTarget(e) {
   let t = G.p, td = (G.p.x - e.x) ** 2 + (G.p.y - e.y) ** 2;
-  for (const a of G.allies) { if (a.ret || a.inv > 0) continue; const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }   // 돌아오는(무적) 아군은 안 노림
+  for (const a of G.allies) { if (a.ret || a.inv > 0 || a.air) continue; const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }   // 돌아오는(무적) 아군은 안 노림
   return t;
 }
 // 주술인형 미터: 숫자 '현재/최대' 아군 (0.115.0) · 파이 = 재장전 (0.118.0 — 3초마다 던지는 건 재장전). 차는 동안 주황, 다 차면 노랑
@@ -2251,9 +2251,8 @@ function leapTick(e, dt) {
   const p = G.p;
   if (e.lp) {
     const q = e.lp; q.t += dt;
-    if (q.t < L.aim) { e.vx = (q.tx - e.x) * 0.001; return true; }
-    const k = Math.min(1, (q.t - L.aim) / L.fly); e.x = q.x0 + (q.tx - q.x0) * k; e.y = q.y0 + (q.ty - q.y0) * k; e.vx = q.tx - q.x0;
-    if (k >= 1) { e.lp = null; e.atkT = L.cd * (0.9 + Math.random() * 0.2); }
+    if (q.t >= L.aim) e.air = true;                              // 뛰어오름 → 공중 목록으로 (0.130.0, tickAir 가 날림)
+    else e.vx = (q.tx - e.x) * 0.001;
     return true;
   }
   e.atkT = (e.atkT || 0) - dt;
@@ -2337,7 +2336,7 @@ function tickEshots(dt) {
     b.x += b.vx * dt; b.y += b.vy * dt;
     if ((b.life -= dt) <= 0) { b.dead = true; continue; }
     if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.r + e.r) ** 2) { b.dead = true; hurtEnemy(e, b.dmg); break; } continue; }
-    for (const a of G.allies) if (!a.dead && !(a.inv > 0) && !a.ret && (a.x - b.x) ** 2 + (a.y - a.r * 0.3 - b.y) ** 2 < (b.r + a.r) ** 2) { b.dead = true; hurtAlly(a, b.dmg); break; }   // 적 탄이 아군에 맞음 (0.117.0)
+    for (const a of G.allies) if (!a.dead && !(a.inv > 0) && !a.ret && !a.air && (a.x - b.x) ** 2 + (a.y - a.r * 0.3 - b.y) ** 2 < (b.r + a.r) ** 2) { b.dead = true; hurtAlly(a, b.dmg); break; }   // 적 탄이 아군에 맞음 (0.117.0)
     if (b.dead) continue;
     if ((p.x - b.x) ** 2 + (p.y + HIT_CY - b.y) ** 2 < (b.r + HITBOX) ** 2 && p.inv <= 0) { hurtPlayer(b.dmg, b); if (!b.killer) b.dead = true; }   // 쓰러뜨린 탄은 그 자리에 남김 (0.120.0)
   }
@@ -2779,6 +2778,14 @@ function update(dt) {
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
   tickAllies(dt);                                                // 아군 (0.113.0)
+  for (const e of G.air) {                                       // 도약 중 (0.130.0): 적 목록 밖 — 탄 · 공격이 통과, 몸으로 안 때림
+    if (e.boss) { bossTick(e, dt); e.airK = 1 - Math.max(0, e.bt) / BLEAP_FLY; if (e.st !== 'bleapFly') e.air = false; }
+    else { const L = ENEMY_TYPES[e.type].leap, q = e.lp; q.t += dt;
+      const k = Math.min(1, (q.t - L.aim) / L.fly); e.x = q.x0 + (q.tx - q.x0) * k; e.y = q.y0 + (q.ty - q.y0) * k; e.vx = q.tx - q.x0; e.airK = k;
+      if (k >= 1) { e.lp = null; e.atkT = L.cd * (0.9 + Math.random() * 0.2); e.air = false; } }
+    if (!e.air) { e.airK = 0; G.enemies.push(e); }
+  }
+  G.air = G.air.filter(e => e.air);
   for (const e of G.hatch) {                                     // 갈라진 직후 (0.128.5): 튕겨 나가기만 · 끝나면 적 목록으로
     e.x += e.kbx * dt; e.y += e.kby * dt; const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;
     if ((e.inv -= dt) <= 0) { e.inv = 0; G.enemies.push(e); }
@@ -2801,6 +2808,7 @@ function update(dt) {
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
     (grid.get(k) || grid.set(k, []).get(k)).push(e);
   }
+  if (G.enemies.some(e => e.air)) { for (const e of G.enemies) if (e.air) G.air.push(e); G.enemies = G.enemies.filter(e => !e.air); }   // 뛰어오른 것 → 공중 목록
   parting(dt);
   for (const e of G.enemies) {
     const cx = (e.x / CELL) | 0, cy = (e.y / CELL) | 0;
@@ -3132,7 +3140,7 @@ function draw() {
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
-  const es = G.enemies.concat(G.hatch).filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);   // G.hatch: 갈라진 직후 (0.128.5)
+  const es = G.enemies.concat(G.hatch, G.air).filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);   // G.hatch: 갈라진 직후 (0.128.5)
   drawPools();                                                   // 산성 웅덩이 (0.127.0) — 땅에
   drawEshots();
   // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
@@ -3175,26 +3183,31 @@ function draw() {
     if (kind === 'e') { const e = o;
     const T = ENEMY_TYPES[e.type] || {faceLeft: FACE[e.type], color: '#a44'}, eh = e.r * 3.4;   // 보스 그림은 적 표에 없음
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
-    ctx.fillStyle = 'rgba(0,0,0,.3)';
-    ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill();
+    const ak = e.air ? Math.sin(Math.PI * (e.airK || 0)) : 0, lift = ak * e.r * 2.6, ey = e.y - lift;   // 도약: 떠오름 (0.130.0)
+    if (e.air) { ctx.fillStyle = `rgba(0,0,0,${0.5 * ak})`; ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * (1.3 - 0.4 * ak), e.r * 0.45 * (1.3 - 0.4 * ak), 0, 0, Math.PI * 2); ctx.fill(); }   // 뜰 때 생겨 착지 때 사라지는 그림자
+    else { ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.8, e.r * sh, e.r * 0.35 * sh, 0, 0, Math.PI * 2); ctx.fill(); }
     if (e.elite != null) {                                        // 엘리트 · 보스: 등급 색 테두리(빛)가 깜빡인다
       ctx.shadowColor = gradeCol(e.elite); ctx.shadowBlur = 6 + 8 * (0.5 + 0.5 * Math.sin(G.t * 8));
     }
     // 왼쪽을 보는 그림은 오른쪽으로 갈 때, 오른쪽을 보는 그림은 왼쪽으로 갈 때 뒤집는다
     if (e.inv > 0) ctx.globalAlpha = 0.45 + 0.3 * Math.sin(G.t * 40);   // 갈라진 직후(G.hatch): 깜빡임
-    drawSprite(T.sprite || e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob, true, e.flash / FLASH_T);
+    if (e.air) ctx.globalAlpha = 0.55;                           // 도약 중(무적): 반투명
+    drawSprite(T.sprite || e.type, e.x, ey, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => circle(e.x, e.y, e.r, e.flash > 0 ? '#fff' : T.color), bob, true, e.flash / FLASH_T);
     ctx.globalAlpha = 1;
     if (e.elite != null) {                                        // 빛을 한 번 더 겹쳐 테두리를 또렷하게
-      drawSprite(T.sprite || e.type, e.x, e.y, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob, true);
+      drawSprite(T.sprite || e.type, e.x, ey, eh, T.faceLeft ? e.vx > 0 : e.vx < 0, () => {}, bob, true);
       ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
     }
     ctx.globalAlpha = 1;
     } else if (kind === 'a') { const a = o;
     const T = ENEMY_TYPES[a.type] || {faceLeft: FACE[a.type], color: '#4a4'}, eh = a.r * 3.4;
     const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
+    const ak = a.air ? Math.sin(Math.PI * (a.airK || 0)) : 0, ay = a.y - ak * a.r * 2.6;   // 도약 (0.130.0)
+    if (a.air) { ctx.fillStyle = `rgba(0,0,0,${0.5 * ak})`; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * (1.3 - 0.4 * ak), a.r * 0.45 * (1.3 - 0.4 * ak), 0, 0, Math.PI * 2); ctx.fill(); }
     ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20);   // 돌아오는 중(무적): 반투명 깜빡임
-    drawSprite(T.sprite || a.type, a.x, a.y, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
+    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20); if (a.air) ctx.globalAlpha = 0.55;   // 돌아오는 중(무적): 반투명 깜빡임
+    drawSprite(T.sprite || a.type, a.x, ay, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
     ctx.restore();
     } else {
   const pb = bobOf('survivor', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
