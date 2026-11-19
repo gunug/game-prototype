@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.128.6';
+const VERSION = '0.129.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -3166,7 +3166,13 @@ function draw() {
     }
     ctx.restore();
   }
-  for (const e of es) {
+  // 그리는 순서 (0.129.0): 몸(주인공 · 적 · 아군)은 발 y 가 작은(먼) 것부터 — 화면 아래(가까운) 것이 위에 덮임.
+  //   그 위에 UI: 적 UI → 아군 UI → 주인공 UI (주인공 UI 가 맨 위). 몸에 가려지지 않음
+  const allyVis = G.allies.filter(a => view(a.x, a.y, a.r * 4));
+  const bodies = [...es.map(o => ['e', o]), ...allyVis.map(o => ['a', o]), ['p', p]].sort((q, r) => q[1].y - r[1].y);
+  const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
+  for (const [kind, o] of bodies) {
+    if (kind === 'e') { const e = o;
     const T = ENEMY_TYPES[e.type] || {faceLeft: FACE[e.type], color: '#a44'}, eh = e.r * 3.4;   // 보스 그림은 적 표에 없음
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
     ctx.fillStyle = 'rgba(0,0,0,.3)';
@@ -3183,6 +3189,31 @@ function draw() {
       ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
     }
     ctx.globalAlpha = 1;
+    } else if (kind === 'a') { const a = o;
+    const T = ENEMY_TYPES[a.type] || {faceLeft: FACE[a.type], color: '#4a4'}, eh = a.r * 3.4;
+    const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
+    ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20);   // 돌아오는 중(무적): 반투명 깜빡임
+    drawSprite(T.sprite || a.type, a.x, a.y, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
+    ctx.restore();
+    } else {
+  const pb = bobOf('survivor', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
+  pb.sy *= 1 + Math.sin(G.t * 3) * 0.015 * (1 - p.move);       // 서 있으면 숨쉬기만
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 13 * psh, 5 * psh, 0, 0, Math.PI * 2); ctx.fill();
+  // 무기는 늘 몸 위에 그린다 (어느 쪽을 겨눠도 가려지지 않게)
+  const blink = !G.dying && p.inv > 0 && Math.floor(G.t * 20) % 2;   // 쓰러지는 중엔 깜빡이지 않음 (0.120.0)
+  if (!blink) {
+    drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
+  }
+  if (!blink) poses.forEach(([w, m]) => { if (WEAPONS[w.id].kind !== 'orbit') drawWeapon(w, m); });
+  G.weapons.forEach(w => { if (WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
+    }
+  }
+  drawEshotsAir();
+  // UI: 적 → 아군 → 주인공
+  for (const e of es) {
+    const T = ENEMY_TYPES[e.type] || {};
     if (e.boss) bossBar(e);                                       // 보스 체력 줄도 머리 위 (0.86.0 — 그 전엔 위쪽 정보칸)
     else if (e.hp < e.maxHp) {
       ctx.fillStyle = '#300'; ctx.fillRect(e.x - e.r, e.y - e.r * 2.3, e.r * 2, 3);
@@ -3194,35 +3225,12 @@ function draw() {
     if (e.killer) killerRing(e.x, e.y - e.r, e.r * 1.6);          // 쓰러뜨린 몹 (0.120.0)
     if (e.regenFx > 0) { ctx.fillStyle = '#6f6'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('+', e.x + e.r + 6, e.y - e.r * 2.3 - 2 - (G.t * 20 % 6)); ctx.textAlign = 'left'; }   // 재생 중 (0.127.0)
   }
-  // 아군 (0.113.0): 발밑에 초록 고리 + 초록 빛, 머리 위 초록 체력 줄
-  for (const a of G.allies) {
-    if (!view(a.x, a.y, a.r * 4)) continue;
-    const T = ENEMY_TYPES[a.type] || {faceLeft: FACE[a.type], color: '#4a4'}, eh = a.r * 3.4;
-    const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
-    ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20);   // 돌아오는 중(무적): 반투명 깜빡임
-    drawSprite(T.sprite || a.type, a.x, a.y, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
-    ctx.restore();
+  for (const a of allyVis) {
     ctx.fillStyle = '#031'; ctx.fillRect(a.x - a.r, a.y - a.r * 2.3, a.r * 2, 3);
     ctx.fillStyle = '#5f8'; ctx.fillRect(a.x - a.r, a.y - a.r * 2.3, a.r * 2 * Math.max(0, a.hp) / a.maxHp, 3);
     if (a.def > 0) defMark(a.x + a.r + 3, a.y - a.r * 2.3 + 1.5, a.def);   // 방어 · 방패 횟수도 적과 같은 자리 (0.116.0)
     if (a.shield > 0) shieldMark(a.x, a.y - a.r * 2.3 - 9, a.shield);
   }
-  drawEshotsAir();
-
-  // 플레이어
-  const pb = bobOf('survivor', p.walk, p.move, 54), psh = 1 - pb.lift / 54 * 2;
-  pb.sy *= 1 + Math.sin(G.t * 3) * 0.015 * (1 - p.move);       // 서 있으면 숨쉬기만
-  ctx.fillStyle = 'rgba(0,0,0,.3)';
-  ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 13 * psh, 5 * psh, 0, 0, Math.PI * 2); ctx.fill();
-  // 무기는 늘 몸 위에 그린다 (어느 쪽을 겨눠도 가려지지 않게)
-  const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
-  const blink = !G.dying && p.inv > 0 && Math.floor(G.t * 20) % 2;   // 쓰러지는 중엔 깜빡이지 않음 (0.120.0)
-  if (!blink) {
-    drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
-  }
-  if (!blink) poses.forEach(([w, m]) => { if (WEAPONS[w.id].kind !== 'orbit') drawWeapon(w, m); });
-  G.weapons.forEach(w => { if (WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
   // 착탄 범위 (0.88.0): 늘 보임 — 흰 테 + 옅은 붉은 속
   ctx.fillStyle = 'rgba(255,60,60,.45)'; ctx.beginPath(); ctx.arc(p.x, p.y + HIT_CY, HITBOX, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
