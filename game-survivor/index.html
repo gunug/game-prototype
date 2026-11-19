@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.127.0';
+const VERSION = '0.128.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1979,6 +1979,7 @@ function orbitSpots(w, st) {
 }
 const orbitFill = (w, st) => { const n = orbitN(st); w.orb.alive = Array(n).fill(orbitHp(st)); w.orb.ht = Array(n).fill(0); };
 // ── 주술인형 (0.113.0) ── G.allies: 아군이 된 적. 적 목록(G.enemies)에서 빠져 무기 · 적 탄의 대상이 아님
+const ALLY_HOME = 60;                                            // 돌아오는 아군: 주인공에게서 이만큼 안이면 다시 싸움 (0.128.0)
 const MOB_HIT_T = 0.5;                                           // 몬스터가 닿은 상대를 때리는 간격 (주인공이 맞은 뒤 무적 0.5초와 같음) — 아군 · 아군을 때리는 적 모두 (0.114.2)
 const charmCount = w => G.allies.filter(a => a.w === w).length;
 // 저주 강화 (0.114.6): 저주 1 넘는 만큼 아군 체력 · 피해 ×(1 + CURSE_UP × (저주 − 1)). 단계가 오르면 있던 아군도 같이 (남은 체력 비율 그대로)
@@ -2027,8 +2028,13 @@ function hurtAlly(a, raw) {
 function tickAllies(dt) {
   for (const a of G.allies) {
     allyScale(a);                                                // 저주 단계가 오르면 체력 · 피해도 (0.114.6)
-    let t = null, td = Infinity;
-    for (const e of G.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < td) { td = d; t = e; } }
+    // 대상 (0.128.0): 한 번 고른 적은 잡을 때까지 그대로. 잡은 뒤 주인공에게서 인형 사거리 밖이면 새 적을 고르지 않고 주인공 곁(ALLY_HOME 안)까지 돌아옴
+    const leash = wstat(a.w.id).range, pd = Math.hypot(G.p.x - a.x, G.p.y - a.y);
+    if (a.tgt && a.tgt.dead) a.tgt = null;                       // 전투 끝 (죽었거나 다른 인형에 아군이 됨)
+    if (!a.tgt && pd > leash) a.ret = true;
+    if (a.ret && pd <= ALLY_HOME) a.ret = false;
+    if (!a.tgt && !a.ret) { let bd = Infinity; for (const e of G.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.y - a.y); if (d < bd) { bd = d; a.tgt = e; } } }
+    const t = a.tgt, td = t ? Math.hypot(t.x - a.x, t.y - a.y) || 1 : Infinity;
     a.ph = (a.ph || 0); tickGhost(a, dt); a.flash = Math.max(0, (a.flash || 0) - dt);
     const AT = ENEMY_TYPES[a.type] || {}, A = AT.shot || AT.lob;
     if (A) a.atkT = (a.atkT || 0) - dt;
@@ -2045,9 +2051,9 @@ function tickAllies(dt) {
       const sp = a.spd, reach = a.r + t.r;                       // 빠르기도 원래 몬스터 그대로 (0.114.2)
       if (td > reach * 0.9) { a.vx = (t.x - a.x) / td * sp; a.x += a.vx * dt; a.y += (t.y - a.y) / td * sp * dt; }
       if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }   // 원래 몬스터 피해
-    } else {                                                     // 적이 없으면 주인공 곁으로
+    } else {                                                     // 적이 없거나 돌아오는 중이면 주인공 곁으로
       const dx = G.p.x - a.x, dy = G.p.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > 50) { const sp = a.spd; a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
+      if (d > (a.ret ? 0 : 50)) { const sp = a.spd; a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
     }
     for (const e of G.enemies) {                                 // 닿은 적이 MOB_HIT_T 초마다 자기 피해로 때림 (아군 방어 적용)
       if (e.dead || (e.x - a.x) ** 2 + (e.y - a.y) ** 2 >= (e.r + a.r) ** 2) continue;
