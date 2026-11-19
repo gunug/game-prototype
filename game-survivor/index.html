@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.125.3';
+const VERSION = '0.125.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2281,6 +2281,7 @@ function hurtEnemy(e, dmg, stun = 0) {
 // 경험치 보석 떨구기 (0.73.0): n 개로 나눠 사방으로 튀어 오른다 (z = 높이). 땅에 닿기 전엔 못 줍고 끌리지도 않는다
 const MAGNET = 90;                    // 보석을 끌어오기 시작하는 거리 (기본)
 const magnetR = s => MAGNET * s.magnetMul * (hasPen('heavy') ? 0.5 : 1);
+const GEM_SIZE = 0.7;                // 보석 그림 크기 배율 (0.125.4)
 const GEM_PULL = 420, MAG_PULL0 = 840, MAG_ACC = 1600;   // 보석 끌림 빠르기 (px/초) · 자석으로 끌릴 때 처음 · 가속 (px/초², 0.119.0)
 const GEM_G = 900;                    // 보석 중력 (px/초²)
 function dropGems(x, y, v, n) {
@@ -2936,7 +2937,7 @@ function draw() {
 
   // 보석
   for (const g of G.gems) {
-    const r = g.v > 1 ? 7 : 5, z = g.z || 0;
+    const r = (g.v > 1 ? 7 : 5) * GEM_SIZE, z = g.z || 0;   // 0.125.4: 그림 크기 ×0.7 (줍는 거리는 그대로)
     if (z > 0) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 2, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }   // 그림자
     ctx.fillStyle = g.v > 1 ? '#fc4' : '#4cf';
     ctx.save(); ctx.translate(0, -z);
