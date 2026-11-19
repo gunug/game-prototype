@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.128.0';
+const VERSION = '0.128.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2026,6 +2026,7 @@ function hurtAlly(a, raw) {
 }
 // 아군 움직임 · 싸움: 가까운 적에게 달려가 닿으면 hitT 초마다 무기 피해. 닿아 있는 적들의 피해(초당)만큼 깎이고 0 이면 쓰러짐
 function tickAllies(dt) {
+  const newAllies = [];                                          // 이번에 갈라져 생긴 아군 (돌고 난 뒤 더함)
   for (const a of G.allies) {
     allyScale(a);                                                // 저주 단계가 오르면 체력 · 피해도 (0.114.6)
     // 대상 (0.128.0): 한 번 고른 적은 잡을 때까지 그대로. 잡은 뒤 주인공에게서 인형 사거리 밖이면 새 적을 고르지 않고 주인공 곁(ALLY_HOME 안)까지 돌아옴
@@ -2061,10 +2062,13 @@ function tickAllies(dt) {
       hurtAlly(a, e.dmg); e.atkT = MOB_HIT_T;
     }
     if (a.hp <= 0) { a.dead = true; G.fx.push({kind: 'splash', mine: true, x: a.x, y: a.y, r: a.r * 1.6, t: 0.25}); if (a.xp) dropGems(a.x, a.y, a.xp, 1);
+      const sp = (ENEMY_TYPES[a.type] || {}).split;              // 분열 좀비 아군: 갈라진 좀비도 아군으로 (0.128.1) — 아군 상한을 넘어도 됨
+      if (sp) for (let i = 0; i < sp.n; i++) { const an = Math.random() * Math.PI * 2, c = makeEnemy(sp.type, a.x + Math.cos(an) * 12, a.y + Math.sin(an) * 12);
+        const k = {...c, w: a.w, hp: c.maxHp, baseHp: c.maxHp, baseDmg: c.dmg, mul: 1, hitT: 0, stop: 0, kbx: 0, kby: 0}; allyScale(k); newAllies.push(k); }
       const bu = (ENEMY_TYPES[a.type] || {}).burst;              // 부푼 좀비 아군: 쓰러진 자리에서 터져 적에게 (0.116.0)
       if (bu) G.eshots.push({ally: true, blast: true, x: a.x, y: a.y, t: 0, T: bu.T, aoe: bu.aoe, dmg: bu.dmg * a.mul}); }   // 쓰러지면 원래 몬스터 경험치 그대로 (0.114.4)
   }
-  G.allies = G.allies.filter(a => !a.dead);
+  G.allies = G.allies.filter(a => !a.dead).concat(newAllies);
 }
 // 적이 노리는 것: 가장 가까운 아군이나 주인공 (0.113.0)
 function foeTarget(e) {
