@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.128.1';
+const VERSION = '0.128.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2020,6 +2020,7 @@ function curseOn(b, e) {
 // 아군이 맞음: 방패가 있으면 1 만 받고 한 번 깎임 (0.116.0), 아니면 방어 적용. 몸 · 탄 · 곡사 · 터짐 모두 (0.117.0)
 function hurtAlly(a, raw) {
   if (a.dead) return;
+  a.hitAgo = 0;                                                  // 재생 아군: 맞으면 다시 기다림 (0.128.2)
   if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }
   else a.hp -= mobArmor(raw, a.def);
   a.flash = FLASH_T;
@@ -2039,7 +2040,20 @@ function tickAllies(dt) {
     a.ph = (a.ph || 0); tickGhost(a, dt); a.flash = Math.max(0, (a.flash || 0) - dt);
     const AT = ENEMY_TYPES[a.type] || {}, A = AT.shot || AT.lob;
     if (A) a.atkT = (a.atkT || 0) - dt;
-    if (t && A && td <= A.range) {                               // 쏘는 몹 (0.116.0): 사거리 안이면 서서 원래 간격 · 탄으로 적에게
+    // 월드 3 특성 (0.128.2): 재생 · 산성 웅덩이(적에게) · 도약(대상에게)
+    if (AT.regen) { a.hitAgo = (a.hitAgo || 0) + dt; if (a.hitAgo >= AT.regen.wait && a.hp < a.maxHp) a.hp = Math.min(a.maxHp, a.hp + a.maxHp * AT.regen.pct * dt); }
+    if (AT.acid && !a.lp && (a.acT = (a.acT || 0) - dt) <= 0) {
+      a.acT = AT.acid.gap;
+      if (G.pools.length < POOL_MAX) G.pools.push({ally: true, x: a.x, y: a.y + a.r * 0.6, r: AT.acid.r, t: AT.acid.life, T: AT.acid.life, dps: AT.acid.dps * a.mul});
+    }
+    const L = AT.leap;
+    if (L && a.lp) {                                              // 도약 중: 예고 → 날기 (적과 같은 박자)
+      const q = a.lp; q.t += dt;
+      if (q.t >= L.aim) { const k = Math.min(1, (q.t - L.aim) / L.fly); a.x = q.x0 + (q.tx - q.x0) * k; a.y = q.y0 + (q.ty - q.y0) * k; a.vx = q.tx - q.x0; if (k >= 1) { a.lp = null; a.atkT = L.cd * (0.9 + Math.random() * 0.2); } }
+    } else if (L && t && td <= L.range && (a.atkT = (a.atkT || 0) - dt) <= 0) {
+      a.lp = {t: 0, x0: a.x, y0: a.y, tx: t.x, ty: t.y};
+      G.eshots.push({ally: true, blast: true, x: t.x, y: t.y, t: 0, T: L.aim + L.fly, aoe: L.aoe, dmg: L.dmg * a.mul});
+    } else if (t && A && td <= A.range) {                               // 쏘는 몹 (0.116.0): 사거리 안이면 서서 원래 간격 · 탄으로 적에게
       a.vx = (t.x - a.x) / td * 0.01;
       if (a.atkT <= 0) {
         a.atkT = A.cd * (0.9 + Math.random() * 0.2);
@@ -2266,7 +2280,14 @@ function mobTraitsTick(e, dt) {
 // 웅덩이: 밟고 있으면 POOL_TICK 초마다 그 동안의 피해 (무적 시간을 쓰지 않음 — 다른 공격을 막지 않게)
 function tickPools(dt) {
   const p = G.p; let worst = null;
-  for (const q of G.pools) { q.t -= dt; if (q.t > 0 && (p.x - q.x) ** 2 + (p.y - q.y) ** 2 < (q.r + p.r * 0.6) ** 2 && (!worst || q.dps > worst.dps)) worst = q; }
+  for (const q of G.pools) {
+    q.t -= dt;
+    if (q.ally) {                                                // 아군 웅덩이 (0.128.2): 밟은 적이 POOL_TICK 초마다
+      if (q.t > 0 && (q.acc = (q.acc || 0) + dt) >= POOL_TICK) { q.acc -= POOL_TICK;
+        for (const e of G.enemies) if (!e.dead && (e.x - q.x) ** 2 + (e.y - q.y) ** 2 < (q.r + e.r * 0.6) ** 2) hurtEnemy(e, q.dps * POOL_TICK); }
+      continue;
+    }
+    if (q.t > 0 && (p.x - q.x) ** 2 + (p.y - q.y) ** 2 < (q.r + p.r * 0.6) ** 2 && (!worst || q.dps > worst.dps)) worst = q; }
   G.pools = G.pools.filter(q => q.t > 0);
   if (!worst || G.dying) { G.poolAcc = 0; return; }
   if ((G.poolAcc = (G.poolAcc || 0) + dt) < POOL_TICK) return;
@@ -2278,8 +2299,9 @@ function tickPools(dt) {
 function drawPools() {
   for (const q of G.pools) {
     const a = Math.min(1, q.t / 0.6, (q.T - q.t) / 0.25 + 0.2);
-    ctx.fillStyle = `rgba(110,230,60,${0.32 * a})`; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.r, q.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(150,255,90,${0.55 * a})`; ctx.lineWidth = 1.5; ctx.stroke();
+    const c = q.ally ? '80,220,220' : '110,230,60', c2 = q.ally ? '120,255,240' : '150,255,90';   // 아군 것은 청록
+    ctx.fillStyle = `rgba(${c},${0.32 * a})`; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.r, q.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(${c2},${0.55 * a})`; ctx.lineWidth = 1.5; ctx.stroke();
     if (q.killer) killerRing(q.x, q.y, q.r * 1.2);
   }
 }
