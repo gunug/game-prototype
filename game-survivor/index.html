@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.128.2';
+const VERSION = '0.128.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1979,7 +1979,7 @@ function orbitSpots(w, st) {
 }
 const orbitFill = (w, st) => { const n = orbitN(st); w.orb.alive = Array(n).fill(orbitHp(st)); w.orb.ht = Array(n).fill(0); };
 // ── 주술인형 (0.113.0) ── G.allies: 아군이 된 적. 적 목록(G.enemies)에서 빠져 무기 · 적 탄의 대상이 아님
-const ALLY_HOME = 60;                                            // 돌아오는 아군: 주인공에게서 이만큼 안이면 다시 싸움 (0.128.0)
+const ALLY_HOME = 60, ALLY_RET_SPD = 3;                          // 돌아오는 아군: 주인공에게서 60px 안이면 다시 싸움 · 오는 동안 3배 빠르기 · 무적 (0.128.3)                                            // 돌아오는 아군: 주인공에게서 이만큼 안이면 다시 싸움 (0.128.0)
 const MOB_HIT_T = 0.5;                                           // 몬스터가 닿은 상대를 때리는 간격 (주인공이 맞은 뒤 무적 0.5초와 같음) — 아군 · 아군을 때리는 적 모두 (0.114.2)
 const charmCount = w => G.allies.filter(a => a.w === w).length;
 // 저주 강화 (0.114.6): 저주 1 넘는 만큼 아군 체력 · 피해 ×(1 + CURSE_UP × (저주 − 1)). 단계가 오르면 있던 아군도 같이 (남은 체력 비율 그대로)
@@ -2019,7 +2019,7 @@ function curseOn(b, e) {
 }
 // 아군이 맞음: 방패가 있으면 1 만 받고 한 번 깎임 (0.116.0), 아니면 방어 적용. 몸 · 탄 · 곡사 · 터짐 모두 (0.117.0)
 function hurtAlly(a, raw) {
-  if (a.dead) return;
+  if (a.dead || a.ret) return;                                   // 돌아오는 중엔 무적 (0.128.3)
   a.hitAgo = 0;                                                  // 재생 아군: 맞으면 다시 기다림 (0.128.2)
   if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }
   else a.hp -= mobArmor(raw, a.def);
@@ -2068,7 +2068,7 @@ function tickAllies(dt) {
       if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }   // 원래 몬스터 피해
     } else {                                                     // 적이 없거나 돌아오는 중이면 주인공 곁으로
       const dx = G.p.x - a.x, dy = G.p.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > (a.ret ? 0 : 50)) { const sp = a.spd; a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
+      if (d > (a.ret ? 0 : 50)) { const sp = a.spd * (a.ret ? ALLY_RET_SPD : 1); /* 돌아올 땐 3배 (0.128.3) */ a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
     }
     for (const e of G.enemies) {                                 // 닿은 적이 MOB_HIT_T 초마다 자기 피해로 때림 (아군 방어 적용)
       if (e.dead || (e.x - a.x) ** 2 + (e.y - a.y) ** 2 >= (e.r + a.r) ** 2) continue;
@@ -2087,7 +2087,7 @@ function tickAllies(dt) {
 // 적이 노리는 것: 가장 가까운 아군이나 주인공 (0.113.0)
 function foeTarget(e) {
   let t = G.p, td = (G.p.x - e.x) ** 2 + (G.p.y - e.y) ** 2;
-  for (const a of G.allies) { const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }
+  for (const a of G.allies) { if (a.ret) continue; const d = (a.x - e.x) ** 2 + (a.y - e.y) ** 2; if (d < td) { td = d; t = a; } }   // 돌아오는(무적) 아군은 안 노림
   return t;
 }
 // 주술인형 미터: 숫자 '현재/최대' 아군 (0.115.0) · 파이 = 재장전 (0.118.0 — 3초마다 던지는 건 재장전). 차는 동안 주황, 다 차면 노랑
@@ -3179,7 +3179,7 @@ function draw() {
     const T = ENEMY_TYPES[a.type] || {faceLeft: FACE[a.type], color: '#4a4'}, eh = a.r * 3.4;
     const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
     ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10;
+    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20);   // 돌아오는 중(무적): 반투명 깜빡임
     drawSprite(T.sprite || a.type, a.x, a.y, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
     ctx.restore();
     ctx.fillStyle = '#031'; ctx.fillRect(a.x - a.r, a.y - a.r * 2.3, a.r * 2, 3);
