@@ -346,12 +346,12 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.130.0';
+const VERSION = '0.131.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
-const FACE = {survivor: false, police: false, firefighter: false, scientist: false, shaman: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
+const FACE = {survivor: false, police: false, firefighter: false, scientist: false, shaman: false, builder: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
   spitter: false, grenadier: true, shielder: true, bloater: false, bossmortar: false, bossgeneral: false,
   splitter: false, leaper: true, acider: false, regener: false, bossexp: false, bossdirector: false};   // 월드 3 (0.127.0)
 // 현대물 — 도심의 좀비들. faceLeft: 그림이 왼쪽을 보면 true (오른쪽으로 갈 때 뒤집음)
@@ -447,7 +447,7 @@ const magDropP = n => { const k = 1 + (MAGDROP_MAX - 1) * (n / MAGDROP_N) ** 2; 
 const GRENADE_IMG = new Image(); GRENADE_IMG.src = `images/proj_grenade.png?v=${VERSION}`;   // 곡사 수류탄 (0.96.0, make_item seed 3701)
 const SPRITES = {};             // 없으면 도형으로
 const WEAPON_IMG = {};          // 무기 그림 — 총구가 오른쪽을 보게 뽑음 (tools/make_weapon.py)
-for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
+for (const n of ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll', 'barricade']) { const im = new Image(); im.onload = () => { WEAPON_IMG[n] = im; }; im.src = `images/weapon_${n}.png?v=${VERSION}`; }
 for (const n of Object.keys(FACE)) {                     // 그림이 있는 것 = FACE 표 (0.84.0)
   const img = new Image();
   img.onload = () => { SPRITES[n] = trimSprite(img); };
@@ -507,7 +507,8 @@ const UPGRADES = [
   {id: 'tup_pierce', tup: 'pierce', nm: '관통 강화', ds: '관통 단계 +1', max: 99, badges: ['pierce'], fx: '+1', apply: () => G.tl.pierce++},
   {id: 'tup_chain',  tup: 'chain',  nm: '연쇄 강화', ds: '연쇄 단계 +1', max: 99, badges: ['chain'], fx: '+1', apply: () => G.tl.chain++},
   {id: 'tup_spread', tup: 'spread', nm: '확산 강화', ds: '확산 단계 +1', max: 99, badges: ['spread'], fx: '+1', apply: () => G.tl.spread++},
-  {id: 'tup_curse',  tup: 'curse',  nm: '저주 강화', ds: '저주 단계 +1 — 아군 하나 더 · 아군 체력 · 피해 +25%', max: 99, badges: ['curse'], fx: '+1', apply: () => G.tl.curse++},
+  {id: 'tup_curse',  tup: 'curse',  nm: '저주 강화', ds: '저주 단계 +1 — 주술인형 아군 체력 · 피해 +25%', max: 99, badges: ['curse'], fx: '+1', apply: () => G.tl.curse++},
+  {id: 'tup_ally',   tup: 'ally',   nm: '아군수 증가', ds: '아군수 +1 — 주술인형 아군 · 바리케이드 유지 갯수가 각각 하나 더', max: 99, badges: ['ally'], fx: '+1', apply: () => G.tl.ally++},   // 0.131.0
   {id: 'tup_splash', tup: 'splash', nm: '폭발 강화', ds: '폭발 단계 +1', max: 99, badges: ['splash'], fx: '+1', apply: () => G.tl.splash++},
 ];
 const UPG = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
@@ -538,7 +539,8 @@ const BADGES = {
   regen:  {nm: '체력 재생', col: '#ff8fb0', tip: '초마다 저절로 차는 체력. 2초마다 두 배씩 한 번에 찬다. 「체력 재생 증가」를 받으면 +5.'},
   magnet: {nm: '획득 범위', col: '#4cf', tip: '경험치 보석을 끌어오기 시작하는 거리(px). 「획득 범위 증가」를 받으면 기본의 +25%.'},
   xpmul:  {nm: '경험치',  col: '#fc4', tip: '보석에서 얻는 경험치 배율(%). 「경험치 증가」를 받으면 +10%.'},
-  curse:  {nm: '저주',   col: '#b48cff', tip: '주술인형이 한 번에 부릴 수 있는 아군 수 = 저주 수 (1부터). 저주 1 넘는 만큼 아군 체력 · 피해가 단계마다 +25%.'},   // 0.114.0 · 0.114.6
+  curse:  {nm: '저주',   col: '#b48cff', tip: '주술인형 아군의 체력 · 피해가 저주 1 넘는 단계마다 +25%. (아군 수는 0.131.0 부터 「아군수」)'},   // 0.114.0 · 0.114.6 · 0.131.0
+  ally:   {nm: '아군수', col: '#7fe0a0', tip: '한 번에 둘 수 있는 내 편 수 — 주술인형 아군 · 바리케이드 유지 갯수. 「아군수 증가」 하나로 둘 다 +1 (각자 따로 셈).'},   // 0.131.0
   pierce: {nm: '관통',   col: '#9be7ff', tip: '한 발이 맞히는 적 수 (꿰뚫고 지나감). 그보다 많은 적은 피해를 입지 않는다. 레이저는 빔 길의 총구 쪽부터, 부메랑은 한 번 던져 벤 적 수 (벤 적은 오는 길에 다시 벰). 관통 단계마다 +1 · 「송곳 인장」으로 권총 · 기관총에도 붙음.'},
   chain:  {nm: '연쇄',   col: '#7cf0d0', tip: '첫 적을 맞힌 뒤 탄 · 빔이 다음 적으로 이어 가는 수. 연쇄 단계마다 +1 · 「사슬 인장」으로 없는 무기에도 붙음.'},
   spread: {nm: '확산',   col: '#f6a6c1', tip: '한 번에 부채꼴로 쏘는 발 수 (방패는 방패 수). 확산 단계마다 +1 · 「부채 인장」으로 없는 무기에도 붙음.'},
@@ -574,6 +576,7 @@ function badgeVal(id, st) {
     case 'crit': return Math.round(st.crit * 100) + '%';
     case 'critdmg': return '×' + num(st.critDmg);
     case 'curse': return st.curse;
+    case 'ally': return st.ally;
     case 'pierce': return st.pierce || INF;                            // 한 발이 맞히는 적 수 (없으면 지나는 길의 적 모두)
   }
   return null;
@@ -596,13 +599,14 @@ const wpnInfoHtml = (W, st) => { const b = [...W.badges, ...grantedBadges(W)]; r
 const wpnStats = W => ['dmg', ...(W.cd ? ['cd'] : []), ...(W.mag ? ['mag'] : []), ...(W.reload ? ['reload'] : []), 'stun',   // 부메랑 · 방패는 쿨다운 없이 재장전만 (0.97.0)
                          'range', ...(W.spd ? ['spd'] : []), ...(W.acc != null ? ['acc'] : [])];
 // 부여 (0.103.0): 특성마다 붙일 수 있는 무기 종류 (기본 특성으로 가진 무기는 따로 — 무기 badges)
-const TRAITS = ['pierce', 'chain', 'spread', 'splash', 'curse'];   // 저주 (0.114.0): 주술인형 아군 상한
+const TRAITS = ['pierce', 'chain', 'spread', 'splash', 'curse', 'ally'];   // 아군수 (0.131.0): 주술인형 아군 · 바리케이드 유지 갯수   // 저주 (0.114.0): 주술인형 아군 상한
 const GRANT_KINDS = {
   pierce: ['gun', 'orbit', 'charm'],                    // 관통: 총알이 꿰뚫음 (저격총 · 부메랑은 기본) · 방패는 관통 수만큼 버팀 (0.109.0)
-  chain:  ['gun', 'rail', 'laser', 'orbit', 'boom', 'charm'],   // 연쇄: 맞힌 뒤 다음 적으로 (레이저는 기본) · 방패는 깨질 때 다음 적으로 날아감 (0.109.0) · 부메랑은 관통을 다 쓰면 다음 적으로 날아간 뒤 돌아옴 (0.109.1)
-  spread: ['gun', 'rail', 'boom', 'orbit', 'charm'],    // 확산: 부채꼴 한 발 더 · 방패는 방패 +1 (방패는 기본)
-  splash: ['gun', 'laser', 'orbit', 'charm'],
-  curse:  [],                                  // 저주: 부여 없음 — 주술인형 기본 특성 (0.114.0)           // 폭발: 맞은 자리 둘레 (관통탄 · 부메랑은 아직 못 씀)
+  chain:  ['gun', 'rail', 'laser', 'orbit', 'boom', 'charm', 'build'],   // 연쇄: 맞힌 뒤 다음 적으로 (레이저는 기본) · 방패는 깨질 때 다음 적으로 날아감 (0.109.0) · 부메랑은 관통을 다 쓰면 다음 적으로 날아간 뒤 돌아옴 (0.109.1)
+  spread: ['gun', 'rail', 'boom', 'orbit', 'charm', 'build'],    // 확산: 부채꼴 한 발 더 · 방패는 방패 +1 (방패는 기본)
+  splash: ['gun', 'laser', 'orbit', 'charm', 'build'],
+  curse:  [],
+  ally:   [],                                  // 아군수: 부여 없음 — 주술인형 · 바리케이드 기본 (0.131.0)                                  // 저주: 부여 없음 — 주술인형 기본 특성 (0.114.0)           // 폭발: 맞은 자리 둘레 (관통탄 · 부메랑은 아직 못 씀)
 };
 const tlv = t => G && G.tl ? G.tl[t] : 1;                                        // 특성 단계 (판 밖은 1)
 const ownsSub = id => !!(G && G.subs && G.subs.some(x => x.id === id));
@@ -665,10 +669,19 @@ const WEAPONS = {
   //   0.114.2: 아군의 체력 · 공격력 · 공격 빈도 · 방어 · 빠르기는 원래 몬스터 그대로 (닿은 적에게 MOB_HIT_T 초마다 자기 피해)
   //   DPS 맞춤: 인형 자체 — 한 바퀴 = 재장전, 한 바퀴에 1 번 (아군 몫은 덤)
   doll:   {nm: '주술인형', kind: 'charm', sh: '맞힌 적을 아군으로', ds: '저주인형을 던져 맞힌 잡몹을 아군으로 만든다. 아군은 가까운 적에게 달려가 싸우고, 적도 가장 가까운 아군이나 주인공을 노린다. 아군은 저주 수만큼 — 다 차면 인형은 피해만 준다',
-           dmg: 0, fixedDmg: 100, reload: 3, range: 160, spd: 300, acc: 6, curse: 1, maxT: 1, stun: 0.1,   // curse: 아군 상한 (저주 뱃지) · fixedDmg: 맞춤 대신 정한 피해 (0.114.3, 사용자)
+           dmg: 0, fixedDmg: 100, reload: 3, range: 160, spd: 300, acc: 6, ally: 1, maxT: 1, stun: 0.1,   // ally: 아군 상한 (아군수 뱃지, 0.131.0 — 그 전 curse)   // curse: 아군 상한 (저주 뱃지) · fixedDmg: 맞춤 대신 정한 피해 (0.114.3, 사용자)
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
-           badges: ['curse']},
+           badges: ['curse', 'ally']},
+  // 바리케이드 (0.131.0, 건축가): 쿨타임마다(장탄만큼) 가장 가까운 적과 나 사이 가운데 격자 칸에 벽. 사거리 안에 적이 없으면 안 세움
+  //   벽: 적 · 아군 · 주인공의 몸을 막음 (도약은 넘음). 적은 길 지도로 돌아서 옴 · 적 탄 · 곡사 · 터짐 · 돌진이 닿으면 벽 체력이 깎임
+  //   유지 시간 life 초 · 유지 갯수 = 아군수 — 넘으면 오래된 것부터 1초 세고 부서짐. 가까이(WALL_AURA) 온 적에게 쿨타임마다 무기 피해
+  //   확산 = 대상(가까운 적) 수 · 연쇄 = 한 대상에 상하좌우로 더 세우는 칸 수 · 폭발 = 세울 때 충격 (폭발 반경 · 비율)
+  barricade: {nm: '바리케이드', kind: 'build', sh: '적과 나 사이에 벽', ds: '가장 가까운 적과 나 사이 가운데에 바리케이드를 세운다. 적은 벽을 돌아서 오고, 가까이 오면 피해를 받는다. 적 탄 · 곡사 · 돌진은 벽을 깎는다. 유지 시간이 지나거나 유지 갯수를 넘으면 사라진다',
+           dmg: 0, fixedDmg: 30, fixedReload: true, cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, ally: 4, maxT: 1, stun: 0,   // 맞춤 계산 대신 정한 피해 · 재장전
+           len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
+           badges: ['ally']},
 };
+const WALL_HP_UP = 1.15, WALL_C = 32, WALL_AURA = 16, WALL_DIE = 1;   // 바리케이드: 강화마다 체력 · 칸 크기 · 가까이 피해 범위 · 넘친 것 부서지기까지 (0.131.0)
 // ── 무기 기본 DPS (docs/무기_DPS.md) ── 업그레이드 0 · 적 방어 0 · 늘 쏠 수 있는 거리
 //   단일 DPS = 피해 ÷ 쿨다운 · 최적 DPS = 단일 × maxT(가장 유리하게 섰을 때 한 번에 맞는 수)
 //   비교 DPS = 단일과 최적의 가운데 = 단일 × (1 + maxT) / 2 → 모든 무기가 DPS_REF 가 되게 **피해를 계산해 넣는다** (정수)
@@ -706,11 +719,11 @@ const boomFlight = (range, spd, acc = 0) => boomPath(range, acc).L / spd;
 const cycleOf = W => W.kind === 'charm' ? W.reload : W.kind === 'boom' ? boomFlight(W.range, W.spd, W.acc) + W.reload : W.kind === 'orbit' ? W.reload + W.useT : W.mag * W.cd + W.reload;
 const perCycle = W => W.kind === 'charm' ? 1 : W.mag || W.n || 2;   // 방패 = 방패 수                       // 방패는 n 개                               // 한 바퀴에 한 적을 맞히는 번수 — 부메랑은 가며 한 번 ·오며 한 번 = 2
 for (const W of Object.values(WEAPONS)) {
-  if (W.mag) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
+  if (W.mag && !W.fixedReload) W.reload = Math.max(RELOAD_MIN, Math.round(W.cd * RELOAD_K * 100) / 100);
   W.dmg = W.fixedDmg ?? Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W));   // 정수 — fixedDmg 가 있으면 그것 (주술인형 100)
 }
 const dpsOf = W => { const s = W.dmg * perCycle(W) / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.cd ? W.dmg / W.cd : 0}; };
-const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
+const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll', 'barricade'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
 
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
@@ -750,7 +763,9 @@ function wstat(id) {
     knock: 0,                                                 // 밀당 업그레이드 뺌 (0.92.0)
     splash: has('splash') ? T('splash') : 0,                 // 폭발 단계 (반경 · 둘레 피해는 splashR · splashPct)
     n: W.n,
-    curse: has('curse') ? (W.curse || 1) + T('curse') - 1 : 0,   // 저주 = 주술인형 아군 상한 (0.114.0)
+    curse: has('curse') ? 1 + T('curse') - 1 : 0,             // 저주 단계 = 아군 체력 · 피해 배율 (0.131.0 부터 상한은 ally)
+    ally: has('ally') ? (W.ally || 1) + T('ally') - 1 : 0,     // 아군수 = 주술인형 아군 상한 · 바리케이드 유지 갯수 (0.131.0)
+    hp: W.hp ? W.hp * WALL_HP_UP ** L : undefined,             // 바리케이드 체력 — 무기 강화마다 ×1.15
     shields: W.n && W.n + T('spread') - 1,                   // 방패 수 (확산 뱃지에 보임) — 확산 단계마다 +1
     acc: W.acc == null ? W.acc : W.acc * (hasPen('civilian') ? 2 : 1),   // 발사각 업그레이드 뺌 (0.92.0) · 패널티 '민간인' ×2 (0.110.0)   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
@@ -769,6 +784,7 @@ const CHARACTERS = [
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
   {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
   {id: 'shaman',      nm: '주술사', sprite: 'shaman',      weapon: 'doll',   pen: 'noregen',  sub: 'banish'},   // 0.113.0 · 패널티 족쇄 → 마른 피 (0.114.5)
+  {id: 'builder',     nm: '건축가', sprite: 'builder',     weapon: 'barricade', pen: 'slow', sub: 'give_chain'},   // 0.131.0
 ].map(c => ({...c, wSlots: W_SLOTS, sSlots: S_SLOTS, hp: 1000, speed: 190}));
 let charIdx = 0;                 // 이번 판 캐릭터 — 출발 때 정해진다
 // 월드 선택 화면: 월드 · 캐릭터 둘 다 골라야 출발 (기본 선택 없음, 순서 아무거나)
@@ -999,7 +1015,7 @@ function showWeaponPick(wi) {
 //   특성 보조는 고른 무기가 받을 수 있는 것만 후보. 카드 밑에 받는 무기 줄 (상자 카드와 같음)
 let pickWid = null, pickSubs = [];
 const backToWpn = () => { $('subSel').hidden = true; $('wpnSel').hidden = false; };   // 뒤로: 같은 무기 세 장 그대로
-const newTl = () => ({pierce: 1, chain: 1, spread: 1, splash: 1, curse: 1});   // 특성 단계 (0.103.0)
+const newTl = () => ({pierce: 1, chain: 1, spread: 1, splash: 1, curse: 1, ally: 1});   // 특성 단계 (0.103.0)
 // ───── 영구 업그레이드 (0.123.0) ───── 보스 상자에서 고름. 판이 끝나도 남음 (localStorage 'survivor.perm' = {id: 단계})
 //   피해량 · 체력 +5% 씩, 쿨타임 · 재장전 −3% 씩 (기본값에 더함 — 판 안 업그레이드와 곱해짐). 고른 판에도 바로 적용
 const PERMS = [
@@ -1058,7 +1074,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -1122,7 +1138,7 @@ $('overExit').onclick = $('clearExit').onclick = () => showWorlds();
 $('pauseExit').onclick = e => { e.stopPropagation(); showWorlds(); };
 
 // 정보 창: 뱃지 설명. 판 중이면 멈추고, 닫으면 다시 (멈춰 있던 창 · 레벨업 · 메뉴에서 열면 그대로)
-const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'crit', 'critdmg', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'splash']]];
+const INFO_GROUPS = [['능력치', ['dmg', 'cd', 'mag', 'reload', 'stun', 'range', 'spd', 'acc', 'crit', 'critdmg', 'hp', 'def', 'move', 'regen', 'magnet', 'xpmul']], ['특성', ['pierce', 'chain', 'spread', 'splash', 'curse', 'ally']]];
 function openInfo() {
   if (!$('info').hidden) return;
   $('infoList').innerHTML = INFO_GROUPS.map(([g, ids]) => `<h3>${g}</h3>` + ids.map(id =>
@@ -1895,8 +1911,8 @@ function bossTick(e, dt) {
   const p = G.p, B = e.boss, dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
   e.bt -= dt;
   if (e.st === 'walk') {
-    const sp = chaseSpd(e, d);                                  // 화면 밖이면 빠르게 (0.72.0)
-    e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt;
+    const sp = chaseSpd(e, d), f = flowDir(G.flowP, e.x, e.y), ux = f ? f.x : dx / d, uy = f ? f.y : dy / d;   // 화면 밖이면 빠르게 (0.72.0) · 벽이면 길 지도 (0.131.0)
+    e.vx = ux * sp; e.x += e.vx * dt; e.y += uy * sp * dt;
     if (e.bt > 0) return;
     const pat = B.pats[e.pi++ % B.pats.length];
     if (pat === 'charge') { e.st = 'aimC'; e.bt = 0.8; e.dir = Math.atan2(dy, dx); }
@@ -1934,7 +1950,8 @@ function bossTick(e, dt) {
     if (e.bt <= 0) { e.st = 'dash'; e.bt = DASH_T; }
   } else if (e.st === 'dash') {
     e.vx = Math.cos(e.dir) * DASH_SPD; e.x += e.vx * dt; e.y += Math.sin(e.dir) * DASH_SPD * dt;
-    if (e.bt <= 0) { e.st = 'walk'; e.bt = B.gap; }
+    if (G.walls.length && wallHit(e.x, e.y, e.dmg, e.r * 0.7)) { e.st = 'walk'; e.bt = B.gap; G.fx.push({kind: 'splash', x: e.x, y: e.y, r: e.r, t: 0.25}); }   // 바리케이드에 닿으면 돌진 피해를 주고 멈춤 (0.131.0)
+    else if (e.bt <= 0) { e.st = 'walk'; e.bt = B.gap; }
   } else if (e.st === 'volley') {                               // 부채꼴 탄 VOL_W 번 (처음 0.5초 숨 고름)
     if (e.bt <= 0) {
       const a0 = Math.atan2(dy + HIT_CY, dx);
@@ -1961,6 +1978,7 @@ function bossTick(e, dt) {
     if (e.bt <= 0) {
       G.fx.push({kind: 'splash', x: e.x, y: e.y, r: SLAM_R, t: 0.35});
       if (Math.hypot(p.x - e.x, p.y + HIT_CY - e.y) < SLAM_R + HITBOX) hurtPlayer(SLAM_DMG, e);
+      if (G.walls.length) wallHit(e.x, e.y, SLAM_DMG, SLAM_R);      // 범위 안 바리케이드도 (0.131.0)
       e.st = 'walk'; e.bt = B.gap;
     }
   }
@@ -1994,7 +2012,7 @@ const curseOk = e => !e.dead && !e.boss && e.elite == null && !e.summon;   // �
 //   0.114.1: 아군이 다 차도 던짐 (인형 자체 피해) — 자리가 남으면 데려올 수 있는 적을 먼저, 없거나 다 찼으면 가장 가까운 적
 function updateCharm(w, st, dt) {
   if ((w.cdT -= dt) > 0) return;
-  const p = G.p, hx = p.x, hy = p.y + WPN_CY, room = charmCount(w) < st.curse;
+  const p = G.p, hx = p.x, hy = p.y + WPN_CY, room = charmCount(w) < st.ally;
   const near = ok => { let t = null, bd = st.range * st.range; for (const e of G.enemies) { if (e.dead || !ok(e)) continue; const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2; if (d2 < bd) { bd = d2; t = e; } } return t; };
   const tgt = (room && near(curseOk)) || near(() => true);
   if (!tgt) return;
@@ -2010,7 +2028,7 @@ function updateCharm(w, st, dt) {
 // 저주 (0.114.0): 데려올 수 있고 자리가 남으면 아군으로 (적 목록에선 죽은 것으로 빠짐 — 처치로 안 셈) · 아니면 그냥 피해
 function curseOn(b, e) {
   if (e.dead) return;
-  if (curseOk(e) && charmCount(b.w) < wstat(b.w.id).curse) {
+  if (curseOk(e) && charmCount(b.w) < wstat(b.w.id).ally) {
     e.dead = true; e.charmed = true;
     const a = {...e, dead: false, charmed: false, w: b.w, hp: e.maxHp, baseHp: e.maxHp, baseDmg: e.dmg, mul: 1, hitT: 0, stop: 0, kbx: 0, kby: 0};   // 방패 · 방어 · 쏘기 · 터짐도 그대로 (0.116.0)
     allyScale(a); G.allies.push(a);
@@ -2065,12 +2083,14 @@ function tickAllies(dt) {
       if (td <= a.r + t.r + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }
     } else if (t) {
       const sp = a.spd, reach = a.r + t.r;                       // 빠르기도 원래 몬스터 그대로 (0.114.2)
-      if (td > reach * 0.9) { a.vx = (t.x - a.x) / td * sp; a.x += a.vx * dt; a.y += (t.y - a.y) / td * sp * dt; }
+      if (td > reach * 0.9) { const f = flowDir(G.flowE, a.x, a.y), ux = f ? f.x : (t.x - a.x) / td, uy = f ? f.y : (t.y - a.y) / td;   // 벽이면 적을 향한 길 지도 (0.131.0)
+        a.vx = ux * sp; a.x += a.vx * dt; a.y += uy * sp * dt; }
       if (td <= reach + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }   // 원래 몬스터 피해
     } else {                                                     // 적이 없거나 돌아오는 중이면 주인공 곁으로
       const dx = G.p.x - a.x, dy = G.p.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d > (a.ret ? 0 : 50)) { const sp = a.spd * (a.ret ? ALLY_RET_SPD : 1); /* 돌아올 땐 3배 (0.128.3) */ a.vx = dx / d * sp; a.x += a.vx * dt; a.y += dy / d * sp * dt; }
+      if (d > (a.ret ? 0 : 50)) { const sp = a.spd * (a.ret ? ALLY_RET_SPD : 1); /* 돌아올 땐 3배 (0.128.3) */ const f = flowDir(G.flowP, a.x, a.y), ux = f ? f.x : dx / d, uy = f ? f.y : dy / d; a.vx = ux * sp; a.x += a.vx * dt; a.y += uy * sp * dt; }
     }
+    if (!a.air) wallPush(a, a.r);                                // 바리케이드에 막힘 (0.131.0)
     for (const e of G.enemies) {                                 // 닿은 적이 MOB_HIT_T 초마다 자기 피해로 때림 (아군 방어 적용)
       if (e.dead || (e.x - a.x) ** 2 + (e.y - a.y) ** 2 >= (e.r + a.r) ** 2) continue;
       if ((e.atkT = (e.atkT || 0) - dt) > 0) continue;
@@ -2093,7 +2113,7 @@ function foeTarget(e) {
 }
 // 주술인형 미터: 숫자 '현재/최대' 아군 (0.115.0) · 파이 = 재장전 (0.118.0 — 3초마다 던지는 건 재장전). 차는 동안 주황, 다 차면 노랑
 function charmMeter(w, i) {
-  const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), mx = st.curse;
+  const st = wstat(w.id), R = 7, {x, y} = meterPos(i), n = charmCount(w), mx = st.ally;
   const k = 1 - Math.max(0, w.cdT) / st.reload, ready = k >= 1;
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.arc(x, y, R + 1.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = ready ? '#c9a93a' : '#ff9a4a';
@@ -2244,6 +2264,156 @@ function rangedTick(e, dx, dy, d, dt) {
   }
   return true;
 }
+// ── 바리케이드 (0.131.0) ── G.walls: [{cx, cy, x, y, hp, maxHp, life, die, w, atkT}] · G.wallMap: 'cx,cy' → 벽 (한 칸에 하나)
+const wkey = (cx, cy) => cx + ',' + cy;
+const wcell = v => Math.floor(v / WALL_C);
+const wallAt = (x, y) => G.wallMap.get(wkey(wcell(x), wcell(y)));
+function wallsChanged() { G.wallMap = new Map(G.walls.map(q => [wkey(q.cx, q.cy), q])); G.flowDirty = true; }
+// 원(o.x, o.y, r)을 벽 칸 밖으로 밀어냄 — 적 · 아군 · 주인공 몸 막기
+function wallPush(o, r) {
+  if (!G.walls.length) return false;
+  const cx = wcell(o.x), cy = wcell(o.y); let hit = false;
+  for (let ix = cx - 1; ix <= cx + 1; ix++) for (let iy = cy - 1; iy <= cy + 1; iy++) {
+    if (!G.wallMap.has(wkey(ix, iy))) continue;
+    const x0 = ix * WALL_C, y0 = iy * WALL_C, nx = Math.max(x0, Math.min(o.x, x0 + WALL_C)), ny = Math.max(y0, Math.min(o.y, y0 + WALL_C));
+    let dx = o.x - nx, dy = o.y - ny, d = Math.hypot(dx, dy);
+    if (d >= r) continue;
+    if (d < 1e-4) {                                              // 중심이 칸 안: 가장 가까운 변으로
+      const l = o.x - x0, rr = x0 + WALL_C - o.x, t = o.y - y0, b = y0 + WALL_C - o.y, m = Math.min(l, rr, t, b);
+      if (m === l) o.x = x0 - r; else if (m === rr) o.x = x0 + WALL_C + r; else if (m === t) o.y = y0 - r; else o.y = y0 + WALL_C + r;
+    } else { o.x += dx / d * (r - d); o.y += dy / d * (r - d); }
+    hit = true;
+  }
+  return hit;
+}
+// 길 지도 (흐름장): 벽이 있을 때만. 주인공 칸 둘레 FLOW_R 칸 — 적은 주인공을 향한 지도(P), 아군은 가장 가까운 적을 향한 지도(E)를 따라 돎
+const FLOW_R = 22, FLOW_N = FLOW_R * 2 + 1;
+function buildFlow(seeds) {
+  const ox = wcell(G.p.x) - FLOW_R, oy = wcell(G.p.y) - FLOW_R, dist = new Float32Array(FLOW_N * FLOW_N).fill(Infinity), q = [];
+  for (const [cx, cy] of seeds) { const i = cx - ox, j = cy - oy; if (i < 0 || j < 0 || i >= FLOW_N || j >= FLOW_N) continue; const k = j * FLOW_N + i; if (dist[k] === 0) continue; dist[k] = 0; q.push(k); }
+  for (let h = 0; h < q.length; h++) {
+    const k = q[h], i = k % FLOW_N, j = (k / FLOW_N) | 0, d = dist[k] + 1;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= FLOW_N || nj >= FLOW_N) continue;
+      const nk = nj * FLOW_N + ni; if (dist[nk] <= d || G.wallMap.has(wkey(ox + ni, oy + nj))) continue;
+      dist[nk] = d; q.push(nk);
+    }
+  }
+  return {ox, oy, dist};
+}
+function tickFlow(dt) {
+  if (!G.walls.length) { G.flowP = G.flowE = null; return; }
+  const pc = wkey(wcell(G.p.x), wcell(G.p.y));
+  if (G.flowDirty || pc !== G.flowPc) { G.flowP = buildFlow([[wcell(G.p.x), wcell(G.p.y)]]); G.flowPc = pc; }
+  if (G.allies.length && (G.flowDirty || (G.flowEt = (G.flowEt || 0) - dt) <= 0)) {   // 아군용: 적 칸들에서 (0.25초마다)
+    G.flowE = buildFlow(G.enemies.filter(e => !e.dead).map(e => [wcell(e.x), wcell(e.y)])); G.flowEt = 0.25;
+  }
+  G.flowDirty = false;
+}
+// 흐름장 방향: 지금 칸보다 가까운 이웃(대각 포함, 모서리 끼임 막음) 칸 가운데로. 지도 밖 · 길 없음 · 바로 옆이면 null (곧장 감)
+function flowDir(F, x, y) {
+  if (!F) return null;
+  const cx = wcell(x), cy = wcell(y), i = cx - F.ox, j = cy - F.oy;
+  if (i < 1 || j < 1 || i >= FLOW_N - 1 || j >= FLOW_N - 1) return null;
+  const d0 = F.dist[j * FLOW_N + i]; if (!(d0 < Infinity) || d0 <= 1) return null;
+  let best = null, bd = d0;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    if (!di && !dj) continue;
+    const d = F.dist[(j + dj) * FLOW_N + i + di] + (di && dj ? 0.4 : 0);
+    if (di && dj && (G.wallMap.has(wkey(cx + di, cy)) || G.wallMap.has(wkey(cx, cy + dj)))) continue;   // 모서리 끼임
+    if (d < bd) { bd = d; best = [di, dj]; }
+  }
+  if (!best) return null;
+  const tx = (cx + best[0] + 0.5) * WALL_C - x, ty = (cy + best[1] + 0.5) * WALL_C - y, l = Math.hypot(tx, ty) || 1;
+  return {x: tx / l, y: ty / l};
+}
+// 세우기: 쿨타임마다 장탄 하나 → 확산 수만큼 가까운 적(사거리 안) 각각에 — 그 적과 나 사이 가운데 칸 + 연쇄 수만큼 상하좌우 이웃 칸
+function updateBuild(w, st, dt) {
+  if (reloading(w, st, dt)) return;
+  if ((w.cdT -= dt) > 0) return;
+  const p = G.p, R2 = st.range * st.range;
+  const tg = G.enemies.filter(e => !e.dead && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < R2).sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, st.count);
+  if (!tg.length) return;                                        // 사거리 안에 적이 없으면 안 세움
+  const pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);
+  for (const t of tg) {
+    const mx = (p.x + t.x) / 2, my = (p.y + t.y) / 2;
+    let best = null, bd = Infinity;                              // 가운데에서 가장 가까운 빈 칸 (3칸 안)
+    for (let r = 0; r <= 3 && !best; r++) for (let ix = wcell(mx) - r; ix <= wcell(mx) + r; ix++) for (let iy = wcell(my) - r; iy <= wcell(my) + r; iy++) {
+      if (!free(ix, iy)) continue; const d = ((ix + 0.5) * WALL_C - mx) ** 2 + ((iy + 0.5) * WALL_C - my) ** 2; if (d < bd) { bd = d; best = [ix, iy]; }
+    }
+    if (!best) continue;
+    const cells = [best];
+    for (let k = 0; k < st.chain; k++) {                         // 연쇄: 세운 칸들의 상하좌우 빈 칸 중 가운데에 가장 가까운 것
+      let nb = null, nd = Infinity;
+      for (const [cx, cy] of cells) for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ix = cx + di, iy = cy + dj; if (!free(ix, iy) || cells.some(c => c[0] === ix && c[1] === iy)) continue;
+        const d = ((ix + 0.5) * WALL_C - mx) ** 2 + ((iy + 0.5) * WALL_C - my) ** 2; if (d < nd) { nd = d; nb = [ix, iy]; }
+      }
+      if (nb) cells.push(nb);
+    }
+    for (const [cx, cy] of cells) placeWall(cx, cy, w, st);
+  }
+  wallCap(w, st);
+  w.cdT = st.cd; useAmmo(w, st);
+}
+function placeWall(cx, cy, w, st) {
+  const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
+  G.walls.push({cx, cy, x, y, hp: st.hp, maxHp: st.hp, life: WEAPONS[w.id].life, die: null, w, atkT: 0, born: G.t});
+  wallsChanged();
+  for (const o of [...G.enemies, ...G.allies, ...G.hatch]) wallPush(o, o.r);   // 칸 안에 있던 몸은 밖으로
+  wallPush(G.p, G.p.r);
+  if (st.splash) {                                               // 폭발 = 설치 충격 (폭발 반경 · 비율)
+    const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
+    G.fx.push({kind: 'splash', mine: true, x, y, r: R, t: 0.25});
+    for (const e of G.enemies) if (!e.dead && (e.x - x) ** 2 + (e.y - y) ** 2 < (R + e.r) ** 2) hurtEnemy(e, sd);
+  }
+}
+// 유지 갯수(아군수)를 넘으면 오래된 것부터 WALL_DIE 초 세고 부서짐
+function wallCap(w, st) {
+  const live = G.walls.filter(q => q.w === w && q.die == null).sort((a, b) => a.born - b.born);
+  for (let i = 0; i < live.length - st.ally; i++) live[i].die = WALL_DIE;
+}
+// 벽 시간 · 체력 · 가까이 온 적 피해 (무기 쿨타임마다)
+function tickWalls(dt) {
+  if (!G.walls.length) return;
+  let ch = false;
+  for (const q of G.walls) {
+    q.life -= dt; if (q.die != null) q.die -= dt;
+    if (q.life <= 0 || q.hp <= 0 || (q.die != null && q.die <= 0)) { q.gone = true; ch = true; continue; }
+    if ((q.atkT -= dt) > 0) continue;
+    const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.cd;
+    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) hurtEnemy(e, st.dmg);
+  }
+  if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
+}
+// 적 공격이 벽에 닿음: 점(x, y) 또는 원(r) 안의 벽 체력을 깎음 (true = 막힘)
+function wallHit(x, y, dmg, r = 0) {
+  let hit = false;
+  for (const q of G.walls) if (Math.abs(q.x - x) < WALL_C / 2 + r && Math.abs(q.y - y) < WALL_C / 2 + r) { q.hp -= dmg; q.flash = FLASH_T; hit = true; if (!r) break; }
+  return hit;
+}
+const WALL_IMG = {};
+for (const n of ['wood', 'iron', 'steel']) { const im = new Image(); im.onload = () => { WALL_IMG[n] = im; }; im.src = `images/item_wall_${n}.png?v=${VERSION}`; }
+const wallTier = q => { const L = wupLv(q.w.id); return L >= 6 ? 'steel' : L >= 3 ? 'iron' : 'wood'; };   // 무기 강화 0~2 나무 · 3~5 철판 · 6~ 강철
+function drawWall(q) {
+  const img = WALL_IMG[wallTier(q)], s = WALL_C * 1.15, a = q.die != null ? 0.45 + 0.35 * Math.sin(G.t * 30) : Math.min(1, q.life / 0.6 + 0.2);
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fillRect(q.x - WALL_C / 2, q.y + WALL_C / 2 - 4, WALL_C, 6);
+  if (img) ctx.drawImage(img, q.x - s / 2, q.y + WALL_C / 2 - s, s, s);
+  else { ctx.fillStyle = '#8a6a3a'; ctx.fillRect(q.x - WALL_C / 2, q.y - WALL_C / 2, WALL_C, WALL_C); }
+  if (q.flash > 0) { q.flash -= 1 / 60; ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.fillRect(q.x - WALL_C / 2, q.y - WALL_C / 2, WALL_C, WALL_C); }
+  ctx.globalAlpha = 1;
+}
+function wallUI(q) {
+  if (q.hp < q.maxHp) {
+    const bx = q.x - WALL_C / 2 + 2, by = q.y - WALL_C * 0.75, bw = WALL_C - 4;
+    ctx.fillStyle = '#211'; ctx.fillRect(bx, by, bw, 3); ctx.fillStyle = '#e9a23b'; ctx.fillRect(bx, by, bw * Math.max(0, q.hp) / q.maxHp, 3);
+  }
+  if (q.die != null) {                                           // 넘친 것: 남은 초를 줄어드는 붉은 고리로
+    ctx.strokeStyle = 'rgba(255,80,60,.9)'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.arc(q.x, q.y, WALL_C * 0.45, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, q.die) / WALL_DIE); ctx.stroke();
+  }
+}
 // ── 월드 3 몹 (0.127.0) ──
 // 도약: 사거리 안 · 화면 안이면 멈춰 aim 초 (붉은 원 예고 = 터짐 eshot) → fly 초 동안 그 자리로. true = 이번 프레임 도약 중
 function leapTick(e, dt) {
@@ -2328,6 +2498,7 @@ function tickEshots(dt) {
         G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3});
         if (b.pool) G.pools.push({x: b.x, y: b.y, r: b.pool.r, t: b.pool.life, T: b.pool.life, dps: b.pool.dps});   // 산성 비 → 웅덩이 (0.127.0)
         if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.aoe + e.r) ** 2) hurtEnemy(e, b.dmg); continue; }   // 아군 것은 적에게 (0.116.0)
+        if (G.walls.length) wallHit(b.x, b.y, b.dmg, b.aoe);       // 곡사 · 터짐 범위 안 바리케이드 (0.131.0)
         for (const a of G.allies) if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 < (b.aoe + a.r) ** 2) hurtAlly(a, b.dmg);   // 적 것은 아군에게도 (0.117.0)
         if ((p.x - b.x) ** 2 + (p.y + HIT_CY - b.y) ** 2 < (b.aoe + HITBOX) ** 2) { hurtPlayer(b.dmg, b); if (b.killer) b.dead = false; }   // 쓰러뜨린 곡사 · 터짐은 남김
       }
@@ -2336,6 +2507,7 @@ function tickEshots(dt) {
     b.x += b.vx * dt; b.y += b.vy * dt;
     if ((b.life -= dt) <= 0) { b.dead = true; continue; }
     if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.r + e.r) ** 2) { b.dead = true; hurtEnemy(e, b.dmg); break; } continue; }
+    if (G.walls.length && wallHit(b.x, b.y, b.dmg)) { b.dead = true; continue; }   // 적 곧은 탄은 바리케이드에 막힘 · 체력을 깎음 (0.131.0)
     for (const a of G.allies) if (!a.dead && !(a.inv > 0) && !a.ret && !a.air && (a.x - b.x) ** 2 + (a.y - a.r * 0.3 - b.y) ** 2 < (b.r + a.r) ** 2) { b.dead = true; hurtAlly(a, b.dmg); break; }   // 적 탄이 아군에 맞음 (0.117.0)
     if (b.dead) continue;
     if ((p.x - b.x) ** 2 + (p.y + HIT_CY - b.y) ** 2 < (b.r + HITBOX) ** 2 && p.inv <= 0) { hurtPlayer(b.dmg, b); if (!b.killer) b.dead = true; }   // 쓰러뜨린 탄은 그 자리에 남김 (0.120.0)
@@ -2710,6 +2882,7 @@ function update(dt) {
   const amt = Math.hypot(mx, my);
   p.vx = mx * p.speed; p.vy = my * p.speed;                     // 부메랑 물리가 쓴다
   p.x += p.vx * dt; p.y += p.vy * dt;
+  wallPush(p, p.r);                                              // 바리케이드는 주인공도 막음 (0.131.0)
   { const k = Math.min(1, dt * 4); G.pv.x += (p.vx - G.pv.x) * k; G.pv.y += (p.vy - G.pv.y) * k; }   // 곡사가 보는 이동 (0.84.0)
   // 몸 방향: 움직이는 동안엔 이동 방향만 따른다 (위아래로만 갈 땐 그대로). 서 있을 때만 아래 조준이 공격 방향으로 돌린다
   p.moving = amt > 0.15;
@@ -2757,6 +2930,7 @@ function update(dt) {
     }
     if (kind === 'orbit') { updateOrbit(w, st, dt); return; }
     if (kind === 'charm') { updateCharm(w, st, dt); return; }
+    if (kind === 'build') { updateBuild(w, st, dt); return; }   // 바리케이드 (0.131.0)
     if (kind === 'boom') {                                         // 부메랑: 날아간 게 하나라도 있으면 못 던짐. 다 받은 뒤부터 쿨다운
       w.out = w.shots.length > 0 || G.bullets.some(b => b.boom && b.w === w);
       if (w.out) { if (!w.shots.length) w.cdT = st.reload; }   // 0.97.0: 쿨다운 → 재장전
@@ -2777,6 +2951,7 @@ function update(dt) {
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
+  tickWalls(dt); tickFlow(dt);                                   // 바리케이드 · 길 지도 (0.131.0)
   tickAllies(dt);                                                // 아군 (0.113.0)
   for (const e of G.air) {                                       // 도약 중 (0.130.0): 적 목록 밖 — 탄 · 공격이 통과, 몸으로 안 때림
     if (e.boss) { bossTick(e, dt); e.airK = 1 - Math.max(0, e.bt) / BLEAP_FLY; if (e.st !== 'bleapFly') e.air = false; }
@@ -2787,7 +2962,7 @@ function update(dt) {
   }
   G.air = G.air.filter(e => e.air);
   for (const e of G.hatch) {                                     // 갈라진 직후 (0.128.5): 튕겨 나가기만 · 끝나면 적 목록으로
-    e.x += e.kbx * dt; e.y += e.kby * dt; const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;
+    e.x += e.kbx * dt; e.y += e.kby * dt; const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd; wallPush(e, e.r);
     if ((e.inv -= dt) <= 0) { e.inv = 0; G.enemies.push(e); }
   }
   G.hatch = G.hatch.filter(e => e.inv > 0);
@@ -2800,10 +2975,12 @@ function update(dt) {
       e.stop -= dt; e.ph -= dt * Math.PI * 2 * BOB[e.type].hz;
     } else {
       if (e.boss) bossTick(e, dt);
-      else if (!leapTick(e, dt) && !rangedTick(e, dx, dy, d, dt)) { const sp = chaseSpd(e, d); e.vx = dx / d * sp; e.x += e.vx * dt; e.y += dy / d * sp * dt; }
+      else if (!leapTick(e, dt) && !rangedTick(e, dx, dy, d, dt)) { const sp = chaseSpd(e, d), f = tg === p && flowDir(G.flowP, e.x, e.y), ux = f ? f.x : dx / d, uy = f ? f.y : dy / d;   // 벽이 있으면 길 지도 (0.131.0)
+        e.vx = ux * sp; e.x += e.vx * dt; e.y += uy * sp * dt; }
       e.x += e.kbx * dt; e.y += e.kby * dt;
       const kd = Math.exp(-KNOCK_DECAY * dt); e.kbx *= kd; e.kby *= kd;   // 넉백은 빠르게 잦아든다
     }
+    if (!e.air) wallPush(e, e.boss ? e.r * 0.7 : e.r);           // 바리케이드에 막힘
     mobTraitsTick(e, dt);                                        // 산성 · 재생 (0.127.0)
     const k = ((e.x / CELL) | 0) + ',' + ((e.y / CELL) | 0);
     (grid.get(k) || grid.set(k, []).get(k)).push(e);
@@ -3177,9 +3354,11 @@ function draw() {
   // 그리는 순서 (0.129.0): 몸(주인공 · 적 · 아군)은 발 y 가 작은(먼) 것부터 — 화면 아래(가까운) 것이 위에 덮임.
   //   그 위에 UI: 적 UI → 아군 UI → 주인공 UI (주인공 UI 가 맨 위). 몸에 가려지지 않음
   const allyVis = G.allies.filter(a => view(a.x, a.y, a.r * 4));
-  const bodies = [...es.map(o => ['e', o]), ...allyVis.map(o => ['a', o]), ['p', p]].sort((q, r) => q[1].y - r[1].y);
+  const wallVis = G.walls.filter(q => view(q.x, q.y, WALL_C));
+  const bodies = [...es.map(o => ['e', o, o.y]), ...allyVis.map(o => ['a', o, o.y]), ['p', p, p.y], ...wallVis.map(q => ['w', q, q.y + WALL_C / 2 - 6])].sort((q, r) => q[2] - r[2]);   // 벽 = 칸 아랫변 (0.131.0)
   const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
   for (const [kind, o] of bodies) {
+    if (kind === 'w') { drawWall(o); continue; }
     if (kind === 'e') { const e = o;
     const T = ENEMY_TYPES[e.type] || {faceLeft: FACE[e.type], color: '#a44'}, eh = e.r * 3.4;   // 보스 그림은 적 표에 없음
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
@@ -3219,12 +3398,13 @@ function draw() {
   if (!blink) {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
-  if (!blink) poses.forEach(([w, m]) => { if (WEAPONS[w.id].kind !== 'orbit') drawWeapon(w, m); });
+  if (!blink) poses.forEach(([w, m]) => { const k = WEAPONS[w.id].kind; if (k !== 'orbit' && k !== 'build') drawWeapon(w, m); });   // 바리케이드는 들지 않음
   G.weapons.forEach(w => { if (WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
     }
   }
   drawEshotsAir();
-  // UI: 적 → 아군 → 주인공
+  // UI: 벽 → 적 → 아군 → 주인공
+  for (const q of wallVis) wallUI(q);
   for (const e of es) {
     const T = ENEMY_TYPES[e.type] || {};
     if (e.boss) bossBar(e);                                       // 보스 체력 줄도 머리 위 (0.86.0 — 그 전엔 위쪽 정보칸)
