@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.9';
+const VERSION = '0.131.10';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2463,7 +2463,12 @@ function tickWalls(dt) {
     if (q.life <= 0 || q.hp <= 0 || (q.die != null && q.die <= 0)) { q.gone = true; ch = true; continue; }
     if ((q.atkT -= dt) > 0) continue;
     const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.hitT;
-    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) hurtEnemy(e, st.dmg);
+    let hit = 0;
+    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) {
+      hurtEnemy(e, st.dmg); hit++;
+      G.fx.push({kind: 'zap', x: q.x, y: q.y, x2: e.x, y2: e.y - e.r * 0.4, t: 0.18, T: 0.18});   // 벽 → 맞은 적 번개 줄기 (0.131.10)
+    }
+    if (hit) G.fx.push({kind: 'wallwave', x: q.x, y: q.y, t: 0.3, T: 0.3});   // 맞은 적이 있으면 벽에서 충격파
   }
   if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
 }
@@ -3612,6 +3617,21 @@ function draw() {
     if (f.kind === 'muzzle') {
       ctx.fillStyle = `rgba(170,240,255,${Math.min(1, f.t * 14)})`;
       ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
+    if (f.kind === 'wallwave') {                                 // 바리케이드 충격파 (0.131.10): 칸 둘레에서 근접 피해 범위까지 퍼지는 네모 고리
+      const k = 1 - f.t / f.T, h = WALL_C / 2 + (WALL_AURA + 6) * k, a = f.t / f.T;
+      ctx.strokeStyle = `rgba(110,240,255,${0.9 * a})`; ctx.lineWidth = 3 * a + 1;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(f.x - h, f.y - h, h * 2, h * 2, 6) : ctx.rect(f.x - h, f.y - h, h * 2, h * 2); ctx.stroke();
+      ctx.fillStyle = `rgba(110,240,255,${0.12 * a})`; ctx.fill();
+      continue;
+    }
+    if (f.kind === 'zap') {                                      // 벽 → 맞은 적: 지글거리는 청록 줄기
+      const a = f.t / f.T, n = 4, dx = f.x2 - f.x, dy = f.y2 - f.y, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+      ctx.strokeStyle = `rgba(160,250,255,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x, f.y);
+      for (let i = 1; i < n; i++) { const j = (Math.random() - 0.5) * 10; ctx.lineTo(f.x + dx * i / n + nx * j, f.y + dy * i / n + ny * j); }
+      ctx.lineTo(f.x2, f.y2); ctx.stroke();
+      ctx.fillStyle = `rgba(220,255,255,${a})`; ctx.beginPath(); ctx.arc(f.x2, f.y2, 3 + 3 * a, 0, Math.PI * 2); ctx.fill();
       continue;
     }
     if (f.kind === 'hitburst') {                                // 맞은 자리 터짐 (0.120.0): 하얀 섬광 + 붉은 가시가 퍼짐
