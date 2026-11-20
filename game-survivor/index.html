@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.6';
+const VERSION = '0.131.7';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1075,7 +1075,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.9 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallThrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -2375,30 +2375,45 @@ function updateBuild(w, st, dt) {
     const cells = [best];
     // 연쇄 (0.131.6): 나 → 적 방향을 8방향으로 맞추고, 그 직각 방향(가로막는 줄)으로 가운데 칸에서 양옆에 번갈아 +1 · −1 · +2 · −2 …
     const a8 = ((Math.round(Math.atan2(t.y - p.y, t.x - p.x) / (Math.PI / 4)) % 8) + 8) % 8, [pdx, pdy] = DIR8[(a8 + 2) % 8];
+    const grow = [];                                             // 0.131.7: 연쇄 칸은 던지지 않고, 떨어진 블럭에서 뻗어 나옴 (from = 가운데 쪽 이웃 칸)
     for (let k = 1; k <= st.chain; k++) {
-      const step = Math.ceil(k / 2) * (k % 2 ? 1 : -1), ix = best[0] + pdx * step, iy = best[1] + pdy * step;
-      if (free(ix, iy)) cells.push([ix, iy]);                    // 이미 벽이 있거나 내 칸이면 건너뜀 (그 자리는 이미 막혀 있음)
+      const sg = k % 2 ? 1 : -1, step = Math.ceil(k / 2) * sg, ix = best[0] + pdx * step, iy = best[1] + pdy * step;
+      if (!free(ix, iy)) continue;                               // 이미 벽이 있거나 내 칸이면 건너뜀 (그 자리는 이미 막혀 있음)
+      grow.push({cx: ix, cy: iy, fx: ix - pdx * sg, fy: iy - pdy * sg, step: Math.abs(step)});
+      G.wallRes.add(wkey(ix, iy));
     }
-    for (const [cx, cy] of cells) {                             // 몸에서 그 칸으로 곡사로 던짐 (0.131.1) — 떨어지면 세워짐. 날아가는 동안 칸은 잡아 둠
-      const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
-      G.wallThrows.push({cx, cy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9});
-      G.wallRes.add(wkey(cx, cy));
-    }
+    { const [cx, cy] = best, x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;   // 가운데 칸만 몸에서 곡사로 던짐 (0.131.1)
+      G.wallThrows.push({cx, cy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9, grow});
+      G.wallRes.add(wkey(cx, cy)); }
   }
   w.cdT = st.cd; useAmmo(w, st);
 }
 const DIR8 = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];   // 오른쪽부터 시계 방향 (화면 y 아래)
 const WALL_THROW_T = 0.45, WALL_THROW_H = 60;                    // 던지기: 날아가는 시간 · 높이 (0.131.1)
 function tickWallThrows(dt) {
-  if (!G.wallThrows.length) return;
+  if (!G.wallThrows.length && !G.wallGrows.length) return;
   for (const q of G.wallThrows) {
     if ((q.t += dt) < q.T) continue;
     q.done = true; G.wallRes.delete(wkey(q.cx, q.cy));
     if (!G.wallMap.has(wkey(q.cx, q.cy))) { const st = wstat(q.w.id); placeWall(q.cx, q.cy, q.w, st); wallCap(q.w, st); }
+    for (const g of q.grow || []) G.wallGrows.push({...g, w: q.w, t: -(g.step - 1) * WALL_GROW_T});   // 떨어진 블럭에서 양옆으로 한 칸씩 차례로 뻗음
   }
   G.wallThrows = G.wallThrows.filter(q => !q.done);
+  for (const g of G.wallGrows) {
+    if ((g.t += dt) < WALL_GROW_T) continue;
+    g.done = true; G.wallRes.delete(wkey(g.cx, g.cy));
+    if (!G.wallMap.has(wkey(g.cx, g.cy))) { const st = wstat(g.w.id); placeWall(g.cx, g.cy, g.w, st); wallCap(g.w, st); }
+  }
+  G.wallGrows = G.wallGrows.filter(g => !g.done);
 }
+const WALL_GROW_T = 0.12;                                        // 연쇄 칸이 한 칸 뻗는 시간 (0.131.7)
 function drawWallThrows() {
+  for (const g of G.wallGrows) {                                 // 뻗어 나오는 연쇄 칸: 이웃 칸 자리에서 미끄러져 나오며 커짐
+    if (g.t < 0) continue;
+    const k = Math.min(1, g.t / WALL_GROW_T), e = 1 - (1 - k) ** 2, x = ((g.fx + (g.cx - g.fx) * e) + 0.5) * WALL_C, y = ((g.fy + (g.cy - g.fy) * e) + 0.5) * WALL_C;
+    const img = WALL_IMG[wallTier(g)], s = WALL_C * 1.15 * (0.6 + 0.4 * e);
+    if (img) ctx.drawImage(img, x - s / 2, y + WALL_C / 2 - s, s, s); else { ctx.fillStyle = '#8a6a3a'; ctx.fillRect(x - s / 2, y - s / 2, s, s); }
+  }
   for (const q of G.wallThrows) {
     const k = Math.min(1, q.t / q.T), gx = q.x0 + (q.x - q.x0) * k, gy = q.y0 + (q.y - q.y0) * k, z = 4 * WALL_THROW_H * k * (1 - k);
     const img = WALL_IMG[wallTier(q)], s = WALL_C * (0.7 + 0.45 * k);
