@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.12';
+const VERSION = '0.131.13';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2443,7 +2443,7 @@ function tickWallThrows(dt) {
   for (const q of G.wallThrows) {
     if ((q.t += dt) < q.T) continue;
     q.done = true; G.wallRes.delete(wkey(q.cx, q.cy));
-    if (!G.wallMap.has(wkey(q.cx, q.cy))) { const st = wstat(q.w.id); placeWall(q.cx, q.cy, q.w, st); wallCap(q.w, st); }
+    if (!G.wallMap.has(wkey(q.cx, q.cy))) { const st = wstat(q.w.id); placeWall(q.cx, q.cy, q.w, st); wallCap(q.w, st); wallLand(q.x, q.y, st); }
     for (const g of q.grow || []) G.wallGrows.push({...g, w: q.w, t: -(g.step - 1) * WALL_GROW_T});   // 떨어진 블럭에서 양옆으로 한 칸씩 차례로 뻗음
   }
   G.wallThrows = G.wallThrows.filter(q => !q.done);
@@ -2455,6 +2455,14 @@ function tickWallThrows(dt) {
   G.wallGrows = G.wallGrows.filter(g => !g.done);
 }
 const WALL_GROW_T = 0.12;                                        // 연쇄 칸이 한 칸 뻗는 시간 (0.131.7)
+// 착지 충격 (0.131.13): 던진 블럭이 떨어질 때 둘레 WALL_LAND_H 네모 안 적에게 근접 피해 ×2 + 큰 충격파
+const WALL_LAND_H = WALL_C / 2 + WALL_AURA * 2, WALL_LAND_K = 2;
+function wallLand(x, y, st) {
+  let hit = 0;
+  for (const e of G.enemies) if (!e.dead && Math.abs(e.x - x) < WALL_LAND_H + e.r * 0.5 && Math.abs(e.y - y) < WALL_LAND_H + e.r * 0.5) { hurtEnemy(e, st.dmg * WALL_LAND_K); hit++; }
+  G.fx.push({kind: 'wallwave', x, y, t: 0.45, T: 0.45, hit: 1, big: true});
+  G.shake = Math.max(G.shake || 0, 2.5);
+}
 function drawWallThrows() {
   for (const g of G.wallGrows) {                                 // 뻗어 나오는 연쇄 칸: 이웃 칸 자리에서 미끄러져 나오며 커짐
     if (g.t < 0) continue;
@@ -3652,10 +3660,12 @@ function draw() {
       continue;
     }
     if (f.kind === 'wallwave') {                                 // 바리케이드 충격파 (0.131.10): 칸 둘레에서 근접 피해 범위까지 퍼지는 네모 고리
-      const k = 1 - f.t / f.T, h = WALL_C / 2 + (WALL_AURA + 6) * k, a = f.t / f.T * (f.hit ? 1 : 0.4);
-      ctx.strokeStyle = `rgba(110,240,255,${0.9 * a})`; ctx.lineWidth = 3 * a + 1;
+      const k = 1 - f.t / f.T, h = WALL_C / 2 + (f.big ? WALL_AURA * 2 + 10 : WALL_AURA + 6) * k, a = f.t / f.T * (f.hit ? 1 : 0.4);
+      ctx.strokeStyle = `rgba(110,240,255,${0.9 * a})`; ctx.lineWidth = (f.big ? 6 : 3) * a + 1;
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(f.x - h, f.y - h, h * 2, h * 2, 6) : ctx.rect(f.x - h, f.y - h, h * 2, h * 2); ctx.stroke();
       ctx.fillStyle = `rgba(110,240,255,${0.12 * a})`; ctx.fill();
+      if (f.big) { const h2 = WALL_C / 2 + (WALL_AURA * 2 + 10) * Math.min(1, k * 1.6);   // 착지: 앞서 나가는 바깥 고리 한 겹 더
+        ctx.strokeStyle = `rgba(200,255,255,${0.6 * a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(f.x - h2, f.y - h2, h2 * 2, h2 * 2, 8) : ctx.rect(f.x - h2, f.y - h2, h2 * 2, h2 * 2); ctx.stroke(); }
       continue;
     }
     if (f.kind === 'hitburst') {                                // 맞은 자리 터짐 (0.120.0): 하얀 섬광 + 붉은 가시가 퍼짐
