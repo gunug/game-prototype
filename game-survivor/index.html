@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.11';
+const VERSION = '0.131.12';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2412,15 +2412,17 @@ function buildExtend(w, st) {
   const p = G.p, pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);
   let any = false;
   for (const L of w.lines) {
-    const [pdx, pdy] = L.perp;
+    if (!L.dir) { const i0 = DIR8.findIndex(d => d[0] === L.perp[0] && d[1] === L.perp[1]); L.dir = {1: i0, '-1': (i0 + 4) % 8}; }   // 끝마다 바깥 방향 (8방향 번호)
     for (let tryS = 0; tryS < 2; tryS++) {                       // 이번 쪽이 막혔으면 반대쪽
       const sg = L.side; L.side = -L.side;
+      // 0.131.12: 앞 토막과 일렬로 잇지 않음 — 끝에서 45° 또는 90° 꺾음 (안쪽 각 135° · 90°, 좌우 무작위)
+      const turn = [-2, -1, 1, 2][Math.floor(Math.random() * 4)], di = (L.dir[sg] + turn + 8) % 8, [pdx, pdy] = DIR8[di];
       let [ix, iy] = L.ends[sg], n = 0;
-      do { ix += pdx * sg; iy += pdy * sg; } while (!free(ix, iy) && ++n < 8);
+      do { ix += pdx; iy += pdy; } while (!free(ix, iy) && ++n < 8);
       if (!free(ix, iy)) continue;
       const best = [ix, iy], grow = []; let cx = ix, cy = iy;
-      for (let k = 1; k <= st.chain; k++) {                      // 연쇄: 같은 쪽 바깥으로 이어서
-        let m = 0; do { cx += pdx * sg; cy += pdy * sg; } while (!free(cx, cy) && ++m < 8);
+      for (let k = 1; k <= st.chain; k++) {                      // 연쇄: 꺾은 방향으로 이어서
+        let m = 0; do { cx += pdx; cy += pdy; } while (!free(cx, cy) && ++m < 8);
         if (!free(cx, cy)) break;
         const prev = grow.length ? [grow[grow.length - 1].cx, grow[grow.length - 1].cy] : best;
         grow.push({cx, cy, fx: prev[0], fy: prev[1], step: k}); G.wallRes.add(wkey(cx, cy));
@@ -2428,7 +2430,7 @@ function buildExtend(w, st) {
       const x = (ix + 0.5) * WALL_C, y = (iy + 0.5) * WALL_C;
       G.wallThrows.push({cx: ix, cy: iy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9, grow});
       G.wallRes.add(wkey(ix, iy));
-      L.ends[sg] = grow.length ? [grow[grow.length - 1].cx, grow[grow.length - 1].cy] : best;
+      L.ends[sg] = grow.length ? [grow[grow.length - 1].cx, grow[grow.length - 1].cy] : best; L.dir[sg] = di;
       any = true; break;
     }
   }
