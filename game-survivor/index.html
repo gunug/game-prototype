@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.0';
+const VERSION = '0.131.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -677,7 +677,7 @@ const WEAPONS = {
   //   유지 시간 life 초 · 유지 갯수 = 아군수 — 넘으면 오래된 것부터 1초 세고 부서짐. 가까이(WALL_AURA) 온 적에게 쿨타임마다 무기 피해
   //   확산 = 대상(가까운 적) 수 · 연쇄 = 한 대상에 상하좌우로 더 세우는 칸 수 · 폭발 = 세울 때 충격 (폭발 반경 · 비율)
   barricade: {nm: '바리케이드', kind: 'build', sh: '적과 나 사이에 벽', ds: '가장 가까운 적과 나 사이 가운데에 바리케이드를 세운다. 적은 벽을 돌아서 오고, 가까이 오면 피해를 받는다. 적 탄 · 곡사 · 돌진은 벽을 깎는다. 유지 시간이 지나거나 유지 갯수를 넘으면 사라진다',
-           dmg: 0, fixedDmg: 30, fixedReload: true, cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, ally: 4, maxT: 1, stun: 0,   // 맞춤 계산 대신 정한 피해 · 재장전
+           dmg: 0, fixedDmg: 30, fixedReload: true, cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, hitT: 0.5, ally: 4, maxT: 1, stun: 0,   // hitT: 근접 피해 간격 (0.131.1 — 쿨타임과 따로, 무기 강화마다 ×0.95)   // 맞춤 계산 대신 정한 피해 · 재장전
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['ally']},
 };
@@ -766,6 +766,7 @@ function wstat(id) {
     curse: has('curse') ? 1 + T('curse') - 1 : 0,             // 저주 단계 = 아군 체력 · 피해 배율 (0.131.0 부터 상한은 ally)
     ally: has('ally') ? (W.ally || 1) + T('ally') - 1 : 0,     // 아군수 = 주술인형 아군 상한 · 바리케이드 유지 갯수 (0.131.0)
     hp: W.hp ? W.hp * WALL_HP_UP ** L : undefined,             // 바리케이드 체력 — 무기 강화마다 ×1.15
+    hitT: W.hitT ? W.hitT * WUP.cd ** L : undefined,           // 바리케이드 근접 피해 간격 — 무기 강화만 (쿨다운 감소는 던지는 빈도)
     shields: W.n && W.n + T('spread') - 1,                   // 방패 수 (확산 뱃지에 보임) — 확산 단계마다 +1
     acc: W.acc == null ? W.acc : W.acc * (hasPen('civilian') ? 2 : 1),   // 발사각 업그레이드 뺌 (0.92.0) · 패널티 '민간인' ×2 (0.110.0)   // 발사각 — 저울 오른쪽(집탄) 칸마다 ×0.8 · 왼쪽(산탄) ×1.25
   };
@@ -1074,7 +1075,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallThrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -2334,7 +2335,7 @@ function updateBuild(w, st, dt) {
   const p = G.p, R2 = st.range * st.range;
   const tg = G.enemies.filter(e => !e.dead && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < R2).sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, st.count);
   if (!tg.length) return;                                        // 사거리 안에 적이 없으면 안 세움
-  const pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);
+  const pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);   // wallRes: 날아가는 중인 칸
   for (const t of tg) {
     const mx = (p.x + t.x) / 2, my = (p.y + t.y) / 2;
     let best = null, bd = Infinity;                              // 가운데에서 가장 가까운 빈 칸 (3칸 안)
@@ -2351,10 +2352,33 @@ function updateBuild(w, st, dt) {
       }
       if (nb) cells.push(nb);
     }
-    for (const [cx, cy] of cells) placeWall(cx, cy, w, st);
+    for (const [cx, cy] of cells) {                             // 몸에서 그 칸으로 곡사로 던짐 (0.131.1) — 떨어지면 세워짐. 날아가는 동안 칸은 잡아 둠
+      const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
+      G.wallThrows.push({cx, cy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9});
+      G.wallRes.add(wkey(cx, cy));
+    }
   }
-  wallCap(w, st);
   w.cdT = st.cd; useAmmo(w, st);
+}
+const WALL_THROW_T = 0.45, WALL_THROW_H = 60;                    // 던지기: 날아가는 시간 · 높이 (0.131.1)
+function tickWallThrows(dt) {
+  if (!G.wallThrows.length) return;
+  for (const q of G.wallThrows) {
+    if ((q.t += dt) < q.T) continue;
+    q.done = true; G.wallRes.delete(wkey(q.cx, q.cy));
+    if (!G.wallMap.has(wkey(q.cx, q.cy))) { const st = wstat(q.w.id); placeWall(q.cx, q.cy, q.w, st); wallCap(q.w, st); }
+  }
+  G.wallThrows = G.wallThrows.filter(q => !q.done);
+}
+function drawWallThrows() {
+  for (const q of G.wallThrows) {
+    const k = Math.min(1, q.t / q.T), gx = q.x0 + (q.x - q.x0) * k, gy = q.y0 + (q.y - q.y0) * k, z = 4 * WALL_THROW_H * k * (1 - k);
+    const img = WALL_IMG[wallTier(q)], s = WALL_C * (0.7 + 0.45 * k);
+    ctx.fillStyle = `rgba(0,0,0,${0.15 + 0.25 * k})`; ctx.beginPath(); ctx.ellipse(gx, gy + 10, s * 0.4, s * 0.15, 0, 0, Math.PI * 2); ctx.fill();   // 그림자
+    ctx.save(); ctx.translate(gx, gy - z); ctx.rotate(q.spin * q.t * (1 - k));
+    if (img) ctx.drawImage(img, -s / 2, -s / 2, s, s); else { ctx.fillStyle = '#8a6a3a'; ctx.fillRect(-s / 2, -s / 2, s, s); }
+    ctx.restore();
+  }
 }
 function placeWall(cx, cy, w, st) {
   const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
@@ -2381,7 +2405,7 @@ function tickWalls(dt) {
     q.life -= dt; if (q.die != null) q.die -= dt;
     if (q.life <= 0 || q.hp <= 0 || (q.die != null && q.die <= 0)) { q.gone = true; ch = true; continue; }
     if ((q.atkT -= dt) > 0) continue;
-    const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.cd;
+    const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.hitT;
     for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) hurtEnemy(e, st.dmg);
   }
   if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
@@ -2951,7 +2975,7 @@ function update(dt) {
 
   // 적 이동 + 겹침 밀어내기 (격자 버킷)
   const grid = new Map(), CELL = 48;
-  tickWalls(dt); tickFlow(dt);                                   // 바리케이드 · 길 지도 (0.131.0)
+  tickWallThrows(dt); tickWalls(dt); tickFlow(dt);                                   // 바리케이드 · 길 지도 (0.131.0)
   tickAllies(dt);                                                // 아군 (0.113.0)
   for (const e of G.air) {                                       // 도약 중 (0.130.0): 적 목록 밖 — 탄 · 공격이 통과, 몸으로 안 때림
     if (e.boss) { bossTick(e, dt); e.airK = 1 - Math.max(0, e.bt) / BLEAP_FLY; if (e.st !== 'bleapFly') e.air = false; }
@@ -3403,6 +3427,7 @@ function draw() {
     }
   }
   drawEshotsAir();
+  drawWallThrows();                                              // 날아가는 바리케이드 (0.131.1)
   // UI: 벽 → 적 → 아군 → 주인공
   for (const q of wallVis) wallUI(q);
   for (const e of es) {
