@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.8';
+const VERSION = '0.131.9';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1075,7 +1075,7 @@ function newGame(wi, weaponId, subId) {
     p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.9 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
-    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
+    enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
   };
@@ -2269,7 +2269,16 @@ function rangedTick(e, dx, dy, d, dt) {
 const wkey = (cx, cy) => cx + ',' + cy;
 const wcell = v => Math.floor(v / WALL_C);
 const wallAt = (x, y) => G.wallMap.get(wkey(wcell(x), wcell(y)));
-function wallsChanged() { G.wallMap = new Map(G.walls.map(q => [wkey(q.cx, q.cy), q])); G.flowDirty = true; }
+function wallsChanged() {
+  G.wallMap = new Map(G.walls.map(q => [wkey(q.cx, q.cy), q])); G.flowDirty = true;
+  // 0.131.9: 대각으로 이웃한 벽 쌍(계단)의 홈 칸은 길 지도에서 막힘으로 — 무리가 계단 홈마다 들어갔다 나오며 줄 서지 않게 (몸 충돌은 그대로)
+  G.wallNotch = new Set();
+  for (const q of G.walls) for (const [di, dj] of [[1, 1], [1, -1]]) {
+    const o = G.wallMap.get(wkey(q.cx + di, q.cy + dj)); if (!o) continue;
+    if (G.wallMap.has(wkey(q.cx + di, q.cy)) || G.wallMap.has(wkey(q.cx, q.cy + dj))) continue;   // 이미 막힌 꺾임은 그대로
+    G.wallNotch.add(wkey(q.cx + di, q.cy)); G.wallNotch.add(wkey(q.cx, q.cy + dj));
+  }
+}
 // 새 벽 칸(가운데 x, y)에 걸린 적을 주인공 → 적 방향으로, 칸에 안 걸릴 때까지 밀어냄 (0.131.3)
 function wallShove(e, x, y) {
   const r = e.boss ? e.r * 0.7 : e.r, h = WALL_C / 2, over = () => Math.abs(e.x - x) < h + r && Math.abs(e.y - y) < h + r
@@ -2306,7 +2315,7 @@ function buildFlow(seeds) {
     const k = q[h], i = k % FLOW_N, j = (k / FLOW_N) | 0, d = dist[k] + 1;
     for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= FLOW_N || nj >= FLOW_N) continue;
-      const nk = nj * FLOW_N + ni; if (dist[nk] <= d || G.wallMap.has(wkey(ox + ni, oy + nj))) continue;
+      const nk = nj * FLOW_N + ni, kk = wkey(ox + ni, oy + nj); if (dist[nk] <= d || G.wallMap.has(kk) || G.wallNotch.has(kk)) continue;   // 계단 홈도 막힘 (0.131.9)
       dist[nk] = d; q.push(nk);
     }
   }
@@ -2334,7 +2343,9 @@ function flowDir(F, x, y) {
   if (!F) return null;
   const cx = wcell(x), cy = wcell(y), i = cx - F.ox, j = cy - F.oy;
   if (i < 1 || j < 1 || i >= FLOW_N - 1 || j >= FLOW_N - 1) return null;
-  const d0 = F.dist[j * FLOW_N + i]; if (!(d0 < Infinity) || d0 <= 1) return null;
+  let d0 = F.dist[j * FLOW_N + i];
+  if (!(d0 < Infinity) && G.wallNotch.has(wkey(cx, cy))) d0 = 1e6;   // 계단 홈 칸에 들어와 있으면 이웃 중 가까운 쪽으로 빠져나감 (0.131.9)
+  if (!(d0 < Infinity) || d0 <= 1) return null;
   let best = null, bd = d0;
   for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
     if (!di && !dj) continue;
