@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.3';
+const VERSION = '0.131.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2321,6 +2321,14 @@ function tickFlow(dt) {
   }
   G.flowDirty = false;
 }
+// 주인공까지 길 거리 (px) — 지도 안이면 칸 거리 × 칸 크기, 밖이면 곧은 거리 (0.131.4)
+function pathD(e) {
+  const F = G.flowP, d = Math.hypot(e.x - G.p.x, e.y - G.p.y);
+  if (!F) return d;
+  const i = wcell(e.x) - F.ox, j = wcell(e.y) - F.oy;
+  if (i < 0 || j < 0 || i >= FLOW_N || j >= FLOW_N) return d;
+  const v = F.dist[j * FLOW_N + i]; return v < Infinity ? v * WALL_C : d;
+}
 // 흐름장 방향: 지금 칸보다 가까운 이웃(대각 포함, 모서리 끼임 막음) 칸 가운데로. 지도 밖 · 길 없음 · 바로 옆이면 null (곧장 감)
 function flowDir(F, x, y) {
   if (!F) return null;
@@ -2336,7 +2344,18 @@ function flowDir(F, x, y) {
   }
   if (!best) return null;
   const tx = (cx + best[0] + 0.5) * WALL_C - x, ty = (cy + best[1] + 0.5) * WALL_C - y, l = Math.hypot(tx, ty) || 1;
-  return {x: tx / l, y: ty / l};
+  // 0.131.4: 이웃 칸 가운데만 따라가면 무리가 벽 옆 한 줄로 몰려 모서리에서 엉킴 → 거리 기울기(벽 · 길 없음은 +2)를 더해 넓게 흐르게
+  const at = (di, dj) => { const v = F.dist[(j + dj) * FLOW_N + i + di]; return v < Infinity ? v : d0 + 2; };
+  let gx = at(-1, 0) - at(1, 0), gy = at(0, -1) - at(0, 1); const gl = Math.hypot(gx, gy);
+  let ux = tx / l, uy = ty / l;
+  if (gl > 0) { ux += gx / gl; uy += gy / gl; }
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {   // 둘레 벽 칸에서 살짝 떨어지게 (모서리에 비비지 않게)
+    if ((!di && !dj) || !G.wallMap.has(wkey(cx + di, cy + dj))) continue;
+    const qx = (cx + di + 0.5) * WALL_C, qy = (cy + dj + 0.5) * WALL_C, rx = x - qx, ry = y - qy, rl = Math.hypot(rx, ry) || 1, k = Math.max(0, 1 - (rl - WALL_C * 0.5) / WALL_C) * 0.6;
+    ux += rx / rl * k; uy += ry / rl * k;
+  }
+  { const ul = Math.hypot(ux, uy) || 1; ux /= ul; uy /= ul; }
+  return {x: ux, y: uy};
 }
 // 세우기: 쿨타임마다 장탄 하나 → 확산 수만큼 가까운 적(사거리 안) 각각에 — 그 적과 나 사이 가운데 칸 + 연쇄 수만큼 상하좌우 이웃 칸
 function updateBuild(w, st, dt) {
@@ -3032,7 +3051,7 @@ function update(dt) {
         // 엘리트 · 보스는 밀어낸다 (0.82.0): 급이 높은 쪽 앞에선 낮은 쪽이 늘 비킨다. 급이 같을 때만 먼 쪽이 비킴
         const re = pushRank(e), ro = pushRank(o);
         if (re !== ro) continue;                                    // 급이 다르면 아래 parting() 이 맡는다 (0.95.0)
-        if ((re === ro && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (o.x - p.x) ** 2 + (o.y - p.y) ** 2)) continue;
+        if (re === ro && pathD(e) < pathD(o)) continue;          // 0.131.4: 벽이 있으면 '앞' = 길 거리로 (모서리를 돈 앞줄이 뒷줄에 밀려 엉키지 않게)
         const dx = e.x - o.x, dy = e.y - o.y, min = e.r + o.r, d2 = dx * dx + dy * dy;
         if (d2 < min * min && d2 > 0.01) {
           const d = Math.sqrt(d2), push = (min - d) * 0.5;   // 한쪽만 비키니 0.25 → 0.5 (0.72.0)
@@ -3040,6 +3059,7 @@ function update(dt) {
         }
       }
     }
+    if (G.walls.length && !e.air) wallPush(e, e.boss ? e.r * 0.7 : e.r);   // 비켜서다 벽에 박힌 것 다시 밖으로 (0.131.4)
     // 닿으면 피해
     if (p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
       hurtPlayer(e.dmg, e);
