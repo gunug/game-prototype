@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.5';
+const VERSION = '0.131.6';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2373,13 +2373,11 @@ function updateBuild(w, st, dt) {
     }
     if (!best) continue;
     const cells = [best];
-    for (let k = 0; k < st.chain; k++) {                         // 연쇄: 세운 칸들의 상하좌우 빈 칸 중 가운데에 가장 가까운 것
-      let nb = null, nd = Infinity;
-      for (const [cx, cy] of cells) for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const ix = cx + di, iy = cy + dj; if (!free(ix, iy) || cells.some(c => c[0] === ix && c[1] === iy)) continue;
-        const d = ((ix + 0.5) * WALL_C - mx) ** 2 + ((iy + 0.5) * WALL_C - my) ** 2; if (d < nd) { nd = d; nb = [ix, iy]; }
-      }
-      if (nb) cells.push(nb);
+    // 연쇄 (0.131.6): 나 → 적 방향을 8방향으로 맞추고, 그 직각 방향(가로막는 줄)으로 가운데 칸에서 양옆에 번갈아 +1 · −1 · +2 · −2 …
+    const a8 = ((Math.round(Math.atan2(t.y - p.y, t.x - p.x) / (Math.PI / 4)) % 8) + 8) % 8, [pdx, pdy] = DIR8[(a8 + 2) % 8];
+    for (let k = 1; k <= st.chain; k++) {
+      const step = Math.ceil(k / 2) * (k % 2 ? 1 : -1), ix = best[0] + pdx * step, iy = best[1] + pdy * step;
+      if (free(ix, iy)) cells.push([ix, iy]);                    // 이미 벽이 있거나 내 칸이면 건너뜀 (그 자리는 이미 막혀 있음)
     }
     for (const [cx, cy] of cells) {                             // 몸에서 그 칸으로 곡사로 던짐 (0.131.1) — 떨어지면 세워짐. 날아가는 동안 칸은 잡아 둠
       const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
@@ -2389,6 +2387,7 @@ function updateBuild(w, st, dt) {
   }
   w.cdT = st.cd; useAmmo(w, st);
 }
+const DIR8 = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];   // 오른쪽부터 시계 방향 (화면 y 아래)
 const WALL_THROW_T = 0.45, WALL_THROW_H = 60;                    // 던지기: 날아가는 시간 · 높이 (0.131.1)
 function tickWallThrows(dt) {
   if (!G.wallThrows.length) return;
