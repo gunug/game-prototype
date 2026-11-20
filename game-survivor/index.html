@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.2';
+const VERSION = '0.131.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2270,6 +2270,16 @@ const wkey = (cx, cy) => cx + ',' + cy;
 const wcell = v => Math.floor(v / WALL_C);
 const wallAt = (x, y) => G.wallMap.get(wkey(wcell(x), wcell(y)));
 function wallsChanged() { G.wallMap = new Map(G.walls.map(q => [wkey(q.cx, q.cy), q])); G.flowDirty = true; }
+// 새 벽 칸(가운데 x, y)에 걸린 적을 주인공 → 적 방향으로, 칸에 안 걸릴 때까지 밀어냄 (0.131.3)
+function wallShove(e, x, y) {
+  const r = e.boss ? e.r * 0.7 : e.r, h = WALL_C / 2, over = () => Math.abs(e.x - x) < h + r && Math.abs(e.y - y) < h + r
+    && Math.hypot(Math.max(0, Math.abs(e.x - x) - h), Math.max(0, Math.abs(e.y - y) - h)) < r;
+  if (!over()) return;
+  let ux = e.x - G.p.x, uy = e.y - G.p.y, l = Math.hypot(ux, uy);
+  if (l < 1e-3) { ux = e.x - x; uy = e.y - y; l = Math.hypot(ux, uy) || 1; }   // 주인공과 겹치면 칸 가운데에서 바깥으로
+  ux /= l; uy /= l;
+  for (let k = 0; k < 40 && over(); k++) { e.x += ux * 2; e.y += uy * 2; }
+}
 // 원(o.x, o.y, r)을 벽 칸 밖으로 밀어냄 — 적 · 아군 · 주인공 몸 막기
 function wallPush(o, r) {
   if (!G.walls.length) return false;
@@ -2384,7 +2394,8 @@ function placeWall(cx, cy, w, st) {
   const x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;
   G.walls.push({cx, cy, x, y, hp: st.hp, maxHp: st.hp, life: WEAPONS[w.id].life, die: null, w, atkT: 0, born: G.t});
   wallsChanged();
-  for (const o of [...G.enemies, ...G.allies, ...G.hatch]) wallPush(o, o.r);   // 칸 안에 있던 몸은 밖으로
+  for (const e of [...G.enemies, ...G.hatch]) wallShove(e, x, y);   // 칸에 걸린 적은 주인공에게서 먼 쪽으로 밀어냄 (0.131.3)
+  for (const o of G.allies) wallPush(o, o.r);                    // 아군은 가까운 변으로
   wallPush(G.p, G.p.r);
   if (st.splash) {                                               // 폭발 = 설치 충격 (폭발 반경 · 비율)
     const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
