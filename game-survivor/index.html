@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.1';
+const VERSION = '0.131.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -677,7 +677,7 @@ const WEAPONS = {
   //   유지 시간 life 초 · 유지 갯수 = 아군수 — 넘으면 오래된 것부터 1초 세고 부서짐. 가까이(WALL_AURA) 온 적에게 쿨타임마다 무기 피해
   //   확산 = 대상(가까운 적) 수 · 연쇄 = 한 대상에 상하좌우로 더 세우는 칸 수 · 폭발 = 세울 때 충격 (폭발 반경 · 비율)
   barricade: {nm: '바리케이드', kind: 'build', sh: '적과 나 사이에 벽', ds: '가장 가까운 적과 나 사이 가운데에 바리케이드를 세운다. 적은 벽을 돌아서 오고, 가까이 오면 피해를 받는다. 적 탄 · 곡사 · 돌진은 벽을 깎는다. 유지 시간이 지나거나 유지 갯수를 넘으면 사라진다',
-           dmg: 0, fixedDmg: 30, fixedReload: true, cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, hitT: 0.5, ally: 4, maxT: 1, stun: 0,   // hitT: 근접 피해 간격 (0.131.1 — 쿨타임과 따로, 무기 강화마다 ×0.95)   // 맞춤 계산 대신 정한 피해 · 재장전
+           dmg: 0, fixedDmg: 15, fixedReload: true,   /* 0.131.2: 30 → 15 */ cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, hitT: 0.5, ally: 4, maxT: 1, stun: 0,   // hitT: 근접 피해 간격 (0.131.1 — 쿨타임과 따로, 무기 강화마다 ×0.95)   // 맞춤 계산 대신 정한 피해 · 재장전
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['ally']},
 };
@@ -738,7 +738,7 @@ const PENALTIES = [
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
   {id: 'weak',     nm: '약골', short: '체력×0.5', ds: '최대 체력이 절반'},
-  {id: 'slow',     nm: '족쇄', short: '이동×0.5', ds: '이동 속도가 절반'},                                             // 0.113.0 (지금 쓰는 직업 없음)
+  {id: 'slow',     nm: '족쇄', short: '이동×0.9', ds: '이동 속도 10% 감소'},                                          // 0.113.0 · 건축가 (0.131.0) · ×0.5 → ×0.9 (0.131.2)
   {id: 'noregen',  nm: '마른 피', short: '체력 재생 불가', ds: '체력이 저절로 차지 않는다 — 「체력 재생 증가」도 나오지 않음'},   // 0.114.5 주술사                                               // 0.112.0 과학자
 ];
 const PEN = Object.fromEntries(PENALTIES.map(q => [q.id, q]));
@@ -1072,7 +1072,7 @@ function newGame(wi, weaponId, subId) {
     weapons: [newWeapon(weaponId)], subs: [], pens: [C.pen],
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.5 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
+    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.9 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallThrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
