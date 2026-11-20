@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.10';
+const VERSION = '0.131.11';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -750,7 +750,7 @@ function wstat(id) {
   return {
     dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1) * WUP.dmg ** L,
     cd: (W.cd || 0) * (a('rate') ? s.cdMul : 1) * WUP.cd ** L,
-    mag: W.mag && Math.max(1, Math.round(W.mag * (a('mag') ? s.magMul : 1) * (hasPen('ration') ? 0.5 : 1))),   // 패널티 '규정 탄약' ×0.5 (0.111.0)   // 장탄 증가 (0.92.0)
+    mag: W.mag && Math.max(1, Math.round(Math.max(W.mag * (a('mag') ? s.magMul : 1), W.mag + (a('mag') ? G.ups.mag || 0 : 0)) * (hasPen('ration') ? 0.5 : 1))),   // 0.131.11: 장탄이 적은 무기(바리케이드 2)도 받을 때마다 최소 +1   // 패널티 '규정 탄약' ×0.5 (0.111.0)   // 장탄 증가 (0.92.0)
     stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
     reload: (W.reload || 0) * (a('reload') ? s.reloadMul : 1) * WUP.reload ** L,   // 0.97.0: 쿨다운 감소는 쿨다운만 (그 전엔 재장전도 ×0.85)
       // 재장전 감소 (0.92.0)           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
@@ -2370,11 +2370,14 @@ function flowDir(F, x, y) {
 }
 // 세우기: 쿨타임마다 장탄 하나 → 확산 수만큼 가까운 적(사거리 안) 각각에 — 그 적과 나 사이 가운데 칸 + 연쇄 수만큼 상하좌우 이웃 칸
 function updateBuild(w, st, dt) {
-  if (reloading(w, st, dt)) return;
+  if (reloading(w, st, dt)) { w.lines = null; return; }
   if ((w.cdT -= dt) > 0) return;
   const p = G.p, R2 = st.range * st.range;
+  // 0.131.11: 장탄의 첫 탄만 가까운 적 쪽 · 그 뒤(재장전 전까지)는 앞서 던진 줄의 양끝에 번갈아 이어 던짐
+  if (w.lines && w.ammo < st.mag && buildExtend(w, st)) { w.cdT = st.cd; useAmmo(w, st); return; }
   const tg = G.enemies.filter(e => !e.dead && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < R2).sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, st.count);
   if (!tg.length) return;                                        // 사거리 안에 적이 없으면 안 세움
+  const lines = [];
   const pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);   // wallRes: 날아가는 중인 칸
   for (const t of tg) {
     const mx = (p.x + t.x) / 2, my = (p.y + t.y) / 2;
@@ -2398,8 +2401,38 @@ function updateBuild(w, st, dt) {
     { const [cx, cy] = best, x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;   // 가운데 칸만 몸에서 곡사로 던짐 (0.131.1)
       G.wallThrows.push({cx, cy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9, grow});
       G.wallRes.add(wkey(cx, cy)); }
+    lines.push({perp: [pdx, pdy], ends: {1: [...grow.filter(g => g.step && (g.cx - best[0]) * pdx + (g.cy - best[1]) * pdy > 0).map(g => [g.cx, g.cy]), best].sort((a, b) => ((b[0] - best[0]) * pdx + (b[1] - best[1]) * pdy) - ((a[0] - best[0]) * pdx + (a[1] - best[1]) * pdy))[0],
+                                      '-1': [...grow.filter(g => (g.cx - best[0]) * pdx + (g.cy - best[1]) * pdy < 0).map(g => [g.cx, g.cy]), best].sort((a, b) => ((a[0] - best[0]) * pdx + (a[1] - best[1]) * pdy) - ((b[0] - best[0]) * pdx + (b[1] - best[1]) * pdy))[0]}, side: 1});
   }
+  w.lines = lines;
   w.cdT = st.cd; useAmmo(w, st);
+}
+// 앞서 던진 줄 끝에 이어 던지기: 줄마다 끝(+ · − 번갈아) 너머 첫 빈 칸이 가운데, 연쇄는 같은 줄 방향으로 그 바깥에 (0.131.11)
+function buildExtend(w, st) {
+  const p = G.p, pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);
+  let any = false;
+  for (const L of w.lines) {
+    const [pdx, pdy] = L.perp;
+    for (let tryS = 0; tryS < 2; tryS++) {                       // 이번 쪽이 막혔으면 반대쪽
+      const sg = L.side; L.side = -L.side;
+      let [ix, iy] = L.ends[sg], n = 0;
+      do { ix += pdx * sg; iy += pdy * sg; } while (!free(ix, iy) && ++n < 8);
+      if (!free(ix, iy)) continue;
+      const best = [ix, iy], grow = []; let cx = ix, cy = iy;
+      for (let k = 1; k <= st.chain; k++) {                      // 연쇄: 같은 쪽 바깥으로 이어서
+        let m = 0; do { cx += pdx * sg; cy += pdy * sg; } while (!free(cx, cy) && ++m < 8);
+        if (!free(cx, cy)) break;
+        const prev = grow.length ? [grow[grow.length - 1].cx, grow[grow.length - 1].cy] : best;
+        grow.push({cx, cy, fx: prev[0], fy: prev[1], step: k}); G.wallRes.add(wkey(cx, cy));
+      }
+      const x = (ix + 0.5) * WALL_C, y = (iy + 0.5) * WALL_C;
+      G.wallThrows.push({cx: ix, cy: iy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9, grow});
+      G.wallRes.add(wkey(ix, iy));
+      L.ends[sg] = grow.length ? [grow[grow.length - 1].cx, grow[grow.length - 1].cy] : best;
+      any = true; break;
+    }
+  }
+  return any;
 }
 const DIR8 = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];   // 오른쪽부터 시계 방향 (화면 y 아래)
 const WALL_THROW_T = 0.45, WALL_THROW_H = 60;                    // 던지기: 날아가는 시간 · 높이 (0.131.1)
@@ -2464,11 +2497,8 @@ function tickWalls(dt) {
     if ((q.atkT -= dt) > 0) continue;
     const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.hitT;
     let hit = 0;
-    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) {
-      hurtEnemy(e, st.dmg); hit++;
-      G.fx.push({kind: 'zap', x: q.x, y: q.y, x2: e.x, y2: e.y - e.r * 0.4, t: 0.18, T: 0.18});   // 벽 → 맞은 적 번개 줄기 (0.131.10)
-    }
-    if (hit) G.fx.push({kind: 'wallwave', x: q.x, y: q.y, t: 0.3, T: 0.3});   // 맞은 적이 있으면 벽에서 충격파
+    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) { hurtEnemy(e, st.dmg); hit++; }
+    G.fx.push({kind: 'wallwave', x: q.x, y: q.y, t: 0.3, T: 0.3, hit});   // 0.131.11: 피해 박자마다 상자에서 경계가 퍼짐 (맞은 적이 있으면 더 진하게)
   }
   if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
 }
@@ -3620,18 +3650,10 @@ function draw() {
       continue;
     }
     if (f.kind === 'wallwave') {                                 // 바리케이드 충격파 (0.131.10): 칸 둘레에서 근접 피해 범위까지 퍼지는 네모 고리
-      const k = 1 - f.t / f.T, h = WALL_C / 2 + (WALL_AURA + 6) * k, a = f.t / f.T;
+      const k = 1 - f.t / f.T, h = WALL_C / 2 + (WALL_AURA + 6) * k, a = f.t / f.T * (f.hit ? 1 : 0.4);
       ctx.strokeStyle = `rgba(110,240,255,${0.9 * a})`; ctx.lineWidth = 3 * a + 1;
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(f.x - h, f.y - h, h * 2, h * 2, 6) : ctx.rect(f.x - h, f.y - h, h * 2, h * 2); ctx.stroke();
       ctx.fillStyle = `rgba(110,240,255,${0.12 * a})`; ctx.fill();
-      continue;
-    }
-    if (f.kind === 'zap') {                                      // 벽 → 맞은 적: 지글거리는 청록 줄기
-      const a = f.t / f.T, n = 4, dx = f.x2 - f.x, dy = f.y2 - f.y, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
-      ctx.strokeStyle = `rgba(160,250,255,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x, f.y);
-      for (let i = 1; i < n; i++) { const j = (Math.random() - 0.5) * 10; ctx.lineTo(f.x + dx * i / n + nx * j, f.y + dy * i / n + ny * j); }
-      ctx.lineTo(f.x2, f.y2); ctx.stroke();
-      ctx.fillStyle = `rgba(220,255,255,${a})`; ctx.beginPath(); ctx.arc(f.x2, f.y2, 3 + 3 * a, 0, Math.PI * 2); ctx.fill();
       continue;
     }
     if (f.kind === 'hitburst') {                                // 맞은 자리 터짐 (0.120.0): 하얀 섬광 + 붉은 가시가 퍼짐
