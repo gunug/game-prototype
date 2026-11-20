@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.7';
+const VERSION = '0.131.8';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2376,11 +2376,13 @@ function updateBuild(w, st, dt) {
     // 연쇄 (0.131.6): 나 → 적 방향을 8방향으로 맞추고, 그 직각 방향(가로막는 줄)으로 가운데 칸에서 양옆에 번갈아 +1 · −1 · +2 · −2 …
     const a8 = ((Math.round(Math.atan2(t.y - p.y, t.x - p.x) / (Math.PI / 4)) % 8) + 8) % 8, [pdx, pdy] = DIR8[(a8 + 2) % 8];
     const grow = [];                                             // 0.131.7: 연쇄 칸은 던지지 않고, 떨어진 블럭에서 뻗어 나옴 (from = 가운데 쪽 이웃 칸)
+    const cur = {1: 0, '-1': 0}, prev = {1: best, '-1': best}, n = {1: 0, '-1': 0};   // 쪽마다: 지금까지 간 칸 수 · 마지막에 세운 칸 · 세운 수
     for (let k = 1; k <= st.chain; k++) {
-      const sg = k % 2 ? 1 : -1, step = Math.ceil(k / 2) * sg, ix = best[0] + pdx * step, iy = best[1] + pdy * step;
-      if (!free(ix, iy)) continue;                               // 이미 벽이 있거나 내 칸이면 건너뜀 (그 자리는 이미 막혀 있음)
-      grow.push({cx: ix, cy: iy, fx: ix - pdx * sg, fy: iy - pdy * sg, step: Math.abs(step)});
-      G.wallRes.add(wkey(ix, iy));
+      const sg = k % 2 ? 1 : -1; let ix, iy, tries = 0;
+      do { cur[sg]++; ix = best[0] + pdx * cur[sg] * sg; iy = best[1] + pdy * cur[sg] * sg; } while (!free(ix, iy) && ++tries < 8);   // 0.131.8: 막힌 칸(벽 · 잡아 둔 칸 · 내 칸)이면 그다음 칸
+      if (!free(ix, iy)) continue;
+      grow.push({cx: ix, cy: iy, fx: prev[sg][0], fy: prev[sg][1], step: ++n[sg]});
+      prev[sg] = [ix, iy]; G.wallRes.add(wkey(ix, iy));
     }
     { const [cx, cy] = best, x = (cx + 0.5) * WALL_C, y = (cy + 0.5) * WALL_C;   // 가운데 칸만 몸에서 곡사로 던짐 (0.131.1)
       G.wallThrows.push({cx, cy, w, x0: p.x, y0: p.y - 20, x, y, t: 0, T: WALL_THROW_T, spin: (Math.random() < 0.5 ? -1 : 1) * 9, grow});
