@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.13';
+const VERSION = '0.131.14';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2289,7 +2289,15 @@ function wallShove(e, x, y) {
   ux /= l; uy /= l;
   for (let k = 0; k < 40 && over(); k++) { e.x += ux * 2; e.y += uy * 2; }
 }
-// 원(o.x, o.y, r)을 벽 칸 밖으로 밀어냄 — 적 · 아군 · 주인공 몸 막기
+// 주인공 몸이 닿은 벽은 바로 부서짐 (0.131.14)
+const touchCell = (cx, cy, o, r) => { const x0 = cx * WALL_C, y0 = cy * WALL_C; return Math.hypot(o.x - Math.max(x0, Math.min(o.x, x0 + WALL_C)), o.y - Math.max(y0, Math.min(o.y, y0 + WALL_C))) < r; };
+function wallTouchPlayer() {
+  if (!G.walls.length) return;
+  const p = G.p; let ch = false;
+  for (const q of G.walls) if (touchCell(q.cx, q.cy, p, p.r)) { q.gone = true; ch = true; G.fx.push({kind: 'splash', mine: true, x: q.x, y: q.y, r: WALL_C * 0.7, t: 0.25}); }
+  if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
+}
+// 원(o.x, o.y, r)을 벽 칸 밖으로 밀어냄 — 적 · 아군 몸 막기
 function wallPush(o, r) {
   if (!G.walls.length) return false;
   const cx = wcell(o.x), cy = wcell(o.y); let hit = false;
@@ -2378,7 +2386,7 @@ function updateBuild(w, st, dt) {
   const tg = G.enemies.filter(e => !e.dead && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < R2).sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, st.count);
   if (!tg.length) return;                                        // 사거리 안에 적이 없으면 안 세움
   const lines = [];
-  const pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);   // wallRes: 날아가는 중인 칸
+  const free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !touchCell(cx, cy, p, p.r + 4);   // wallRes: 날아가는 중인 칸 · 주인공 몸에 닿는 칸은 안 됨 (닿으면 부서지니까)
   for (const t of tg) {
     const mx = (p.x + t.x) / 2, my = (p.y + t.y) / 2;
     let best = null, bd = Infinity;                              // 가운데에서 가장 가까운 빈 칸 (3칸 안)
@@ -2409,7 +2417,7 @@ function updateBuild(w, st, dt) {
 }
 // 앞서 던진 줄 끝에 이어 던지기: 줄마다 끝(+ · − 번갈아) 너머 첫 빈 칸이 가운데, 연쇄는 같은 줄 방향으로 그 바깥에 (0.131.11)
 function buildExtend(w, st) {
-  const p = G.p, pcx = wcell(p.x), pcy = wcell(p.y), free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !(cx === pcx && cy === pcy);
+  const p = G.p, free = (cx, cy) => !G.wallMap.has(wkey(cx, cy)) && !G.wallRes.has(wkey(cx, cy)) && !touchCell(cx, cy, p, p.r + 4);
   let any = false;
   for (const L of w.lines) {
     if (!L.dir) { const i0 = DIR8.findIndex(d => d[0] === L.perp[0] && d[1] === L.perp[1]); L.dir = {1: i0, '-1': (i0 + 4) % 8}; }   // 끝마다 바깥 방향 (8방향 번호)
@@ -2485,7 +2493,6 @@ function placeWall(cx, cy, w, st) {
   wallsChanged();
   for (const e of [...G.enemies, ...G.hatch]) wallShove(e, x, y);   // 칸에 걸린 적은 주인공에게서 먼 쪽으로 밀어냄 (0.131.3)
   for (const o of G.allies) wallPush(o, o.r);                    // 아군은 가까운 변으로
-  wallPush(G.p, G.p.r);
   if (st.splash) {                                               // 폭발 = 설치 충격 (폭발 반경 · 비율)
     const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
     G.fx.push({kind: 'splash', mine: true, x, y, r: R, t: 0.25});
@@ -3010,7 +3017,7 @@ function update(dt) {
   const amt = Math.hypot(mx, my);
   p.vx = mx * p.speed; p.vy = my * p.speed;                     // 부메랑 물리가 쓴다
   p.x += p.vx * dt; p.y += p.vy * dt;
-  wallPush(p, p.r);                                              // 바리케이드는 주인공도 막음 (0.131.0)
+  wallTouchPlayer();                                             // 0.131.14: 바리케이드는 주인공을 막지 않음 — 닿으면 그 벽이 바로 부서짐
   { const k = Math.min(1, dt * 4); G.pv.x += (p.vx - G.pv.x) * k; G.pv.y += (p.vy - G.pv.y) * k; }   // 곡사가 보는 이동 (0.84.0)
   // 몸 방향: 움직이는 동안엔 이동 방향만 따른다 (위아래로만 갈 땐 그대로). 서 있을 때만 아래 조준이 공격 방향으로 돌린다
   p.moving = amt > 0.15;
