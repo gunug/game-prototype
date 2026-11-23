@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.3';
+const VERSION = '0.135.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -448,6 +448,7 @@ const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}
 //   맨손: 든 무기가 하나도 없으면 아주 짧은 거리의 한 마리 치기
 const MEAT_IMG = new Image(); MEAT_IMG.src = `images/item_meat.png?v=${VERSION}`;
 const DOG_IMG = new Image(); DOG_IMG.src = `images/item_dog.png?v=${VERSION}`;
+const DOG_BITE = 0.25, DOG_DMG = 8;   // 반려견 물기 (0.135.4): 간격 · 피해 (피해 증가 · 영구 피해 적용)
 const DOG_LEASH = 90, DOG_NEAR = [26, 60], DOG_WANDER = 0.45;   // 반려견 배회 (0.135.1): 이보다 멀면 달려옴 · 둘레 거리 [안, 밖] · 배회 빠르기 (주인공의)
 const MEAT_P = 0.02, MEAT_HEAL = 0.2, MEAT_LIFE = 60, DOG_R = 5, DOG_SPD = 1.3, PANIC_T = 30, WDROP_OUT = 70;
 const FIST = {dmg: 20, cd: 0.4, reach: 22, knock: 360};   // 0.135.2: 피해 40 → 20 · 경직 대신 넉백 (처음 속도 ÷ 무게, 밀리는 거리 ≈ ÷8 → 좀비 45px)
@@ -2826,12 +2827,27 @@ function tickDog(dt, magnet) {
     if (go(p.x, p.y + 6, p.r + 4)) { m.carry = false; m.t = 0; m.x = g.x; m.y = g.y; g.carry = null; }
     return;
   }
-  if (g.tgt && (g.tgt.dead || g.tgt.carry || Math.hypot(g.tgt.x - p.x, g.tgt.y - p.y) < magnet)) g.tgt = null;
-  if (!g.tgt) {                                                   // 획득 범위 밖 · 반려견 범위 안의 가장 가까운 고기
+  const full = p.hp >= p.maxHp;                                   // 0.135.4: 체력이 가득이면 고기는 안 가지러 감 → 공격
+  if (g.tgt && (full || g.tgt.dead || g.tgt.carry || Math.hypot(g.tgt.x - p.x, g.tgt.y - p.y) < magnet)) g.tgt = null;
+  if (!g.tgt && !full) {                                          // 획득 범위 밖 · 반려견 범위 안의 가장 가까운 고기
     let bd = Infinity;
     for (const m of G.meats) { if (m.carry) continue; const d = Math.hypot(m.x - p.x, m.y - p.y); if (d >= magnet && d < R && d < bd) { bd = d; g.tgt = m; } }
   }
-  if (g.tgt) { if (go(g.tgt.x, g.tgt.y, 4)) { g.carry = g.tgt; g.tgt.carry = true; g.tgt = null; } return; }
+  if (g.tgt) { g.foe = null; if (go(g.tgt.x, g.tgt.y, 4)) { g.carry = g.tgt; g.tgt.carry = true; g.tgt = null; } return; }
+  // 공격 (0.135.4): 고기가 없거나 체력이 가득이면 반려견 범위 안(주인공 기준)의 가장 가까운 적에게 달려들어 DOG_BITE 초마다 물기
+  if (g.foe && (g.foe.dead || g.foe.air || Math.hypot(g.foe.x - p.x, g.foe.y - p.y) > R)) g.foe = null;
+  if (!g.foe) g.foe = nearestEnemy(p.x, p.y, R);
+  if (g.foe && g.foe.air) g.foe = null;
+  g.biteT = Math.max(0, (g.biteT || 0) - dt);
+  if (g.foe) {
+    const e = g.foe;
+    if (go(e.x, e.y, e.r + 6)) {
+      g.face = e.x >= g.x ? 1 : -1; g.walk += dt;
+      if (g.biteT <= 0) { g.biteT = DOG_BITE; hurtEnemy(e, DOG_DMG * G.s.dmgMul); g.bite = 0.12; }
+    }
+    if (g.bite) g.bite = Math.max(0, g.bite - dt);
+    return;
+  }
   // 할 일 없으면 (0.135.1): DOG_LEASH 보다 멀면 달려와 거리를 지킴. 가까우면 주인공 둘레(DOG_NEAR)를 천천히 배회 — 둘레 자리는 주인공 기준이라 같이 따라옴
   const dp = Math.hypot(p.x - g.x, p.y - g.y);
   if (dp > DOG_LEASH) { g.wo = null; go(p.x, p.y + 6, DOG_NEAR[1]); return; }
@@ -2907,7 +2923,7 @@ function drawGround2() {
   const g = G.dog; if (!g) return;                               // 반려견 (그림은 왼쪽을 봄)
   const sz = 28, hop = Math.abs(Math.sin(g.walk * 14)) * 2;
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 10, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.save(); ctx.translate(g.x, g.y - hop); if (g.face > 0) ctx.scale(-1, 1);
+  ctx.save(); ctx.translate(g.x + (g.bite ? g.face * 5 : 0), g.y - hop); if (g.face > 0) ctx.scale(-1, 1);   // 물 때 앞으로 살짝 (0.135.4)
   if (DOG_IMG.complete && DOG_IMG.naturalWidth) ctx.drawImage(DOG_IMG, -sz / 2, -sz / 2, sz, sz); else circle(0, 0, 8, '#c84');
   ctx.restore();
   if (g.carry && MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, g.carry.x - 7, g.carry.y - 7, 14, 14);
