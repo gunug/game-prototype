@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.7';
+const VERSION = '0.135.8';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -912,7 +912,7 @@ function showWorlds() {
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
       b.onclick = () => pickWorld(i);
       const ds = document.createElement('div'); ds.className = 'dsel';   // 난이도 − LV n + (월드마다, 0.134.1)
-      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b><button class="dUp"${d >= DIFF_MAX ? ' disabled' : ''}>+</button>`;
+      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b><button class="dUp"${d >= diffOpen(w.id) ? ' disabled' : ''}>+</button>`;
       ds.querySelector('.dDn').onclick = () => setDiff(w.id, d - 1);
       ds.querySelector('.dUp').onclick = () => setDiff(w.id, d + 1);
       col.appendChild(ds);
@@ -934,8 +934,10 @@ const DIFF_MAX = 10, DIFF_K = 1.2;
 const dmx = v => Math.round(v * (G ? G.dm : DIFF_K ** (getDiff((WORLDS[selWorld] || WORLDS[0]).id) - 1)));   // 적 정보에 보일 값 (난이도 반영)
 // 월드마다 따로 (0.134.1): survivor.diff = {월드 id: LV}
 const diffMap = () => { try { const o = JSON.parse(localStorage.getItem('survivor.diff') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } };
-const getDiff = wid => Math.min(DIFF_MAX, Math.max(1, +diffMap()[wid] || 1));
-function setDiff(wid, d) { const o = diffMap(); o[wid] = Math.min(DIFF_MAX, Math.max(1, d)); localStorage.setItem('survivor.diff', JSON.stringify(o)); showWorlds(); }
+// 0.135.8: 다음 LV 는 이전 LV 를 클리어해야 열림 — 열린 가장 높은 LV
+const diffOpen = wid => { let d = 1; while (d < DIFF_MAX && getRec(wid, d).clear) d++; return d; };
+const getDiff = wid => Math.min(diffOpen(wid), Math.max(1, +diffMap()[wid] || 1));
+function setDiff(wid, d) { const o = diffMap(); o[wid] = Math.min(diffOpen(wid), Math.max(1, d)); localStorage.setItem('survivor.diff', JSON.stringify(o)); showWorlds(); }
 // 영구 봉인 페이지 (0.125.0): 무기(새 무기로 나옴) · 보조 · 업그레이드를 켜고 끔. 켠 수 ≤ 칸
 const PBAN_GROUPS = () => [
   ['무기', UNLOCKED_WEAPONS.map(id => ({id: 'new_' + id, nm: WEAPONS[id].nm, img: `weapon_${id}`}))],
@@ -1419,7 +1421,7 @@ function rmItems(scr) {
     const wb = [...$('worldList').querySelectorAll('.world')];
     return {up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
               el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()},
-              ...WORLDS.slice(0, WORLD_SLOTS).map((w, i) => { const d = getDiff(w.id); return {label: `${w.name} 난이도 LV${d}`, el: $('worldList').querySelectorAll('.dsel')[i], act: () => setDiff(w.id, d >= DIFF_MAX ? 1 : d + 1)}; })]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
+              ...WORLDS.slice(0, WORLD_SLOTS).map((w, i) => { const d = getDiff(w.id); return {label: `${w.name} 난이도 LV${d}`, el: $('worldList').querySelectorAll('.dsel')[i], act: () => setDiff(w.id, d >= diffOpen(w.id) ? 1 : d + 1)}; })]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
     const cb = [...$('charList').children];
