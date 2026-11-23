@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.10';
+const VERSION = '0.136.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -513,6 +513,7 @@ const UPGRADES = [
   // 자석 출현 (0.106.0): 얻으면 끝. 적(보스 빼고)이 MAGDROP_P 확률로 자석을 떨군다 — 주우면 필드의 보석을 모두 끌어옴. 겹쳐 쌓임
   {id: 'magdrop', sub: '자석 출현', passive: true, nm: '자석 출현', ds: '적이 0.5% 확률로 자석을 떨군다 — 못 떨굴수록 확률이 올라 3배(1.5%)에 이르면 반드시 떨군다. 주우면 필드의 경험치를 모두 끌어온다', max: 1, badges: [], apply: () => {}},
   // 연구 일지 (0.112.0): 얻으면 끝. 얻는 경험치 ×2 (경험치 증가 업그레이드와 따로 곱함)
+  {id: 'foam', sub: '소화기 분사', passive: true, nm: '소화기 분사', ds: '몸으로 닿은 적에게 맞으면 둘레 모든 적을 밀쳐 낸다', max: 1, badges: [], apply: () => {}},   // 0.136.0 소방관
   {id: 'dog', sub: '반려견', passive: true, nm: '반려견', ds: '획득 범위 5배 안에 떨어진 고기를 물어 온다', max: 1, badges: [], apply: () => {}},   // 0.135.0 생존자
   {id: 'xp2', sub: '연구 일지', passive: true, nm: '경험치 두 배', ds: '얻는 경험치가 두 배', max: 1, badges: [], apply: () => {}},
   {id: 'give_pierce', give: 'pierce', sub: '송곳 인장', nm: '관통 부여', ds: '관통이 없는 무기에 관통을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['pierce'], fx: '부여', apply: () => {}},
@@ -798,7 +799,7 @@ const subsUsed = () => G.subs.length + G.pens.length;            // 보조 칸 �
 const CHARACTERS = [
   {id: 'survivor',    nm: '생존자', sprite: 'survivor',    weapon: 'pistol', pen: 'panic',    sub: 'dog'},   // 0.135.0: 민간인 · 주사위 → 당황 · 반려견
   {id: 'police',      nm: '경찰',   sprite: 'police',      weapon: 'sniper', pen: 'ration',   sub: 'give_chain'},
-  {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
+  {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'foam'},   // 0.136.0: 송곳 인장 → 소화기 분사
   {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
   {id: 'shaman',      nm: '주술사', sprite: 'shaman',      weapon: 'doll',   pen: 'noregen',  sub: 'banish'},   // 0.113.0 · 패널티 족쇄 → 마른 피 (0.114.5)
   {id: 'builder',     nm: '건축가', sprite: 'builder',     weapon: 'barricade', pen: 'slow', sub: 'give_chain'},   // 0.131.0
@@ -983,7 +984,7 @@ function showChars() {
     const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
       return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : ''].filter(Boolean).join(' ')
         + (W.badges.length ? `<span class="kb">${W.badges.map(b => badgeHtml(b, badgeVal(b, st))).join('')}</span>` : ''); };   // 특성은 공통 뱃지 + 숫자 (0.111.3)
-    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.id === 'dog' ? '고기 물어 옴' : u.nm;   // 봉인 부적 = '봉인×1'
+    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.id === 'dog' ? '고기 물어 옴' : u.id === 'foam' ? '맞으면 밀침' : u.nm;   // 봉인 부적 = '봉인×1'
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
       ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, wShort(c.weapon))}
@@ -2802,6 +2803,21 @@ function hurtEnemy(e, dmg, stun = 0) {
   }
 }
 
+// 소화기 분사 (0.136.0, 소방관 보조): 몸으로 닿은 적에게 맞으면 둘레 FOAM_R 안 모든 적을 주인공 반대쪽으로 밀침 (보스 빼고, 무게만큼 덜). FOAM_CD 안엔 한 번만
+const FOAM_R = 110, FOAM_V = 900, FOAM_CD = 0.3;   // FOAM_V: 처음 속도 (밀리는 거리 ≈ ÷8 → 좀비 약 110px)
+function foamBlast() {
+  if (!ownsSub('foam') || G.t - (G.foamAt ?? -9) < FOAM_CD) return;
+  G.foamAt = G.t;
+  const p = G.p;
+  for (const e of G.enemies) {
+    if (e.dead || e.boss || e.air) continue;
+    const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
+    if (d > FOAM_R + e.r) continue;
+    const v = FOAM_V / (e.wt || 1) * (1 - 0.5 * d / (FOAM_R + e.r));   // 가까울수록 세게
+    e.kbx += dx / d * v; e.kby += dy / d * v;
+  }
+  G.fx.push({kind: 'foam', x: p.x, y: p.y + HIT_CY, r: FOAM_R, t: 0.4, T: 0.4});
+}
 // ── 고기 · 반려견 · 당황 · 맨손 (0.135.0) ──
 const heldW = () => G.weapons.filter(w => !w.drop);
 function tickMeat(dt, magnet) {
@@ -3331,7 +3347,7 @@ function update(dt) {
     // 닿으면 피해
     if (e.touchT > 0) e.touchT -= dt;
     if (!(e.touchT > 0) && p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
-      if (hurtPlayer(e.dmg, e, TOUCH_INV)) { e.touchT = MOB_HIT_T; e.born = G.t; }   // 몸으로 한 번 때리면 나이 처음부터 = 원래 빠르기 (0.133.1)
+      if (hurtPlayer(e.dmg, e, TOUCH_INV)) { e.touchT = MOB_HIT_T; e.born = G.t; foamBlast(); }   // 몸으로 한 번 때리면 나이 처음부터 = 원래 빠르기 (0.133.1)
       if (G.mode === 'over') return;
     }
   }
@@ -3863,6 +3879,14 @@ function draw() {
       ctx.fillStyle = `rgba(110,240,255,${0.12 * a})`; ctx.fill();
       if (f.big) { const h2 = WALL_C / 2 + (WALL_AURA * 2 + 10) * Math.min(1, k * 1.6);   // 착지: 앞서 나가는 바깥 고리 한 겹 더
         ctx.strokeStyle = `rgba(200,255,255,${0.6 * a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(f.x - h2, f.y - h2, h2 * 2, h2 * 2, 8) : ctx.rect(f.x - h2, f.y - h2, h2 * 2, h2 * 2); ctx.stroke(); }
+      continue;
+    }
+    if (f.kind === 'foam') {                                    // 소화기 분사 (0.136.0): 하얀 거품 고리가 퍼짐 + 거품 방울
+      const k = 1 - f.t / f.T, r = f.r * (0.3 + 0.7 * k), a = f.t / f.T;
+      ctx.fillStyle = `rgba(235,245,255,${0.22 * a})`; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * a})`; ctx.lineWidth = 4 * a + 1; ctx.stroke();
+      ctx.fillStyle = `rgba(255,255,255,${0.8 * a})`;
+      for (let i = 0; i < 14; i++) { const an = i * Math.PI / 7 + f.x % 1; ctx.beginPath(); ctx.arc(f.x + Math.cos(an) * r * 0.9, f.y + Math.sin(an) * r * 0.9, 3 + (i % 3) * 1.5, 0, Math.PI * 2); ctx.fill(); }
       continue;
     }
     if (f.kind === 'hitburst') {                                // 맞은 자리 터짐 (0.120.0): 하얀 섬광 + 붉은 가시가 퍼짐
