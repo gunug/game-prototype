@@ -165,7 +165,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
   .wcol{display:flex;flex-direction:column;gap:6px;flex:0 1 240px;min-width:0}.wcol .world{width:100%;box-sizing:border-box;flex:1}   /* 월드 칸 + 그 아래 난이도 (0.134.1) */
-  .dsel{display:flex;align-items:center;justify-content:space-between;gap:4px}.dsel button{width:30px;min-width:0;flex:0 0 30px;padding:5px 0;background:#3a3f55}.dsel b{font-size:13px;white-space:nowrap;flex:1;text-align:center}.dsel button.lock:disabled{opacity:1;display:flex;align-items:center;justify-content:center}
+  .dsel{display:flex;align-items:center;justify-content:space-between;gap:4px}.dsel button{width:30px;min-width:0;flex:0 0 30px;padding:5px 0;background:#3a3f55}.dsel b{font-size:13px;white-space:nowrap;flex:1;text-align:center;position:relative}.dsel .dclr{position:absolute;left:0;right:0;top:100%;font-style:normal;font-size:11px;color:#7e7;margin-top:6px}   /* 0.135.10: LV 아래 '클리어' — 자리를 잡지 않고 겹쳐 놓음 */.dsel button.lock:disabled{opacity:1;display:flex;align-items:center;justify-content:center}
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 고르는 테두리 · 선택 창 조이스틱 */
@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.9';
+const VERSION = '0.135.10';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -907,12 +907,12 @@ function showWorlds() {
       b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
     } else {
       const d = getDiff(w.id), r = getRec(w.id, d);
-      b.innerHTML = `<div class="wn">${w.name}${r.clear ? `<span class="ok">LV${d} 클리어</span>` : ''}</div>
+      b.innerHTML = `<div class="wn">${w.name}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
       b.onclick = () => pickWorld(i);
       const ds = document.createElement('div'); ds.className = 'dsel';   // 난이도 − LV n + (월드마다, 0.134.1)
-      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b>${d < DIFF_MAX && d >= diffOpen(w.id) ? `<button class="dUp lock" disabled>${LOCK_SVG}</button>` : `<button class="dUp"${d >= DIFF_MAX ? ' disabled' : ''}>+</button>`}`;
+      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}${r.clear ? '<i class="dclr">클리어</i>' : ''}</b>${d < DIFF_MAX && d >= diffOpen(w.id) ? `<button class="dUp lock" disabled>${LOCK_SVG}</button>` : `<button class="dUp"${d >= DIFF_MAX ? ' disabled' : ''}>+</button>`}`;
       ds.querySelector('.dDn').onclick = () => setDiff(w.id, d - 1);
       ds.querySelector('.dUp').onclick = () => setDiff(w.id, d + 1);
       col.appendChild(ds);
