@@ -74,7 +74,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .world:disabled{opacity:.45;cursor:default}
   .world .wn{font-size:18px;font-weight:700}
   .world .wd{font-size:12px;color:#9ab;margin-top:4px}
-  .world .ok{color:#7e7;font-size:12px;margin-left:6px}
+  .world .ok{color:#7e7;font-size:12px;display:block;white-space:nowrap}   /* 0.135.9: "LVn 클리어" 한 줄 */
   .char{width:150px;padding:10px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;cursor:pointer;text-align:center}
   .world.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
   .char.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
@@ -165,7 +165,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
   .wcol{display:flex;flex-direction:column;gap:6px;flex:0 1 240px;min-width:0}.wcol .world{width:100%;box-sizing:border-box;flex:1}   /* 월드 칸 + 그 아래 난이도 (0.134.1) */
-  .dsel{display:flex;align-items:center;justify-content:space-between;gap:4px}.dsel button{width:30px;min-width:0;flex:0 0 30px;padding:5px 0;background:#3a3f55}.dsel b{font-size:13px;white-space:nowrap;flex:1;text-align:center}
+  .dsel{display:flex;align-items:center;justify-content:space-between;gap:4px}.dsel button{width:30px;min-width:0;flex:0 0 30px;padding:5px 0;background:#3a3f55}.dsel b{font-size:13px;white-space:nowrap;flex:1;text-align:center}.dsel button.lock:disabled{opacity:1;display:flex;align-items:center;justify-content:center}
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 고르는 테두리 · 선택 창 조이스틱 */
@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.8';
+const VERSION = '0.135.9';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -907,12 +907,12 @@ function showWorlds() {
       b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
     } else {
       const d = getDiff(w.id), r = getRec(w.id, d);
-      b.innerHTML = `<div class="wn">${w.name}${r.clear ? '<span class="ok">클리어</span>' : ''}</div>
+      b.innerHTML = `<div class="wn">${w.name}${r.clear ? `<span class="ok">LV${d} 클리어</span>` : ''}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
       b.onclick = () => pickWorld(i);
       const ds = document.createElement('div'); ds.className = 'dsel';   // 난이도 − LV n + (월드마다, 0.134.1)
-      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b><button class="dUp"${d >= diffOpen(w.id) ? ' disabled' : ''}>+</button>`;
+      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b>${d < DIFF_MAX && d >= diffOpen(w.id) ? `<button class="dUp lock" disabled>${LOCK_SVG}</button>` : `<button class="dUp"${d >= DIFF_MAX ? ' disabled' : ''}>+</button>`}`;
       ds.querySelector('.dDn').onclick = () => setDiff(w.id, d - 1);
       ds.querySelector('.dUp').onclick = () => setDiff(w.id, d + 1);
       col.appendChild(ds);
@@ -934,6 +934,8 @@ const DIFF_MAX = 10, DIFF_K = 1.2;
 const dmx = v => Math.round(v * (G ? G.dm : DIFF_K ** (getDiff((WORLDS[selWorld] || WORLDS[0]).id) - 1)));   // 적 정보에 보일 값 (난이도 반영)
 // 월드마다 따로 (0.134.1): survivor.diff = {월드 id: LV}
 const diffMap = () => { try { const o = JSON.parse(localStorage.getItem('survivor.diff') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } };
+// 잠긴 + 단추 자물쇠 (0.135.9)
+const LOCK_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" aria-label="잠김"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="#fc4"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="#fc4" stroke-width="1.8"/><circle cx="8" cy="11" r="1.3" fill="#232634"/></svg>';
 // 0.135.8: 다음 LV 는 이전 LV 를 클리어해야 열림 — 열린 가장 높은 LV
 const diffOpen = wid => { let d = 1; while (d < DIFF_MAX && getRec(wid, d).clear) d++; return d; };
 const getDiff = wid => Math.min(diffOpen(wid), Math.max(1, +diffMap()[wid] || 1));
