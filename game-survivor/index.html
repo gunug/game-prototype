@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.131.14';
+const VERSION = '0.132.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1999,7 +1999,7 @@ function orbitSpots(w, st) {
 const orbitFill = (w, st) => { const n = orbitN(st); w.orb.alive = Array(n).fill(orbitHp(st)); w.orb.ht = Array(n).fill(0); };
 // ── 주술인형 (0.113.0) ── G.allies: 아군이 된 적. 적 목록(G.enemies)에서 빠져 무기 · 적 탄의 대상이 아님
 const ALLY_HOME = 60, ALLY_RET_SPD = 3;                          // 돌아오는 아군: 주인공에게서 60px 안이면 다시 싸움 · 오는 동안 3배 빠르기 · 무적 (0.128.3)                                            // 돌아오는 아군: 주인공에게서 이만큼 안이면 다시 싸움 (0.128.0)
-const MOB_HIT_T = 0.5;                                           // 몬스터가 닿은 상대를 때리는 간격 (주인공이 맞은 뒤 무적 0.5초와 같음) — 아군 · 아군을 때리는 적 모두 (0.114.2)
+const MOB_HIT_T = 0.5;                                           // 몬스터가 닿은 상대를 때리는 간격 (주인공 몸 피해도 적마다 이 간격, 0.132.0) — 아군 · 아군을 때리는 적 모두 (0.114.2)
 const charmCount = w => G.allies.filter(a => a.w === w).length;
 // 저주 강화 (0.114.6): 저주 1 넘는 만큼 아군 체력 · 피해 ×(1 + CURSE_UP × (저주 − 1)). 단계가 오르면 있던 아군도 같이 (남은 체력 비율 그대로)
 const CURSE_UP = 0.25;
@@ -2228,11 +2228,12 @@ function startDying(src) {
   }
   G.fx.push({kind: 'hitburst', x: p.x, y: p.y + HIT_CY, r: 46, t: 0.7, T: 0.7});
 }
-function hurtPlayer(raw, src) {
+// inv: 맞은 뒤 전체 무적. 탄 · 곡사 · 보스 기술은 0.5초, 몸으로 닿는 피해는 TOUCH_INV (0.132.0). 맞았으면 true
+function hurtPlayer(raw, src, inv = 0.5) {
   const p = G.p;
-  if (p.inv > 0 || G.mode === 'over' || G.dying) return;
+  if (p.inv > 0 || G.mode === 'over' || G.dying) return false;
   const dmg = armor(raw, G.s.def);
-  p.hp -= dmg; p.inv = 0.5;
+  p.hp -= dmg; p.inv = Math.max(p.inv, inv);
   G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
   // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
   const k = Math.min(1, dmg / p.maxHp * 6);
@@ -2240,7 +2241,10 @@ function hurtPlayer(raw, src) {
   G.shake = Math.max(G.shake || 0, SHAKE_PX * (0.5 + 0.5 * k));
   G.fx.push({kind: 'hitburst', x: p.x, y: p.y + HIT_CY, r: 16 + 14 * k, t: 0.25, T: 0.25});   // 맞은 자리 터짐 (0.120.0)
   if (p.hp <= 0) startDying(src);
+  return true;
 }
+// 몸 피해 (0.132.0): 적마다 MOB_HIT_T 간격을 따로 셈 (e.touchT) — 둘러싸이면 마릿수만큼 맞음. 전체 무적은 같은 순간 겹친 타격만 묶는 TOUCH_INV
+const TOUCH_INV = 0.1;
 // 착탄 범위 (0.88.0): 탄막 슈팅처럼 탄 · 곡사 · 터짐 · 내려찍기는 이 작은 원에 닿아야 맞음 (침 반지름 6 보다 살짝 큼). 몸으로 닿는 건 그대로 몸 크기(p.r)
 const HITBOX = 8, HIT_CY = -12;   // HIT_CY (0.90.1): 원 중심 = 몸 가운데(p.y)에서 위로 12px — 가슴께 (그 전엔 p.y 라 다리께)
 const HIT_T = 0.4, SHAKE_PX = 7, SHAKE_DECAY = 18;   // 붉은 가장자리 지속(초) · 흔들림 최대(px) · 잦아드는 빠르기
@@ -3142,8 +3146,9 @@ function update(dt) {
     }
     if (G.walls.length && !e.air) wallPush(e, e.boss ? e.r * 0.7 : e.r);   // 비켜서다 벽에 박힌 것 다시 밖으로 (0.131.4)
     // 닿으면 피해
-    if (p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
-      hurtPlayer(e.dmg, e);
+    if (e.touchT > 0) e.touchT -= dt;
+    if (!(e.touchT > 0) && p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
+      if (hurtPlayer(e.dmg, e, TOUCH_INV)) e.touchT = MOB_HIT_T;
       if (G.mode === 'over') return;
     }
   }
@@ -3530,7 +3535,7 @@ function draw() {
   ctx.fillStyle = 'rgba(0,0,0,.3)';
   ctx.beginPath(); ctx.ellipse(p.x, p.y + 12, 13 * psh, 5 * psh, 0, 0, Math.PI * 2); ctx.fill();
   // 무기는 늘 몸 위에 그린다 (어느 쪽을 겨눠도 가려지지 않게)
-  const blink = !G.dying && p.inv > 0 && Math.floor(G.t * 20) % 2;   // 쓰러지는 중엔 깜빡이지 않음 (0.120.0)
+  const blink = !G.dying && p.inv > TOUCH_INV && Math.floor(G.t * 20) % 2;   // 쓰러지는 중엔 깜빡이지 않음 (0.120.0)
   if (!blink) {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
