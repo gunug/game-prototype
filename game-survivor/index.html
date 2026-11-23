@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.133.1';
+const VERSION = '0.133.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -631,7 +631,7 @@ const WEAPONS = {
   // 굴곡 레이저: 가장 가까운 적 → 그 둘레 적 … 최대 chain 마리를 잇는다. 이펙트는 마디마다 반원
   // 피해는 약하지만 쿨다운이 짧아 다단히트. 투사체 업그레이드 = 연쇄 +1, hop = 다음 적을 찾는 거리
   laser:  {nm: '굴곡 레이저', kind: 'laser', sh: '적을 잇는 굽은 빔', ds: '빔이 가까운 적부터 최대 3마리로 굽이쳐 뻗는다. 빔이 닿은 적만 맞고 (관통 없음), 길 위 다른 적은 안 맞는다',
-           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0,   // splash 1 (0.93.0): 기본 특성은 0 이 아니게   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
+           dmg: 0, cd: 0.07, mag: 10, range: 120, spd: 0, chain: 2, hop: 150, maxT: 3, stun: 0.01,   /* 경직 0.01 (0.133.2) */ // splash 1 (0.93.0): 기본 특성은 0 이 아니게   // 관통 없음 (0.75.0) — 빔이 이은 적(마디)만 맞는다   // maxT 3 = 연쇄 대상 (빔 길 위 적은 덤)   // chain 2 = 첫 적 + 2 (모두 3마리)
            len: 22, pivot: [0, 0.55], muzzle: [1.0, 0.3], turn: 16,
            badges: ['chain']},   // 0.99.0: 정체성 특성 연쇄만 (폭발은 뺌 — 보조로 부여)
   // 저격총: 사거리 안 **가장 가까운** 적을 겨눠 빠른 관통탄을 쏜다 (0.56.0, 그 전엔 가장 먼 적) — 날아가는 길(폭 width)의 적을 pierce 마리까지 꿰뚫는다.
@@ -677,7 +677,7 @@ const WEAPONS = {
   //   유지 시간 life 초 · 유지 갯수 = 아군수 — 넘으면 오래된 것부터 1초 세고 부서짐. 가까이(WALL_AURA) 온 적에게 쿨타임마다 무기 피해
   //   확산 = 대상(가까운 적) 수 · 연쇄 = 한 대상에 상하좌우로 더 세우는 칸 수 · 폭발 = 세울 때 충격 (폭발 반경 · 비율)
   barricade: {nm: '바리케이드', kind: 'build', sh: '적과 나 사이에 벽', ds: '가장 가까운 적과 나 사이 가운데에 바리케이드를 세운다. 적은 벽을 돌아서 오고, 가까이 오면 피해를 받는다. 적 탄 · 곡사 · 돌진은 벽을 깎는다. 유지 시간이 지나거나 유지 갯수를 넘으면 사라진다',
-           dmg: 0, fixedDmg: 15, fixedReload: true,   /* 0.131.2: 30 → 15 */ cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, hitT: 0.5, ally: 4, maxT: 1, stun: 0,   // hitT: 근접 피해 간격 (0.131.1 — 쿨타임과 따로, 무기 강화마다 ×0.95)   // 맞춤 계산 대신 정한 피해 · 재장전
+           dmg: 0, fixedDmg: 15, fixedReload: true,   /* 0.131.2: 30 → 15 */ cd: 0.5, mag: 2, reload: 4, range: 200, life: 10, hp: 300, hitT: 0.5, ally: 4, maxT: 1, stun: 0.2,   /* 경직 0.2 (0.133.2) — 착지 충격 · 근접 피해 */   // hitT: 근접 피해 간격 (0.131.1 — 쿨타임과 따로, 무기 강화마다 ×0.95)   // 맞춤 계산 대신 정한 피해 · 재장전
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['ally']},
 };
@@ -2471,7 +2471,7 @@ const WALL_GROW_T = 0.12;                                        // 연쇄 칸�
 const WALL_LAND_H = WALL_C / 2 + WALL_AURA * 2, WALL_LAND_K = 2;
 function wallLand(x, y, st) {
   let hit = 0;
-  for (const e of G.enemies) if (!e.dead && Math.abs(e.x - x) < WALL_LAND_H + e.r * 0.5 && Math.abs(e.y - y) < WALL_LAND_H + e.r * 0.5) { hurtEnemy(e, st.dmg * WALL_LAND_K); hit++; }
+  for (const e of G.enemies) if (!e.dead && Math.abs(e.x - x) < WALL_LAND_H + e.r * 0.5 && Math.abs(e.y - y) < WALL_LAND_H + e.r * 0.5) { hurtEnemy(e, st.dmg * WALL_LAND_K, st.stun); hit++; }
   G.fx.push({kind: 'wallwave', x, y, t: 0.45, T: 0.45, hit: 1, big: true});
   G.shake = Math.max(G.shake || 0, 2.5);
 }
@@ -2518,7 +2518,7 @@ function tickWalls(dt) {
     if ((q.atkT -= dt) > 0) continue;
     const st = wstat(q.w.id), h = WALL_C / 2 + WALL_AURA; q.atkT = st.hitT;
     let hit = 0;
-    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) { hurtEnemy(e, st.dmg); hit++; }
+    for (const e of G.enemies) if (!e.dead && Math.abs(e.x - q.x) < h + e.r * 0.5 && Math.abs(e.y - q.y) < h + e.r * 0.5) { hurtEnemy(e, st.dmg, st.stun); hit++; }
     G.fx.push({kind: 'wallwave', x: q.x, y: q.y, t: 0.3, T: 0.3, hit});   // 0.131.11: 피해 박자마다 상자에서 경계가 퍼짐 (맞은 적이 있으면 더 진하게)
   }
   if (ch) { G.walls = G.walls.filter(q => !q.gone); wallsChanged(); }
