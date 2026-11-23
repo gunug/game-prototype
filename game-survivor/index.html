@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.134.2';
+const VERSION = '0.135.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -440,7 +440,16 @@ const mobArmor = (dmg, def) => Math.max(1, dmg - (def || 0));
 const MAX_ENEMIES = 500;
 const TRAIT_MAX = 10;             // 특성 보조 최대 단계 (0.100.0, 그 전 5) — 부여 1 + 강화 9
 
-const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}`;   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
+const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}`;
+// 고기 · 반려견 · 당황 · 맨손 (0.135.0)
+//   고기: 보조 · 무기 아님. 잡몹이 MEAT_P 확률, 엘리트 · 보스는 늘 떨굼. 획득 범위 안이면 끌려와 먹힘 — 최대 체력의 MEAT_HEAL 만큼 참. 체력이 가득이면 안 먹히고(안 끌림) 그대로. MEAT_LIFE 초 뒤 사라짐
+//   반려견(보조): 획득 범위 × DOG_R 안의 고기를 물어 와 주인공 발밑에 놓음 (획득 범위 안의 고기는 안 감). 맞지 않음 · 벽 · 적을 지나감
+//   당황(패널티): PANIC_T 초마다 든 무기 하나를 획득 범위 밖에 떨굼 — 획득 범위 안에 들면 끌려와 다시 듦 (강화 그대로). 떨군 동안 그 무기는 안 쏨
+//   맨손: 든 무기가 하나도 없으면 아주 짧은 거리의 한 마리 치기
+const MEAT_IMG = new Image(); MEAT_IMG.src = `images/item_meat.png?v=${VERSION}`;
+const DOG_IMG = new Image(); DOG_IMG.src = `images/item_dog.png?v=${VERSION}`;
+const MEAT_P = 0.02, MEAT_HEAL = 0.2, MEAT_LIFE = 60, DOG_R = 5, DOG_SPD = 1.3, PANIC_T = 30, WDROP_OUT = 70;
+const FIST = {dmg: 40, cd: 0.4, reach: 22, stun: 0.1};   // reach: 몸끼리 닿은 뒤 더 닿는 거리 (px)   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
 const MAGDROP_P = 0.005;   // 자석 떨굴 기본 확률 (적 하나마다)
 // 가변 출현율 (0.107.0): 못 떨군 처치마다 확률이 오름. 3배(MAGDROP_MAX)에 이르면 100%. 떨구면 처음으로
 //   0.107.1: 곧게 말고 끝으로 갈수록 가파르게 — 확률 = 기본 × (1 + 2 × (못 떨군 수 ÷ MAGDROP_N)²). MAGDROP_N 마리째에 3배 → 100%
@@ -501,6 +510,7 @@ const UPGRADES = [
   // 자석 출현 (0.106.0): 얻으면 끝. 적(보스 빼고)이 MAGDROP_P 확률로 자석을 떨군다 — 주우면 필드의 보석을 모두 끌어옴. 겹쳐 쌓임
   {id: 'magdrop', sub: '자석 출현', passive: true, nm: '자석 출현', ds: '적이 0.5% 확률로 자석을 떨군다 — 못 떨굴수록 확률이 올라 3배(1.5%)에 이르면 반드시 떨군다. 주우면 필드의 경험치를 모두 끌어온다', max: 1, badges: [], apply: () => {}},
   // 연구 일지 (0.112.0): 얻으면 끝. 얻는 경험치 ×2 (경험치 증가 업그레이드와 따로 곱함)
+  {id: 'dog', sub: '반려견', passive: true, nm: '반려견', ds: '획득 범위 5배 안에 떨어진 고기를 물어 온다', max: 1, badges: [], apply: () => {}},   // 0.135.0 생존자
   {id: 'xp2', sub: '연구 일지', passive: true, nm: '경험치 두 배', ds: '얻는 경험치가 두 배', max: 1, badges: [], apply: () => {}},
   {id: 'give_pierce', give: 'pierce', sub: '송곳 인장', nm: '관통 부여', ds: '관통이 없는 무기에 관통을 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['pierce'], fx: '부여', apply: () => {}},
   {id: 'give_chain',  give: 'chain',  sub: '사슬 인장', nm: '연쇄 부여', ds: '연쇄가 없는 무기에 연쇄를 붙인다 (앞으로 얻는 무기도)', max: 1, badges: ['chain'], fx: '부여', apply: () => {}},
@@ -736,6 +746,7 @@ const wupLv = id => G && G.weapons ? ((G.weapons.find(w => w.id === id) || {}).l
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
 // ── 패널티 보조 (0.110.0) ── 상자에서 안 나옴. 얻는 길은 아직 정하지 않음. 가지면 판 동안 불리한 효과 (G.pens)
 const PENALTIES = [
+  {id: 'panic',    nm: '당황', short: '30초마다 무기 떨굼', ds: '30초마다 든 무기 하나를 떨어뜨린다 — 획득 범위 안에 들면 다시 줍는다. 든 무기가 없으면 맨손으로 친다'},   // 0.135.0 생존자
   {id: 'civilian', nm: '민간인', short: '발사각×2', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
@@ -782,7 +793,7 @@ const affectedBy = uid => G.weapons.filter(w => wpnTakes(WEAPONS[w.id], uid)).ma
 const W_SLOTS = 3, S_SLOTS = 5;
 const subsUsed = () => G.subs.length + G.pens.length;            // 보조 칸 쓴 수 = 보조 + 패널티
 const CHARACTERS = [
-  {id: 'survivor',    nm: '생존자', sprite: 'survivor',    weapon: 'pistol', pen: 'civilian', sub: 'reroll'},
+  {id: 'survivor',    nm: '생존자', sprite: 'survivor',    weapon: 'pistol', pen: 'panic',    sub: 'dog'},   // 0.135.0: 민간인 · 주사위 → 당황 · 반려견
   {id: 'police',      nm: '경찰',   sprite: 'police',      weapon: 'sniper', pen: 'ration',   sub: 'give_chain'},
   {id: 'firefighter', nm: '소방관', sprite: 'firefighter', weapon: 'shield', pen: 'heavy',    sub: 'give_pierce'},
   {id: 'scientist',   nm: '과학자', sprite: 'scientist',   weapon: 'laser',  pen: 'weak',     sub: 'xp2'},   // 0.112.0
@@ -965,7 +976,7 @@ function showChars() {
     const wShort = id => { const W = WEAPONS[id], st = baseStat(id);
       return [`피해${Math.round(st.dmg)}`, W.mag ? `장탄${W.mag}` : '', W.reload ? `재장전${num(W.reload)}` : ''].filter(Boolean).join(' ')
         + (W.badges.length ? `<span class="kb">${W.badges.map(b => badgeHtml(b, badgeVal(b, st))).join('')}</span>` : ''); };   // 특성은 공통 뱃지 + 숫자 (0.111.3)
-    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.nm;   // 봉인 부적 = '봉인×1'
+    const subShort = u => u.give ? `${BADGES[u.give].nm} 부여` : u.id === 'reroll' ? '새로뽑기×1' : u.id === 'banish' ? '봉인×1' : u.id === 'magdrop' ? '자석 0.5%' : u.id === 'xp2' ? '경험치×2' : u.id === 'dog' ? '고기 물어 옴' : u.nm;   // 봉인 부적 = '봉인×1'
     const kit = (k, img, nm, ds) => `<div class="kit ${k}"><img src="${img}?v=${VERSION}" alt=""><div><span>${nm}</span><small>${ds}</small></div></div>`;
     b.innerHTML = `<img src="images/portrait_${c.sprite}.png?v=${VERSION}" alt=""><div class="cn">${c.nm}</div>
       ${kit('kw', `images/weapon_${c.weapon}.png`, WEAPONS[c.weapon].nm, wShort(c.weapon))}
@@ -1093,6 +1104,7 @@ function newGame(wi, weaponId, subId) {
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
+    meats: [], wdrops: [], dog: null, panicT: 0, fistT: 0,        // 고기 · 떨군 무기 · 반려견 · 당황 · 맨손 (0.135.0)
     dl: getDiff(WORLDS[wi].id), dm: DIFF_K ** (getDiff(WORLDS[wi].id) - 1),                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
@@ -2775,6 +2787,7 @@ function hurtEnemy(e, dmg, stun = 0) {
     if (!e.boss && ownsSub('magdrop')) {                          // 자석 출현 (0.106.0) · 가변 출현율 (0.107.0)
       if (Math.random() < magDropP(G.magMiss || 0)) { G.mags.push({x: e.x, y: e.y, t: 0}); G.magMiss = 0; } else G.magMiss = (G.magMiss || 0) + 1;
     }
+    if (e.elite != null || Math.random() < MEAT_P) G.meats.push({x: e.x, y: e.y, t: 0});   // 고기 (0.135.0): 엘리트 · 보스는 늘
     if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss) G.chests.push({x: e.x, y: e.y, boss: true, t: 0});   // 보스 → 보스 상자 (영구 업그레이드, 0.123.0)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
@@ -2782,6 +2795,99 @@ function hurtEnemy(e, dmg, stun = 0) {
   }
 }
 
+// ── 고기 · 반려견 · 당황 · 맨손 (0.135.0) ──
+const heldW = () => G.weapons.filter(w => !w.drop);
+function tickMeat(dt, magnet) {
+  const p = G.p, full = p.hp >= p.maxHp;
+  for (const m of G.meats) {
+    if (m.carry) continue;                                        // 반려견이 무는 중
+    if ((m.t += dt) > MEAT_LIFE) { m.dead = true; continue; }
+    if (full) { m.pull = false; continue; }                       // 체력이 가득이면 안 먹힘 · 안 끌림
+    const dx = p.x - m.x, dy = p.y - m.y, d = Math.hypot(dx, dy) || 1;
+    if (d < magnet) m.pull = true;
+    if (m.pull) { const sp = GEM_PULL * dt; m.x += dx / d * Math.min(sp, d); m.y += dy / d * Math.min(sp, d); }
+    if (d < p.r + 8) {
+      m.dead = true; const h = Math.min(p.maxHp - p.hp, p.maxHp * MEAT_HEAL); p.hp += h;
+      G.texts.push({x: p.x, y: p.y - 24, v: '+' + Math.round(h), t: 0.8, heal: true});
+    }
+  }
+  G.meats = G.meats.filter(m => !m.dead);
+}
+function tickDog(dt, magnet) {
+  if (!ownsSub('dog')) { G.dog = null; return; }
+  const p = G.p, g = G.dog || (G.dog = {x: p.x - 24, y: p.y + 8, tgt: null, carry: null, face: 1, walk: 0});
+  const sp = p.speed * DOG_SPD, R = magnet * DOG_R;
+  const go = (tx, ty, stop) => { const dx = tx - g.x, dy = ty - g.y, d = Math.hypot(dx, dy); if (d <= stop + 0.5) return true;
+    const mv = Math.min(sp * dt, d - stop), k = mv / d; g.x += dx * k; g.y += dy * k; if (Math.abs(dx) > 1) g.face = dx > 0 ? 1 : -1; g.walk += dt; return d - mv <= stop + 0.5; };
+  if (g.carry) {                                                  // 물고 돌아옴 → 발밑에 놓음
+    const m = g.carry; m.x = g.x + g.face * 8; m.y = g.y - 6;
+    if (go(p.x, p.y + 6, p.r + 4)) { m.carry = false; m.t = 0; m.x = g.x; m.y = g.y; g.carry = null; }
+    return;
+  }
+  if (g.tgt && (g.tgt.dead || g.tgt.carry || Math.hypot(g.tgt.x - p.x, g.tgt.y - p.y) < magnet)) g.tgt = null;
+  if (!g.tgt) {                                                   // 획득 범위 밖 · 반려견 범위 안의 가장 가까운 고기
+    let bd = Infinity;
+    for (const m of G.meats) { if (m.carry) continue; const d = Math.hypot(m.x - p.x, m.y - p.y); if (d >= magnet && d < R && d < bd) { bd = d; g.tgt = m; } }
+  }
+  if (g.tgt) { if (go(g.tgt.x, g.tgt.y, 4)) { g.carry = g.tgt; g.tgt.carry = true; g.tgt = null; } return; }
+  const dx = p.x - g.x, dy = p.y - g.y;                           // 할 일 없으면 곁에
+  if (Math.hypot(dx, dy) > 46) go(p.x - Math.sign(dx || 1) * 26, p.y + 8, 2); else g.walk = 0;
+}
+function dropWeapon(w) {
+  const p = G.p, a = Math.random() * Math.PI * 2, r = magnetR(G.s) + WDROP_OUT;
+  w.drop = true; w.beam = null; w.shots = [];
+  G.wdrops.push({w, x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: 0});
+  G.texts.push({x: p.x, y: p.y - 40, v: '당황!', t: 0.9, me: true});
+}
+function tickPanic(dt) {
+  if (!hasPen('panic')) return;
+  if ((G.panicT += dt) < PANIC_T) return;
+  G.panicT = 0;
+  const h = heldW(); if (h.length) dropWeapon(h[Math.floor(Math.random() * h.length)]);
+}
+function tickWdrops(dt, magnet) {
+  const p = G.p;
+  for (const q of G.wdrops) {
+    q.t += dt;
+    const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 1;
+    if (d < magnet && q.t > 0.5) q.pull = true;
+    if (q.pull) { const sp = GEM_PULL * dt; q.x += dx / d * Math.min(sp, d); q.y += dy / d * Math.min(sp, d); }
+    if (q.pull && d < p.r + 10) { q.dead = true; q.w.drop = false; }   // 다시 듦 (강화 · 장탄 그대로)
+  }
+  G.wdrops = G.wdrops.filter(q => !q.dead);
+  if (G.weapons.length && !heldW().length) fistTick(dt);          // 든 무기가 없으면 맨손
+}
+function fistTick(dt) {
+  const p = G.p;
+  if ((G.fistT -= dt) > 0) return;
+  let best = null, bd = Infinity;
+  for (const e of G.enemies) { if (e.dead || e.air) continue; const d = Math.hypot(e.x - p.x, e.y - p.y) - e.r - p.r; if (d < FIST.reach && d < bd) { bd = d; best = e; } }
+  if (!best) return;
+  G.fistT = FIST.cd; p.face = best.x >= p.x ? 1 : -1;
+  hurtEnemy(best, FIST.dmg * G.s.dmgMul, FIST.stun);
+  G.fx.push({kind: 'splash', mine: true, x: (p.x + best.x) / 2, y: (p.y + best.y) / 2 - 10, r: 12, t: 0.15});
+}
+function drawGround2() {
+  for (const m of G.meats) {                                     // 고기: 마지막 5초는 깜빡임
+    if (m.carry) continue;
+    if (MEAT_LIFE - m.t < 5 && Math.floor(m.t * 8) % 2) continue;
+    const sz = 18, y = m.y - 3 - Math.abs(Math.sin(m.t * 3)) * 3;
+    if (MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 6, '#a52');
+  }
+  for (const q of G.wdrops) {                                    // 떨군 무기: 노란 빛 + 살짝 뜀
+    const img = WEAPON_IMG[q.w.id], y = q.y - 4 - Math.abs(Math.sin(q.t * 3)) * 4, w = 30;
+    ctx.save(); ctx.shadowColor = '#fd4'; ctx.shadowBlur = 10;
+    if (img) ctx.drawImage(img, q.x - w / 2, y - w * img.height / img.width / 2, w, w * img.height / img.width); else circle(q.x, y, 7, '#fd4');
+    ctx.restore();
+  }
+  const g = G.dog; if (!g) return;                               // 반려견 (그림은 왼쪽을 봄)
+  const sz = 28, hop = Math.abs(Math.sin(g.walk * 14)) * 2;
+  ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 10, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(g.x, g.y - hop); if (g.face > 0) ctx.scale(-1, 1);
+  if (DOG_IMG.complete && DOG_IMG.naturalWidth) ctx.drawImage(DOG_IMG, -sz / 2, -sz / 2, sz, sz); else circle(0, 0, 8, '#c84');
+  ctx.restore();
+  if (g.carry && MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, g.carry.x - 7, g.carry.y - 7, 14, 14);
+}
 // 경험치 보석 떨구기 (0.73.0): n 개로 나눠 사방으로 튀어 오른다 (z = 높이). 땅에 닿기 전엔 못 줍고 끌리지도 않는다
 const MAGNET = 90;                    // 보석을 끌어오기 시작하는 거리 (기본)
 const magnetR = s => MAGNET * s.magnetMul * (hasPen('heavy') ? 0.5 : 1);
@@ -2848,7 +2954,7 @@ function weaponPose(w, i) {
   const p = G.p, W = WEAPONS[w.id], a = w.aim, c = Math.cos(a), sn = Math.sin(a);
   const img = WEAPON_IMG[w.id], len = W.len, h = img ? len * img.height / img.width : len * 0.6;
   const back = w.kick * 5;                                       // 반동: 쏘면 뒤로 살짝
-  const n = G.weapons.length;
+  const n = heldW().length;
   let hx, hy;
   if (n > 1) {
     const th = (n % 2 ? -Math.PI / 2 : 0) + i * Math.PI * 2 / n;
@@ -3084,7 +3190,9 @@ function update(dt) {
   // 조준 · 발사 — 무기마다 따로 (연속공격은 0.1초 간격)
   // 총(권총 · 저격총)은 **쏘기 전까지 방향을 그대로** 둔다 (적을 미리 따라 돌면 덜덜거림).
   // 쏠 때가 되면 AIM_T 초 동안 그때의 대상 쪽으로 짧게 돌고 → 발사. 레이저는 늘 쏘고 있으므로 계속 따라 돈다
+  tickPanic(dt);
   G.weapons.forEach((w, wi) => {
+    if (w.drop) return;                                          // 떨군 무기는 안 쏨 (0.135.0)
     const kind = WEAPONS[w.id].kind, st = wstat(w.id);
     const tgt = nearestEnemy(p.x, p.y, st.range);
     const turnTo = (want, k) => { let d = want - w.aim; d = Math.atan2(Math.sin(d), Math.cos(d)); w.aim += d * k; };   // 가까운 쪽으로
@@ -3305,6 +3413,7 @@ function update(dt) {
     if (Math.hypot(p.x - m.x, p.y - m.y) < p.r + 12) { m.dead = true; for (const g of G.gems) { g.pull = true; if (g.mag == null) g.mag = 0; } G.fx.push({kind: 'splash', mine: true, x: p.x, y: p.y, r: 40, t: 0.3}); }
   }
   G.mags = G.mags.filter(m => !m.dead);
+  tickMeat(dt, magnet); tickDog(dt, magnet); tickWdrops(dt, magnet);   // 0.135.0
 
 
   G.enemies = G.enemies.filter(e => !e.dead);
@@ -3387,7 +3496,7 @@ function drawSprite(name, x, y, h, flip, fallback, bob, byArea, white) {
 // 미터 자리 (0.90.1): 착탄 원 둘레 — 원 반지름 8 + 파이 반지름 8.5 + 2 만큼 떨어져, 무기 수만큼 고르게 (하나면 오른쪽, 둘이면 오른쪽 · 왼쪽 …). 겨눔 · 반동과 상관없음
 const METER_RING = 19;
 function meterPos(i) {
-  const p = G.p, th = i * Math.PI * 2 / Math.max(1, G.weapons.length);
+  const p = G.p, th = i * Math.PI * 2 / Math.max(1, heldW().length);
   return {x: p.x + Math.cos(th) * METER_RING, y: p.y + HIT_CY + Math.sin(th) * METER_RING};
 }
 function boomMeter(w, i) {
@@ -3484,6 +3593,7 @@ function draw() {
     if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 7, '#e44');
     ctx.restore();
   }
+  drawGround2();                                                 // 고기 · 떨군 무기 · 반려견 (0.135.0)
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
@@ -3526,7 +3636,7 @@ function draw() {
   const allyVis = G.allies.filter(a => view(a.x, a.y, a.r * 4));
   const wallVis = G.walls.filter(q => view(q.x, q.y, WALL_C));
   const bodies = [...es.map(o => ['e', o, o.y]), ...allyVis.map(o => ['a', o, o.y]), ['p', p, p.y], ...wallVis.map(q => ['w', q, q.y + WALL_C / 2 - 6])].sort((q, r) => q[2] - r[2]);   // 벽 = 칸 아랫변 (0.131.0)
-  const poses = G.weapons.map((w, i) => [w, weaponPose(w, i)]);
+  const poses = heldW().map((w, i) => [w, weaponPose(w, i)]);   // 떨군 무기는 안 그림 (0.135.0)
   for (const [kind, o] of bodies) {
     if (kind === 'w') { drawWall(o); continue; }
     if (kind === 'e') { const e = o;
@@ -3569,7 +3679,7 @@ function draw() {
     drawSprite(G.char.sprite, p.x, p.y, 54, FACE[G.char.sprite] ? p.face > 0 : p.face < 0, () => { circle(p.x, p.y, p.r, '#fd6'); circle(p.x + p.face * 5, p.y - 3, 3, '#333'); }, pb);
   }
   if (!blink) poses.forEach(([w, m]) => { const k = WEAPONS[w.id].kind; if (k !== 'orbit' && k !== 'build') drawWeapon(w, m); });   // 바리케이드는 들지 않음
-  G.weapons.forEach(w => { if (WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
+  G.weapons.forEach(w => { if (!w.drop && WEAPONS[w.id].kind === 'orbit') drawOrbit(w); });   // 방패는 깜빡여도 늘 보임
     }
   }
   drawEshotsAir();
