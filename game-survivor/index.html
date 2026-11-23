@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.6';
+const VERSION = '0.135.7';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2266,7 +2266,7 @@ function hurtPlayer(raw, src, inv = 0.5) {
   if (p.inv > 0 || G.mode === 'over' || G.dying) return false;
   const dmg = armor(raw * G.dm, G.s.def);                        // 적 피해 × 난이도 (0.134.0) — 몸 · 탄 · 곡사 · 보스 기술 모두 여기로
   p.hp -= dmg; p.inv = Math.max(p.inv, inv);
-  G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
+  G.texts.push({x: p.x, y: p.y - 24, v: -Math.round(dmg), t: 0.8, me: true});   // 정수로 (0.135.7)
   // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
   const k = Math.min(1, dmg / p.maxHp * 6);
   G.hitT = HIT_T; G.hitK = Math.max(0.4, k);
@@ -2633,8 +2633,8 @@ function tickPools(dt) {
   if (!worst || G.dying) { G.poolAcc = 0; return; }
   if ((G.poolAcc = (G.poolAcc || 0) + dt) < POOL_TICK) return;
   G.poolAcc -= POOL_TICK;
-  const dmg = armor(worst.dps * POOL_TICK, G.s.def);
-  p.hp -= dmg; G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.6, me: true});
+  const dmg = armor(worst.dps * POOL_TICK * G.dm, G.s.def);      // × 난이도 (0.135.7 — 0.134.0 에서 빠졌던 것)
+  p.hp -= dmg; G.texts.push({x: p.x, y: p.y - 24, v: -Math.round(dmg), t: 0.6, me: true});
   if (p.hp <= 0) startDying(worst);
 }
 // 독 바닥 그림 (0.128.6): 선 · 원(공격 예고와 헷갈림) 대신 그림 한 장(item_fx_pool, KREA2)을 밝기만 남겨 물들임 — 적 = 늘 붉게, 아군 = 늘 푸르게
@@ -3885,6 +3885,7 @@ function draw() {
     ctx.fillStyle = t.crit ? '#ffd84a' : t.brk ? SHIELD_COL : t.heal ? '#5f5' : t.me ? '#f66' : t.weak ? '#889' : '#fff';
     if (t.crit) { ctx.font = 'bold 16px system-ui';   // 치명타: 노란색 · 보통(13)보다 조금 크게 (0.92.1 — 18 → 16)
       ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(t.v, t.x, t.y - (0.8 - t.t) * 30); }
+    if (typeof t.v === 'number') t.v = Math.round(t.v);          // 숫자는 늘 정수 (0.135.7)
     ctx.fillText(t.v, t.x, t.y - (0.8 - t.t) * 30);
     if (t.crit) ctx.font = 'bold 13px system-ui';
   }
