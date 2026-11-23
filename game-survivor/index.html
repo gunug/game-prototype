@@ -164,6 +164,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}#cards .wl{gap:3px}#cards .wl{gap:3px;height:20px}#cards .wl img{width:42px;height:18px;padding:1px 2px}#cards .wl .wn{font-size:9px;letter-spacing:-.03em}#cards .wl b{font-size:9px;line-height:13px;padding:0 4px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
+  .btns.diff{align-items:center;margin-bottom:8px}.btns.diff button{min-width:44px}.btns.diff b{min-width:96px;text-align:center}   /* 난이도 (0.134.0) */
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 고르는 테두리 · 선택 창 조이스틱 */
@@ -260,6 +261,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="hint" id="startHint">1단계 — 월드를 고른다. 방향키로 고르고 Enter (또는 1 · 2 · 3). WASD 로 피하고, 총은 저절로 쏜다.</div>
   <div class="sec">월드</div>
   <div class="row1" id="worldList"></div>
+  <div class="btns diff"><button id="diffDn" class="sub">−</button><b id="diffLv">난이도 LV1</b><button id="diffUp" class="sub">+</button></div>
   <div class="btns"><button id="permBtn">영구 업그레이드</button><button id="pbanBtn">영구 봉인</button></div>
 </div>
 <div class="overlay" id="pban" hidden>
@@ -346,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.133.7';
+const VERSION = '0.134.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -897,6 +899,7 @@ function showWorlds() {
     }
     box.appendChild(b);
   }
+  paintDiff();
   $('worldSel').hidden = false;
 }
 function showPerm() {                                          // 영구 업그레이드 보기 (0.123.0)
@@ -907,6 +910,14 @@ function showPerm() {                                          // 영구 업그�
   $('perm').hidden = false;
 }
 $('permBtn').onclick = () => showPerm();
+// 난이도 (0.134.0): LV1 = 지금 설정. 한 단계 올릴 때마다 적 체력 · 피해 ×DIFF_K (곱으로 쌓임). 방어 · 빠르기는 그대로
+const DIFF_MAX = 10, DIFF_K = 1.2;
+const dmx = v => Math.round(v * (G ? G.dm : DIFF_K ** (getDiff() - 1)));   // 적 정보에 보일 값 (난이도 반영)
+const getDiff = () => Math.min(DIFF_MAX, Math.max(1, +localStorage.getItem('survivor.diff') || 1));
+function setDiff(d) { localStorage.setItem('survivor.diff', Math.min(DIFF_MAX, Math.max(1, d))); paintDiff(); }
+function paintDiff() { const d = getDiff(); $('diffLv').textContent = `난이도 LV${d}`; $('diffDn').disabled = d <= 1; $('diffUp').disabled = d >= DIFF_MAX; }
+$('diffDn').onclick = () => setDiff(getDiff() - 1);
+$('diffUp').onclick = () => setDiff(getDiff() + 1);
 // 영구 봉인 페이지 (0.125.0): 무기(새 무기로 나옴) · 보조 · 업그레이드를 켜고 끔. 켠 수 ≤ 칸
 const PBAN_GROUPS = () => [
   ['무기', UNLOCKED_WEAPONS.map(id => ({id: 'new_' + id, nm: WEAPONS[id].nm, img: `weapon_${id}`}))],
@@ -1078,6 +1089,7 @@ function newGame(wi, weaponId, subId) {
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
+    dl: getDiff(), dm: DIFF_K ** (getDiff() - 1),                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
   if (subId) { const u = UPG[subId]; G.ups[subId] = 1; u.apply(G.s, G.p); G.subs.push({id: subId, nm: u.sub}); }   // 출발 보조 (0.102.0)
@@ -1170,8 +1182,8 @@ $('infoClose').onclick = closeInfo;
 // 적 창 (0.85.0): 지금까지 만든 적 전부 — 월드마다 잡몹(나오는 때 차례) · 보스. 판 중이면 멈추고, 닫으면 다시
 const PAT_NM = {charge: '돌진', slam: '내려찍기', summon: '부르기', lob: '수류탄 비', volley: '부채꼴 탄', leap3: '연속 도약', leap: '도약', summonSplit: '분열 부르기', beam: '빔', acidRain: '산성 비'};
 function foeSpecial(T) {
-  if (T.shot) return `곧은 탄 — 사거리 ${T.shot.range} 안이면 서서 ${T.shot.cd}초마다, 걷는 방향을 앞질러 쏨 · 탄속 ${T.shot.spd} · 피해 ${T.shot.dmg}`;
-  if (T.lob) return `곡사 — 사거리 ${T.lob.range} 안이면 서서 ${T.lob.cd}초마다, 걷는 방향을 앞질러 던짐 · 반지름 ${T.lob.aoe} · 피해 ${T.lob.dmg}`;
+  if (T.shot) return `곧은 탄 — 사거리 ${T.shot.range} 안이면 서서 ${T.shot.cd}초마다, 걷는 방향을 앞질러 쏨 · 탄속 ${T.shot.spd} · 피해 ${dmx(T.shot.dmg)}`;
+  if (T.lob) return `곡사 — 사거리 ${T.lob.range} 안이면 서서 ${T.lob.cd}초마다, 걷는 방향을 앞질러 던짐 · 반지름 ${T.lob.aoe} · 피해 ${dmx(T.lob.dmg)}`;
   if (T.shield) return `방패 ${T.shield}회 — 남은 동안 어떤 공격이든 1 만 받음 (엘리트 ×${ELITE_SHIELD})`;
   if (T.burst) return `죽으면 ${T.burst.T}초 뒤 터짐 — 반지름 ${T.burst.aoe} · 피해 ${T.burst.dmg}`;
   if (T.split) { const S = ENEMY_TYPES[T.split.type]; return `죽으면 작은 좀비 ${T.split.n}마리로 갈라짐 (체력 ${S.hp} · 피해 ${S.dmg}, 더는 안 갈라짐)`; }
@@ -1186,10 +1198,10 @@ function openFoes() {
   $('foeList').innerHTML = WORLDS.map((Wd, wi) => `<h3>${Wd.name} — ${Wd.desc.split(' — ')[0]}</h3>`
     + Wd.mobs.map(m => { const T = ENEMY_TYPES[m.type];
         return `<div class="foeRow">${img(m.type)}<div><div class="fn">${T.nm}<small>${fmt(m.at)} 부터${m.eliteOnly ? ' · 엘리트로만' : ''}</small></div>
-          <div class="fs">체력 ${T.hp} · 방어 ${T.def} · 이동 ${T.spd} · 피해 ${T.dmg} · 경험치 ${T.xp}</div><div class="fx">${foeSpecial(T)}</div></div></div>`; }).join('')
+          <div class="fs">체력 ${dmx(T.hp)} · 방어 ${T.def} · 이동 ${T.spd} · 피해 ${dmx(T.dmg)} · 경험치 ${T.xp}</div><div class="fx">${foeSpecial(T)}</div></div></div>`; }).join('')
     + Wd.bosses.map(b => { const B = BOSSES[b.id];
         return `<div class="foeRow boss" style="border-color:${gradeCol(B.grade)}">${img(B.sprite)}<div><div class="fn" style="color:${gradeCol(B.grade)}">${B.nm}<small>${B.final ? '최종 보스' : '중간 보스'} · ${fmt(b.at)}</small></div>
-          <div class="fs">체력 ${bossPlan(b.id, wi, b.at).hp} · 방어 ${B.def} · 이동 ${B.spd} · 피해 ${B.dmg}</div><div class="fx">${[...new Set(B.pats)].map(k => PAT_NM[k]).join(' · ')}</div></div></div>`; }).join('')
+          <div class="fs">체력 ${dmx(bossPlan(b.id, wi, b.at).hp)} · 방어 ${B.def} · 이동 ${B.spd} · 피해 ${dmx(B.dmg)}</div><div class="fx">${[...new Set(B.pats)].map(k => PAT_NM[k]).join(' · ')}</div></div></div>`; }).join('')
   ).join('') + `<h3>엘리트</h3><div class="infoRow"><span>그때 나오는 잡몹 하나(원거리형 빼고)가 ${ELITE.size}배 크기 · 체력 ×${ELITE.hp} · 피해 ×${ELITE.dmg} — 늘 잡몹보다 조금 빠르고, 잡몹을 밀어냄. 죽으면 상자</span></div>`;
   $('foes').dataset.resume = G && G.mode === 'play' ? '1' : '';
   if (G && G.mode === 'play') G.mode = 'pause';
@@ -1387,7 +1399,7 @@ function rmItems(scr) {
   if (scr === 'worldSel') {
     const wb = [...$('worldList').children];
     return {up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
-              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()}]};   // 0.123.0 · 0.125.0
+              el: wb[i], act: () => pickWorld(i)})), down: [{label: '난이도 낮춤', el: $('diffDn'), disabled: getDiff() <= 1, act: () => setDiff(getDiff() - 1)}, {label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()}, {label: '난이도 높임', el: $('diffUp'), disabled: getDiff() >= DIFF_MAX, act: () => setDiff(getDiff() + 1)}]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
     const cb = [...$('charList').children];
@@ -1805,11 +1817,11 @@ function offscreen() {
   return [G.p.x + Math.cos(ang) * dist, G.p.y + Math.sin(ang) * dist];
 }
 function makeEnemy(name, x, y) {
-  const T = ENEMY_TYPES[name], hp = T.hp, def = T.def;
+  const T = ENEMY_TYPES[name], dm = G.dm || 1, hp = T.hp * dm, def = T.def;   // 체력 × 난이도 (0.134.0)
   const atk = T.shot || T.lob;
   return {type: name, x, y, r: T.r, hp, maxHp: hp, def, spd: T.spd * (0.9 + Math.random() * 0.2), dmg: T.dmg, xp: T.xp,
     wt: T.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: Math.random() * Math.PI * 2,
-    shield: T.shield || 0, shieldMax: T.shield || 0, atkT: atk ? atk.cd * (0.5 + Math.random() * 0.5) : 0};
+    shield: T.shield || 0, shieldMax: T.shield || 0, atkT: atk ? atk.cd * (0.5 + Math.random() * 0.5) : 0, dhp: dm};
 }
 // 시작 무리 (0.49.0): 판을 열자마자 START_N 마리 — 화면 밖에서 걸어오는 첫 10초 공백을 없앤다
 //   0.51.0: 둘레 고리 대신 **게임 칸 안 아무 데나** 흩뿌린다 (주인공에서 START_MIN px 밖, 가장자리 20px 안쪽)
@@ -1881,7 +1893,7 @@ function bossPlan(id, wi, at) {
   return {perfectLv: pl, refLv: L, dps: +dps.toFixed(1), hp: Math.round(dps * B.fightT)};
 }
 function spawnBoss(id) {
-  const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp;
+  const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp * (G.dm || 1);   // 체력 × 난이도 (0.134.0)
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     wt: B.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
   // 등장 연출 (위쪽 알림 대신): 얼굴 + '이름 등장!' 이 가운데에 나타났다 사라짐
@@ -2031,7 +2043,7 @@ function curseOn(b, e) {
   if (e.dead) return;
   if (curseOk(e) && charmCount(b.w) < wstat(b.w.id).ally) {
     e.dead = true; e.charmed = true;
-    const a = {...e, dead: false, charmed: false, w: b.w, hp: e.maxHp, baseHp: e.maxHp, baseDmg: e.dmg, mul: 1, hitT: 0, stop: 0, kbx: 0, kby: 0};   // 방패 · 방어 · 쏘기 · 터짐도 그대로 (0.116.0)
+    const a = {...e, dead: false, charmed: false, w: b.w, hp: e.maxHp / (e.dhp || 1), maxHp: e.maxHp / (e.dhp || 1), baseHp: e.maxHp / (e.dhp || 1),   /* 아군은 난이도와 무관 (0.134.0) */ baseDmg: e.dmg, mul: 1, hitT: 0, stop: 0, kbx: 0, kby: 0};   // 방패 · 방어 · 쏘기 · 터짐도 그대로 (0.116.0)
     allyScale(a); G.allies.push(a);
     G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: e.r * 1.8, t: 0.3});
   } else hurtEnemy(e, b.dmg, b.stun);
@@ -2041,7 +2053,7 @@ function hurtAlly(a, raw) {
   if (a.dead || a.ret || a.inv > 0 || a.air) return;                                   // 돌아오는 중엔 무적 (0.128.3)
   a.hitAgo = 0;                                                  // 재생 아군: 맞으면 다시 기다림 (0.128.2)
   if (a.shield > 0) { a.hp -= 1; if (--a.shield === 0) G.fx.push({kind: 'shieldbreak', x: a.x, y: a.y - a.r, r: a.r * 1.6, t: 0.4}); }
-  else a.hp -= mobArmor(raw, a.def);
+  else a.hp -= mobArmor(raw * G.dm, a.def);                     // 적 피해 × 난이도 (0.134.0)
   a.flash = FLASH_T;
 }
 // 아군 움직임 · 싸움: 가까운 적에게 달려가 닿으면 hitT 초마다 무기 피해. 닿아 있는 적들의 피해(초당)만큼 깎이고 0 이면 쓰러짐
@@ -2100,7 +2112,7 @@ function tickAllies(dt) {
     if (a.hp <= 0) { a.dead = true; G.fx.push({kind: 'splash', mine: true, x: a.x, y: a.y, r: a.r * 1.6, t: 0.25}); if (a.xp) dropGems(a.x, a.y, a.xp, 1);
       const sp = (ENEMY_TYPES[a.type] || {}).split;              // 분열 좀비 아군: 갈라진 좀비도 아군으로 (0.128.1) — 아군 상한을 넘어도 됨
       if (sp) for (let i = 0; i < sp.n; i++) { const an = Math.random() * Math.PI * 2, c = makeEnemy(sp.type, a.x + Math.cos(an) * 12, a.y + Math.sin(an) * 12);
-        const k = {...c, w: a.w, hp: c.maxHp, baseHp: c.maxHp, baseDmg: c.dmg, mul: 1, hitT: 0, stop: 0, kbx: Math.cos(an) * 160, kby: Math.sin(an) * 160, inv: SPLIT_INV}; allyScale(k); newAllies.push(k); }   // 갈라진 직후 튕겨 나가기만 · 무적 · 탄 통과
+        const k = {...c, w: a.w, hp: c.maxHp / c.dhp, maxHp: c.maxHp / c.dhp, baseHp: c.maxHp / c.dhp, baseDmg: c.dmg, mul: 1, hitT: 0, stop: 0, kbx: Math.cos(an) * 160, kby: Math.sin(an) * 160, inv: SPLIT_INV}; allyScale(k); newAllies.push(k); }   // 갈라진 직후 튕겨 나가기만 · 무적 · 탄 통과
       const bu = (ENEMY_TYPES[a.type] || {}).burst;              // 부푼 좀비 아군: 쓰러진 자리에서 터져 적에게 (0.116.0)
       if (bu) G.eshots.push({ally: true, blast: true, x: a.x, y: a.y, t: 0, T: bu.T, aoe: bu.aoe, dmg: bu.dmg * a.mul}); }   // 쓰러지면 원래 몬스터 경험치 그대로 (0.114.4)
   }
@@ -2232,7 +2244,7 @@ function startDying(src) {
 function hurtPlayer(raw, src, inv = 0.5) {
   const p = G.p;
   if (p.inv > 0 || G.mode === 'over' || G.dying) return false;
-  const dmg = armor(raw, G.s.def);
+  const dmg = armor(raw * G.dm, G.s.def);                        // 적 피해 × 난이도 (0.134.0) — 몸 · 탄 · 곡사 · 보스 기술 모두 여기로
   p.hp -= dmg; p.inv = Math.max(p.inv, inv);
   G.texts.push({x: p.x, y: p.y - 24, v: -dmg, t: 0.8, me: true});
   // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
@@ -2526,7 +2538,7 @@ function tickWalls(dt) {
 // 적 공격이 벽에 닿음: 점(x, y) 또는 원(r) 안의 벽 체력을 깎음 (true = 막힘)
 function wallHit(x, y, dmg, r = 0) {
   let hit = false;
-  for (const q of G.walls) if (Math.abs(q.x - x) < WALL_C / 2 + r && Math.abs(q.y - y) < WALL_C / 2 + r) { q.hp -= dmg; q.flash = FLASH_T; hit = true; if (!r) break; }
+  for (const q of G.walls) if (Math.abs(q.x - x) < WALL_C / 2 + r && Math.abs(q.y - y) < WALL_C / 2 + r) { q.hp -= dmg * G.dm; q.flash = FLASH_T; hit = true; if (!r) break; }   // × 난이도 (0.134.0)
   return hit;
 }
 const WALL_IMG = {};
