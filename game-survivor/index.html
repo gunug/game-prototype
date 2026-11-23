@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.135.5';
+const VERSION = '0.135.6';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -444,7 +444,7 @@ const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}
 // 고기 · 반려견 · 당황 · 맨손 (0.135.0)
 //   고기: 보조 · 무기 아님. 잡몹이 MEAT_P 확률, 엘리트 · 보스는 늘 떨굼. 획득 범위 안이면 끌려와 먹힘 — 최대 체력의 MEAT_HEAL 만큼 참. 체력이 가득이면 안 먹히고(안 끌림) 그대로. MEAT_LIFE 초 뒤 사라짐
 //   반려견(보조): 획득 범위 × DOG_R 안의 고기를 물어 와 주인공 발밑에 놓음 (획득 범위 안의 고기는 안 감). 맞지 않음 · 벽 · 적을 지나감
-//   당황(패널티): 무기마다 얻은 뒤 PANIC_T 초가 지나면 그 무기를 획득 범위 밖에 떨굼 (0.135.5) — 획득 범위 안에 들면 끌려와 다시 듦 (강화 그대로). 떨군 동안 그 무기는 안 쏨
+//   당황(패널티): 마지막으로 무기를 얻은 뒤 PANIC_T 초가 지나면 든 무기 하나를 획득 범위 밖에 떨굼 (0.135.6) — 획득 범위 안에 들면 끌려와 다시 듦 (강화 그대로). 떨군 동안 그 무기는 안 쏨
 //   맨손: 든 무기가 하나도 없으면 아주 짧은 거리의 한 마리 치기
 const MEAT_IMG = new Image(); MEAT_IMG.src = `images/item_meat.png?v=${VERSION}`;
 const DOG_IMG = new Image(); DOG_IMG.src = `images/item_dog.png?v=${VERSION}`;
@@ -749,7 +749,7 @@ const wupLv = id => G && G.weapons ? ((G.weapons.find(w => w.id === id) || {}).l
 // 무기 기본 능력치 (업그레이드 없음) — 출발 무기 카드 뱃지 값
 // ── 패널티 보조 (0.110.0) ── 상자에서 안 나옴. 얻는 길은 아직 정하지 않음. 가지면 판 동안 불리한 효과 (G.pens)
 const PENALTIES = [
-  {id: 'panic',    nm: '당황', short: '30초 든 무기 떨굼', ds: '무기마다 얻은 지 30초가 지나면 그 무기를 떨어뜨린다 — 획득 범위 안에 들면 다시 줍는다. 든 무기가 없으면 맨손으로 친다'},   // 0.135.0 생존자
+  {id: 'panic',    nm: '당황', short: '30초마다 무기 떨굼', ds: '마지막으로 무기를 얻은 지 30초가 지나면 든 무기 하나를 떨어뜨린다 — 획득 범위 안에 들면 다시 줍는다. 든 무기가 없으면 맨손으로 친다'},   // 0.135.0 생존자
   {id: 'civilian', nm: '민간인', short: '발사각×2', ds: '모든 무기의 발사각이 두 배 — 탄이 더 흩어진다 (부메랑은 고리가 더 부풂)'},
   {id: 'ration',   nm: '규정 탄약', short: '장탄×0.5', ds: '모든 무기의 장탄이 절반 — 재장전이 잦아진다 (장탄이 있는 무기만)'},   // 0.111.0 경찰
   {id: 'heavy',    nm: '무거운 장비', short: '획득 범위×0.5', ds: '획득 범위가 절반 — 보석을 더 가까이 가야 끌려온다'},          // 0.111.0 소방관
@@ -1711,7 +1711,7 @@ const chestPool = () => UPGRADES.filter(u => u.sub && subOk(u) && !G.banned.has(
   && (G.subs.some(x => x.id === u.id) || subsUsed() < G.char.sSlots));
 // 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
 const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id) && !G.banned.has('new_' + id))
-  .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => G.weapons.push(newWeapon(id))}));
+  .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => { G.weapons.push(newWeapon(id)); G.panicT = 0; }}));   // 새 무기도 '얻음' — 당황 시간 다시 (0.135.6)
 // 무기 강화 (0.101.0): 가진 무기마다 하나. 최대치 없음 → 상자가 비지 않음
 const weaponUpPool = () => G.weapons.filter(w => !G.banned.has('wup_' + w.id))
   .map(w => ({id: 'wup_' + w.id, nm: WEAPONS[w.id].nm + ' 강화', max: 99, wup: w.id, apply: () => { w.lv = (w.lv || 0) + 1; }}));
@@ -2865,10 +2865,12 @@ function dropWeapon(w) {
   G.wdrops.push({w, sx: p.x, sy: p.y + WPN_CY, x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: 0, fly: 0, rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * 14});
   G.pstat = {txt: '무기 잃음', t: PSTAT_T};
 }
-// 0.135.5: 무기마다 따로 — 마지막으로 얻은(처음 얻었거나 다시 주운) 뒤 PANIC_T 초 들고 있으면 그 무기를 떨굼. 든 무기 모두 해당
+// 0.135.6: 하나만 — 마지막으로 무기를 얻은(판 시작 · 새 무기 · 다시 주움) 때부터 PANIC_T 초가 지나면 든 무기 중 아무거나 하나를 떨굼
 function tickPanic(dt) {
   if (!hasPen('panic')) return;
-  for (const w of heldW()) if ((w.panicT = (w.panicT || 0) + dt) >= PANIC_T) { w.panicT = 0; dropWeapon(w); }
+  if ((G.panicT = (G.panicT || 0) + dt) < PANIC_T) return;
+  G.panicT = 0;
+  const h = heldW(); if (h.length) dropWeapon(h[Math.floor(Math.random() * h.length)]);
 }
 function tickWdrops(dt, magnet) {
   const p = G.p;
@@ -2878,7 +2880,7 @@ function tickWdrops(dt, magnet) {
     const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy) || 1;
     if (d < magnet && q.t > 0.5) q.pull = true;
     if (q.pull) { const sp = GEM_PULL * dt; q.x += dx / d * Math.min(sp, d); q.y += dy / d * Math.min(sp, d); }
-    if (q.pull && d < p.r + 10) { q.dead = true; q.w.drop = false; q.w.panicT = 0; }   // 주운 때부터 다시 셈 (0.135.5)   // 다시 듦 (강화 · 장탄 그대로)
+    if (q.pull && d < p.r + 10) { q.dead = true; q.w.drop = false; G.panicT = 0; }   // 주운 때부터 다시 셈 (0.135.5 · 0.135.6)   // 다시 듦 (강화 · 장탄 그대로)
   }
   G.wdrops = G.wdrops.filter(q => !q.dead);
   if (G.weapons.length && !heldW().length) fistTick(dt);          // 든 무기가 없으면 맨손
