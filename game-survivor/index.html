@@ -346,7 +346,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.133.6';
+const VERSION = '0.133.7';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1894,10 +1894,10 @@ function spawnBoss(id) {
 const setBanner = (txt, col) => {                              // 같은 때 겹치면 이어 붙임 (예: 6:00 새 잡몹 · 엘리트)
   G.banner = G.banner && G.banner.t > 2.8 ? {txt: G.banner.txt + ' · ' + txt, col, t: 3} : {txt, col, t: 3};
 };
-// 타임라인 사건 (엘리트 · 보스 · 새 잡몹 알림) — 때가 되면 한 번씩
+// 타임라인 사건 (엘리트 · 보스) — 때가 되면 한 번씩
 function timelineTick() {
   const Wd = G.world;
-  Wd.mobs.forEach((m, i) => { const k = 'm' + i; if (i && !m.eliteOnly && G.t >= m.at && !G.evDone.has(k)) { G.evDone.add(k); setBanner(`${ENEMY_TYPES[m.type].nm} 등장`, '#e8e8ee'); } });
+  // 새 잡몹은 알림 없이 그냥 나타남 (0.133.7) — 알림은 엘리트 · 중간 · 최종 보스만
   G.elites.forEach((ev, i) => { const k = 'e' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnElite(ev.grade); } });
   Wd.bosses.forEach((ev, i) => { const k = 'b' + i; if (G.t >= ev.at && !G.evDone.has(k)) { G.evDone.add(k); spawnBoss(ev.id); } });
 }
