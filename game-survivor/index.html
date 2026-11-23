@@ -164,7 +164,8 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   @media (max-width:700px){.wcard .nm{font-size:13px;white-space:nowrap;letter-spacing:-.03em}.wcard .wimg{height:34px}.wcard .wimg img{max-height:28px}#cards .wrow{font-size:10px;flex-wrap:wrap;justify-content:center}#cards .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}#cards .badge b{padding:0 3px}#cards .wl{gap:3px}#cards .wl{gap:3px;height:20px}#cards .wl img{width:42px;height:18px;padding:1px 2px}#cards .wl .wn{font-size:9px;letter-spacing:-.03em}#cards .wl b{font-size:9px;line-height:13px;padding:0 4px}.wcard .wsh{font-size:10px}.wcard .badge{font-size:9px;line-height:13px;width:76px;padding:1px 1px 1px 4px}.wcard .badge b{padding:0 3px}}
   .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .btns button.sub{background:#3a3f55}
-  .btns.diff{align-items:center;margin-bottom:8px}.btns.diff button{min-width:44px}.btns.diff b{min-width:96px;text-align:center}   /* 난이도 (0.134.0) */
+  .wcol{display:flex;flex-direction:column;gap:6px;flex:0 1 240px;min-width:0}.wcol .world{width:100%;box-sizing:border-box;flex:1}   /* 월드 칸 + 그 아래 난이도 (0.134.1) */
+  .dsel{display:flex;align-items:center;justify-content:space-between;gap:4px}.dsel button{width:30px;min-width:0;flex:0 0 30px;padding:5px 0;background:#3a3f55}.dsel b{font-size:13px;white-space:nowrap;flex:1;text-align:center}
   button:disabled{opacity:.4;cursor:default}
   button{font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#39f;color:#fff;cursor:pointer}
   /* 고르는 테두리 · 선택 창 조이스틱 */
@@ -261,7 +262,6 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="hint" id="startHint">1단계 — 월드를 고른다. 방향키로 고르고 Enter (또는 1 · 2 · 3). WASD 로 피하고, 총은 저절로 쏜다.</div>
   <div class="sec">월드</div>
   <div class="row1" id="worldList"></div>
-  <div class="btns diff"><button id="diffDn" class="sub">−</button><b id="diffLv">난이도 LV1</b><button id="diffUp" class="sub">+</button></div>
   <div class="btns"><button id="permBtn">영구 업그레이드</button><button id="pbanBtn">영구 봉인</button></div>
 </div>
 <div class="overlay" id="pban" hidden>
@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.134.0';
+const VERSION = '0.134.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -876,8 +876,8 @@ const WORLDS = [
    bosses: [{at: 300, id: 'exp'}, {at: 600, id: 'director'}]},
 ];
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
-const recKey = w => 'survivor.w' + w;
-const getRec = w => JSON.parse(localStorage.getItem(recKey(w)) || '{"t":0,"kills":0,"clear":false}');
+const recKey = (w, d = 1) => 'survivor.w' + w + (d > 1 ? '.d' + d : '');   // 난이도마다 따로 (0.134.1) — LV1 은 예전 기록 그대로
+const getRec = (w, d) => JSON.parse(localStorage.getItem(recKey(w, d)) || '{"t":0,"kills":0,"clear":false}');
 
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
@@ -885,21 +885,26 @@ function showWorlds() {
   ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel', 'perm', 'pban'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
-    const w = WORLDS[i], b = document.createElement('button');
+    const w = WORLDS[i], b = document.createElement('button'), col = document.createElement('div');
+    col.className = 'wcol'; col.appendChild(b);
     b.className = 'world';
     if (!w) {
       b.disabled = true;
       b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
     } else {
-      const r = getRec(w.id);
+      const d = getDiff(w.id), r = getRec(w.id, d);
       b.innerHTML = `<div class="wn">${w.name}${r.clear ? '<span class="ok">클리어</span>' : ''}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
       b.onclick = () => pickWorld(i);
+      const ds = document.createElement('div'); ds.className = 'dsel';   // 난이도 − LV n + (월드마다, 0.134.1)
+      ds.innerHTML = `<button class="dDn"${d <= 1 ? ' disabled' : ''}>−</button><b>LV${d}</b><button class="dUp"${d >= DIFF_MAX ? ' disabled' : ''}>+</button>`;
+      ds.querySelector('.dDn').onclick = () => setDiff(w.id, d - 1);
+      ds.querySelector('.dUp').onclick = () => setDiff(w.id, d + 1);
+      col.appendChild(ds);
     }
-    box.appendChild(b);
+    box.appendChild(col);
   }
-  paintDiff();
   $('worldSel').hidden = false;
 }
 function showPerm() {                                          // 영구 업그레이드 보기 (0.123.0)
@@ -912,12 +917,11 @@ function showPerm() {                                          // 영구 업그�
 $('permBtn').onclick = () => showPerm();
 // 난이도 (0.134.0): LV1 = 지금 설정. 한 단계 올릴 때마다 적 체력 · 피해 ×DIFF_K (곱으로 쌓임). 방어 · 빠르기는 그대로
 const DIFF_MAX = 10, DIFF_K = 1.2;
-const dmx = v => Math.round(v * (G ? G.dm : DIFF_K ** (getDiff() - 1)));   // 적 정보에 보일 값 (난이도 반영)
-const getDiff = () => Math.min(DIFF_MAX, Math.max(1, +localStorage.getItem('survivor.diff') || 1));
-function setDiff(d) { localStorage.setItem('survivor.diff', Math.min(DIFF_MAX, Math.max(1, d))); paintDiff(); }
-function paintDiff() { const d = getDiff(); $('diffLv').textContent = `난이도 LV${d}`; $('diffDn').disabled = d <= 1; $('diffUp').disabled = d >= DIFF_MAX; }
-$('diffDn').onclick = () => setDiff(getDiff() - 1);
-$('diffUp').onclick = () => setDiff(getDiff() + 1);
+const dmx = v => Math.round(v * (G ? G.dm : DIFF_K ** (getDiff((WORLDS[selWorld] || WORLDS[0]).id) - 1)));   // 적 정보에 보일 값 (난이도 반영)
+// 월드마다 따로 (0.134.1): survivor.diff = {월드 id: LV}
+const diffMap = () => { try { const o = JSON.parse(localStorage.getItem('survivor.diff') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } };
+const getDiff = wid => Math.min(DIFF_MAX, Math.max(1, +diffMap()[wid] || 1));
+function setDiff(wid, d) { const o = diffMap(); o[wid] = Math.min(DIFF_MAX, Math.max(1, d)); localStorage.setItem('survivor.diff', JSON.stringify(o)); showWorlds(); }
 // 영구 봉인 페이지 (0.125.0): 무기(새 무기로 나옴) · 보조 · 업그레이드를 켜고 끔. 켠 수 ≤ 칸
 const PBAN_GROUPS = () => [
   ['무기', UNLOCKED_WEAPONS.map(id => ({id: 'new_' + id, nm: WEAPONS[id].nm, img: `weapon_${id}`}))],
@@ -977,12 +981,12 @@ function pickChar(i) { charIdx = i; localStorage.setItem('survivor.char', CHARAC
 $('charBack').onclick = () => showWorlds();
 
 function saveRec() {
-  const r = getRec(G.world.id), nt = G.t > r.t, nk = G.kills > r.kills;
+  const r = getRec(G.world.id, G.dl), nt = G.t > r.t, nk = G.kills > r.kills;
   r.t = Math.max(r.t, G.t); r.kills = Math.max(r.kills, G.kills);
   if (G.mode === 'clear') r.clear = true;
-  localStorage.setItem(recKey(G.world.id), JSON.stringify(r));
+  localStorage.setItem(recKey(G.world.id, G.dl), JSON.stringify(r));
   return `생존 <b>${fmt(G.t)}</b>${nt ? ' (신기록)' : ''} · 처치 <b>${G.kills}</b>${nk ? ' (신기록)' : ''} · 레벨 <b>${G.lv}</b><br>
-    <span class="hint">${G.world.name} 최고 기록 — 생존 ${fmt(r.t)} · 처치 ${r.kills}</span>`;
+    <span class="hint">${G.world.name} LV${G.dl} 최고 기록 — 생존 ${fmt(r.t)} · 처치 ${r.kills}</span>`;
 }
 
 function worldClear() {
@@ -1089,7 +1093,7 @@ function newGame(wi, weaponId, subId) {
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
-    dl: getDiff(), dm: DIFF_K ** (getDiff() - 1),                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
+    dl: getDiff(WORLDS[wi].id), dm: DIFF_K ** (getDiff(WORLDS[wi].id) - 1),                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
   if (subId) { const u = UPG[subId]; G.ups[subId] = 1; u.apply(G.s, G.p); G.subs.push({id: subId, nm: u.sub}); }   // 출발 보조 (0.102.0)
@@ -1272,7 +1276,7 @@ function togglePause() {
 // ───── 고르는 테두리 (커서) — 키보드 · 게임패드 · 화면 조이스틱 공통 ─────
 // 창마다 줄(행) 목록. 위아래 = 줄 바꿈, 좌우 = 줄 안에서 옆 칸. 결정 = 그 칸을 누른 것과 같다
 const NAV_ROWS = {
-  worldSel: ['#worldList > button', '#worldSel .btns button'],
+  worldSel: ['#worldList .world', '#worldSel .btns button'],
   pban:     ['#pbanList .pbTog', '#pban .btns button'],
   perm:     ['#perm .btns button'],
   charSel:  ['#charList > button', '#charBack'],
@@ -1397,9 +1401,10 @@ const rm = {id: null, scr: null, cx: 0, cy: 0, x: 0, y: 0, open: false, up: [], 
 let rmSuppress = 0;
 function rmItems(scr) {
   if (scr === 'worldSel') {
-    const wb = [...$('worldList').children];
+    const wb = [...$('worldList').querySelectorAll('.world')];
     return {up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i],
-              el: wb[i], act: () => pickWorld(i)})), down: [{label: '난이도 낮춤', el: $('diffDn'), disabled: getDiff() <= 1, act: () => setDiff(getDiff() - 1)}, {label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()}, {label: '난이도 높임', el: $('diffUp'), disabled: getDiff() >= DIFF_MAX, act: () => setDiff(getDiff() + 1)}]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
+              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()},
+              ...WORLDS.slice(0, WORLD_SLOTS).map((w, i) => { const d = getDiff(w.id); return {label: `${w.name} 난이도 LV${d}`, el: $('worldList').querySelectorAll('.dsel')[i], act: () => setDiff(w.id, d >= DIFF_MAX ? 1 : d + 1)}; })]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
     const cb = [...$('charList').children];
