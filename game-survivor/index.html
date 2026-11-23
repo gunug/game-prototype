@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.134.1';
+const VERSION = '0.134.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -671,7 +671,7 @@ const WEAPONS = {
   //   0.114.2: 아군의 체력 · 공격력 · 공격 빈도 · 방어 · 빠르기는 원래 몬스터 그대로 (닿은 적에게 MOB_HIT_T 초마다 자기 피해)
   //   DPS 맞춤: 인형 자체 — 한 바퀴 = 재장전, 한 바퀴에 1 번 (아군 몫은 덤)
   doll:   {nm: '주술인형', kind: 'charm', sh: '맞힌 적을 아군으로', ds: '저주인형을 던져 맞힌 잡몹을 아군으로 만든다. 아군은 가까운 적에게 달려가 싸우고, 적도 가장 가까운 아군이나 주인공을 노린다. 아군은 저주 수만큼 — 다 차면 인형은 피해만 준다',
-           dmg: 0, fixedDmg: 100, reload: 3, range: 160, spd: 300, acc: 6, ally: 1, maxT: 1, stun: 0.1,   // ally: 아군 상한 (아군수 뱃지, 0.131.0 — 그 전 curse)   // curse: 아군 상한 (저주 뱃지) · fixedDmg: 맞춤 대신 정한 피해 (0.114.3, 사용자)
+           dmg: 0, fixedDmg: 100, reload: 3, range: 160, spd: 1800, /* 300 → 1800 (0.134.2): 어느 무기보다 빠르게 (저격총 1500) */ acc: 6, ally: 1, maxT: 1, stun: 0.1,   // ally: 아군 상한 (아군수 뱃지, 0.131.0 — 그 전 curse)   // curse: 아군 상한 (저주 뱃지) · fixedDmg: 맞춤 대신 정한 피해 (0.114.3, 사용자)
            len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 16,
            badges: ['curse', 'ally']},
   // 바리케이드 (0.131.0, 건축가): 쿨타임마다(장탄만큼) 가장 가까운 적과 나 사이 가운데 격자 칸에 벽. 사거리 안에 적이 없으면 안 세움
@@ -3230,9 +3230,9 @@ function update(dt) {
     for (const e of G.enemies) {
       if (e.dead || b.hit.has(e)) continue;
       if (b.boom && !b.tgts.has(e) && b.tgts.size >= b.pleft) continue;   // 부메랑: 관통 수만큼 벤 뒤 새 적은 그냥 지나침 (벤 적은 다시 벰)
-      if (b.pierce) {                                             // 관통탄: 이번 프레임에 지나온 선분과의 거리
+      if (b.pierce || b.curse) {                                  // 관통탄 · 저주인형(빨라서 건너뛰지 않게, 0.134.2): 이번 프레임에 지나온 선분과의 거리
         const dx = b.x - ox, dy = b.y - oy, u = Math.max(0, Math.min(1, ((e.x - ox) * dx + (e.y - oy) * dy) / (dx * dx + dy * dy || 1)));
-        if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + b.rad) continue;
+        if (Math.hypot(ox + dx * u - e.x, oy + dy * u - e.y) > e.r + (b.rad || 5)) continue;
       } else if ((e.x - b.x) ** 2 + (e.y - b.y) ** 2 > (e.r + 5) ** 2) continue;
       if (b.curse) {                                              // 저주인형 (0.114.0): 맞은 적 · 폭발 둘레 적에 저주
         b.hit.add(e); curseOn(b, e);
