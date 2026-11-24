@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.136.1';
+const VERSION = '0.137.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -446,6 +446,7 @@ const MAG_IMG = new Image(); MAG_IMG.src = `images/item_magdrop.png?v=${VERSION}
 //   반려견(보조): 획득 범위 × DOG_R 안의 고기를 물어 와 주인공 발밑에 놓음 (획득 범위 안의 고기는 안 감). 맞지 않음 · 벽 · 적을 지나감
 //   당황(패널티): 마지막으로 무기를 얻은 뒤 PANIC_T 초가 지나면 든 무기 하나를 획득 범위 밖에 떨굼 (0.135.6) — 획득 범위 안에 들면 끌려와 다시 듦 (강화 그대로). 떨군 동안 그 무기는 안 쏨
 //   맨손: 든 무기가 하나도 없으면 아주 짧은 거리의 한 마리 치기
+const REVIVE_IMG = new Image(); REVIVE_IMG.src = `images/item_perm_revive.png?v=${VERSION}`;   // 부활 (0.137.0)
 const MEAT_IMG = new Image(); MEAT_IMG.src = `images/item_meat.png?v=${VERSION}`;
 const DOG_IMG = new Image(); DOG_IMG.src = `images/item_dog.png?v=${VERSION}`;
 const DOG_BITE = 0.25, DOG_DMG = 8;   // 반려견 물기 (0.135.4): 간격 · 피해 (피해 증가 · 영구 피해 적용)
@@ -926,7 +927,7 @@ function showPerm() {                                          // 영구 업그�
   $('worldSel').hidden = true;
   // 0.125.3: 영구 봉인 페이지와 같은 4칸 — 그림 · 이름 · 단계 · 지금 몫 (단계마다 몫)
   $('permList').innerHTML = '<div class="pbanGrid">' + PERMS.map(q => { const n = permLv(q.id);
-    return `<div class="pbTog permCell"><img class="pi" src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span><b class="pl">${n}단계 · ${n ? permPct(q.id, n) : '0%'}</b><small>단계마다 ${permPct(q.id, 1)}</small></div>`; }).join('') + '</div>';
+    return `<div class="pbTog permCell"><img class="pi" src="images/${q.img}.png?v=${VERSION}" alt="" onerror="this.remove()"><span>${q.nm}</span>${q.cnt ? `<b class="pl">${n} / ${q.max}회</b><small>${PERM_DS[q.id]}</small>` : `<b class="pl">${n}단계 · ${n ? permPct(q.id, n) : '0%'}</b><small>단계마다 ${permPct(q.id, 1)}</small>`}</div>`; })   /* 횟수 꼴은 '지금 / 상한' 하나만 (0.137.0) */.join('') + '</div>';
   $('perm').hidden = false;
 }
 $('permBtn').onclick = () => showPerm();
@@ -1058,7 +1059,15 @@ const PERMS = [
   {id: 'hp',     nm: '체력',   step: 0.05,  img: 'item_perm_hp'},
   {id: 'cd',     nm: '쿨타임', step: -0.03, img: 'item_perm_cd'},
   {id: 'reload', nm: '재장전', step: -0.03, img: 'item_perm_reload'},
+  // 0.137.0: 이동 · 획득 범위 · 경험치 (% 꼴) · 부활 · 다시 뽑기 (횟수 꼴, cnt — 상한 max)
+  {id: 'move',   nm: '이동 속도', step: 0.02, img: 'item_perm_move'},
+  {id: 'magnet', nm: '획득 범위', step: 0.05, img: 'item_perm_magnet'},
+  {id: 'xp',     nm: '경험치',   step: 0.03, img: 'item_perm_xp'},
+  {id: 'revive', nm: '부활',     cnt: true, max: 1, img: 'item_perm_revive'},   // 판마다 한 번, 쓰러지면 체력 REVIVE_HP 로 일어남
+  {id: 'reroll', nm: '다시 뽑기', cnt: true, max: 3, img: 'item_perm_reroll'},  // 판마다 레벨업 · 상자 다시 뽑기 +1 (주사위와 따로, 주사위 먼저 씀)
 ];
+const REVIVE_HP = 0.3, REVIVE_INV = 2;
+const PERM_DS = {revive: '판마다 일어남', reroll: '판마다 +1'};   // 4칸에 한 줄로
 const PERM = Object.fromEntries(PERMS.map(q => [q.id, q]));
 // 영구 봉인 (0.125.0): 보스 상자에서 칸(횟수)을 얻고, 그 수만큼 무기 · 보조 · 업그레이드를 골라 안 나오게 (켜고 끔). localStorage 'survivor.pban' = {n: 칸, on: [id]}
 PERM.seal = {id: 'seal', nm: '영구 봉인', img: 'item_banish'};
@@ -1068,16 +1077,19 @@ const pbanOn = () => { const o = getPban(); return o.on.slice(0, o.n); };   // �
 const getPerm = () => { try { return JSON.parse(localStorage.getItem('survivor.perm') || '{}'); } catch (_) { return {}; } };
 const permLv = id => getPerm()[id] || 0;
 const permMul = (id, n = permLv(id)) => Math.max(0.5, 1 + PERM[id].step * n);
-const permPct = (id, n = permLv(id)) => { const v = Math.round(PERM[id].step * n * 100); return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%'; };
+const permPct = (id, n = permLv(id)) => { if (PERM[id].cnt) return n + '회'; const v = Math.round(PERM[id].step * n * 100); return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%'; };
 function permUp(id) {                                            // 한 단계 올려 저장 + 지금 판에도 (있으면)
   if (id === 'seal') { const o = getPban(); o.n++; setPban(o); return; }   // 영구 봉인 칸 +1 (다음 판부터 — 고르기는 월드 화면에서)
   const P = getPerm(), n0 = P[id] || 0; P[id] = n0 + 1; localStorage.setItem('survivor.perm', JSON.stringify(P));
   if (!G || !G.s) return;
   const k = permMul(id, n0 + 1) / permMul(id, n0);
+  if (id === 'revive') { G.revives = (G.revives || 0) + 1; return; }
+  if (id === 'reroll') { G.permRR = (G.permRR || 0) + 1; return; }
   if (id === 'dmg') G.s.dmgMul *= k; else if (id === 'cd') G.s.cdMul *= k; else if (id === 'reload') G.s.reloadMul *= k;
+  else if (id === 'move') G.p.speed *= k; else if (id === 'magnet') G.s.magnetMul *= k; else if (id === 'xp') G.s.xpMul *= k;
   else if (id === 'hp') { const d = G.p.maxHp * (k - 1); G.p.maxHp += d; G.p.hp += d; }
 }
-const newStats = C => ({dmgMul: permMul('dmg'), cdMul: permMul('cd'), rangeMul: 1, def: 0, crit: 0, critDmg: 1.5, reloadMul: permMul('reload'), magMul: 1, regen: 0, magnetMul: 1, xpMul: 1});
+const newStats = C => ({dmgMul: permMul('dmg'), cdMul: permMul('cd'), rangeMul: 1, def: 0, crit: 0, critDmg: 1.5, reloadMul: permMul('reload'), magMul: 1, regen: 0, magnetMul: permMul('magnet'), xpMul: permMul('xp')});   // 0.137.0 획득 범위 · 경험치
 function showSubPick(wid) {
   pickWid = wid;
   const C = CHARACTERS[charIdx], ups = Object.fromEntries(UPGRADES.map(u => [u.id, 0]));
@@ -1106,7 +1118,8 @@ function newGame(wi, weaponId, subId) {
     weapons: [newWeapon(weaponId)], subs: [], pens: [C.pen],
     elites: WORLDS[wi].elites.map(ev => ({at: ev.at, grade: rollEliteGrade()})),   // 이번 판 엘리트 등급 (타임라인에 미리 보임)
     mode: 'play', t: 0, kills: 0, lv: 1, xp: 0, pendingLv: 0,
-    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.9 : 1), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
+    revives: permLv('revive'), permRR: permLv('reroll'),          // 부활 · 다시 뽑기 (0.137.0)
+    p: {x: 0, y: 0, vx: 0, vy: 0, r: 14, speed: C.speed * (C.pen === 'slow' ? 0.9 : 1) * permMul('move'), hp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), maxHp: C.hp * (C.pen === 'weak' ? 0.5 : 1) * permMul('hp'), inv: 0, face: 1, walk: 0, move: 0},   // 패널티 '약골' 체력 ×0.5 (0.112.0)
     s: newStats(C), tl: newTl(),
     ups: {},
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
@@ -1456,7 +1469,7 @@ function rmItems(scr) {
   const list = G.choices.map((u, i) => ({label: G.banned.has(u.id) ? '봉인됨' : (G.banMode ? '봉인: ' : '') + (u.sub || u.nm), disabled: G.banned.has(u.id), el: cards[i], act: () => choose(i, true)}));
   const down = [];                                             // 아래 절반 = 행운 주사위 · 봉인 부적 (0.78.0)
   if (G.pickKind === 'boss') return {up: list, down};          // 보스 상자: 다시 뽑기 · 봉인 없음
-  if (hasSub('reroll')) down.push({label: '다시 뽑기', img: `images/item_reroll.png?v=${VERSION}`, disabled: !canReroll(), el: $('rerollBtn'), act: rerollPicks});
+  if (hasRR()) down.push({label: '다시 뽑기', img: `images/item_reroll.png?v=${VERSION}`, disabled: !canReroll(), el: $('rerollBtn'), act: rerollPicks});
   if (hasSub('banish')) down.push({label: G.banMode ? '봉인 취소' : canUnban() ? '봉인 해제' : '봉인', img: `images/item_banish.png?v=${VERSION}`, disabled: !canBan(), el: $('banBtn'), act: toggleBan});
   return {up: list, down};
 }
@@ -1588,8 +1601,8 @@ function showPicks(picks, title, keep) {
     box.appendChild(d);
   });
   // 행운 주사위 · 봉인 부적 단추 (가진 것만)
-  const nR = usesLeft('reroll', 'reroll'), nB = usesLeft('banish', 'ban');   // 남은 횟수를 단추에
-  $('luBtns').innerHTML = G.pickKind === 'boss' ? '' : (hasSub('reroll') ? `<button id="rerollBtn"${nR > 0 ? '' : ' disabled'}>다시 뽑기 ${nR} (R)</button>` : '')
+  const nR = rrLeft(), nB = usesLeft('banish', 'ban');   // 남은 횟수를 단추에
+  $('luBtns').innerHTML = G.pickKind === 'boss' ? '' : (hasRR() ? `<button id="rerollBtn"${nR > 0 ? '' : ' disabled'}>다시 뽑기 ${nR} (R)</button>` : '')
     + (hasSub('banish') ? `<button id="banBtn" class="${G.banMode ? 'on' : ''}"${nB > 0 || canUnban() ? '' : ' disabled'}>${G.banMode ? '봉인 취소' : canUnban() ? '봉인 해제' : '봉인 ' + nB} (B)</button>` : '');
   if ($('rerollBtn')) $('rerollBtn').onclick = e => { e.stopPropagation(); rerollPicks(); };
   if ($('banBtn')) $('banBtn').onclick = e => { e.stopPropagation(); toggleBan(); };
@@ -1611,6 +1624,7 @@ function upHtml(u) {
   if (u.perm === 'seal') { const n = getPban().n;                // 영구 봉인 칸 (0.125.0)
     return `<div class="udesc">영구 봉인 칸 +1 — 월드 화면 '영구 봉인'에서 안 나올 것을 고름</div><div class="wrows"><div class="wrow"><span class="wch on">칸</span><span class="wv">${n} → <b>${n + 1}</b></span></div></div>`; }
   if (u.perm) { const q = PERM[u.perm], n = permLv(u.perm);   // 영구 (0.123.0): 한 단계 몫 + 지금 → 다음
+    if (q.cnt) return `<div class="udesc">${PERM_DS[u.perm]} · 판이 끝나도 남음</div><div class="wrows"><div class="wrow"><span class="wv">${n} → <b>${n + 1}</b> / ${q.max}회</span></div></div>`;   // 횟수 꼴 (0.137.0)
     return `<div class="udesc">기본 ${q.nm} ${permPct(u.perm, 1)} · 판이 끝나도 남음</div><div class="wrows"><div class="wrow"><span class="wch on">${n}단계</span><span class="wv">${permPct(u.perm, n) || '0%'} → <b>${permPct(u.perm, n + 1)}</b></span></div></div>`; }
   if (u.passive) return `<div class="udesc">${u.ds}</div>`;    // 얻으면 끝인 기능 보조 (자석 출현)
   if (u.util) {                                                  // 쓰는 보조: 설명 + 창마다 횟수 지금 → 다음
@@ -1734,7 +1748,7 @@ function chestPicks(pool = chestAll()) {
 // 보스 상자 (0.123.0): 영구 업그레이드 넷 중 셋. 다시 뽑기 · 봉인 없음
 const permPick = q => ({id: 'perm_' + q.id, perm: q.id, nm: q.nm, apply: () => permUp(q.id)});
 function openBossChest() {
-  const pool = [...PERMS, PERM.seal], picks = [];               // 영구 봉인 칸도 후보 (0.125.0)
+  const pool = [...PERMS.filter(q => !q.max || permLv(q.id) < q.max), PERM.seal], picks = [];   // 다 찬 부활 · 다시 뽑기는 빼고 (0.137.0)               // 영구 봉인 칸도 후보 (0.125.0)
   while (picks.length < 3 && pool.length) picks.push(permPick(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]));
   G.pickKind = 'boss'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
   showPicks(picks, '보스 상자');
@@ -1750,14 +1764,17 @@ function openChest() {
 // 가진 보조면 고르기 창(레벨업 · 상자)마다 단계 수만큼: 다시 뽑기 = 세 장을 새로 · 봉인 = 고른 하나를 이번 판에서 빼고 그 자리를 새로 채움
 const hasSub = id => G.subs.some(x => x.id === id);
 const usesLeft = (id, k) => hasSub(id) ? (G.ups[id] || 0) - G.pickUse[k] : 0;   // 이 창에서 남은 횟수
-const canReroll = () => G && G.mode === 'levelup' && G.pickKind !== 'boss' && usesLeft('reroll', 'reroll') > 0;
+const rrLeft = () => usesLeft('reroll', 'reroll') + (G.permRR || 0);   // 주사위(창마다) + 영구 다시 뽑기(판마다) (0.137.0)
+const hasRR = () => hasSub('reroll') || permLv('reroll') > 0;
+const canReroll = () => G && G.mode === 'levelup' && G.pickKind !== 'boss' && rrLeft() > 0;
 const winBans = () => G.pickUse.bans || (G.pickUse.bans = []);   // 이 창에서 봉인한 것 (0.108.1 — 봉인 해제용)
 const canUnban = () => G && G.mode === 'levelup' && hasSub('banish') && usesLeft('banish', 'ban') <= 0 && winBans().length > 0;
 const canBan = () => G && G.mode === 'levelup' && G.pickKind !== 'boss' && (usesLeft('banish', 'ban') > 0 || canUnban());
 const pickTitle = () => G.pickKind === 'boss' ? '보스 상자' : G.pickKind === 'chest' ? '상자' : '레벨 업!';
 function rerollPicks() {
   if (!canReroll() || G.inputLock > 0) return;
-  G.pickUse.reroll++; G.banMode = false;
+  if (usesLeft('reroll', 'reroll') > 0) G.pickUse.reroll++; else G.permRR--;   // 주사위 먼저 (0.137.0)
+  G.banMode = false;
   showPicks(G.pickKind === 'chest' ? chestPicks() : levelPicks(), pickTitle());
 }
 function toggleBan() {
@@ -2256,6 +2273,12 @@ const DIE_T = 3,   // 0.121.1: 1.8 → 3 (연출을 조금 더 보이게)
       DIE_SLOW = 0.15, DIE_ZOOM = 2.2, DIE_IN = 0.5;
 function startDying(src) {
   const p = G.p;
+  if (G.revives > 0) {                                           // 부활 (0.137.0): 쓰러지는 대신 체력 REVIVE_HP 로 일어남 + REVIVE_INV 초 무적
+    G.revives--; p.hp = p.maxHp * REVIVE_HP; p.inv = Math.max(p.inv, REVIVE_INV);
+    G.pstat = {txt: '부활', t: PSTAT_T, good: true};
+    G.fx.push({kind: 'foam', x: p.x, y: p.y + HIT_CY, r: 90, t: 0.6, T: 0.6});
+    return;
+  }
   G.dying = {t: 0, fx: p.x, fy: p.y + HIT_CY, src};
   if (src) {
     src.killer = true;
@@ -3808,6 +3831,13 @@ function draw() {
     const ly = by + (bh + xh + 1) / 2;
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.strokeText(lt, bx - gap, ly);
     ctx.fillStyle = '#fff'; ctx.fillText(lt, bx - gap, ly);
+    if (G.revives > 0) {                                         // 부활 남은 수 (0.137.0): 체력 줄 오른쪽에 부활 그림 + 숫자
+      const ix = bx + bw + 9, s = 14;
+      if (REVIVE_IMG.complete && REVIVE_IMG.naturalWidth) ctx.drawImage(REVIVE_IMG, ix - s / 2, ly - s / 2, s, s); else circle(ix, ly, 6, '#fd6');
+      ctx.textAlign = 'center'; ctx.font = 'bold 9px system-ui';
+      ctx.lineWidth = 2.5; ctx.strokeStyle = '#000'; ctx.strokeText(G.revives, ix, ly + 1); ctx.fillStyle = '#fff'; ctx.fillText(G.revives, ix, ly + 1);
+      ctx.font = 'bold 10px system-ui';
+    }
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
 
   // 투사체
@@ -3922,7 +3952,7 @@ function draw() {
     const P = G.p, q = G.pstat, k = Math.min(1, (PSTAT_T - q.t) / 0.15), y = P.y - 66;
     ctx.save(); ctx.globalAlpha = Math.min(1, q.t / 0.3); ctx.font = `bold ${Math.round(12 + 2 * k)}px system-ui`;
     const tw = ctx.measureText(q.txt).width + 12;
-    ctx.fillStyle = 'rgba(150,20,20,.92)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+    ctx.fillStyle = q.good ? 'rgba(20,120,60,.92)' : 'rgba(150,20,20,.92)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.roundRect(P.x - tw / 2, y - 10, tw, 20, 6); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(q.txt, P.x, y + 1); ctx.restore();
   }
@@ -3933,7 +3963,7 @@ function draw() {
 
   // 맞으면 화면 가장자리 붉게 (0.87.0) — 맞은 세기 · 남은 체력이 적을수록 진하게
   if (G.hitT > 0) {
-    const a = G.hitT / HIT_T * Math.min(1, G.hitK * 0.6 + (1 - Math.max(0, p.hp / p.maxHp)) * 0.5);
+    const a = G.hitT / HIT_T * Math.min(1, (G.hitK || 0.4) * 0.6 + (1 - Math.max(0, p.hp / p.maxHp)) * 0.5);
     const gr = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) / 2);
     gr.addColorStop(0, 'rgba(255,0,0,0)'); gr.addColorStop(1, `rgba(255,20,20,${a * 0.85})`);
     ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);

@@ -6,3 +6,10 @@ gen --id perm_hp     --seed 4202 --prompt "a golden trophy medal engraved with a
 gen --id perm_cd     --seed 4203 --prompt "a golden trophy medal engraved with a small hourglass, glowing purple gem in the center, royal ornate style"
 gen --id perm_reload --seed 4204 --prompt "a golden trophy medal engraved with a bullet magazine clip, glowing purple gem in the center, royal ornate style"
 echo DONE
+# 0.137.0 추가 5장
+gen --id perm_move    --seed 4205 --prompt "a golden trophy medal engraved with a winged running boot, glowing purple gem in the center, royal ornate style"
+gen --id perm_magnet  --seed 4206 --prompt "a golden trophy medal engraved with a horseshoe magnet, glowing purple gem in the center, royal ornate style"
+gen --id perm_xp      --seed 4207 --prompt "a golden trophy medal engraved with a blue diamond crystal, glowing purple gem in the center, royal ornate style"
+gen --id perm_revive  --seed 4208 --prompt "a golden trophy medal engraved with a phoenix feather rising from flames, glowing purple gem in the center, royal ornate style"
+gen --id perm_reroll  --seed 4209 --prompt "a golden trophy medal engraved with a pair of dice, glowing purple gem in the center, royal ornate style"
+echo DONE2
