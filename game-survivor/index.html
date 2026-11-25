@@ -375,7 +375,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.145.1';
+const VERSION = '0.146.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -734,6 +734,10 @@ const WEAPONS = {
   bat:    {nm: '야구방망이', kind: 'melee', sh: '부채꼴로 휘둘러 밀쳐 냄', ds: '가까운 적 쪽으로 90° 부채꼴을 휘두른다. 닿은 적 모두를 세게 밀쳐 낸다. 사거리가 아주 짧다',
            dmg: 0, cd: 0.6, range: 60, arc: 90, knockV: 520, maxT: 3, stun: 0.15,
            len: 26, pivot: [0, 0.5], muzzle: [1.0, 0.5], turn: 18, badges: ['spread']},
+  //   카메라 (melee 의 갈래, 0.146.0): 찰칵 — 부채꼴 플래시가 한 번에 번쩍. 피해는 아주 적고 맞은 적을 오래 굳힘 (보스 빼고). 넉백 없음
+  camera: {nm: '카메라', kind: 'melee', sh: '찰칵 — 부채꼴 안 적을 굳힘', ds: '가까운 적 쪽으로 플래시를 터뜨린다. 부채꼴 안 적 모두가 1.2초 동안 굳는다. 피해는 아주 적다',
+           dmg: 0, fixedDmg: 4, cd: 2.2, range: 110, arc: 70, knockV: 0, flash: true, maxT: 4, stun: 1.2,
+           len: 18, pivot: [0.5, 0.5], muzzle: [0.5, 0.5], turn: 18, badges: ['spread']},
   //   수류탄 발사기 (lob): 적이 가장 많이 모인 곳(사거리 안, 최소 거리 밖)에 곡사 — 0.6초 뒤 터짐 (초록 예고 원). 확산 = 다른 무리에 한 발 더 · 연쇄 = 둘레 적에게 작은 파편탄
   grenadeL: {nm: '수류탄 발사기', kind: 'lob', sh: '무리 한가운데로 곡사', ds: '적이 가장 많이 모인 곳에 유탄을 쏜다. 0.6초 뒤 터져 둘레 모두에게 피해. 너무 가까운 적은 못 노린다',
            dmg: 0, cd: 1.2, mag: 4, range: 200, minR: 50, fly: 0.6, aoe: 50, maxT: 4, stun: 0.1,
@@ -993,11 +997,11 @@ const WORLDS = [
 // 무기 상자 (0.141.0): 월드마다 정해진 무기 6개 · 정해진 자리 (시작점에서 각 방향 650~1150px). 찾은 것은 다시 안 나옴 (LV 무관).
 //   아직 만들지 않은 무기는 상자도 안 놓음 (WEAPONS 에 있어야)
 const WBOX_W = [
-  ['mg', 'boomerang', 'revolver', 'shotgun', 'smg', 'pistol'],   // 0.145.1: 야구방망이가 생존자 고유 무기가 되어 그 자리에 권총
+  ['mg', 'boomerang', 'revolver', 'shotgun', 'smg', 'pistol', 'camera'],   // 0.146.0: 카메라 더함   // 0.145.1: 야구방망이가 생존자 고유 무기가 되어 그 자리에 권총
   ['crossbow', 'amr', 'grenadeL', 'missile', 'saw', 'mine'],
   ['tesla', 'chakram', 'flamer', 'drone', 'poison', 'voodoo'],
 ];
-const wboxPos = (wi, k) => { const a = (k / 6) * Math.PI * 2 + wi * 0.5 + 0.3, r = 650 + (k % 3) * 250; return {x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r)}; };
+const wboxPos = (wi, k) => { const a = (k / WBOX_W[wi].length) * Math.PI * 2 + wi * 0.5 + 0.3, r = 650 + (k % 3) * 250; return {x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r)}; };   // 0.146.0: 상자 수만큼 고르게
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = (w, d = 1) => 'survivor.w' + w + (d > 1 ? '.d' + d : '');   // 난이도마다 따로 (0.134.1) — LV1 은 예전 기록 그대로
 const getRec = (w, d) => JSON.parse(localStorage.getItem(recKey(w, d)) || '{"t":0,"kills":0,"clear":false}');
@@ -1950,11 +1954,12 @@ function meleeSwing(w, st, a, R, dmg, wave) {
     let da = Math.atan2(dy, dx) - a; da = Math.atan2(Math.sin(da), Math.cos(da));
     if (Math.abs(da) > half + Math.atan2(e.r, d)) continue;
     hurtEnemy(e, dmg, st.stun); n++;
-    if (!e.boss && !e.dead) { const v = W.knockV / (e.wt || 1) * (wave ? 0.6 : 1); e.kbx += dx / d * v; e.kby += dy / d * v; }
+    if (W.knockV && !e.boss && !e.dead) { const v = W.knockV / (e.wt || 1) * (wave ? 0.6 : 1); e.kbx += dx / d * v; e.kby += dy / d * v; }
     if (st.splash) { const SR = splashR(st.splash), sd = dmg * splashPct(st.splash); G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: SR, t: 0.2});
       for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (SR + o.r) ** 2) hurtEnemy(o, sd); }
   }
-  G.fx.push({kind: 'swing', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r: R + p.r + 14, t: 0.18, T: 0.18, wave});
+  if (W.flash) G.fx.push({kind: 'flash', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r: R + p.r + 14, t: 0.25, T: 0.25});   // 카메라: 부채꼴이 한 번에 번쩍 (0.146.0 — 0.143.0 의 야구방망이 효과)
+  else G.fx.push({kind: 'swing', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r0: p.r, r: R + p.r + 14, t: 0.2, T: 0.2, wave});   // 야구방망이: 몸에서 밖으로 퍼짐 (0.146.0)
   return n;
 }
 function updateMelee(w, st, dt, wi) {
@@ -4413,11 +4418,18 @@ function draw() {
       continue;
     }
     if (f.kind === 'ember') { const k = f.t / f.T; ctx.fillStyle = `rgba(255,${120 + 100 * k | 0},40,${k})`; ctx.beginPath(); ctx.arc(f.x, f.y - (1 - k) * 10, 2 + k * 2, 0, Math.PI * 2); ctx.fill(); continue; }   // 불똥 (0.145.0)
-    if (f.kind === 'swing') {                                   // 야구방망이 휘두르기 (0.143.0): 부채꼴 자국이 빠르게 옅어짐
+    if (f.kind === 'swing') {                                   // 야구방망이 (0.146.0): 부채꼴 띠가 몸에서 밖으로 퍼져 나감
+      const k = 1 - f.t / f.T, e = 1 - (1 - k) ** 2, ro = f.r0 + (f.r - f.r0) * e, ri = Math.max(f.r0, ro - 16), al = 1 - k * 0.7;
+      ctx.fillStyle = f.wave ? `rgba(255,220,120,${0.4 * al})` : `rgba(255,255,255,${0.5 * al})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, ro, f.a - f.half, f.a + f.half); ctx.arc(f.x, f.y, ri, f.a + f.half, f.a - f.half, true); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${0.85 * al})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, ro, f.a - f.half, f.a + f.half); ctx.stroke();
+      continue;
+    }
+    if (f.kind === 'flash') {                                   // 카메라 찰칵 (0.146.0): 부채꼴 전체가 한 번에 하얗게 번쩍 → 옅어짐
       const k = f.t / f.T;
-      ctx.fillStyle = f.wave ? `rgba(255,220,120,${0.35 * k})` : `rgba(255,255,255,${0.45 * k})`;
+      ctx.fillStyle = `rgba(255,255,255,${0.6 * k})`;
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.arc(f.x, f.y, f.r, f.a - f.half, f.a + f.half); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = `rgba(255,255,255,${0.8 * k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, f.a - f.half, f.a + f.half); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * k})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, f.a - f.half, f.a + f.half); ctx.stroke();
       continue;
     }
     if (f.kind === 'foam') {                                    // 소화기 분사 (0.136.0): 하얀 거품 고리가 퍼짐 + 거품 방울

@@ -27,3 +27,4 @@ h voodoo  --seed 1429 --prompt "a small cursed voodoo skull with stitched mouth,
 h mine    --seed 1430 --prompt "a round flat military landmine disc with a red blinking light on top, lying flat"
 h poison  --seed 1431 --prompt "a round glass potion flask full of bubbling glowing green poison with a cork stopper"
 echo DONE2
+h camera  --seed 1432 --prompt "a retro instant photo camera with a big round flash bulb on top, front three-quarter view"   # 0.146.0
