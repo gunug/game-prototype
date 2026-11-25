@@ -194,6 +194,8 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   #radial.cancel .rc{stroke:#f66}
   #radial.cancel .rct{fill:#f99}
   #cards{flex-wrap:nowrap;padding:0 10px;max-width:100%}
+  #cards.pop .up{animation:cardPop .45s cubic-bezier(.2,1.4,.4,1) both} #cards.pop .up:nth-child(2){animation-delay:.07s} #cards.pop .up:nth-child(3){animation-delay:.14s}
+  @keyframes cardPop{from{transform:translateY(80px) scale(.3) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}   /* 상자에서 튀어나오는 카드 (0.141.0) */
   /* 좁은 화면: 카드를 세로로 쌓고 줄인다 (아래 규칙보다 뒤에 있어야 이긴다) */
   @media (max-width:700px){.char{width:120px}.world{width:200px}#worldSel{padding-top:44px}.cards{flex-direction:column;gap:10px}.up{width:min(80vw,280px);padding:10px}.up .key{width:28px;height:28px;line-height:26px;font-size:15px;margin-bottom:4px}.up .lv{margin:2px 0 4px}#cards{flex-direction:row;gap:8px;width:100%}#cards .up{width:auto;flex:1 1 0;min-width:0;padding:8px 6px}#cards .nm{font-size:14px}#cards .ds{font-size:11px}.top{gap:8px;font-size:12px}.top .hint{display:none}.stats{font-size:10px}}
   /* 월드 · 캐릭터 · 출발 무기: 늘 1행 N열 (스크롤 · 줄바꿈 없이 칸을 줄여 한 줄에) — 방사형 메뉴 위 절반 왼→오른과 맞춘다 */
@@ -372,7 +374,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.140.5';
+const VERSION = '0.141.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -773,7 +775,10 @@ for (const [id, W] of Object.entries(WEAPONS)) {
   W.dmg = W.fixedDmg ?? Math.round(DPS_REF * 2 / (1 + W.maxT) * cycleOf(W) / perCycle(W) * (WPN_BAL[W.id] || 1));   // × 무기 밸런스 (0.139.0)   // 정수 — fixedDmg 가 있으면 그것 (주술인형 100)
 }
 const dpsOf = W => { const s = W.dmg * perCycle(W) / cycleOf(W); return {single: s, best: s * W.maxT, mid: s * (1 + W.maxT) / 2, burst: W.cd ? W.dmg / W.cd : 0}; };
-const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll', 'barricade'];   // 해금된 무기 (해금 방식은 미정 — 지금은 다 열어 둠)
+const UNLOCKED_WEAPONS = ['pistol', 'laser', 'sniper', 'mg', 'boomerang', 'shield', 'doll', 'barricade'];   // 모든 무기 (도감 · 봉인 페이지용 — 실제로 열린 것은 unlockedW)
+// 무기 해금 (0.141.0): ① 캐릭터가 열리면 그 캐릭터 고유 무기 ② 월드마다 정해진 자리의 무기 상자를 찾으면 그 무기 (localStorage 'survivor.wfound' = [id])
+const getWfound = () => { try { const a = JSON.parse(localStorage.getItem('survivor.wfound') || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; } };
+const unlockedW = () => [...new Set([...CHARACTERS.filter((_, i) => charOpen(i)).map(c => c.weapon), ...getWfound()])].filter(id => WEAPONS[id]);
 
 // 사거리 상한 = 무기마다 기본 사거리 × 1.4 — 모든 무기가 같은 배율이라 다 올려도 저격총(기본이 가장 김)이 가장 길다
 // 저격총 상한 ≈ 300 (0.31.2: 예전 저격총 시작 사거리 300 이 최종 사거리가 되게 모두 ÷1.4). 자세한 기준은 docs/사거리_가이드.md
@@ -926,6 +931,14 @@ const WORLDS = [
    elites: [{at: 60}, {at: 120}, {at: 180}, {at: 240}, {at: 360}, {at: 420}, {at: 480}, {at: 540}],
    bosses: [{at: 300, id: 'exp'}, {at: 600, id: 'director'}]},
 ];
+// 무기 상자 (0.141.0): 월드마다 정해진 무기 6개 · 정해진 자리 (시작점에서 각 방향 650~1150px). 찾은 것은 다시 안 나옴 (LV 무관).
+//   아직 만들지 않은 무기는 상자도 안 놓음 (WEAPONS 에 있어야)
+const WBOX_W = [
+  ['mg', 'boomerang', 'revolver', 'shotgun', 'smg', 'bat'],
+  ['crossbow', 'amr', 'grenadeL', 'missile', 'saw', 'mine'],
+  ['tesla', 'chakram', 'flamer', 'drone', 'poison', 'voodoo'],
+];
+const wboxPos = (wi, k) => { const a = (k / 6) * Math.PI * 2 + wi * 0.5 + 0.3, r = 650 + (k % 3) * 250; return {x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r)}; };
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = (w, d = 1) => 'survivor.w' + w + (d > 1 ? '.d' + d : '');   // 난이도마다 따로 (0.134.1) — LV1 은 예전 기록 그대로
 const getRec = (w, d) => JSON.parse(localStorage.getItem(recKey(w, d)) || '{"t":0,"kills":0,"clear":false}');
@@ -1185,7 +1198,9 @@ function newGame(wi, weaponId, subId) {
     enemies: [], allies: [], bullets: [], eshots: [], pv: {x: 0, y: 0}, gems: [], chests: [], mags: [], pools: [], hatch: [], air: [], walls: [], wallMap: new Map(), wallNotch: new Set(), wallThrows: [], wallGrows: [], wallRes: new Set(), flowP: null, flowE: null, flowDirty: false, chestQ: 0, bossQ: 0, banned: new Set(pbanOn()), pickUse: {reroll: 0, ban: 0}, banMode: false, pickKind: 'lv', fx: [], texts: [],
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
-    meats: [], wdrops: [], dog: null, fistT: 0,        // 고기 · 떨군 무기 · 반려견 · 당황 · 맨손 (0.135.0)
+    meats: [], wdrops: [], dog: null, fistT: 0,
+    wboxes: (WBOX_W[wi] || []).map((w, k) => ({w, ...wboxPos(wi, k), t: 0})).filter(b => WEAPONS[b.w] && !getWfound().includes(b.w)),   // 무기 상자 (0.141.0)
+    opening: null, wboxQ: [],                                     // 상자 열림 연출 (0.141.0)        // 고기 · 떨군 무기 · 반려견 · 당황 · 맨손 (0.135.0)
     dl: getDiff(WORLDS[wi].id), dm: worldDm(wi, getDiff(WORLDS[wi].id)),   // 0.139.0: 월드 배율 × 난이도                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
   };
   for (const u of UPGRADES) G.ups[u.id] = 0;
@@ -1775,8 +1790,10 @@ function closePicks() {
   $('levelup').hidden = true;
   G.mode = 'play';
   G.p.inv = Math.max(G.p.inv, PICK_INV);                         // 고른 직후 무적 (0.122.0) — 깜빡임으로 보임
-  if (G.bossQ > 0) { G.bossQ--; openBossChest(); }             // 보스 상자가 맨 먼저 (0.123.0)
-  else if (G.chestQ > 0) { G.chestQ--; openChest(); }          // 쌓인 상자 먼저, 그다음 밀린 레벨업
+  const P = G.p;
+  if (G.bossQ > 0) { G.bossQ--; startOpen('boss', P.x, P.y); }             // 보스 상자가 맨 먼저 (0.123.0) · 열림 연출 (0.141.0)
+  else if (G.wboxQ.length) startOpen('wbox', P.x, P.y, 0, G.wboxQ.shift());
+  else if (G.chestQ > 0) { G.chestQ--; startOpen('chest', P.x, P.y, 1); }  // 쌓인 상자 먼저, 그다음 밀린 레벨업
   else if (G.pendingLv > 0) { G.pendingLv--; openLevelUp(); }
 }
 
@@ -1793,7 +1810,7 @@ const subKind = u => u.give ? '<div class="sublbl">특성 부여</div>' : '<div 
 const chestPool = () => UPGRADES.filter(u => u.sub && subOk(u) && !G.banned.has(u.id)
   && (G.subs.some(x => x.id === u.id) || subsUsed() < G.char.sSlots));
 // 빈 무기 슬롯이 있으면 해금된 새 무기도 상자에서 나온다 (0.69.0 — 그 전엔 레벨업에서)
-const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : UNLOCKED_WEAPONS.filter(id => !G.weapons.some(w => w.id === id) && !G.banned.has('new_' + id))
+const newWeaponPool = () => G.weapons.length >= G.char.wSlots ? [] : unlockedW().filter(id => !G.weapons.some(w => w.id === id) && !G.banned.has('new_' + id))
   .map(id => ({id: 'new_' + id, nm: '새 무기: ' + WEAPONS[id].nm, ds: WEAPONS[id].ds, max: 1, newWeapon: id, apply: () => { G.weapons.push(newWeapon(id)); G.panicT = 0; }}));   // 새 무기도 '얻음' — 당황 시간 다시 (0.135.6)
 // 무기 강화 (0.101.0): 가진 무기마다 하나. 최대치 없음 → 상자가 비지 않음
 const weaponUpPool = () => G.weapons.filter(w => !G.banned.has('wup_' + w.id))
@@ -1816,6 +1833,61 @@ function openBossChest() {
   while (picks.length < 3 && pool.length) picks.push(permPick(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]));
   G.pickKind = 'boss'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
   showPicks(picks, '보스 상자');
+}
+// ── 상자 열림 연출 (0.141.0) ── 엘리트 · 보스 · 무기 상자 모두: 화면 가운데에 크게 — 달그락(OPEN_SHAKE) → 뚜껑 열림(OPEN_POP) → 카드가 튀어나옴(OPEN_CARD) → 고르기 창
+//   그동안 게임은 멈춤 (G.mode = 'opening'). 고르기 창의 카드도 튀어나오며 나타남 (.pop)
+const OPEN_SHAKE = 0.7, OPEN_POP = 0.15, OPEN_CARD = 0.45, OPEN_T = OPEN_SHAKE + OPEN_POP + OPEN_CARD;
+function startOpen(kind, x, y, g = 1, w = null) {
+  G.opening = {kind, x, y, g, w, t: 0}; G.mode = 'opening'; joy.id = null;
+}
+function tickOpening(dt) {
+  const o = G.opening; if (!o) return;
+  if ((o.t += dt) < OPEN_T) return;
+  G.opening = null; G.mode = 'play';
+  if (o.kind === 'boss') openBossChest(); else if (o.kind === 'wbox') openWbox(o.w); else openChest();
+  $('cards').classList.add('pop'); setTimeout(() => $('cards').classList.remove('pop'), 600);
+}
+function drawOpening() {
+  const o = G.opening; if (!o) return;
+  const t = o.t, cx = W / 2, cy = H / 2 + 30, open = t >= OPEN_SHAKE;
+  ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = `rgba(6,8,12,${Math.min(0.6, t * 2)})`; ctx.fillRect(0, 0, W, H);
+  const k = Math.min(1, t / 0.2), sc = 2.6 + 0.4 * k;            // 커지며 나타남
+  const sh = open ? 0 : Math.sin(t * 46) * (0.06 + 0.16 * t / OPEN_SHAKE);   // 달그락: 갈수록 세게
+  const hop = open ? 0 : Math.abs(Math.sin(t * 23)) * 3 * t / OPEN_SHAKE;
+  ctx.translate(cx, cy - hop); ctx.rotate(sh); ctx.scale(sc, sc);
+  const col = o.kind === 'boss' ? BOSS_CHEST_COL : o.kind === 'wbox' ? WBOX_COL : gradeCol(o.g);
+  if (open) {                                                    // 열린 순간 빛
+    const f = Math.min(1, (t - OPEN_SHAKE) / OPEN_POP);
+    ctx.save(); ctx.globalAlpha = 0.5 * (1 - Math.max(0, (t - OPEN_SHAKE - OPEN_POP) / OPEN_CARD) * 0.6);
+    const gr = ctx.createRadialGradient(0, -10, 2, 0, -10, 40 * f + 10); gr.addColorStop(0, '#fff'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(0, -10, 50, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  if (o.kind === 'boss') drawBossChest(0, 0, t, open); else if (o.kind === 'wbox') drawWbox(0, 0, open); else drawChest(0, 0, col, open);
+  ctx.restore();
+  if (t > OPEN_SHAKE + OPEN_POP) {                               // 카드가 튀어나옴: 상자에서 위로 솟으며 커짐 + 살짝 돎
+    const c = Math.min(1, (t - OPEN_SHAKE - OPEN_POP) / OPEN_CARD), e = 1 - (1 - c) ** 3;
+    const w = 46 + 44 * e, h = w * 1.4, x = cx, y = cy - 20 - 150 * e;
+    ctx.save(); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.translate(x, y); ctx.rotate((1 - e) * 0.6);
+    ctx.shadowColor = col; ctx.shadowBlur = 18; ctx.fillStyle = '#232634'; ctx.strokeStyle = col; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, 8); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+    const img = o.kind === 'wbox' ? WEAPON_IMG[o.w] : null;
+    if (img) { const iw = w * 0.8, ih = iw * img.height / img.width; ctx.drawImage(img, -iw / 2, -ih / 2, iw, ih); }
+    else { ctx.fillStyle = col; ctx.font = `bold ${Math.round(w * 0.5)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', 0, 2); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// 무기 상자 열기 (0.141.0): 그 무기를 영구 해금 + 고르기 — '들기'(칸이 남으면 이번 판에 바로) / '두고 가기'(해금만, 다음 판부터 레벨업에서 나옴)
+function openWbox(w) {
+  if (!window.SIM_ACTIVE) { const f = getWfound(); if (!f.includes(w)) { f.push(w); localStorage.setItem('survivor.wfound', JSON.stringify(f)); } }
+  setBanner(`무기 해금: ${WEAPONS[w].nm}`, WBOX_COL);
+  const full = G.weapons.length >= G.char.wSlots || G.weapons.some(x => x.id === w);
+  const picks = [];
+  if (!full) picks.push({id: 'wbox_' + w, nm: '새 무기: ' + WEAPONS[w].nm, ds: WEAPONS[w].ds, max: 1, newWeapon: w, apply: () => { G.weapons.push(newWeapon(w)); G.panicT = 0; }});
+  picks.push({id: 'wbox_keep', nm: full ? '칸이 가득 — 해금만' : '두고 가기', ds: '해금만 — 다음 판부터 레벨업 \'새 무기\' 로 나온다', max: 1, wkeep: w, passive: true, badges: [], apply: () => {}});
+  G.pickKind = 'boss'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;   // 다시 뽑기 · 봉인 없음 (보스 상자처럼)
+  showPicks(picks, '무기 상자');
 }
 function openChest() {
   const picks = chestPicks();
@@ -3089,10 +3161,16 @@ function dropGems(x, y, v, n) {
   }
 }
 // 상자 그림 (캔버스로): 나무 몸통 · 뚜껑 · 금테 · 자물쇠, 둘레에 등급 빛
-function drawChest(x, y, col) {
+function drawChest(x, y, col, open = false) {
   ctx.save(); ctx.translate(x, y);
   ctx.shadowColor = col; ctx.shadowBlur = 10;
   ctx.fillStyle = '#7a4a22'; ctx.fillRect(-11, -4, 22, 12);          // 몸통
+  if (open) {                                                    // 열림 (0.141.0): 뚜껑이 뒤로 젖혀지고 안이 빛남
+    ctx.fillStyle = '#fff3b0'; ctx.fillRect(-10, -5, 20, 3);
+    ctx.fillStyle = '#93592a'; ctx.beginPath(); ctx.moveTo(-11, -5); ctx.lineTo(-13, -17); ctx.quadraticCurveTo(0, -22, 13, -17); ctx.lineTo(11, -5); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = col; ctx.fillRect(-8, -18, 2, 26); ctx.fillRect(6, -18, 2, 26);
+    ctx.strokeStyle = '#2a170a'; ctx.lineWidth = 1; ctx.strokeRect(-11, -4, 22, 12); ctx.restore(); return;
+  }
   ctx.fillStyle = '#93592a'; ctx.beginPath(); ctx.moveTo(-11, -4); ctx.lineTo(-11, -9); ctx.quadraticCurveTo(0, -15, 11, -9); ctx.lineTo(11, -4); ctx.fill();   // 뚜껑
   ctx.shadowBlur = 0;
   ctx.fillStyle = col; ctx.fillRect(-11, -5, 22, 2); ctx.fillRect(-8, -12, 2, 20); ctx.fillRect(6, -12, 2, 20);   // 테
@@ -3103,13 +3181,37 @@ function drawChest(x, y, col) {
 
 // 보스 상자 (0.123.0): 엘리트 상자보다 크고 검보라 몸통 · 금테 · 왕관 장식, 뒤로 금빛이 돈다
 const BOSS_CHEST_COL = '#ffd84a';
-function drawBossChest(x, y, t = 0) {
+// 무기 상자 (0.141.0): 국방색 긴 나무 궤짝 · 하얀 총 그림 찍힘 · 청록 빛 — 엘리트 상자 · 보스 상자와 다른 꼴
+const WBOX_COL = '#4fe3d2';
+function drawWbox(x, y, open = false) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.shadowColor = WBOX_COL; ctx.shadowBlur = 12;
+  ctx.fillStyle = '#4b5a32'; ctx.fillRect(-16, -5, 32, 13);         // 몸통
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#3a4626'; ctx.fillRect(-16, 2, 32, 2); ctx.fillRect(-12, -5, 3, 13); ctx.fillRect(9, -5, 3, 13);   // 판자 · 띠
+  if (open) {
+    ctx.fillStyle = '#d8fff8'; ctx.fillRect(-15, -6, 30, 3);
+    ctx.fillStyle = '#5b6b3c'; ctx.beginPath(); ctx.moveTo(-16, -6); ctx.lineTo(-18, -20); ctx.lineTo(18, -20); ctx.lineTo(16, -6); ctx.closePath(); ctx.fill();
+  } else {
+    ctx.fillStyle = '#5b6b3c'; ctx.fillRect(-17, -10, 34, 5);       // 뚜껑
+    ctx.fillStyle = '#e8eadb'; ctx.fillRect(-6, 0, 10, 2); ctx.fillRect(-6, 0, 2, 5); ctx.fillRect(3, -1, 3, 2);   // 총 그림
+  }
+  ctx.strokeStyle = '#1e2614'; ctx.lineWidth = 1; ctx.strokeRect(-16, -5, 32, 13);
+  ctx.restore();
+}
+function drawBossChest(x, y, t = 0, open = false) {
   ctx.save(); ctx.translate(x, y);
   ctx.save(); ctx.rotate(t * 0.8); ctx.fillStyle = 'rgba(255,216,74,.18)';   // 도는 빛살
   for (let i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-5, -34); ctx.lineTo(5, -34); ctx.fill(); }
   ctx.restore();
   ctx.shadowColor = BOSS_CHEST_COL; ctx.shadowBlur = 14 + 6 * Math.sin(t * 4);
   ctx.fillStyle = '#3a1f4a'; ctx.fillRect(-16, -5, 32, 16);           // 몸통
+  if (open) {                                                    // 열림 (0.141.0)
+    ctx.fillStyle = '#fff3b0'; ctx.fillRect(-15, -6, 30, 4);
+    ctx.fillStyle = '#4e2a63'; ctx.beginPath(); ctx.moveTo(-16, -6); ctx.lineTo(-19, -24); ctx.quadraticCurveTo(0, -31, 19, -24); ctx.lineTo(16, -6); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = BOSS_CHEST_COL; ctx.fillRect(-16, 9, 32, 2); ctx.fillRect(-13, -26, 3, 37); ctx.fillRect(10, -26, 3, 37);
+    ctx.strokeStyle = '#1a0c22'; ctx.lineWidth = 1; ctx.strokeRect(-16, -5, 32, 16); ctx.restore(); return;
+  }
   ctx.fillStyle = '#4e2a63'; ctx.beginPath(); ctx.moveTo(-16, -5); ctx.lineTo(-16, -12); ctx.quadraticCurveTo(0, -21, 16, -12); ctx.lineTo(16, -5); ctx.fill();   // 뚜껑
   ctx.shadowBlur = 0;
   ctx.fillStyle = BOSS_CHEST_COL; ctx.fillRect(-16, -6, 32, 3); ctx.fillRect(-16, 9, 32, 2);   // 금테
@@ -3593,9 +3695,14 @@ function update(dt) {
   // 상자: 닿으면 연다 (레벨업 창이 떠 있으면 줄 세워 두었다가 닫힐 때)
   for (const c of G.chests) {
     c.t += dt;
-    if (Math.hypot(p.x - c.x, p.y - c.y) < p.r + (c.boss ? 20 : 14)) { c.dead = true; if (c.boss) { if (G.mode === 'levelup') G.bossQ++; else openBossChest(); } else if (G.mode === 'levelup') G.chestQ++; else openChest(); }
+    if (Math.hypot(p.x - c.x, p.y - c.y) < p.r + (c.boss ? 20 : 14)) { c.dead = true; if (c.boss) { if (G.mode !== 'play' || G.opening) G.bossQ++; else startOpen('boss', c.x, c.y); } else if (G.mode !== 'play' || G.opening) G.chestQ++; else startOpen('chest', c.x, c.y, c.g); }   // 0.141.0: 열림 연출 뒤 고르기
   }
   G.chests = G.chests.filter(c => !c.dead);
+  for (const b of G.wboxes) {                                    // 무기 상자 (0.141.0): 닿으면 열림 연출 → 새 무기 고르기
+    b.t += dt;
+    if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + 16) { b.dead = true; if (G.mode !== 'play' || G.opening) G.wboxQ.push(b.w); else startOpen('wbox', b.x, b.y, 0, b.w); }
+  }
+  G.wboxes = G.wboxes.filter(b => !b.dead);
   // 자석 (0.106.0): 닿으면 필드의 보석을 모두 끌어옴 (공중에 뜬 것은 땅에 닿자마자)
   for (const m of G.mags) {
     m.t += dt;
@@ -3870,6 +3977,7 @@ function draw() {
   drawWallThrows();                                              // 날아가는 바리케이드 (0.131.1)
   // 상자 (0.137.2): 몸 · 바닥 것보다 위, UI 바로 아래 — 등급 색으로 빛나며 살짝 뜀
   for (const c of G.chests) { const y = c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4; if (c.boss) drawBossChest(c.x, y, c.t); else drawChest(c.x, y, gradeCol(c.g)); }
+  for (const b of G.wboxes) if (view(b.x, b.y, 30)) drawWbox(b.x, b.y - 4 - Math.abs(Math.sin(b.t * 3)) * 4);   // 무기 상자 (0.141.0)
   // UI: 벽 → 적 → 아군 → 주인공
   for (const q of wallVis) wallUI(q);
   for (const e of es) {
@@ -4138,7 +4246,24 @@ function offscreenMarks(ox, oy) {
     if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, -8, -8, 16, 16); else circle(0, 0, 5, '#e44');
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
-  }  // 화면 밖 떨군 무기 (0.135.3): 같은 꼴 — 동그라미 안에 무기 그림, 테두리 · 화살표는 노랑 (떨군 무기 빛과 같은 색), 깜빡임
+  }  // 화면 밖 무기 상자 (0.141.0): 같은 꼴 — 동그라미 안에 무기 상자, 청록 테두리 · 화살표
+  for (const b of G.wboxes) {
+    const sx = b.x + ox, sy = b.y + oy, m = 20;
+    if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
+    const R = 13, M = R + 10, dx = sx - W / 2, dy = sy - H / 2;
+    const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx);
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = WBOX_COL; ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
+    ctx.lineTo(Math.cos(a + 0.5) * (R + 1), Math.sin(a + 0.5) * (R + 1));
+    ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
+    ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.scale(0.6, 0.6); drawWbox(0, 2); ctx.restore();
+    ctx.strokeStyle = WBOX_COL; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  // 화면 밖 떨군 무기 (0.135.3): 같은 꼴 — 동그라미 안에 무기 그림, 테두리 · 화살표는 노랑 (떨군 무기 빛과 같은 색), 깜빡임
   for (const q of G.wdrops) {
     const sx = q.x + ox, sy = q.y + oy, m = 20;
     if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
@@ -4247,9 +4372,10 @@ function loop(now) {
       if (D.t >= DIE_T && G.mode === 'play') gameOver();
     }
     else if (G.mode === 'play') update(dt);
+    else if (G.mode === 'opening') tickOpening(dt);             // 상자 열림 연출 (0.141.0)
     if (G.mode === 'levelup') G.inputLock -= dt;
   }
-  draw(); hud();
+  draw(); if (G && G.opening) drawOpening(); hud();
   requestAnimationFrame(loop);
 }
 showWorlds();

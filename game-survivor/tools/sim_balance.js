@@ -29,6 +29,7 @@ function simStep(n, dt) {
   for (let i = 0; i < n; i++) {
     if (!G) return 'gone';
     if (G.mode === 'levelup') { G.inputLock = 0; choose(Math.floor(Math.random() * G.choices.length)); if (G.mode === 'play') G.mode = 'sim'; continue; }
+    if (G.mode === 'opening') { tickOpening(dt); continue; }      // 상자 열림 연출 (0.141.0)
     if (G.mode === 'play') G.mode = 'sim';                        // 화면 루프가 같이 돌지 않게
     if (G.dying || G.mode === 'over') return 'dead';
     if (G.mode === 'clear') return 'clear';
@@ -41,7 +42,7 @@ window.SIM = window.SIM || [];
 async function simBatch(list, dt = 1 / 30) {
   window.SIM_DONE = false;
   const keepPerm = window.permUp, permRaw = localStorage.getItem('survivor.perm'), pbanRaw = localStorage.getItem('survivor.pban');
-  window.permUp = () => {};                                       // 시뮬은 영구 저장을 건드리지 않음
+  window.permUp = () => {}; window.SIM_ACTIVE = true;             // 시뮬은 영구 저장(영구 업그레이드 · 무기 상자)을 건드리지 않음
   const realRec = localStorage.getItem('survivor.diff');
   for (const o of list) {
     simRun(o); G.mode = 'sim'; let st = 'run';
@@ -51,7 +52,7 @@ async function simBatch(list, dt = 1 / 30) {
     window.SIM.push({...o, res: st, t: Math.round(G.t), lv: G.lv, kills: G.kills, hp: Math.round(G.p.hp)});
   }
   realRec == null ? localStorage.removeItem('survivor.diff') : localStorage.setItem('survivor.diff', realRec);
-  window.permUp = keepPerm;
+  window.permUp = keepPerm; window.SIM_ACTIVE = false;
   permRaw == null ? localStorage.removeItem('survivor.perm') : localStorage.setItem('survivor.perm', permRaw);
   pbanRaw == null ? localStorage.removeItem('survivor.pban') : localStorage.setItem('survivor.pban', pbanRaw);
   window.SIM_DONE = true;
