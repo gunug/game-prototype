@@ -375,7 +375,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.146.0';
+const VERSION = '0.147.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1002,6 +1002,41 @@ const WBOX_W = [
   ['tesla', 'chakram', 'flamer', 'drone', 'poison', 'voodoo'],
 ];
 const wboxPos = (wi, k) => { const a = (k / WBOX_W[wi].length) * Math.PI * 2 + wi * 0.5 + 0.3, r = 650 + (k % 3) * 250; return {x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r)}; };   // 0.146.0: 상자 수만큼 고르게
+// 월드 보스 (0.147.0): 판마다 그 월드의 못 찾은 무기 중 하나를 골라, 그 무기 자리(wboxPos)에 월드 보스가 잠들어 있다.
+//   WBOSS_WAKE 안으로 다가가면 깨어나 주인공을 노림 (엘리트처럼 쫓아옴). 잡으면 그 무기 상자를 떨굼. 다 찾은 월드엔 안 나옴
+//   생김새: 그 월드의 엘리트 전용 몹(월드 1 거구 좀비 · 2 방패 좀비 · 3 재생 좀비)을 크게 · 전설 등급 색
+const WBOSS_WAKE = 220, WBOSS = {size: 1.7, hp: 5000, dmg: 1.8, grade: 3};   // hp: 체력 (× 월드 · 난이도 배율) — 기준 무기(DPS 100)로 50초   // grade 3 = 전설(주황)
+const WBOSS_TYPE = ['brute', 'shielder', 'regener'];
+function pickWboss(wi) {
+  const found = getWfound(), cand = (WBOX_W[wi] || []).map((w, k) => ({w, k})).filter(o => WEAPONS[o.w] && !found.includes(o.w));
+  if (!cand.length) return null;
+  const o = cand[Math.floor(Math.random() * cand.length)];
+  return {w: o.w, ...wboxPos(wi, o.k), type: WBOSS_TYPE[wi] || 'brute', awake: false, t: 0};
+}
+function wbossTick(dt) {                                         // 잠든 월드 보스: 가까이 오면 깨어나 적이 됨
+  const b = G.wboss; if (!b || b.awake) return;
+  b.t += dt;
+  if (Math.hypot(G.p.x - b.x, G.p.y - b.y) > WBOSS_WAKE) return;
+  b.awake = true;
+  const e = makeEnemy(b.type, b.x, b.y);
+  e.r *= WBOSS.size; e.hp = e.maxHp = WBOSS.hp * (G.dm || 1); e.dmg *= WBOSS.dmg; e.xp *= 30; e.wt *= 3; e.elite = WBOSS.grade; e.wboss = b.w; e.seen = true;
+  e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
+  e.spd = Math.max(...G.world.mobs.filter(m => !m.eliteOnly).map(m => ENEMY_TYPES[m.type].spd)) * ELITE.spd;
+  G.enemies.push(e);
+  setBanner(`월드 보스 ${ENEMY_TYPES[b.type].nm} 깨어남!`, gradeCol(WBOSS.grade));
+  G.shake = Math.max(G.shake || 0, 6);
+}
+function drawWbossSleep() {                                      // 잠든 월드 보스: 흐릿한 그림 + 둘레 깨어나는 거리 점선 + Z
+  const b = G.wboss; if (!b || b.awake) return;
+  const T = ENEMY_TYPES[b.type], r = T.r * WBOSS.size, eh = r * 3.4;
+  ctx.save(); ctx.strokeStyle = 'rgba(255,138,30,.35)'; ctx.setLineDash([6, 8]); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(b.x, b.y + r * 0.8, WBOSS_WAKE, WBOSS_WAKE * 0.5, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.globalAlpha = 0.75; ctx.shadowColor = gradeCol(WBOSS.grade); ctx.shadowBlur = 10 + 6 * Math.sin(b.t * 2);
+  drawSprite(T.sprite || b.type, b.x, b.y, eh, false, () => circle(b.x, b.y, r, '#888'), {sx: 1, sy: 1, lift: 0, tilt: 0}, true);
+  ctx.restore();
+  ctx.save(); ctx.fillStyle = '#fff'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
+  const z = (b.t * 0.7) % 1; ctx.globalAlpha = 1 - z; ctx.fillText('Z', b.x + r + z * 14, b.y - eh * 0.8 - z * 22); ctx.restore();
+}
 const WORLD_SLOTS = 3;           // 선택 화면에 보일 칸 수 (없는 월드는 '준비 중')
 const recKey = (w, d = 1) => 'survivor.w' + w + (d > 1 ? '.d' + d : '');   // 난이도마다 따로 (0.134.1) — LV1 은 예전 기록 그대로
 const getRec = (w, d) => JSON.parse(localStorage.getItem(recKey(w, d)) || '{"t":0,"kills":0,"clear":false}');
@@ -1262,7 +1297,8 @@ function newGame(wi, weaponId, subId) {
     spawnAcc: 0, missed: 0, choices: [], inputLock: 0,
     evDone: new Set(), banner: null, finalDead: false,
     meats: [], wdrops: [], dog: null, fistT: 0,
-    wboxes: (WBOX_W[wi] || []).map((w, k) => ({w, ...wboxPos(wi, k), t: 0})).filter(b => WEAPONS[b.w] && !getWfound().includes(b.w)),   // 무기 상자 (0.141.0)
+    wboxes: [],                                                   // 무기 상자 — 월드 보스를 잡으면 떨굼 (0.147.0)
+    wboss: pickWboss(wi),                                         // 월드 보스 (0.147.0): 판마다 아직 못 찾은 무기 하나 — 그 무기 자리에서 잠들어 있음
     opening: null, wboxQ: [], mines: [],                          // 지뢰 (0.145.0)                                     // 상자 열림 연출 (0.141.0)        // 고기 · 떨군 무기 · 반려견 · 당황 · 맨손 (0.135.0)
     dl: getDiff(WORLDS[wi].id), dm: worldDm(wi, getDiff(WORLDS[wi].id)),   // 0.139.0: 월드 배율 × 난이도                 // 난이도 단계 · 적 체력 · 피해 배율 (0.134.0)
   };
@@ -3244,7 +3280,8 @@ function hurtEnemy(e, dmg, stun = 0) {
       if (Math.random() < magDropP(G.magMiss || 0)) { G.mags.push({x: e.x, y: e.y, t: 0}); G.magMiss = 0; } else G.magMiss = (G.magMiss || 0) + 1;
     }
     if (e.elite != null || Math.random() < MEAT_P) G.meats.push({x: e.x, y: e.y, t: 0});   // 고기 (0.135.0): 엘리트 · 보스는 늘
-    if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
+    if (e.wboss) { G.wboxes.push({w: e.wboss, x: e.x, y: e.y, t: 0}); setBanner('월드 보스 처치! 무기 상자', WBOX_COL); }   // 월드 보스 → 무기 상자 (0.147.0)
+    else if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss) G.chests.push({x: e.x, y: e.y, boss: true, t: 0});   // 보스 → 보스 상자 (영구 업그레이드, 0.123.0)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
     else if (e.boss) setBanner(`${e.boss.nm} 처치!`, gradeCol(e.boss.grade));
@@ -3986,6 +4023,7 @@ function update(dt) {
     if (Math.hypot(p.x - c.x, p.y - c.y) < p.r + (c.boss ? 20 : 14)) { c.dead = true; if (c.boss) { if (G.mode !== 'play' || G.opening) G.bossQ++; else startOpen('boss', c.x, c.y); } else if (G.mode !== 'play' || G.opening) G.chestQ++; else startOpen('chest', c.x, c.y, c.g); }   // 0.141.0: 열림 연출 뒤 고르기
   }
   G.chests = G.chests.filter(c => !c.dead);
+  wbossTick(dt);                                                 // 월드 보스 (0.147.0)
   for (const b of G.wboxes) {                                    // 무기 상자 (0.141.0): 닿으면 열림 연출 → 새 무기 고르기
     b.t += dt;
     if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + 16) { b.dead = true; if (G.mode !== 'play' || G.opening) G.wboxQ.push(b.w); else startOpen('wbox', b.x, b.y, 0, b.w); }
@@ -4167,6 +4205,7 @@ function draw() {
   const es = G.enemies.concat(G.hatch, G.air).filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);   // G.hatch: 갈라진 직후 (0.128.5)
   drawPools();                                                   // 산성 웅덩이 (0.127.0) — 땅에
   drawMines();                                                   // 지뢰 (0.145.0)
+  drawWbossSleep();                                              // 잠든 월드 보스 (0.147.0)
   for (const q of G.wdrops) if (q.fly == null) drawMoveGuide(p.x, p.y + 12, q.x, q.y + 6);   // 떨군 무기 쪽 이동 가이드 (0.140.2 · 0.140.3)
   drawEshots();
   // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
@@ -4558,7 +4597,26 @@ function offscreenMarks(ox, oy) {
     if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, -8, -8, 16, 16); else circle(0, 0, 5, '#e44');
     ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
-  }  // 화면 밖 무기 상자 (0.141.0): 같은 꼴 — 동그라미 안에 무기 상자, 청록 테두리 · 화살표
+  }  // 화면 밖 잠든 월드 보스 (0.147.0): 엘리트 · 보스와 같은 꼴 — 얼굴 동그라미 + 화살표, 전설 등급 색 (깨어나면 엘리트 표시가 맡음)
+  if (G.wboss && !G.wboss.awake) {
+    const b = G.wboss, sx = b.x + ox, sy = b.y + oy, m = 30;
+    if (!(sx > -m && sx < W + m && sy > -m && sy < H + m)) {
+      const R = 15, M = R + 10, dx = sx - W / 2, dy = sy - H / 2, col = gradeCol(WBOSS.grade);
+      const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
+      const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx);
+      ctx.save(); ctx.translate(x, y);
+      ctx.fillStyle = col; ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
+      ctx.lineTo(Math.cos(a + 0.5) * (R + 1), Math.sin(a + 0.5) * (R + 1));
+      ctx.lineTo(Math.cos(a - 0.5) * (R + 1), Math.sin(a - 0.5) * (R + 1)); ctx.fill();
+      ctx.fillStyle = '#232634'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+      const img = SPRITES[b.type];
+      if (img) { ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R - 1, 0, Math.PI * 2); ctx.clip(); const w = R * 2.6, h = w * img.height / img.width; ctx.drawImage(img, -w / 2, -R * 1.15, w, h); ctx.restore(); }
+      ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  // 화면 밖 무기 상자 (0.141.0): 같은 꼴 — 동그라미 안에 무기 상자, 청록 테두리 · 화살표
   for (const b of G.wboxes) {
     const sx = b.x + ox, sy = b.y + oy, m = 20;
     if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
