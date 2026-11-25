@@ -372,7 +372,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.140.4';
+const VERSION = '0.140.5';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -454,7 +454,7 @@ const LOB_N = 5, LOB_T = 1.2, LOB_AOE = 50, LOB_DMG = 180;
 // 수류탄 비 배치 (0.85.1): 가운데 하나 + 둘레 LOB_N-1 개를 고르게. 원끼리 LOB_GAP 이상 띄워 사이로 빠져나갈 틈 (주인공 지름 28)
 const LOB_GAP = 40, LOB_RING = 2 * LOB_AOE + LOB_GAP;   // 가운데 ↔ 둘레 중심 거리 140 — 둘레끼리는 이보다 멀다 (4개면 198)
 // 부채꼴 탄 (0.85.2): 5발을 0.45 라디안(26°) 간격 — 120px 거리에서 탄 사이 틈 40px. 번마다 반 칸씩 엇갈려 쏴 틈이 옮겨 다님
-const VOL_N = 5, VOL_W = 3, VOL_GAP = 0.3, VOL_ARC = 1.8, VOL_SPD = 250, VOL_DMG = 120;
+const VOL_N = 5, VOL_W = 3, VOL_GAP = 0.3, VOL_ARC = 1.8, VOL_SPD = 115, VOL_DMG = 120;   // 0.140.5: 탄속 250 → 115 (보스도 적 탄속 상한)
 // 보스 체력 = '기준 빌드' 가 그 보스를 fightT 초에 잡는 양 (docs/보스_체력.md)
 //   기준 레벨 = 그 보스가 나오는 때의 완벽 플레이 레벨 × BOSS_LV_PCT (지금 75%) — 이 퍼센트로 난이도를 조절한다
 //   기준 빌드 = 권총 하나 · 레벨업의 절반을 공격력 · 공격속도에 번갈아 (나머지는 체력 · 사거리 같은 데) · 보스 방어 뺀 단일 대상 DPS
@@ -2325,10 +2325,11 @@ function interceptT(x, y, spd) {
   const t1 = (-b - Math.sqrt(D)) / (2 * a), t2 = (-b + Math.sqrt(D)) / (2 * a), t = [t1, t2].filter(t => t > 0).sort((p, q) => p - q)[0];
   return t ? Math.min(2, t) : fb;
 }
-// 잡몹 곧은 탄 탄속 상한 (0.140.4, docs/적_탄속_가이드.md) — 어떤 잡몹 탄도 이보다 빠르지 않게. 피할 수 있어야 하니까
+// 적 곧은 탄 탄속 상한 (0.140.4 잡몹 · 0.140.5 보스도, docs/적_탄속_가이드.md) — 어떤 적 탄도 이보다 빠르지 않게. 피할 수 있어야 하니까
 const MOB_SHOT_MAX = 115;
 function fireShot(x, y, a, spd, dmg, r, col, range, A) {
   const mv = A && A.move && A.move !== 'line' ? {k: A.move, amp: A.amp || 16, w: A.w || 8} : null;   // 탄 길 (0.139.0)
+  spd = Math.min(spd, MOB_SHOT_MAX);                             // 누가 쏘든 상한 (0.140.5)
   G.eshots.push({x, y, bx: x, by: y, age: 0, mv, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r, dmg, col, life: range / spd});
 }
 function throwLob(x, y, tx, ty, T, aoe, dmg) {
