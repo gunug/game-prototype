@@ -372,7 +372,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.140.0';
+const VERSION = '0.140.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -3749,6 +3749,11 @@ function draw() {
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
   const es = G.enemies.concat(G.hatch, G.air).filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);   // G.hatch: 갈라진 직후 (0.128.5)
   drawPools();                                                   // 산성 웅덩이 (0.127.0) — 땅에
+  for (const q of G.wdrops) {                                    // 떨군 무기까지 흐린 바닥선 (0.140.1): 발밑 → 무기 자리, 노란 점선
+    if (q.fly != null) continue;
+    ctx.save(); ctx.strokeStyle = 'rgba(255,214,64,.28)'; ctx.lineWidth = 2; ctx.setLineDash([6, 7]); ctx.lineDashOffset = -G.t * 20;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y + 12); ctx.lineTo(q.x, q.y + 6); ctx.stroke(); ctx.restore();
+  }
   drawEshots();
   // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
   for (const e of G.enemies) {
