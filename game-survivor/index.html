@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.137.1';
+const VERSION = '0.137.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -2942,37 +2942,49 @@ function fistTick(dt) {
     best.kbx += dx / d * v; best.kby += dy / d * v; }
   G.fx.push({kind: 'splash', mine: true, x: (p.x + best.x) / 2, y: (p.y + best.y) / 2 - 10, r: 12, t: 0.15});
 }
-function drawGround2() {
-  for (const m of G.meats) {                                     // 고기: 마지막 5초는 깜빡임
-    if (m.carry) continue;
-    if (MEAT_LIFE - m.t < 5 && Math.floor(m.t * 8) % 2) continue;
-    const sz = 18, y = m.y - 3 - Math.abs(Math.sin(m.t * 3)) * 3;
-    if (MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 6, '#a52');
+// 바닥 것 하나씩 그리기 (0.137.2 — 몸과 함께 y 순서로 그리려고 drawGround2 를 나눔)
+function drawMeat(m) {                                           // 고기: 마지막 5초는 깜빡임
+  if (MEAT_LIFE - m.t < 5 && Math.floor(m.t * 8) % 2) return;
+  const sz = 18, y = m.y - 3 - Math.abs(Math.sin(m.t * 3)) * 3;
+  if (MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 6, '#a52');
+}
+function drawWdrop(q) {                                          // 떨군 무기 (0.135.2: 더 크게 · 바닥에 고동치는 노란 고리 · 진한 빛)
+  const img = WEAPON_IMG[q.w.id], w = 40;
+  let x = q.x, y, rot = 0;
+  if (q.fly != null) {                                           // 날아가는 중: 몸 → 떨어질 자리, 포물선 + 회전
+    const k = q.fly / WDROP_T; x = q.sx + (q.x - q.sx) * k; y = q.sy + (q.y - q.sy) * k - Math.sin(k * Math.PI) * WDROP_H; rot = q.rot;
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(q.sx + (q.x - q.sx) * k, q.sy + (q.y - q.sy) * k + 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    y = q.y - 6 - Math.abs(Math.sin(q.t * 3)) * 5;
+    const pk = (q.t * 1.6) % 1;                                  // 고동치는 고리
+    ctx.save(); ctx.strokeStyle = `rgba(255,214,64,${0.9 * (1 - pk)})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 14 + pk * 16, (14 + pk * 16) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,214,64,.25)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 16, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
-  for (const q of G.wdrops) {                                    // 떨군 무기 (0.135.2: 더 크게 · 바닥에 고동치는 노란 고리 · 진한 빛)
-    const img = WEAPON_IMG[q.w.id], w = 40;
-    let x = q.x, y, rot = 0;
-    if (q.fly != null) {                                         // 날아가는 중: 몸 → 떨어질 자리, 포물선 + 회전
-      const k = q.fly / WDROP_T; x = q.sx + (q.x - q.sx) * k; y = q.sy + (q.y - q.sy) * k - Math.sin(k * Math.PI) * WDROP_H; rot = q.rot;
-      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(q.sx + (q.x - q.sx) * k, q.sy + (q.y - q.sy) * k + 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
-    } else {
-      y = q.y - 6 - Math.abs(Math.sin(q.t * 3)) * 5;
-      const pk = (q.t * 1.6) % 1;                                // 고동치는 고리
-      ctx.save(); ctx.strokeStyle = `rgba(255,214,64,${0.9 * (1 - pk)})`; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 14 + pk * 16, (14 + pk * 16) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = 'rgba(255,214,64,.25)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 16, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    }
-    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.shadowColor = '#fd4'; ctx.shadowBlur = 16;
-    if (img) { const h = w * img.height / img.width; ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.drawImage(img, -w / 2, -h / 2, w, h); } else circle(0, 0, 9, '#fd4');   // 두 번 = 빛 진하게
-    ctx.restore();
-  }
-  const g = G.dog; if (!g) return;                               // 반려견 (그림은 왼쪽을 봄)
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.shadowColor = '#fd4'; ctx.shadowBlur = 16;
+  if (img) { const h = w * img.height / img.width; ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.drawImage(img, -w / 2, -h / 2, w, h); } else circle(0, 0, 9, '#fd4');   // 두 번 = 빛 진하게
+  ctx.restore();
+}
+function drawDog(g) {                                            // 반려견 (그림은 왼쪽을 봄)
   const sz = 28, hop = Math.abs(Math.sin(g.walk * 14)) * 2;
   ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 10, 9, 3.5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.save(); ctx.translate(g.x + (g.bite ? g.face * 5 : 0), g.y - hop); if (g.face > 0) ctx.scale(-1, 1);   // 물 때 앞으로 살짝 (0.135.4)
   if (DOG_IMG.complete && DOG_IMG.naturalWidth) ctx.drawImage(DOG_IMG, -sz / 2, -sz / 2, sz, sz); else circle(0, 0, 8, '#c84');
   ctx.restore();
   if (g.carry && MEAT_IMG.complete && MEAT_IMG.naturalWidth) ctx.drawImage(MEAT_IMG, g.carry.x - 7, g.carry.y - 7, 14, 14);
+}
+function drawGem(g) {
+  const r = (g.v > 1 ? 7 : 5) * GEM_SIZE, z = g.z || 0;   // 0.125.4: 그림 크기 ×0.7 (줍는 거리는 그대로)
+  if (z > 0) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 2, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }   // 그림자
+  ctx.fillStyle = g.v > 1 ? '#fc4' : '#4cf';
+  ctx.save(); ctx.translate(0, -z);
+  ctx.beginPath(); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x + r * 0.7, g.y); ctx.lineTo(g.x, g.y + r); ctx.lineTo(g.x - r * 0.7, g.y); ctx.fill(); ctx.restore();
+}
+function drawMag(m) {                                            // 자석 (0.106.0): 청록 빛 + 살짝 뜀
+  const y = m.y - 4 - Math.abs(Math.sin(m.t * 3)) * 4, sz = 20;
+  ctx.save(); ctx.shadowColor = '#3ef'; ctx.shadowBlur = 10;
+  if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 7, '#e44');
+  ctx.restore();
 }
 // 경험치 보석 떨구기 (0.73.0): n 개로 나눠 사방으로 튀어 오른다 (z = 높이). 땅에 닿기 전엔 못 줍고 끌리지도 않는다
 const MAGNET = 90;                    // 보석을 끌어오기 시작하는 거리 (기본)
@@ -3662,25 +3674,7 @@ function draw() {
   const maxRange = Math.max(...G.weapons.map(w => wstat(w.id).range));
   ctx.beginPath(); ctx.arc(p.x, p.y, maxRange, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
 
-  // 보석
-  for (const g of G.gems) {
-    const r = (g.v > 1 ? 7 : 5) * GEM_SIZE, z = g.z || 0;   // 0.125.4: 그림 크기 ×0.7 (줍는 거리는 그대로)
-    if (z > 0) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(g.x, g.y + 2, r * 0.8, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }   // 그림자
-    ctx.fillStyle = g.v > 1 ? '#fc4' : '#4cf';
-    ctx.save(); ctx.translate(0, -z);
-    ctx.beginPath(); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x + r * 0.7, g.y); ctx.lineTo(g.x, g.y + r); ctx.lineTo(g.x - r * 0.7, g.y); ctx.fill(); ctx.restore();
-  }
-
-  // 상자: 등급 색으로 빛나며 살짝 뜀
-  for (const c of G.chests) { const y = c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4; if (c.boss) drawBossChest(c.x, y, c.t); else drawChest(c.x, y, gradeCol(c.g)); }
-  // 자석 (0.106.0): 청록 빛 + 살짝 뜀
-  for (const m of G.mags) {
-    const y = m.y - 4 - Math.abs(Math.sin(m.t * 3)) * 4, sz = 20;
-    ctx.save(); ctx.shadowColor = '#3ef'; ctx.shadowBlur = 10;
-    if (MAG_IMG.complete && MAG_IMG.naturalWidth) ctx.drawImage(MAG_IMG, m.x - sz / 2, y - sz / 2, sz, sz); else circle(m.x, y, 7, '#e44');
-    ctx.restore();
-  }
-  drawGround2();                                                 // 고기 · 떨군 무기 · 반려견 (0.135.0)
+  // 보석 · 자석 · 고기 · 떨군 무기 · 반려견은 몸과 함께 y 순서로 (0.137.2) — 아래 bodies. 상자는 몸 위 · UI 아래
 
   // 적 (아래 있는 것이 앞에)
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
@@ -3722,10 +3716,21 @@ function draw() {
   //   그 위에 UI: 적 UI → 아군 UI → 주인공 UI (주인공 UI 가 맨 위). 몸에 가려지지 않음
   const allyVis = G.allies.filter(a => view(a.x, a.y, a.r * 4));
   const wallVis = G.walls.filter(q => view(q.x, q.y, WALL_C));
-  const bodies = [...es.map(o => ['e', o, o.y]), ...allyVis.map(o => ['a', o, o.y]), ['p', p, p.y], ...wallVis.map(q => ['w', q, q.y + WALL_C / 2 - 6])].sort((q, r) => q[2] - r[2]);   // 벽 = 칸 아랫변 (0.131.0)
+  // 0.137.2: 바닥 것(보석 · 자석 · 고기 · 떨군 무기)도 y 순서에 넣음. y 는 뒤집지 않고, 같은 높이(1px 안)면 주인공 → 적 · 아군 · 벽 · 반려견 → 바닥 것 순으로 위
+  const RK = {g: 0, e: 1, a: 1, w: 1, d: 1, p: 2};
+  const gnd = [...G.gems.filter(g => view(g.x, g.y, 12)).map(o => ['gem', o, o.y]), ...G.mags.filter(m => view(m.x, m.y, 20)).map(o => ['mag', o, o.y]),
+    ...G.meats.filter(m => !m.carry && view(m.x, m.y, 20)).map(o => ['meat', o, o.y]), ...G.wdrops.map(o => ['wd', o, o.y])];
+  const bodies = [...es.map(o => ['e', o, o.y]), ...allyVis.map(o => ['a', o, o.y]), ['p', p, p.y], ...wallVis.map(q => ['w', q, q.y + WALL_C / 2 - 6]),
+    ...(G.dog ? [['d', G.dog, G.dog.y]] : []), ...gnd]
+    .sort((q, r) => (Math.round(q[2]) - Math.round(r[2])) || ((RK[q[0]] ?? 0) - (RK[r[0]] ?? 0)));   // 벽 = 칸 아랫변 (0.131.0)
   const poses = heldW().map((w, i) => [w, weaponPose(w, i)]);   // 떨군 무기는 안 그림 (0.135.0)
   for (const [kind, o] of bodies) {
     if (kind === 'w') { drawWall(o); continue; }
+    if (kind === 'gem') { drawGem(o); continue; }
+    if (kind === 'mag') { drawMag(o); continue; }
+    if (kind === 'meat') { drawMeat(o); continue; }
+    if (kind === 'wd') { drawWdrop(o); continue; }
+    if (kind === 'd') { drawDog(o); continue; }
     if (kind === 'e') { const e = o;
     const T = ENEMY_TYPES[e.type] || {faceLeft: FACE[e.type], color: '#a44'}, eh = e.r * 3.4;   // 보스 그림은 적 표에 없음
     const bob = bobOf(e.type, G.t * Math.PI * 2 * BOB[e.type].hz + e.ph, 1, eh), sh = 1 - bob.lift / eh * 2;
@@ -3771,6 +3776,8 @@ function draw() {
   }
   drawEshotsAir();
   drawWallThrows();                                              // 날아가는 바리케이드 (0.131.1)
+  // 상자 (0.137.2): 몸 · 바닥 것보다 위, UI 바로 아래 — 등급 색으로 빛나며 살짝 뜀
+  for (const c of G.chests) { const y = c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4; if (c.boss) drawBossChest(c.x, y, c.t); else drawChest(c.x, y, gradeCol(c.g)); }
   // UI: 벽 → 적 → 아군 → 주인공
   for (const q of wallVis) wallUI(q);
   for (const e of es) {
