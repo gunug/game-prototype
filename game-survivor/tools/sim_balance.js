@@ -57,3 +57,14 @@ async function simBatch(list, dt = 1 / 30) {
   pbanRaw == null ? localStorage.removeItem('survivor.pban') : localStorage.setItem('survivor.pban', pbanRaw);
   window.SIM_DONE = true;
 }
+// 무기 arena (0.139.0 · 0.142.0 파일로 옮김): 업그레이드 0 · 무적 · 제자리. 한 마리(체력 끝없는 과녁, 70px) 20초 DPS · 좀비 25마리를 늘 채운 40초 처치/초
+window.arena = function (w) {
+  const out = {w};
+  charIdx = 0; newGame(0, w); G.pens = []; G.subs = []; G.mode = 'sim'; const p = G.p; p.inv = 1e9; G.enemies.length = 0; G.wboxes = [];
+  const d = makeEnemy('brute', 70, 0); d.def = 0; d.hp = d.maxHp = 1e8; d.spd = 0; d.wt = 1e9; d.elite = 1; G.enemies.push(d);
+  for (let f = 0; f < 30 * 20; f++) { G.spawnAcc = -1e9; p.inv = 1e9; update(1 / 30); G.enemies = [d]; d.x = 70; d.y = 0; }
+  out.single = Math.round((1e8 - d.hp) / 20);
+  newGame(0, w); G.pens = []; G.subs = []; G.mode = 'sim'; const q = G.p; q.inv = 1e9; G.enemies.length = 0; G.wboxes = []; const k0 = G.kills;
+  for (let f = 0; f < 30 * 40; f++) { G.spawnAcc = -1e9; q.inv = 1e9; while (G.enemies.filter(e => !e.dead).length < 25) { const a = Math.random() * 6.283, r = 90 + Math.random() * 110; G.enemies.push(makeEnemy('zombie', Math.cos(a) * r, Math.sin(a) * r)); } update(1 / 30); q.x = 0; q.y = 0; }
+  out.crowd = +((G.kills - k0) / 40).toFixed(2); G = null; return out;
+};
