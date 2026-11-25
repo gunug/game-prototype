@@ -375,7 +375,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.147.1';
+const VERSION = '0.147.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -4614,6 +4614,9 @@ function offscreenMarks(ox, oy) {
       const img = SPRITES[b.type];
       if (img) { ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R - 1, 0, Math.PI * 2); ctx.clip(); const w = R * 2.6, h = w * img.height / img.width; ctx.drawImage(img, -w / 2, -R * 1.15, w, h); ctx.restore(); }
       ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+      const z = (b.t * 0.7) % 1, zx = (x > W / 2 ? -1 : 1);       // 잠든 'Z' 도 표시 옆에서 떠오름 (0.147.2) — 화면 안쪽으로
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.7)';
+      ctx.globalAlpha = 1 - z; ctx.strokeText('Z', zx * (R + 4 + z * 10), -R - z * 16); ctx.fillText('Z', zx * (R + 4 + z * 10), -R - z * 16); ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
