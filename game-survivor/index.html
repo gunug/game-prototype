@@ -375,7 +375,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.147.3';
+const VERSION = '0.147.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -1980,14 +1980,15 @@ function drawOpening() {
   ctx.restore();
 }
 // ── 야구방망이 (0.143.0) ──
-function meleeSwing(w, st, a, R, dmg, wave) {
-  if (WEAPONS[w.id].arc >= 360) R += (st.count - 1) * 12;      // 한 바퀴 휘두르기는 확산 = 범위 +12 씩 (0.147.1)
-  const p = G.p, W = WEAPONS[w.id], half = Math.min(Math.PI, (W.arc + (st.count - 1) * 30) * Math.PI / 360);   // 360° 면 둘레 전부
+// 부채꼴 = arc + 확산 단계마다 30° — 확산이 기본 특성이면 처음 1단계는 셈하지 않음 (0.147.4: 야구방망이 기본 120° → 90°)
+const meleeArc = (W, st) => W.arc + Math.max(0, st.count - 1 - (W.badges.includes('spread') ? 1 : 0)) * 30;
+function meleeSwing(w, st, a, R, dmg, wave, Rin = 0) {           // Rin: 충격파 — 이 거리 안쪽 적은 건너뜀 (앞 파가 맡음)
+  const p = G.p, W = WEAPONS[w.id], half = Math.min(Math.PI, meleeArc(W, st) * Math.PI / 360);
   let n = 0;
   for (const e of G.enemies) {
     if (e.dead || e.air) continue;
     const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy) || 1;
-    if (d - e.r - p.r > R) continue;
+    if (d - e.r - p.r > R || (Rin && d - e.r - p.r <= Rin)) continue;
     let da = Math.atan2(dy, dx) - a; da = Math.atan2(Math.sin(da), Math.cos(da));
     if (Math.abs(da) > half + Math.atan2(e.r, d)) continue;
     hurtEnemy(e, dmg, st.stun); n++;
@@ -1996,12 +1997,12 @@ function meleeSwing(w, st, a, R, dmg, wave) {
       for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (SR + o.r) ** 2) hurtEnemy(o, sd); }
   }
   if (W.flash) G.fx.push({kind: 'flash', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r: R + p.r + 14, t: 0.25, T: 0.25});   // 카메라: 부채꼴이 한 번에 번쩍 (0.146.0 — 0.143.0 의 야구방망이 효과)
-  else G.fx.push({kind: 'swing', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r0: p.r, r: R + p.r + 14, t: 0.2, T: 0.2, wave});   // 야구방망이: 몸에서 밖으로 퍼짐 (0.146.0)
+  else G.fx.push({kind: 'swing', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r0: p.r + Rin, r: R + p.r + 14, t: 0.2, T: 0.2, wave});   // 야구방망이: 몸에서 밖으로 퍼짐 (0.146.0) · 충격파는 앞 파 끝에서 (0.147.4)
   return n;
 }
 function updateMelee(w, st, dt, wi) {
   const p = G.p;
-  if (w.wave && (w.wave.t -= dt) <= 0) { meleeSwing(w, st, w.wave.a, st.range * 1.8, st.dmg * 0.5, true); w.wave = null; }   // 연쇄: 충격파
+  if (w.waves) w.waves = w.waves.filter(v => (v.t -= dt) > 0 || (meleeSwing(w, st, v.a, v.R, st.dmg * 0.5, true, v.Rin), false));   // 연쇄: 충격파 (0.147.4 — 단계마다 하나씩, 앞 파 끝에서 밖으로)
   if (w.swing > 0) w.swing = Math.max(0, w.swing - dt * 6);
   if ((w.cdT -= dt) > 0) return;
   let tgt = null, bd = Infinity;
@@ -2010,7 +2011,10 @@ function updateMelee(w, st, dt, wi) {
   const a = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.aim = a; w.swing = 1; w.cdT = st.cd;
   if (wi === 0 && !p.moving) p.face = Math.cos(a) >= 0 ? 1 : -1;
   meleeSwing(w, st, a, st.range, st.dmg, false);
-  if (st.chain > 0) w.wave = {t: 0.15, a};
+  if (st.chain > 0) {                                            // 연쇄 n 단계 = 충격파 n 개 — i 번째는 0.15 × i 초 뒤, 앞 파 끝(R_{i-1})에서 R_i 까지
+    const step = st.range * 0.8; w.waves = [];
+    for (let i = 1; i <= st.chain; i++) w.waves.push({t: 0.15 * i, a, Rin: st.range + step * (i - 1), R: st.range + step * i});
+  }
 }
 // ── 유도 미사일 (0.144.0) ── 가장 센 적(최대 체력이 큰 것)을 고름. 탄은 매 프레임 그 적 쪽으로 steer rad/s 만큼 돎
 function strongestEnemy(x, y, R) { let b = null, bh = -1; for (const e of G.enemies) { if (e.dead) continue; if ((e.x - x) ** 2 + (e.y - y) ** 2 > R * R) continue; const h = (e.boss ? 1e9 : e.elite != null ? 1e6 : 0) + e.maxHp; if (h > bh) { bh = h; b = e; } } return b; }
