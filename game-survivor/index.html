@@ -276,7 +276,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="hint" id="startHint">1단계 — 월드를 고른다. 방향키로 고르고 Enter (또는 1 · 2 · 3). WASD 로 피하고, 총은 저절로 쏜다.</div>
   <div class="sec">월드</div>
   <div class="row1" id="worldList"></div>
-  <div class="btns"><button id="permBtn">영구 업그레이드</button><button id="pbanBtn">영구 봉인</button></div>
+  <div class="btns"><button id="permBtn">영구 업그레이드</button><button id="pbanBtn">영구 봉인</button><button class="sub" id="setBtn">설정</button></div>
 </div>
 <div class="overlay" id="pban" hidden>
   <h2>영구 봉인</h2>
@@ -284,6 +284,16 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="pbanCnt" id="pbanCnt"></div>
   <div class="pbanList" id="pbanList"></div>
   <div class="btns"><button class="sub" id="pbanBack" data-neg>뒤로</button></div>
+</div>
+<div class="overlay" id="settings" hidden>
+  <h2>설정</h2>
+  <div class="hint">게임 초기화 — 기록 · 클리어 · 난이도 · 영구 업그레이드 · 영구 봉인 · 해금이 모두 처음으로 돌아간다.</div>
+  <div class="btns"><button id="resetBtn">게임 초기화</button><button class="sub" id="settingsBack" data-neg>뒤로</button></div>
+</div>
+<div class="overlay" id="resetAsk" hidden>
+  <h2>정말 초기화할까?</h2>
+  <div class="hint">되돌릴 수 없다. 이 기기에 저장된 서바이버 진행이 모두 지워진다.</div>
+  <div class="btns"><button id="resetYes">지우기</button><button class="sub" id="resetNo" data-neg>취소</button></div>
 </div>
 <div class="overlay" id="perm" hidden>
   <h2>영구 업그레이드</h2>
@@ -362,7 +372,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.139.1';
+const VERSION = '0.140.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -923,7 +933,7 @@ const getRec = (w, d) => JSON.parse(localStorage.getItem(recKey(w, d)) || '{"t":
 // 1단계: 월드 선택 → 2단계: 캐릭터 선택 → (시작 무기 선택) → 게임
 function showWorlds() {
   G = null;
-  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel', 'perm', 'pban'].forEach(id => $(id).hidden = true);
+  ['over', 'clear', 'levelup', 'pause', 'wpnSel', 'subSel', 'charSel', 'perm', 'pban', 'settings', 'resetAsk'].forEach(id => $(id).hidden = true);
   const box = $('worldList'); box.innerHTML = '';
   for (let i = 0; i < WORLD_SLOTS; i++) {
     const w = WORLDS[i], b = document.createElement('button'), col = document.createElement('div');
@@ -1000,6 +1010,16 @@ function pbanToggle(id) {
 $('pbanBtn').onclick = () => showPban();
 $('pbanBack').onclick = () => showWorlds();
 $('permBack').onclick = () => showWorlds();
+// 설정 (0.140.0): 게임 초기화는 한 번 더 묻고 — localStorage 의 'survivor.' 로 시작하는 것을 모두 지움
+const showSettings = () => { $('worldSel').hidden = true; $('resetAsk').hidden = true; $('settings').hidden = false; };
+$('setBtn').onclick = showSettings;
+$('settingsBack').onclick = () => showWorlds();
+$('resetBtn').onclick = () => { $('settings').hidden = true; $('resetAsk').hidden = false; };
+$('resetNo').onclick = showSettings;
+$('resetYes').onclick = () => {
+  Object.keys(localStorage).filter(k => k.startsWith('survivor.')).forEach(k => localStorage.removeItem(k));
+  selWorld = 0; charIdx = 0; showWorlds();
+};
 // 잠금 (0.139.0): 월드 n 은 월드 n-1 을 (아무 LV) 클리어해야 열림. 캐릭터는 생존자만 열려 있고, 처음 깬 (월드, LV) 하나마다 다음 캐릭터 하나 (CHARACTERS 순서)
 const worldOpen = i => i === 0 || (WORLDS[i - 1] && Array.from({length: DIFF_MAX}, (_, d) => getRec(WORLDS[i - 1].id, d + 1).clear).some(Boolean));
 const clearCount = () => WORLDS.reduce((n, w) => n + Array.from({length: DIFF_MAX}, (_, d) => getRec(w.id, d + 1).clear ? 1 : 0).reduce((a, b) => a + b, 0), 0);
@@ -1352,6 +1372,8 @@ const NAV_ROWS = {
   worldSel: ['#worldList .world', '#worldSel .btns button'],
   pban:     ['#pbanList .pbTog', '#pban .btns button'],
   perm:     ['#perm .btns button'],
+  settings: ['#settings .btns button'],
+  resetAsk: ['#resetAsk .btns button'],
   charSel:  ['#charList > button', '#charBack'],
   wpnSel:   ['#wpnCards > .up', '#wpnBack'],
   subSel:   ['#subCards > .up', '#subBack'],
@@ -1365,7 +1387,7 @@ const NAV_ROWS = {
   sbook:    ['#sbook .btns button'],
   pbook:    ['#pbook .btns button'],
 };
-const NAV_ORDER = ['pban', 'perm', 'info', 'foes', 'wbook', 'sbook', 'pbook', 'levelup', 'pause', 'over', 'clear', 'subSel', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
+const NAV_ORDER = ['resetAsk', 'settings', 'pban', 'perm', 'info', 'foes', 'wbook', 'sbook', 'pbook', 'levelup', 'pause', 'over', 'clear', 'subSel', 'wpnSel', 'charSel', 'worldSel'];   // 겹치면 앞이 이긴다
 const nav = {scr: null, r: 0, cs: [], el: null, needNeutral: false, dir: null, hold: 0};
 const navScreen = () => NAV_ORDER.find(id => !$(id).hidden) || null;
 const navRows = () => (NAV_ROWS[nav.scr] || []).map(q => [...document.querySelectorAll(q)].filter(e => !e.disabled)).filter(r => r.length);   // 빈 줄(단추 없음)은 뺀다
@@ -1377,7 +1399,8 @@ function navSync() {
   nav.r = 0; nav.cs = rows.map(() => 0);
   if (scr === 'worldSel') nav.cs[0] = selWorld;
   if (scr === 'charSel') nav.cs[0] = Math.max(0, pickChars.indexOf(charIdx));
-  if (scr === 'over' || scr === 'clear') nav.cs[0] = rows[0].length - 1;   // 다시하기 · 다음 월드
+  if (scr === 'over' || scr === 'clear') nav.cs[0] = rows[0].length - 1;
+  if (scr === 'resetAsk') nav.cs[0] = rows[0].length - 1;          // 초기화 묻기: 처음 고른 칸은 '취소' (0.140.0)   // 다시하기 · 다음 월드
   return scr;
 }
 function navCur() {
@@ -1406,7 +1429,8 @@ function navBack() {
   const scr = navSync();
   if (scr === 'wpnSel') showChars();
   else if (scr === 'subSel') backToWpn();
-  else if (scr === 'charSel' || scr === 'over' || scr === 'clear' || scr === 'perm' || scr === 'pban') showWorlds();
+  else if (scr === 'charSel' || scr === 'over' || scr === 'clear' || scr === 'perm' || scr === 'pban' || scr === 'settings') showWorlds();
+  else if (scr === 'resetAsk') showSettings();
   else if (scr === 'pause') togglePause();
   else if (scr === 'info') closeInfo();
   else if (scr === 'foes') closeFoes();
@@ -1476,7 +1500,7 @@ function rmItems(scr) {
   if (scr === 'worldSel') {
     const wb = [...$('worldList').querySelectorAll('.world')];
     return {up: Array.from({length: WORLD_SLOTS}, (_, i) => ({label: WORLDS[i] ? WORLDS[i].name : `월드 ${i + 1}`, disabled: !WORLDS[i] || !worldOpen(i),
-              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()},
+              el: wb[i], act: () => pickWorld(i)})), down: [{label: '영구 업그레이드', el: $('permBtn'), act: () => showPerm()}, {label: '영구 봉인', el: $('pbanBtn'), act: () => showPban()}, {label: '설정', el: $('setBtn'), act: showSettings},
               ...WORLDS.slice(0, WORLD_SLOTS).map((w, i) => { const d = getDiff(w.id); return {label: `${w.name} 난이도 LV${d}`, el: $('worldList').querySelectorAll('.dsel')[i], act: () => setDiff(w.id, d >= diffOpen(w.id) ? 1 : d + 1)}; })]};   // 0.123.0 · 0.125.0 · 난이도 0.134.0
   }
   if (scr === 'charSel') {                                      // 위 절반 = 캐릭터, 아래 절반 = 뒤로
@@ -1499,7 +1523,7 @@ function rmItems(scr) {
     return {up: ts.map(b => ({label: b.querySelector('span').textContent, on: b.classList.contains('on'), el: b, act: () => pbanToggle(b.dataset.id)})),
             down: [{label: '뒤로', el: $('pbanBack'), act: () => showWorlds()}]};
   }
-  if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info' || scr === 'foes' || scr === 'perm' || BOOKS.includes(scr)) {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
+  if (scr === 'over' || scr === 'clear' || scr === 'pause' || scr === 'info' || scr === 'foes' || scr === 'perm' || scr === 'settings' || scr === 'resetAsk' || BOOKS.includes(scr)) {   // 확인형 — 긍정(다시하기 · 계속 · 다음 월드)은 위, 부정(data-neg: 나가기)은 아래
     const bs = [...$(scr).querySelectorAll('.btns button')];
     // rmSuppress = 0: 앞서 끈 뒤의 클릭 막기가 이 클릭을 먹지 않게
     const item = b => ({label: b.textContent.replace(/\s*\([A-Z]\)$/, ''), disabled: b.disabled, el: b, act: () => { rmSuppress = 0; b.click(); }});
@@ -1569,7 +1593,7 @@ function rmEnd() {
   if (it && !it.disabled) it.act();
   rmSuppress = performance.now();                               // 뗀 자리의 클릭은 버린다 (act 안의 버튼 클릭은 막지 않게 뒤에)
 }
-['worldSel', 'perm', 'pban', 'charSel', 'wpnSel', 'subSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes', 'wbook', 'sbook', 'pbook'].forEach(id => $(id).addEventListener('pointerdown', e => {
+['worldSel', 'perm', 'pban', 'settings', 'resetAsk', 'charSel', 'wpnSel', 'subSel', 'levelup', 'over', 'clear', 'pause', 'info', 'foes', 'wbook', 'sbook', 'pbook'].forEach(id => $(id).addEventListener('pointerdown', e => {
   if (rm.id !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
   rmStart(e.pointerId, e.clientX, e.clientY, id);
 }));
