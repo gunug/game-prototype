@@ -375,7 +375,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.147.0';
+const VERSION = '0.147.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -731,8 +731,8 @@ const WEAPONS = {
            badges: ['ally']},
   // ── 새 유형 (0.143.0, docs/무기_계획.md §3) ──
   //   야구방망이 (melee): cd 마다 가까운 적(사거리 안) 쪽으로 arc° 부채꼴을 휘두름 — 부채꼴 안 적 모두 + 큰 넉백. 확산 = 부채꼴 +30° · 연쇄 = 0.15초 뒤 더 먼 충격파(절반 피해) · 폭발 = 맞은 자리 둘레
-  bat:    {nm: '야구방망이', kind: 'melee', sh: '부채꼴로 휘둘러 밀쳐 냄', ds: '가까운 적 쪽으로 90° 부채꼴을 휘두른다. 닿은 적 모두를 세게 밀쳐 낸다. 사거리가 아주 짧다',
-           dmg: 0, cd: 0.6, range: 60, arc: 90, knockV: 520, maxT: 3, stun: 0.15,
+  bat:    {nm: '야구방망이', kind: 'melee', sh: '부채꼴로 휘둘러 밀쳐 냄', ds: '둘레를 한 바퀴 휘두른다. 범위 안 적 모두를 세게 밀쳐 낸다. 사거리가 아주 짧다',
+           dmg: 0, cd: 0.6, range: 60, arc: 360, knockV: 520, maxT: 3, stun: 0.15,   /* 0.147.1: 90° → 360° (범위 안 모든 적) */
            len: 26, pivot: [0, 0.5], muzzle: [1.0, 0.5], turn: 18, badges: ['spread']},
   //   카메라 (melee 의 갈래, 0.146.0): 찰칵 — 부채꼴 플래시가 한 번에 번쩍. 피해는 아주 적고 맞은 적을 오래 굳힘 (보스 빼고). 넉백 없음
   camera: {nm: '카메라', kind: 'melee', sh: '찰칵 — 부채꼴 안 적을 굳힘', ds: '가까운 적 쪽으로 플래시를 터뜨린다. 부채꼴 안 적 모두가 1.2초 동안 굳는다. 피해는 아주 적다',
@@ -1029,8 +1029,8 @@ function wbossTick(dt) {                                         // 잠든 월�
 function drawWbossSleep() {                                      // 잠든 월드 보스: 흐릿한 그림 + 둘레 깨어나는 거리 점선 + Z
   const b = G.wboss; if (!b || b.awake) return;
   const T = ENEMY_TYPES[b.type], r = T.r * WBOSS.size, eh = r * 3.4;
-  ctx.save(); ctx.strokeStyle = 'rgba(255,138,30,.35)'; ctx.setLineDash([6, 8]); ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.ellipse(b.x, b.y + r * 0.8, WBOSS_WAKE, WBOSS_WAKE * 0.5, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.save(); ctx.strokeStyle = 'rgba(255,60,50,.4)'; ctx.setLineDash([6, 8]); ctx.lineWidth = 2;   // 0.147.1: 원 · 붉게 (적 것은 붉은 계열)
+  ctx.beginPath(); ctx.arc(b.x, b.y, WBOSS_WAKE, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
   ctx.globalAlpha = 0.75; ctx.shadowColor = gradeCol(WBOSS.grade); ctx.shadowBlur = 10 + 6 * Math.sin(b.t * 2);
   drawSprite(T.sprite || b.type, b.x, b.y, eh, false, () => circle(b.x, b.y, r, '#888'), {sx: 1, sy: 1, lift: 0, tilt: 0}, true);
   ctx.restore();
@@ -1981,7 +1981,8 @@ function drawOpening() {
 }
 // ── 야구방망이 (0.143.0) ──
 function meleeSwing(w, st, a, R, dmg, wave) {
-  const p = G.p, W = WEAPONS[w.id], half = (W.arc + (st.count - 1) * 30) * Math.PI / 360;
+  if (WEAPONS[w.id].arc >= 360) R += (st.count - 1) * 12;      // 한 바퀴 휘두르기는 확산 = 범위 +12 씩 (0.147.1)
+  const p = G.p, W = WEAPONS[w.id], half = Math.min(Math.PI, (W.arc + (st.count - 1) * 30) * Math.PI / 360);   // 360° 면 둘레 전부
   let n = 0;
   for (const e of G.enemies) {
     if (e.dead || e.air) continue;
@@ -2148,7 +2149,7 @@ function drawMines() {
   for (const m of G.mines) {
     const blink = Math.floor(G.t * 3 + m.x) % 2;
     if (img) { ctx.globalAlpha = 0.85; ctx.drawImage(img, m.x - 9, m.y - 6, 18, 18 * img.height / img.width); ctx.globalAlpha = 1; } else circle(m.x, m.y, 6, '#665');
-    if (blink) circle(m.x, m.y - 3, 1.8, '#f33');
+    if (blink) circle(m.x, m.y - 3, 1.8, '#4af');   // 내 지뢰 불빛은 파랑 (0.147.1)
   }
 }
 // ── 수류탄 발사기 (0.143.0) ── 사거리 안 · minR 밖의 적 중 둘레(LOB_CLUSTER) 적이 가장 많은 곳
@@ -2572,7 +2573,7 @@ function tickAllies(dt) {
       if (a.atkT <= 0) {
         a.atkT = A.cd * (0.9 + Math.random() * 0.2);
         if (AT.shot) { const sy = a.y - a.r * 0.6, an = Math.atan2(t.y - t.r * 0.3 - sy, t.x - a.x);
-          G.eshots.push({ally: true, x: a.x, y: sy, vx: Math.cos(an) * A.spd, vy: Math.sin(an) * A.spd, r: A.r, dmg: A.dmg * a.mul, col: '#5f8', life: A.range * 2.5 / A.spd}); }
+          G.eshots.push({ally: true, x: a.x, y: sy, vx: Math.cos(an) * A.spd, vy: Math.sin(an) * A.spd, r: A.r, dmg: A.dmg * a.mul, col: '#5af', life: A.range * 2.5 / A.spd}); }
         else G.eshots.push({ally: true, lob: true, x0: a.x, y0: a.y - a.r, x: t.x, y: t.y, t: 0, T: A.T, aoe: A.aoe, dmg: A.dmg * a.mul});
       }
       if (td <= a.r + t.r + 2 && (a.hitT -= dt) <= 0) { hurtEnemy(t, a.dmg); a.hitT = MOB_HIT_T; }
@@ -3173,10 +3174,10 @@ function drawEshots() {                                          // 떨어질 �
   for (const b of G.eshots) {
     if (!b.lob && !b.blast) continue;
     const k = Math.min(1, b.t / b.T);
-    const c = b.ally ? '80,255,140' : '255,60,40';             // 아군 것은 초록 (0.116.0)
+    const c = b.ally ? '70,160,255' : '255,60,40';             // 아군 것은 푸른 계열 (0.116.0 초록 → 0.147.1 파랑)
     ctx.fillStyle = `rgba(${c},.15)`; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = `rgba(${c},.28)`; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe * k, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = b.ally ? 'rgba(100,255,160,.85)' : 'rgba(255,90,60,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = b.ally ? 'rgba(110,180,255,.85)' : 'rgba(255,90,60,.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(b.x, b.y, b.aoe, 0, Math.PI * 2); ctx.stroke();
     if (b.killer) killerRing(b.x, b.y, b.aoe * 1.1);
   }
 }
@@ -3405,7 +3406,7 @@ function fistTick(dt) {
 // ── 이동 가이드 (0.140.3 — 이름 붙임, 0.140.2 에 처음 만듦) ── 바닥에 반투명 넓은 V(꺾쇠) 면들이 (sx, sy) 에서 (tx, ty) 쪽으로 흘러감 — 꼭지가 목적지를 향함.
 //   '여기로 가라' 를 알릴 때 쓴다 (지금: 떨군 무기). 바닥 층(몸 · 적 아래)에서 부른다. col = 색, 나머지는 MOVE_GUIDE
 const MOVE_GUIDE = {gap: 34, hw: 16, d: 11, th: 7, spd: 45, alpha: 0.32, edge: 30, min: 40};   // 간격 · 반폭 · 꺾임 깊이 · 두께 · 초당 px · 불투명도 · 끝에서 옅어지는 길이 · 이보다 가까우면 안 그림
-function drawMoveGuide(sx, sy, tx, ty, col = '#ffd640') {
+function drawMoveGuide(sx, sy, tx, ty, col = '#5ab4ff') {   // 0.147.1: 노랑 → 파랑 (내 것)
   const M = MOVE_GUIDE, L = Math.hypot(tx - sx, ty - sy);
   if (L < M.min) return;
   const ux = (tx - sx) / L, uy = (ty - sy) / L, nx = -uy, ny = ux, a0 = 20, a1 = L - 22;
@@ -3436,11 +3437,11 @@ function drawWdrop(q) {                                          // 떨군 무�
   } else {
     y = q.y - 6 - Math.abs(Math.sin(q.t * 3)) * 5;
     const pk = (q.t * 1.6) % 1;                                  // 고동치는 고리
-    ctx.save(); ctx.strokeStyle = `rgba(255,214,64,${0.9 * (1 - pk)})`; ctx.lineWidth = 2.5;
+    ctx.save(); ctx.strokeStyle = `rgba(90,180,255,${0.9 * (1 - pk)})`; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 14 + pk * 16, (14 + pk * 16) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,214,64,.25)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 16, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.fillStyle = 'rgba(90,180,255,.25)'; ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 16, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
-  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.shadowColor = '#fd4'; ctx.shadowBlur = 16;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.shadowColor = '#5ab4ff'; ctx.shadowBlur = 16;
   if (img) { const h = w * img.height / img.width; ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.drawImage(img, -w / 2, -h / 2, w, h); } else circle(0, 0, 9, '#fd4');   // 두 번 = 빛 진하게
   ctx.restore();
 }
@@ -4283,8 +4284,8 @@ function draw() {
     const bob = bobOf(a.type, G.t * Math.PI * 2 * BOB[a.type].hz + a.ph, 1, eh);
     const ak = a.air ? Math.sin(Math.PI * (a.airK || 0)) : 0, ay = a.y - ak * a.r * 2.6;   // 도약 (0.130.0)
     if (a.air) { ctx.fillStyle = `rgba(0,0,0,${0.5 * ak})`; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * (1.3 - 0.4 * ak), a.r * 0.45 * (1.3 - 0.4 * ak), 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.strokeStyle = '#5f8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.save(); ctx.shadowColor = '#5f8'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20); if (a.air) ctx.globalAlpha = 0.55;   // 돌아오는 중(무적): 반투명 깜빡임
+    ctx.strokeStyle = '#4af'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(a.x, a.y + a.r * 0.8, a.r * 1.1, a.r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();   // 아군 고리 · 빛: 초록 → 파랑 (0.147.1)
+    ctx.save(); ctx.shadowColor = '#4af'; ctx.shadowBlur = 10; if (a.ret || a.inv > 0) ctx.globalAlpha = 0.5 + 0.2 * Math.sin(G.t * 20); if (a.air) ctx.globalAlpha = 0.55;   // 돌아오는 중(무적): 반투명 깜빡임
     drawSprite(T.sprite || a.type, a.x, ay, eh, T.faceLeft ? a.vx > 0 : a.vx < 0, () => circle(a.x, a.y, a.r, '#4a4'), bob, true, (a.flash || 0) / FLASH_T);
     ctx.restore();
     } else {
@@ -4459,9 +4460,9 @@ function draw() {
     if (f.kind === 'ember') { const k = f.t / f.T; ctx.fillStyle = `rgba(255,${120 + 100 * k | 0},40,${k})`; ctx.beginPath(); ctx.arc(f.x, f.y - (1 - k) * 10, 2 + k * 2, 0, Math.PI * 2); ctx.fill(); continue; }   // 불똥 (0.145.0)
     if (f.kind === 'swing') {                                   // 야구방망이 (0.146.0): 부채꼴 띠가 몸에서 밖으로 퍼져 나감
       const k = 1 - f.t / f.T, e = 1 - (1 - k) ** 2, ro = f.r0 + (f.r - f.r0) * e, ri = Math.max(f.r0, ro - 16), al = 1 - k * 0.7;
-      ctx.fillStyle = f.wave ? `rgba(255,220,120,${0.4 * al})` : `rgba(255,255,255,${0.5 * al})`;
+      ctx.fillStyle = f.wave ? `rgba(120,170,255,${0.4 * al})` : `rgba(150,205,255,${0.5 * al})`;   // 0.147.1: 하양 → 푸른빛
       ctx.beginPath(); ctx.arc(f.x, f.y, ro, f.a - f.half, f.a + f.half); ctx.arc(f.x, f.y, ri, f.a + f.half, f.a - f.half, true); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = `rgba(255,255,255,${0.85 * al})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, ro, f.a - f.half, f.a + f.half); ctx.stroke();
+      ctx.strokeStyle = `rgba(200,230,255,${0.85 * al})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, ro, f.a - f.half, f.a + f.half); ctx.stroke();
       continue;
     }
     if (f.kind === 'flash') {                                   // 카메라 찰칵 (0.146.0): 부채꼴 전체가 한 번에 하얗게 번쩍 → 옅어짐
@@ -4492,7 +4493,7 @@ function draw() {
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.4 - f.t), 0, Math.PI * 2); ctx.stroke();
       continue;
     }
-    ctx.strokeStyle = f.mine ? `rgba(80,230,220,${f.t * 3})` : `rgba(255,60,50,${f.t * 3})`; ctx.lineWidth = 3;   // 색 (0.89.0): 내 것 청록 · 적 것 붉게
+    ctx.strokeStyle = f.mine ? `rgba(90,175,255,${f.t * 3})` : `rgba(255,60,50,${f.t * 3})`;   // 0.147.1: 내 것 청록 → 파랑 ctx.lineWidth = 3;   // 색 (0.89.0): 내 것 청록 · 적 것 붉게
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1.2 - f.t * 0.8), 0, Math.PI * 2); ctx.stroke();
   }
 
@@ -4639,7 +4640,7 @@ function offscreenMarks(ox, oy) {
     if (sx > -m && sx < W + m && sy > -m && sy < H + m) continue;
     const R = 13, M = R + 10, dx = sx - W / 2, dy = sy - H / 2;
     const k = Math.min((W / 2 - M) / Math.max(1e-6, Math.abs(dx)), (H / 2 - M) / Math.max(1e-6, Math.abs(dy)));
-    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx), col = '#fd4', img = WEAPON_IMG[q.w.id];
+    const x = W / 2 + dx * k, y = H / 2 + dy * k, a = Math.atan2(dy, dx), col = '#5ab4ff', img = WEAPON_IMG[q.w.id];
     ctx.save(); ctx.translate(x, y);
     ctx.fillStyle = col; ctx.beginPath();
     ctx.moveTo(Math.cos(a) * (R + 9), Math.sin(a) * (R + 9));
