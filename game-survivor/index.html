@@ -372,7 +372,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.140.3';
+const VERSION = '0.140.4';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -390,7 +390,7 @@ const ENEMY_TYPES = {
   crawler:{nm: '기는 좀비', hp: 60,  def: 0, wt: 0.8, spd: 85,  dmg: 50,  r: 15, xp: 1, w: 8,  color: '#7a8a6a', faceLeft: FACE.crawler},   // 작고 조금 빠름 · 많이
   // 0.139.0: 월드마다 곧은 탄을 쏘는 몹 — 탄 길 move: 'line' 곧게 · 'sine' 옆으로 물결 (amp px · w rad/s) · 'spin' 제 자리 둘레를 돌며 나아감 (나선)
   gunner: {nm: '총잡이 좀비', hp: 100, def: 0, wt: 1, spd: 60, dmg: 60, r: 15, xp: 2, w: 4, color: '#567', faceLeft: FACE.gunner,
-           shot: {range: 190, cd: 2.2, spd: 230, dmg: 60, r: 5, col: '#ffd040', move: 'line'}},
+           shot: {range: 190, cd: 2.2, spd: 115, dmg: 60, r: 5, col: '#ffd040', move: 'line'}},   // 0.140.4: 탄속 230 → 115 (docs/적_탄속_가이드.md — 잡몹 탄 상한)
   riot:   {nm: '진압 경찰 좀비', hp: 400, def: 14, wt: 1.5, spd: 50, dmg: 140, r: 15, xp: 4, w: 3, color: '#445',   faceLeft: FACE.riot},      // 0.126.0: 방어 60 → 14 (뺄셈) · 엘리트로만
   // 월드 2 (0.84.0) — 쏘고 · 던지고 · 막고 · 터지는 몹
   //   shot: 곧게 날아가는 탄 (지금 자리를 겨눔) · lob: 곡사 — 주인공의 이동 방향 · 빠르기로 떨어질 자리를 앞질러 겨눔 (빨간 원 예고)
@@ -2325,6 +2325,8 @@ function interceptT(x, y, spd) {
   const t1 = (-b - Math.sqrt(D)) / (2 * a), t2 = (-b + Math.sqrt(D)) / (2 * a), t = [t1, t2].filter(t => t > 0).sort((p, q) => p - q)[0];
   return t ? Math.min(2, t) : fb;
 }
+// 잡몹 곧은 탄 탄속 상한 (0.140.4, docs/적_탄속_가이드.md) — 어떤 잡몹 탄도 이보다 빠르지 않게. 피할 수 있어야 하니까
+const MOB_SHOT_MAX = 115;
 function fireShot(x, y, a, spd, dmg, r, col, range, A) {
   const mv = A && A.move && A.move !== 'line' ? {k: A.move, amp: A.amp || 16, w: A.w || 8} : null;   // 탄 길 (0.139.0)
   G.eshots.push({x, y, bx: x, by: y, age: 0, mv, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r, dmg, col, life: range / spd});
@@ -2388,7 +2390,7 @@ function rangedTick(e, dx, dy, d, dt) {
     const ally = al && al !== G.p ? al : null;
     if (T.shot) {                                                  // 예측 사격 (0.85.2): 탄이 닿을 때 주인공이 있을 자리로
       const sy = e.y - e.r * 0.6, tg = ally ? {x: ally.x, y: ally.y - ally.r * 0.3} : leadPoint(interceptT(e.x, sy, A.spd));
-      fireShot(e.x, sy, Math.atan2(tg.y - sy, tg.x - e.x), A.spd, A.dmg * k, A.r, A.col, A.range * 2.5, A);
+      fireShot(e.x, sy, Math.atan2(tg.y - sy, tg.x - e.x), Math.min(A.spd, MOB_SHOT_MAX), A.dmg * k, A.r, A.col, A.range * 2.5, A);   // 잡몹 탄속 상한 (0.140.4)
     }
     else { const tg = ally ? {x: ally.x, y: ally.y} : leadPoint(A.T); throwLob(e.x, e.y - e.r, tg.x, tg.y, A.T, A.aoe, A.dmg * k); }
   }
