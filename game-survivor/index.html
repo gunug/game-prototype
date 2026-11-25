@@ -74,8 +74,12 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .world:disabled{opacity:.45;cursor:default}
   .world .wn{font-size:18px;font-weight:700}
   .world .wd{font-size:12px;color:#9ab;margin-top:4px}
-  .world .wimg{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:7px;margin-bottom:6px}   /* 월드 그림 (0.139.0) */
-  .world.wlock .wimg{filter:grayscale(1) brightness(.5)} .world .wl{display:flex;align-items:center;gap:4px;color:#fc4}
+  /* 월드 그림 (0.139.1): 칸 배경에 꽉 차게 + 아래로 갈수록 어둡게 덮어 글씨가 위에 보임. 잠긴 월드는 흑백 */
+  .world{position:relative;overflow:hidden;isolation:isolate;min-height:190px;display:flex;flex-direction:column;justify-content:flex-end}
+  .world::before{content:'';position:absolute;inset:0;z-index:-2;background:var(--wbg) center/cover no-repeat}
+  .world::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(14,16,22,.15) 0%,rgba(14,16,22,.7) 45%,rgba(14,16,22,.92) 100%)}
+  .world .wn,.world .wd{text-shadow:0 1px 3px #000}
+  .world.wlock::before{filter:grayscale(1) brightness(.55)} .world .wl{display:flex;align-items:center;gap:4px;color:#fc4}
   .world .ok{color:#7e7;font-size:12px;display:block;white-space:nowrap}   /* 0.135.9: "LVn 클리어" 한 줄 */
   .char{width:150px;padding:10px;border-radius:12px;background:#232634;border:2px solid #3a3f55;color:#e8e8ee;cursor:pointer;text-align:center}
   .world.on{border-color:#fc4;box-shadow:0 0 0 2px rgba(255,204,68,.25)}
@@ -358,7 +362,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.139.0';
+const VERSION = '0.139.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -930,12 +934,13 @@ function showWorlds() {
       b.innerHTML = `<div class="wn">월드 ${i + 1}</div><div class="wd">준비 중</div>`;
     } else {
       const d = getDiff(w.id), r = getRec(w.id, d);
+      if (w.img) b.style.setProperty('--wbg', `url(images/${w.img}.png?v=${VERSION})`);   // 월드 그림을 칸 배경에 (0.139.1)
       if (!worldOpen(i)) {                                         // 잠긴 월드 (0.139.0)
         b.disabled = true; b.classList.add('wlock');
-        b.innerHTML = `${w.img ? `<img class="wimg" src="images/${w.img}.png?v=${VERSION}" alt="" onerror="this.remove()">` : ''}<div class="wn">${w.name}</div><div class="wd wl">${LOCK_SVG} ${WORLDS[i - 1].name} 클리어</div>`;
+        b.innerHTML = `<div class="wn">${w.name}</div><div class="wd wl">${LOCK_SVG} ${WORLDS[i - 1].name} 클리어</div>`;
         box.appendChild(col); continue;
       }
-      b.innerHTML = `${w.img ? `<img class="wimg" src="images/${w.img}.png?v=${VERSION}" alt="" onerror="this.remove()">` : ''}<div class="wn">${w.name}</div>
+      b.innerHTML = `<div class="wn">${w.name}</div>
         <div class="wd">${w.desc} · ${fmt(w.dur)}</div>
         <div class="wd">${r.t ? `최고 ${fmt(r.t)} · 처치 ${r.kills}` : '기록 없음'}</div>`;
       b.onclick = () => pickWorld(i);
