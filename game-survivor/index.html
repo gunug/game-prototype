@@ -240,6 +240,13 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   .infoList h3{margin:10px 0 2px;font-size:13px;color:#9ab;letter-spacing:.1em}
   .infoRow{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.45;color:#dde}
   .infoRow .chip{flex:0 0 auto;width:64px;text-align:center;font-size:12px;font-weight:700;line-height:18px;border-radius:9px;background:var(--bc);color:#14161c}
+  /* 장착 칸 (0.138.0): 왼쪽 아래, 보기만 — 무기 칸 줄 · 보조 칸 줄 (패널티 포함). 빈 칸은 점선 */
+  #slotHud{position:fixed;left:6px;bottom:6px;display:flex;flex-direction:column;gap:3px;pointer-events:none}
+  #slotHud .sr{display:flex;gap:3px}
+  #slotHud i{width:26px;height:26px;border-radius:5px;background:rgba(20,22,30,.78) center/80% no-repeat;border:1.5px solid #4a5068;box-sizing:border-box}
+  #slotHud i.w{border-color:#e8c860}#slotHud i.s{border-color:#7cf}#slotHud i.pen{border-color:#e66}
+  #slotHud i.e{background-color:rgba(20,22,30,.35);border-style:dashed;border-color:rgba(255,255,255,.25)}
+  #slotHud i.drop{filter:grayscale(1);opacity:.45}
   #ver{position:fixed;right:8px;bottom:6px;z-index:2147483647;font-size:11px;color:rgba(255,255,255,.55);pointer-events:none;font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -256,6 +263,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <div id="timeline" hidden><div class="tl-track"><i class="tl-fill"></i></div><div class="tl-marks"></div><i class="tl-now"></i><div id="banner" hidden></div><div id="bossIntro" hidden></div></div>
 </div>
 <canvas id="cv"></canvas>
+<div id="slotHud" hidden></div>
 
 <div class="overlay" id="worldSel">
   <h2>서바이버</h2>
@@ -348,7 +356,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.137.2';
+const VERSION = '0.138.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -4115,8 +4123,8 @@ function buildTimeline() {
 }
 
 function hud() {
-  $('timeline').hidden = !G;
-  if (!G) { $('bossIntro').hidden = true; $('banner').hidden = true; return; }
+  $('timeline').hidden = !G; $('slotHud').hidden = !G;
+  if (!G) { slotHudKey = ''; $('bossIntro').hidden = true; $('banner').hidden = true; return; }
   const tp = Math.min(1, G.t / G.world.dur) * 100;
   $('timeline').querySelector('.tl-fill').style.width = tp + '%';
   $('timeline').querySelector('.tl-now').style.left = tp + '%';
@@ -4131,7 +4139,18 @@ function hud() {
   $('kills').textContent = G.kills;
   const s = G.s;
   // 0.121.0: 아래 정보칸(슬롯 줄 · 체력 · 방어 · 무기 수치) 없앰
+  // 장착 칸 (0.138.0): 바뀔 때만 다시 그림. 무기(떨군 것은 회색) · 보조 · 패널티 · 빈 칸
+  const sk = G.weapons.map(w => w.id + (w.drop ? '~' : '')).join() + '|' + G.subs.map(x => x.id).join() + '|' + G.pens.join();
+  if (sk !== slotHudKey) {
+    slotHudKey = sk;
+    const cell = (cls, img) => `<i class="${cls}"${img ? ` style="background-image:url(images/${img}.png?v=${VERSION})"` : ''}></i>`;
+    const wr = Array.from({length: G.char.wSlots}, (_, i) => { const w = G.weapons[i]; return w ? cell('w' + (w.drop ? ' drop' : ''), 'weapon_' + w.id) : cell('e'); }).join('');
+    const ss = [...G.subs.map(x => cell('s', 'item_' + x.id)), ...G.pens.map(id => cell('pen', 'item_pen_' + id))];
+    while (ss.length < G.char.sSlots) ss.push(cell('e'));
+    $('slotHud').innerHTML = `<div class="sr">${wr}</div><div class="sr">${ss.join('')}</div>`;
+  }
 }
+let slotHudKey = '';
 
 let last = performance.now();
 function loop(now) {
