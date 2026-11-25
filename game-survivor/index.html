@@ -372,7 +372,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.140.2';
+const VERSION = '0.140.3';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -3010,6 +3010,25 @@ function fistTick(dt) {
     best.kbx += dx / d * v; best.kby += dy / d * v; }
   G.fx.push({kind: 'splash', mine: true, x: (p.x + best.x) / 2, y: (p.y + best.y) / 2 - 10, r: 12, t: 0.15});
 }
+// ── 이동 가이드 (0.140.3 — 이름 붙임, 0.140.2 에 처음 만듦) ── 바닥에 반투명 넓은 V(꺾쇠) 면들이 (sx, sy) 에서 (tx, ty) 쪽으로 흘러감 — 꼭지가 목적지를 향함.
+//   '여기로 가라' 를 알릴 때 쓴다 (지금: 떨군 무기). 바닥 층(몸 · 적 아래)에서 부른다. col = 색, 나머지는 MOVE_GUIDE
+const MOVE_GUIDE = {gap: 34, hw: 16, d: 11, th: 7, spd: 45, alpha: 0.32, edge: 30, min: 40};   // 간격 · 반폭 · 꺾임 깊이 · 두께 · 초당 px · 불투명도 · 끝에서 옅어지는 길이 · 이보다 가까우면 안 그림
+function drawMoveGuide(sx, sy, tx, ty, col = '#ffd640') {
+  const M = MOVE_GUIDE, L = Math.hypot(tx - sx, ty - sy);
+  if (L < M.min) return;
+  const ux = (tx - sx) / L, uy = (ty - sy) / L, nx = -uy, ny = ux, a0 = 20, a1 = L - 22;
+  ctx.save(); ctx.fillStyle = col;
+  for (let s0 = a0 + (G.t * M.spd) % M.gap; s0 < a1; s0 += M.gap) {
+    const a = Math.min(1, (s0 - a0) / M.edge, (a1 - s0) / M.edge) * M.alpha;
+    if (a <= 0) continue;
+    const cx = sx + ux * s0, cy = sy + uy * s0;
+    ctx.globalAlpha = a; ctx.beginPath();
+    ctx.moveTo(cx + nx * M.hw, cy + ny * M.hw); ctx.lineTo(cx + ux * M.d, cy + uy * M.d); ctx.lineTo(cx - nx * M.hw, cy - ny * M.hw);
+    ctx.lineTo(cx - nx * M.hw - ux * M.th, cy - ny * M.hw - uy * M.th); ctx.lineTo(cx + ux * (M.d - M.th), cy + uy * (M.d - M.th)); ctx.lineTo(cx + nx * M.hw - ux * M.th, cy + ny * M.hw - uy * M.th);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
 // 바닥 것 하나씩 그리기 (0.137.2 — 몸과 함께 y 순서로 그리려고 drawGround2 를 나눔)
 function drawMeat(m) {                                           // 고기: 마지막 5초는 깜빡임
   if (MEAT_LIFE - m.t < 5 && Math.floor(m.t * 8) % 2) return;
@@ -3749,23 +3768,7 @@ function draw() {
   const view = (x, y, m) => x + ox > -m && x + ox < W + m && y + oy > -m && y + oy < H + m;
   const es = G.enemies.concat(G.hatch, G.air).filter(e => view(e.x, e.y, e.r * 4)).sort((a, b) => a.y - b.y);   // G.hatch: 갈라진 직후 (0.128.5)
   drawPools();                                                   // 산성 웅덩이 (0.127.0) — 땅에
-  for (const q of G.wdrops) {                                    // 떨군 무기 쪽 바닥 표시 (0.140.2 — 0.140.1 점선 대신): 반투명 넓은 V 면이 무기 쪽으로 흘러감
-    if (q.fly != null) continue;
-    const sx = p.x, sy = p.y + 12, tx = q.x, ty = q.y + 6, L = Math.hypot(tx - sx, ty - sy);
-    if (L < 40) continue;
-    const ux = (tx - sx) / L, uy = (ty - sy) / L, nx = -uy, ny = ux, GAP = 34, HW = 16, D = 11, TH = 7;   // 간격 · 반폭 · 꺾임 깊이 · 두께
-    ctx.save(); ctx.fillStyle = '#ffd640';
-    for (let s0 = 20 + (G.t * 45) % GAP; s0 < L - 22; s0 += GAP) {
-      const a = Math.min(1, (s0 - 20) / 30, (L - 22 - s0) / 30) * 0.32;   // 양 끝에서 옅어짐
-      if (a <= 0) continue;
-      const cx = sx + ux * s0, cy = sy + uy * s0;                // V 꼭지(앞) = cx + u*D, 두 날개 = cx ± n*HW
-      ctx.globalAlpha = a; ctx.beginPath();
-      ctx.moveTo(cx + nx * HW, cy + ny * HW); ctx.lineTo(cx + ux * D, cy + uy * D); ctx.lineTo(cx - nx * HW, cy - ny * HW);
-      ctx.lineTo(cx - nx * HW - ux * TH, cy - ny * HW - uy * TH); ctx.lineTo(cx + ux * (D - TH), cy + uy * (D - TH)); ctx.lineTo(cx + nx * HW - ux * TH, cy + ny * HW - uy * TH);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-  }
+  for (const q of G.wdrops) if (q.fly == null) drawMoveGuide(p.x, p.y + 12, q.x, q.y + 6);   // 떨군 무기 쪽 이동 가이드 (0.140.2 · 0.140.3)
   drawEshots();
   // 보스 예고 (땅에): 돌진 = 붉은 띠, 범위 = 차오르는 붉은 원
   for (const e of G.enemies) {
