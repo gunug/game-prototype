@@ -348,7 +348,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.137.0';
+const VERSION = '0.137.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 설정 ─────
@@ -768,7 +768,9 @@ function wstat(id) {
   return {
     dmg: W.dmg * (a('dmg') ? s.dmgMul : 1) * (c.wDmgMul || 1) * WUP.dmg ** L,
     cd: (W.cd || 0) * (a('rate') ? s.cdMul : 1) * WUP.cd ** L,
-    mag: W.mag && Math.max(1, Math.round(Math.max(W.mag * (a('mag') ? s.magMul : 1), W.mag + (a('mag') ? G.ups.mag || 0 : 0)) * (hasPen('ration') ? 0.5 : 1))),   // 0.131.11: 장탄이 적은 무기(바리케이드 2)도 받을 때마다 최소 +1   // 패널티 '규정 탄약' ×0.5 (0.111.0)   // 장탄 증가 (0.92.0)
+    // 0.137.1: 패널티를 먼저 곱한 기본에서 — 비율(+25% 씩)과 '받을 때마다 최소 +1' 중 큰 쪽. 그 전엔 반올림 뒤 ×0.5 라 저격총(경찰) 3 → 3 처럼 안 늘 때가 있었음
+    mag: W.mag && (() => { const b = Math.max(1, Math.round(W.mag * (hasPen('ration') ? 0.5 : 1))), n = a('mag') ? G.ups.mag || 0 : 0;
+      return Math.max(Math.round(b * (a('mag') ? s.magMul : 1)), b + n); })(),   // 0.131.11: 장탄이 적은 무기(바리케이드 2)도 받을 때마다 최소 +1   // 패널티 '규정 탄약' ×0.5 (0.111.0)   // 장탄 증가 (0.92.0)
     stun: W.stun || 0,                                       // 경직(초): 맞은 적이 굳는 시간
     reload: (W.reload || 0) * (a('reload') ? s.reloadMul : 1) * WUP.reload ** L,   // 0.97.0: 쿨다운 감소는 쿨다운만 (그 전엔 재장전도 ×0.85)
       // 재장전 감소 (0.92.0)           // 공격속도는 재장전도 줄인다 (DPS 가 같은 비율로 오르게)
