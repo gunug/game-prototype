@@ -378,7 +378,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.149.0';
+const VERSION = '0.149.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 소리 (0.148.0) ─────
@@ -2088,10 +2088,12 @@ function meleeSwing(w, st, a, R, dmg, wave, Rin = 0) {           // Rin: 충격�
     let da = Math.atan2(dy, dx) - a; da = Math.atan2(Math.sin(da), Math.cos(da));
     if (Math.abs(da) > half + Math.atan2(e.r, d)) continue;
     hurtEnemy(e, dmg, st.stun); n++;
+    if (n === 1 && !W.flash) pfx('hurt', e.x, e.y - e.r * 0.5, {flip: e.x < p.x});   // 야구방망이 퍽 — 첫 대상에 (0.149.1, blunt-hit)
     if (W.knockV && !e.boss && !e.dead) { const v = W.knockV / (e.wt || 1) * (wave ? 0.6 : 1); e.kbx += dx / d * v; e.kby += dy / d * v; }
     if (st.splash) { const SR = splashR(st.splash), sd = dmg * splashPct(st.splash); G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: SR, t: 0.2});
       for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (SR + o.r) ** 2) hurtEnemy(o, sd); }
   }
+  if (W.flash) pfx('frame', p.x + Math.cos(a) * R * 0.6, p.y + WPN_CY + Math.sin(a) * R * 0.6);   // 찰칵 (0.149.1)
   if (W.flash) G.fx.push({kind: 'flash', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r: R + p.r + 14, t: 0.25, T: 0.25});   // 카메라: 부채꼴이 한 번에 번쩍 (0.146.0 — 0.143.0 의 야구방망이 효과)
   else G.fx.push({kind: 'swing', x: p.x, y: p.y + WPN_CY * 0.5, a, half, r0: p.r + Rin, r: R + p.r + 14, t: 0.2, T: 0.2, wave});   // 야구방망이: 몸에서 밖으로 퍼짐 (0.146.0) · 충격파는 앞 파 끝에서 (0.147.4)
   return n;
@@ -2148,7 +2150,7 @@ function updateDrones(w, st, dt) {
     for (let k = 0; k < st.count; k++) {
       const an = d.aim + (k - (st.count - 1) / 2) * 0.14 + spreadRnd(st);
       G.bullets.push({x: d.x, y: d.y, vx: Math.cos(an) * st.spd, vy: Math.sin(an) * st.spd, dmg: st.dmg, stun: st.stun, splash: st.splash, chain: st.chain,
-        travel: 0, maxTravel: st.range * 1.25, hit: new Set(), ...(st.pierce ? {pierce: true, pleft: st.pierce, rad: 3} : {})});
+        travel: 0, maxTravel: st.range * 1.25, hit: new Set(), bimp: true, ...(st.pierce ? {pierce: true, pleft: st.pierce, rad: 3} : {})});
     }
   });
   w.cdT = Math.min(...w.drones.map(d => d.cd));                  // 미터: 가장 먼저 쏠 드론
@@ -2174,10 +2176,11 @@ function tickBurns(dt) {
 }
 function updateFlamer(w, st, dt, wi) {
   const p = G.p, W = WEAPONS[w.id];
-  if (reloading(w, st, dt)) { w.flame = 0; return; }
+  const fl = on => window.PFX && !window.SIM_ACTIVE && window.PFX.loop('flamer' + G.weapons.indexOf(w), 'flame', on, p.x + Math.cos(w.aim || 0) * 14, p.y + WPN_CY + Math.sin(w.aim || 0) * 14, {angle: w.aim || 0});   // 불길 (0.149.1)
+  if (reloading(w, st, dt)) { w.flame = 0; fl(false); return; }
   const tgt = nearestEnemy(p.x, p.y, st.range);
-  if (!tgt) { w.flame = Math.max(0, (w.flame || 0) - dt * 4); return; }
-  w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.flame = 1;
+  if (!tgt) { w.flame = Math.max(0, (w.flame || 0) - dt * 4); fl(false); return; }
+  w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.flame = 1; fl(true);
   if (wi === 0 && !p.moving) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;
   if ((w.cdT -= dt) > 0) return;
   w.cdT += st.cd; useAmmo(w, st); sfx('flame');
@@ -2194,7 +2197,7 @@ function updateFlamer(w, st, dt, wi) {
   }
 }
 function drawFlame(w) {
-  if (!(w.flame > 0)) return;
+  if (!(w.flame > 0) || window.PFX) return;                      // pixelfx 불길이 있으면 그걸로 (0.149.1)
   const p = G.p, st = wstat(w.id), W = WEAPONS[w.id], half = (W.arc + (st.count - 1) * 12) * Math.PI / 360;
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 10; i++) {
@@ -2629,7 +2632,7 @@ function curseOn(b, e) {
   if (curseOk(e) && charmCount(b.w) < wstat(b.w.id).ally) {
     e.dead = true; e.charmed = true;
     const a = {...e, dead: false, charmed: false, w: b.w, hp: e.maxHp / (e.dhp || 1), maxHp: e.maxHp / (e.dhp || 1), baseHp: e.maxHp / (e.dhp || 1),   /* 아군은 난이도와 무관 (0.134.0) */ baseDmg: e.dmg, mul: 1, hitT: 0, stop: 0, kbx: 0, kby: 0};   // 방패 · 방어 · 쏘기 · 터짐도 그대로 (0.116.0)
-    allyScale(a); G.allies.push(a);
+    allyScale(a); G.allies.push(a); pfx('mana', e.x, e.y + e.r * 0.8);   // 아군이 됨 (0.149.1)
     G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: e.r * 1.8, t: 0.3});
   } else hurtEnemy(e, b.dmg, b.stun);
 }
@@ -2734,7 +2737,7 @@ function updateOrbit(w, st, dt) {
     if ((w.orb.ht[o.i] -= dt) > 0) continue;                     // 맞은 뒤 쉬는 중
     if (W.saw) {                                                 // 회전 톱날 (0.142.0): 안 깨짐 · 탄 못 막음 · 닿은 적 모두를 rest 초마다
       let any = null;
-      for (const e of G.enemies) if (!e.dead && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < (e.r + W.rad) ** 2) { hurtEnemy(e, st.dmg, st.stun); any = e; }
+      for (const e of G.enemies) if (!e.dead && (e.x - o.x) ** 2 + (e.y - o.y) ** 2 < (e.r + W.rad) ** 2) { hurtEnemy(e, st.dmg, st.stun); any = e; pfx('rico', o.x, o.y, {angle: Math.atan2(e.y - o.y, e.x - o.x)}); }   // 톱날 불똥 (0.149.1)
       if (any) { orbSplash(o.x, o.y, st, any); w.orb.ht[o.i] = W.rest; }
       continue;
     }
@@ -2745,7 +2748,7 @@ function updateOrbit(w, st, dt) {
     }
     if (!hit) for (const e of G.enemies) {
       if (e.dead || (e.x - o.x) ** 2 + (e.y - o.y) ** 2 >= (e.r + W.rad) ** 2) continue;
-      hurtEnemy(e, st.dmg, st.stun); he = e;
+      hurtEnemy(e, st.dmg, st.stun); he = e; pfx('block', o.x, o.y + 10, {flip: e.x < o.x});   // 방패 부딪힘 (0.149.1)
       hit = true; break;
     }
     if (hit) {
@@ -3084,7 +3087,7 @@ const WALL_GROW_T = 0.12;                                        // 연쇄 칸�
 // 착지 충격 (0.131.13): 던진 블럭이 떨어질 때 둘레 WALL_LAND_H 네모 안 적에게 근접 피해 ×2 + 큰 충격파
 const WALL_LAND_H = WALL_C / 2 + WALL_AURA * 2, WALL_LAND_K = 2;
 function wallLand(x, y, st) {
-  sfx('wall');
+  sfx('wall'); pfx('land', x, y + WALL_C / 2);
   let hit = 0;
   for (const e of G.enemies) if (!e.dead && Math.abs(e.x - x) < WALL_LAND_H + e.r * 0.5 && Math.abs(e.y - y) < WALL_LAND_H + e.r * 0.5) { hurtEnemy(e, st.dmg * WALL_LAND_K, st.stun); hit++; }
   G.fx.push({kind: 'wallwave', x, y, t: 0.45, T: 0.45, hit: 1, big: true});
@@ -3250,7 +3253,8 @@ function tickEshots(dt) {
       if (b.t >= b.T) {
         b.dead = true;
         G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3}); if (b.aoe > 20) { sfx('boom', b.ally ? 0.8 : 1); pfx('pow', b.x, b.y); }
-        if (b.pool) G.pools.push({x: b.x, y: b.y, r: b.pool.r, t: b.pool.life, T: b.pool.life, dps: b.pool.dps, ally: b.ally, slow: b.pool.slow});   // 독 장판 병: 아군 · 느려짐 (0.145.0)   // 산성 비 → 웅덩이 (0.127.0)
+        if (b.pool) G.pools.push({x: b.x, y: b.y, r: b.pool.r, t: b.pool.life, T: b.pool.life, dps: b.pool.dps, ally: b.ally, slow: b.pool.slow});
+        if (b.bottle) pfx('acid', b.x, b.y);                        // 독 병 깨짐 (0.149.1)   // 독 장판 병: 아군 · 느려짐 (0.145.0)   // 산성 비 → 웅덩이 (0.127.0)
         if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.aoe + e.r) ** 2) hurtEnemy(e, b.dmg); continue; }   // 아군 것은 적에게 (0.116.0)
         if (G.walls.length) wallHit(b.x, b.y, b.dmg, b.aoe);       // 곡사 · 터짐 범위 안 바리케이드 (0.131.0)
         for (const a of G.allies) if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 < (b.aoe + a.r) ** 2) hurtAlly(a, b.dmg);   // 적 것은 아군에게도 (0.117.0)
@@ -3371,7 +3375,7 @@ function hurtEnemy(e, dmg, stun = 0) {
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: crit ? 0.8 : 0.6, weak: !crit && real < dmg * 0.7, crit});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
   if (e.hp <= 0 && (e.hex || e.burn > 0)) {                     // 죽을 때: 부두 표식 터짐 · 불붙음이 둘레로 번짐 (0.145.0)
     const hx = e.hex, bd = e.burnDps; e.hex = null; e.burn = 0;
-    if (hx) { G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: hx.r, t: 0.3}); for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (hx.r + o.r) ** 2) hurtEnemy(o, hx.dmg); }
+    if (hx) { pfx('implode', e.x, e.y); G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: hx.r, t: 0.3}); for (const o of G.enemies) if (o !== e && !o.dead && (o.x - e.x) ** 2 + (o.y - e.y) ** 2 < (hx.r + o.r) ** 2) hurtEnemy(o, hx.dmg); }
     if (bd) { const o = nearestEnemy(e.x, e.y, 50, new Set([e])); if (o && !(o.burn > 0)) ignite(o, bd * 0.7); }   // 가장 가까운 하나에만 · 약하게 (연쇄 폭주 막음)
   }
   if (e.hp <= 0) {
@@ -3689,10 +3693,11 @@ function fireGun(st, w, i) {
   for (let k = 0; k < st.count; k++) for (let j = 0; j < P; j++) {   // 산탄총: 한 번에 P 알을 arc 부채꼴로 (0.142.0)
     const a = base + (k - (st.count - 1) / 2) * spread + (P > 1 ? (j / (P - 1) - 0.5) * arc : 0) + spreadRnd(st);
     G.bullets.push({x: m.mx, y: m.my, vx: Math.cos(a) * st.spd, vy: Math.sin(a) * st.spd,
-      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set(),
-      ...(st.pierce ? {pierce: true, pleft: st.pierce, rad: 3} : {})});   // 관통 부여 (0.103.0)
+      dmg: st.dmg, stun: st.stun, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set(), bimp: w.id === 'mg' || w.id === 'smg',
+      ...(st.pierce ? {pierce: true, pleft: st.pierce, rad: 3} : {})});   // 관통 부여 (0.103.0) · bimp: 맞은 자리 탄 튐 (0.149.1)
   }
   G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06}); sfx('shoot');
+  if (w.id === 'shotgun') pfx('mshot', m.mx, m.my, {angle: base}); else if (w.id === 'pistol' || w.id === 'revolver') pfx('mpist', m.mx, m.my, {angle: base});   // 총구 불꽃 (0.149.1)
 }
 
 // 저격총: 가장 가까운 적 쪽으로 빠른 관통탄. 날아가는 길의 적 모두 맞고 사거리 끝(+30px)까지 간다
@@ -3821,7 +3826,7 @@ function updateLaser(w, wi, st, dt) {
   // 맞힘 (0.75.0): 관통 없음 — 빔이 다 뻗어 닿은 마디의 적만. 폭발이 있으면 닿은 자리마다 둘레 피해
   const hits = bm.nodes.filter((n, k) => bm.prog >= k + 1 && !n.e.dead).map(n => n.e);
   for (const e of hits) {
-    hurtEnemy(e, st.dmg, st.stun);
+    hurtEnemy(e, st.dmg, st.stun); pfx('zap', e.x, e.y - e.r * 0.5);   // 번개 맞음 (0.149.1)
     if (st.splash) {
       const R = splashR(st.splash), sd = st.dmg * splashPct(st.splash);
       if (!(e.sfxT > G.t)) { G.fx.push({kind: 'splash', mine: true, x: e.x, y: e.y, r: R, t: 0.25}); e.sfxT = G.t + 0.25; }   // 빔은 0.07초마다라 그림은 0.25초에 한 번
@@ -4081,6 +4086,8 @@ function update(dt) {
         }
       } else {
       hurtEnemy(e, b.dmg, b.stun); b.hit.add(e); if (b.boom) b.hitAt.set(e, b.life);
+      { const ang = Math.atan2(b.vy, b.vx);                        // 무기마다 맞은 자리 이펙트 (0.149.1)
+        if (b.rail) pfx('rico', e.x, e.y - e.r * 0.5, {angle: ang}); else if (b.boom) pfx('spin', e.x, e.y - e.r * 0.3); else if (b.missile) pfx('plasma', e.x, e.y); else if (b.bimp) pfx('bimp', e.x, e.y - e.r * 0.5, {angle: ang}); }
       if (b.splash) {
         const R = splashR(b.splash), sd = b.dmg * splashPct(b.splash);
         G.fx.push({kind: 'splash', mine: true, x: b.x, y: b.y, r: R, t: 0.25});
