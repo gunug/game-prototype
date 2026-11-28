@@ -377,7 +377,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.148.0';
+const VERSION = '0.148.1';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 소리 (0.148.0) ─────
@@ -565,7 +565,8 @@ const DOG_IMG = new Image(); DOG_IMG.src = `images/item_dog.png?v=${VERSION}`;
 const DOG_BITE = 0.25, DOG_DMG = 8;   // 반려견 물기 (0.135.4): 간격 · 피해 (피해 증가 · 영구 피해 적용)
 const DOG_LEASH = 90, DOG_NEAR = [26, 60], DOG_WANDER = 0.45;   // 반려견 배회 (0.135.1): 이보다 멀면 달려옴 · 둘레 거리 [안, 밖] · 배회 빠르기 (주인공의)
 const MEAT_P = 0.02, MEAT_HEAL = 0.2, MEAT_LIFE = 60, DOG_R = 5, DOG_SPD = 1.3, PANIC_T = 30, WDROP_OUT = 70;
-const FIST = {dmg: 20, cd: 0.4, reach: 22, knock: 360};   // 0.135.2: 피해 40 → 20 · 경직 대신 넉백 (처음 속도 ÷ 무게, 밀리는 거리 ≈ ÷8 → 좀비 45px)
+const FIST = {dmg: 20, cd: 0.25, reach: 22, knock: 640};   // 0.148.1: 연사 0.4 → 0.25초 · 넉백 360 → 640 (좀비 약 80px)
+const WDROP_REPEL = 80;                                           // 떨군 무기 둘레: 적이 이 안으로 못 들어오고 밀려남 (0.148.1)   // 0.135.2: 피해 40 → 20 · 경직 대신 넉백 (처음 속도 ÷ 무게, 밀리는 거리 ≈ ÷8 → 좀비 45px)
 const WDROP_T = 0.55, WDROP_H = 46, PSTAT_T = 1.6;   // 무기가 튕겨 나가는 시간 · 높이 · 머리 위 상태 글 시간 (0.135.2)   // reach: 몸끼리 닿은 뒤 더 닿는 거리 (px)   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
 const MAGDROP_P = 0.005;   // 자석 떨굴 기본 확률 (적 하나마다)
 // 가변 출현율 (0.107.0): 못 떨군 처치마다 확률이 오름. 3배(MAGDROP_MAX)에 이르면 100%. 떨구면 처음으로
@@ -3532,6 +3533,8 @@ function drawWdrop(q) {                                          // 떨군 무�
     ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(q.sx + (q.x - q.sx) * k, q.sy + (q.y - q.sy) * k + 6, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
   } else {
     y = q.y - 6 - Math.abs(Math.sin(q.t * 3)) * 5;
+    ctx.save(); ctx.strokeStyle = 'rgba(90,180,255,.22)'; ctx.setLineDash([5, 7]); ctx.lineWidth = 1.5;   // 적이 못 들어오는 둘레 (0.148.1)
+    ctx.beginPath(); ctx.arc(q.x, q.y, WDROP_REPEL, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     const pk = (q.t * 1.6) % 1;                                  // 고동치는 고리
     ctx.save(); ctx.strokeStyle = `rgba(90,180,255,${0.9 * (1 - pk)})`; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(q.x, q.y + 6, 14 + pk * 16, (14 + pk * 16) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
@@ -3994,7 +3997,12 @@ function update(dt) {
         }
       }
     }
-    if (G.walls.length && !e.air) wallPush(e, e.boss ? e.r * 0.7 : e.r);   // 비켜서다 벽에 박힌 것 다시 밖으로 (0.131.4)
+    if (G.walls.length && !e.air) wallPush(e, e.boss ? e.r * 0.7 : e.r);
+    for (const q of G.wdrops) {                                    // 떨군 무기 둘레에서 적이 물러남 (0.148.1) — 주우러 가는 길을 비워 둠
+      if (q.fly != null || e.air) continue;
+      const dx = e.x - q.x, dy = e.y - q.y, d = Math.hypot(dx, dy) || 1, R = WDROP_REPEL + e.r;
+      if (d < R) { const m = Math.min(R - d, 240 * dt); e.x += dx / d * m; e.y += dy / d * m; }
+    }   // 비켜서다 벽에 박힌 것 다시 밖으로 (0.131.4)
     // 닿으면 피해
     if (e.touchT > 0) e.touchT -= dt;
     if (!(e.touchT > 0) && p.inv <= 0 && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 < (e.r + p.r) ** 2) {
