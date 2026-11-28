@@ -291,7 +291,9 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <div class="overlay" id="settings" hidden>
   <h2>설정</h2>
   <div class="hint">게임 초기화 — 기록 · 클리어 · 난이도 · 영구 업그레이드 · 영구 봉인 · 해금이 모두 처음으로 돌아간다.</div>
+  <div class="btns"><button id="sfxBtn">효과음 켬</button><button id="bgmBtn">음악 켬</button></div>
   <div class="btns"><button id="resetBtn">게임 초기화</button><button class="sub" id="settingsBack" data-neg>뒤로</button></div>
+  <div class="hint">효과음: Kenney.nl (CC0) · 음악: 직접 만듦</div>
 </div>
 <div class="overlay" id="resetAsk" hidden>
   <h2>정말 초기화할까?</h2>
@@ -375,9 +377,88 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.147.4';
+const VERSION = '0.148.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
+// ───── 소리 (0.148.0) ─────
+// 효과음: sounds/*.mp3 — Kenney.nl CC0 소리 묶음(Impact · Interface · Sci-fi · Digital Audio · Music Jingles)에서 골라 mp3 로 바꿈. 상업 사용 가능 · 출처 표시 의무 없음 (sounds/LICENSE_kenney.txt, docs/소리_출처.md)
+// 배경음악: 파일 없이 WebAudio 로 바로 만듦 (월드마다 다른 조 · 빠르기, 보스가 나오면 더 바쁘게) — 우리 것이라 라이선스 걱정 없음
+// 설정 페이지에서 효과음 · 음악을 따로 켜고 끔 (localStorage 'survivor.sfx' · 'survivor.bgm', 기본 켬)
+const SFX = {   // 이름: [크기, 같은 소리 최소 간격(초), 높낮이 흔들림]
+  shoot: [0.18, 0.06, 0.08], rail: [0.35, 0.1, 0.05], beam: [0.12, 0.25, 0.05], flame: [0.18, 0.18, 0.1], hit: [0.22, 0.05, 0.15], kill: [0.3, 0.05, 0.15],
+  hurt: [0.55, 0.08, 0.05], boom: [0.45, 0.08, 0.1], bigboom: [0.7, 0.3, 0], gem: [0.18, 0.035, 0.2], levelup: [0.5, 0.3, 0], rattle: [0.45, 0.09, 0.2],
+  open: [0.55, 0.2, 0], cardpop: [0.5, 0.2, 0], click: [0.35, 0.05, 0], back: [0.35, 0.05, 0], drop: [0.5, 0.2, 0.05], swing: [0.3, 0.08, 0.15],
+  shieldbrk: [0.4, 0.08, 0.1], wall: [0.45, 0.08, 0.1], eat: [0.45, 0.1, 0.1], revive: [0.6, 0.5, 0], over: [0.6, 1, 0], clear: [0.6, 1, 0], wake: [0.7, 0.5, 0],
+};
+const AU = {ctx: null, buf: {}, last: {}, sfxOn: localStorage.getItem('survivor.sfx') !== '0', bgmOn: localStorage.getItem('survivor.bgm') !== '0', master: null, sfxBus: null, bgmBus: null};
+function audioInit() {                                           // 첫 터치 · 클릭 때 (브라우저는 사용자 입력 전엔 소리를 막음)
+  if (AU.ctx) { if (AU.ctx.state === 'suspended') AU.ctx.resume(); return; }
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+  AU.ctx = new C(); AU.master = AU.ctx.createGain(); AU.master.connect(AU.ctx.destination);
+  AU.sfxBus = AU.ctx.createGain(); AU.sfxBus.gain.value = AU.sfxOn ? 0.8 : 0; AU.sfxBus.connect(AU.master);
+  AU.bgmBus = AU.ctx.createGain(); AU.bgmBus.gain.value = AU.bgmOn ? 0.35 : 0; AU.bgmBus.connect(AU.master);
+  for (const n of Object.keys(SFX)) fetch(`sounds/${n}.mp3?v=${VERSION}`).then(r => r.arrayBuffer()).then(b => AU.ctx.decodeAudioData(b)).then(d => { AU.buf[n] = d; }).catch(() => {});
+  bgmStart();
+}
+addEventListener('pointerdown', audioInit, true); addEventListener('keydown', audioInit, true);
+addEventListener('click', e => { const b = e.target.closest && e.target.closest('button, .up, .world, .char'); if (b && !b.disabled) sfx(b.hasAttribute('data-neg') ? 'back' : 'click'); }, true);   // 단추 · 카드 누름
+function sfx(name, volK = 1) {
+  if (!AU.ctx || !AU.sfxOn || window.SIM_ACTIVE) return;
+  const S = SFX[name], b = AU.buf[name]; if (!S || !b) return;
+  const now = AU.ctx.currentTime; if (now - (AU.last[name] || -9) < S[1]) return; AU.last[name] = now;
+  const src = AU.ctx.createBufferSource(), g = AU.ctx.createGain();
+  src.buffer = b; src.playbackRate.value = 1 + (Math.random() * 2 - 1) * S[2]; g.gain.value = S[0] * volK;
+  src.connect(g); g.connect(AU.sfxBus); src.start();
+}
+function setSfx(on) { AU.sfxOn = on; localStorage.setItem('survivor.sfx', on ? '1' : '0'); if (AU.sfxBus) AU.sfxBus.gain.value = on ? 0.8 : 0; }
+function setBgm(on) { AU.bgmOn = on; localStorage.setItem('survivor.bgm', on ? '1' : '0'); if (AU.bgmBus) AU.bgmBus.gain.setTargetAtTime(on ? 0.35 : 0, AU.ctx.currentTime, 0.2); }
+// ── 배경음악: 16칸 한 마디를 되풀이. 베이스(톱니파 · 낮은 거름) + 북(사인 떨어짐) + 하이햇(잡음) + 깔림(삼각파 화음). 보스 · 엘리트가 있으면 하이햇이 16분음표로
+const BGM_SONG = [   // 월드마다: 빠르기(BPM) · 으뜸음(MIDI) · 베이스 줄(으뜸음에서 반음 수, null = 쉼) · 깔림 화음
+  {bpm: 118, root: 45, bass: [0, null, 0, 12, 0, null, 3, 5, 0, null, 0, 12, 7, null, 5, 3], pad: [0, 3, 7]},     // 월드 1 도심: A 단조, 달리는 느낌
+  {bpm: 104, root: 38, bass: [0, 0, null, 1, 0, 0, null, 3, 0, 0, null, 1, 5, null, 3, 1], pad: [0, 1, 7]},      // 월드 2 검문소: D 프리지안, 행진
+  {bpm: 92,  root: 40, bass: [0, null, null, 6, null, 0, null, 3, 0, null, null, 6, 7, null, 6, null], pad: [0, 3, 6]},  // 월드 3 연구소: E 감화음, 서늘하게
+];
+const BGM_MENU = {bpm: 80, root: 45, bass: [0, null, null, null, null, null, null, null, 7, null, null, null, null, null, null, null], pad: [0, 3, 7]};
+const midiHz = m => 440 * 2 ** ((m - 69) / 12);
+let bgmStep = 0, bgmNext = 0, bgmTimer = null;
+function bgmStart() {
+  if (bgmTimer || !AU.ctx) return;
+  bgmNext = AU.ctx.currentTime + 0.1;
+  bgmTimer = setInterval(() => {                                 // 앞을 0.2초 미리 짜 둠
+    const S = G && G.world ? BGM_SONG[G.wi] || BGM_SONG[0] : BGM_MENU, step = 60 / S.bpm / 4;
+    while (bgmNext < AU.ctx.currentTime + 0.2) { bgmNote(S, bgmStep % 16, bgmNext, step); bgmNext += step; bgmStep++; }
+  }, 50);
+}
+function bgmNote(S, k, t, step) {
+  const ctx = AU.ctx, out = AU.bgmBus, hot = G && G.enemies && G.enemies.some(e => e.elite != null && !e.dead), menu = S === BGM_MENU;
+  if (G && (G.mode === 'over' || G.mode === 'clear')) return;
+  const b = S.bass[k];
+  if (b != null) {                                               // 베이스
+    const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.value = midiHz(S.root + b); f.type = 'lowpass'; f.frequency.value = menu ? 400 : 700;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(menu ? 0.12 : 0.22, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + step * 1.8);
+    o.connect(f); f.connect(g); g.connect(out); o.start(t); o.stop(t + step * 2);
+  }
+  if (!menu && k % 4 === 0) {                                    // 북
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.16);
+  }
+  if (!menu && (k % 4 === 2 || (hot && k % 2 === 1))) {          // 하이햇 (보스 · 엘리트가 있으면 더 잦게)
+    if (!AU.noise) { const n = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate), d = n.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; AU.noise = n; }
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = AU.noise; f.type = 'highpass'; f.frequency.value = 7000; g.gain.setValueAtTime(hot ? 0.12 : 0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t);
+  }
+  if (k === 0) {                                                 // 깔림 화음 (한 마디 내내)
+    for (const iv of S.pad) {
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = midiHz(S.root + 24 + iv);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + step * 4); g.gain.linearRampToValueAtTime(0.0001, t + step * 16);
+      o.connect(g); g.connect(out); o.start(t); o.stop(t + step * 16);
+    }
+  }
+}
 // ───── 설정 ─────
 // 그림이 보는 방향 — true 면 왼쪽을 봄 (뽑은 그림을 눈으로 보고 정함)
 const FACE = {survivor: false, police: false, firefighter: false, scientist: false, shaman: false, builder: false, zombie: true, dog: true, brute: false, bossmid: false, bossking: false, crawler: false, riot: false,
@@ -1023,7 +1104,7 @@ function wbossTick(dt) {                                         // 잠든 월�
   e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
   e.spd = Math.max(...G.world.mobs.filter(m => !m.eliteOnly).map(m => ENEMY_TYPES[m.type].spd)) * ELITE.spd;
   G.enemies.push(e);
-  setBanner(`월드 보스 ${ENEMY_TYPES[b.type].nm} 깨어남!`, gradeCol(WBOSS.grade));
+  setBanner(`월드 보스 ${ENEMY_TYPES[b.type].nm} 깨어남!`, gradeCol(WBOSS.grade)); sfx('wake');
   G.shake = Math.max(G.shake || 0, 6);
 }
 function drawWbossSleep() {                                      // 잠든 월드 보스: 흐릿한 그림 + 둘레 깨어나는 거리 점선 + Z
@@ -1122,7 +1203,10 @@ $('pbanBtn').onclick = () => showPban();
 $('pbanBack').onclick = () => showWorlds();
 $('permBack').onclick = () => showWorlds();
 // 설정 (0.140.0): 게임 초기화는 한 번 더 묻고 — localStorage 의 'survivor.' 로 시작하는 것을 모두 지움
-const showSettings = () => { $('worldSel').hidden = true; $('resetAsk').hidden = true; $('settings').hidden = false; };
+const paintSound = () => { $('sfxBtn').textContent = `효과음 ${AU.sfxOn ? '켬' : '끔'}`; $('bgmBtn').textContent = `음악 ${AU.bgmOn ? '켬' : '끔'}`; $('sfxBtn').classList.toggle('sub', !AU.sfxOn); $('bgmBtn').classList.toggle('sub', !AU.bgmOn); };
+const showSettings = () => { $('worldSel').hidden = true; $('resetAsk').hidden = true; $('settings').hidden = false; paintSound(); };
+$('sfxBtn').onclick = () => { setSfx(!AU.sfxOn); paintSound(); };   // 소리 켜고 끄기 (0.148.0)
+$('bgmBtn').onclick = () => { setBgm(!AU.bgmOn); paintSound(); };
 $('setBtn').onclick = showSettings;
 $('settingsBack').onclick = () => showWorlds();
 $('resetBtn').onclick = () => { $('settings').hidden = true; $('resetAsk').hidden = false; };
@@ -1181,6 +1265,7 @@ function saveRec() {
 }
 
 function worldClear() {
+  sfx('clear');
   G.mode = 'clear'; joy.id = null;
   $('clearTitle').textContent = `${G.world.name} 클리어!`;
   $('clearResult').innerHTML = saveRec();
@@ -1753,6 +1838,7 @@ function levelPicks(pool = levelPool()) {
   return picks;
 }
 function openLevelUp() {
+  sfx('levelup');
   G.pickKind = 'lv'; G.pickUse = {reroll: 0, ban: 0}; G.banMode = false;
   showPicks(levelPicks(), '레벨 업!');
 }
@@ -1943,7 +2029,11 @@ function startOpen(kind, x, y, g = 1, w = null) {
 }
 function tickOpening(dt) {
   const o = G.opening; if (!o) return;
-  if ((o.t += dt) < OPEN_T) return;
+  const t0 = o.t; o.t += dt;
+  if (o.t < OPEN_SHAKE) sfx('rattle', 0.6 + 0.4 * o.t / OPEN_SHAKE);   // 달그락 (0.148.0)
+  if (t0 < OPEN_SHAKE && o.t >= OPEN_SHAKE) sfx('open');
+  if (t0 < OPEN_SHAKE + OPEN_POP && o.t >= OPEN_SHAKE + OPEN_POP) sfx('cardpop');
+  if (o.t < OPEN_T) return;
   G.opening = null; G.mode = 'play';
   if (o.kind === 'boss') openBossChest(); else if (o.kind === 'wbox') openWbox(o.w); else openChest();
   $('cards').classList.add('pop'); setTimeout(() => $('cards').classList.remove('pop'), 600);
@@ -2008,7 +2098,7 @@ function updateMelee(w, st, dt, wi) {
   let tgt = null, bd = Infinity;
   for (const e of G.enemies) { if (e.dead || e.air) continue; const d = Math.hypot(e.x - p.x, e.y - p.y) - e.r - p.r; if (d < st.range && d < bd) { bd = d; tgt = e; } }
   if (!tgt) return;
-  const a = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.aim = a; w.swing = 1; w.cdT = st.cd;
+  const a = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.aim = a; w.swing = 1; w.cdT = st.cd; sfx('swing');
   if (wi === 0 && !p.moving) p.face = Math.cos(a) >= 0 ? 1 : -1;
   meleeSwing(w, st, a, st.range, st.dmg, false);
   if (st.chain > 0) {                                            // 연쇄 n 단계 = 충격파 n 개 — i 번째는 0.15 × i 초 뒤, 앞 파 끝(R_{i-1})에서 R_i 까지
@@ -2084,7 +2174,7 @@ function updateFlamer(w, st, dt, wi) {
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.flame = 1;
   if (wi === 0 && !p.moving) p.face = Math.cos(w.aim) >= 0 ? 1 : -1;
   if ((w.cdT -= dt) > 0) return;
-  w.cdT += st.cd; useAmmo(w, st);
+  w.cdT += st.cd; useAmmo(w, st); sfx('flame');
   const half = (W.arc + (st.count - 1) * 12) * Math.PI / 360, hit = [];
   for (const e of G.enemies) {
     if (e.dead) continue;
@@ -2142,7 +2232,7 @@ function tickMines(dt) {
     if (m.t < 0.4) continue;                                      // 놓자마자는 안 터짐
     const trig = G.enemies.find(e => !e.dead && !e.air && (e.x - m.x) ** 2 + (e.y - m.y) ** 2 < (e.r + MINE_TRIG) ** 2); if (!trig) continue;
     m.dead = true; const st = wstat(m.w.id), W = WEAPONS[m.w.id], R = W.aoe * (st.splash > 1 ? splashR(st.splash) / splashR(1) : 1);
-    G.fx.push({kind: 'splash', mine: true, x: m.x, y: m.y, r: R, t: 0.3}); G.shake = Math.max(G.shake || 0, 3);
+    G.fx.push({kind: 'splash', mine: true, x: m.x, y: m.y, r: R, t: 0.3}); G.shake = Math.max(G.shake || 0, 3); sfx('boom');
     for (const e of G.enemies) if (!e.dead && (e.x - m.x) ** 2 + (e.y - m.y) ** 2 < (R + e.r) ** 2) hurtEnemy(e, st.dmg, st.stun);
     for (let c = 0; c < st.chain; c++) { const o = nearestEnemy(m.x, m.y, 120); if (o) { G.fx.push({kind: 'splash', mine: true, x: o.x, y: o.y, r: R * 0.6, t: 0.25}); hurtEnemy(o, st.dmg * 0.5); } }   // 연쇄: 파편
   }
@@ -2378,6 +2468,7 @@ function bossPlan(id, wi, at) {
   return {perfectLv: pl, refLv: L, dps: +dps.toFixed(1), hp: Math.round(dps * B.fightT)};
 }
 function spawnBoss(id) {
+  sfx('bigboom');
   const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp * (G.dm || 1);   // 체력 × 난이도 (0.134.0)
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     wt: B.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
@@ -2730,7 +2821,7 @@ const DIE_T = 3,   // 0.121.1: 1.8 → 3 (연출을 조금 더 보이게)
 function startDying(src) {
   const p = G.p;
   if (G.revives > 0) {                                           // 부활 (0.137.0): 쓰러지는 대신 체력 REVIVE_HP 로 일어남 + REVIVE_INV 초 무적
-    G.revives--; p.hp = p.maxHp * REVIVE_HP; p.inv = Math.max(p.inv, REVIVE_INV);
+    G.revives--; p.hp = p.maxHp * REVIVE_HP; p.inv = Math.max(p.inv, REVIVE_INV); sfx('revive');
     G.pstat = {txt: '부활', t: PSTAT_T, good: true};
     G.fx.push({kind: 'foam', x: p.x, y: p.y + HIT_CY, r: 90, t: 0.6, T: 0.6});
     return;
@@ -2749,7 +2840,7 @@ function hurtPlayer(raw, src, inv = 0.5) {
   const p = G.p;
   if (p.inv > 0 || G.mode === 'over' || G.dying) return false;
   const dmg = armor(raw * G.dm, G.s.def);                        // 적 피해 × 난이도 (0.134.0) — 몸 · 탄 · 곡사 · 보스 기술 모두 여기로
-  p.hp -= dmg; p.inv = Math.max(p.inv, inv);
+  p.hp -= dmg; p.inv = Math.max(p.inv, inv); sfx('hurt');
   G.texts.push({x: p.x, y: p.y - 24, v: -Math.round(dmg), t: 0.8, me: true});   // 정수로 (0.135.7)
   // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
   const k = Math.min(1, dmg / p.maxHp * 6);
@@ -2986,6 +3077,7 @@ const WALL_GROW_T = 0.12;                                        // 연쇄 칸�
 // 착지 충격 (0.131.13): 던진 블럭이 떨어질 때 둘레 WALL_LAND_H 네모 안 적에게 근접 피해 ×2 + 큰 충격파
 const WALL_LAND_H = WALL_C / 2 + WALL_AURA * 2, WALL_LAND_K = 2;
 function wallLand(x, y, st) {
+  sfx('wall');
   let hit = 0;
   for (const e of G.enemies) if (!e.dead && Math.abs(e.x - x) < WALL_LAND_H + e.r * 0.5 && Math.abs(e.y - y) < WALL_LAND_H + e.r * 0.5) { hurtEnemy(e, st.dmg * WALL_LAND_K, st.stun); hit++; }
   G.fx.push({kind: 'wallwave', x, y, t: 0.45, T: 0.45, hit: 1, big: true});
@@ -3150,7 +3242,7 @@ function tickEshots(dt) {
       b.t += dt;
       if (b.t >= b.T) {
         b.dead = true;
-        G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3});
+        G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3}); if (b.aoe > 20) sfx('boom', b.ally ? 0.8 : 1);
         if (b.pool) G.pools.push({x: b.x, y: b.y, r: b.pool.r, t: b.pool.life, T: b.pool.life, dps: b.pool.dps, ally: b.ally, slow: b.pool.slow});   // 독 장판 병: 아군 · 느려짐 (0.145.0)   // 산성 비 → 웅덩이 (0.127.0)
         if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.aoe + e.r) ** 2) hurtEnemy(e, b.dmg); continue; }   // 아군 것은 적에게 (0.116.0)
         if (G.walls.length) wallHit(b.x, b.y, b.dmg, b.aoe);       // 곡사 · 터짐 범위 안 바리케이드 (0.131.0)
@@ -3264,9 +3356,9 @@ function hurtEnemy(e, dmg, stun = 0) {
   let real = mobArmor(dmg, e.def);
   if (e.shield > 0) {                                           // 방패 (0.84.0): 어떤 공격이든 1 만 받고 한 번 깎임
     real = 1;
-    if (--e.shield === 0) { G.fx.push({kind: 'shieldbreak', x: e.x, y: e.y - e.r, r: e.r * 1.6, t: 0.4}); G.texts.push({x: e.x, y: e.y - e.r * 2.6, v: '방패 깨짐', t: 0.9, brk: true}); }
+    if (--e.shield === 0) { sfx('shieldbrk'); G.fx.push({kind: 'shieldbreak', x: e.x, y: e.y - e.r, r: e.r * 1.6, t: 0.4}); G.texts.push({x: e.x, y: e.y - e.r * 2.6, v: '방패 깨짐', t: 0.9, brk: true}); }
   }
-  e.hp -= real; e.flash = FLASH_T; e.hitAgo = 0;   // hitAgo: 재생 좀비가 안 맞은 시간 (0.127.0)
+  e.hp -= real; e.flash = FLASH_T; e.hitAgo = 0; sfx(e.hp <= 0 ? 'kill' : 'hit');   // hitAgo: 재생 좀비가 안 맞은 시간 (0.127.0)
   if (stun > 0 && !e.boss) e.stop = Math.max(e.stop || 0, stun);   // 경직: 남은 것보다 길 때만 늘림 (쌓이지 않음)
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: crit ? 0.8 : 0.6, weak: !crit && real < dmg * 0.7, crit});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
   if (e.hp <= 0 && (e.hex || e.burn > 0)) {                     // 죽을 때: 부두 표식 터짐 · 불붙음이 둘레로 번짐 (0.145.0)
@@ -3320,7 +3412,7 @@ function tickMeat(dt, magnet) {
     if (d < magnet) m.pull = true;
     if (m.pull) { const sp = GEM_PULL * dt; m.x += dx / d * Math.min(sp, d); m.y += dy / d * Math.min(sp, d); }
     if (d < p.r + 8) {
-      m.dead = true; const h = Math.min(p.maxHp - p.hp, p.maxHp * MEAT_HEAL); p.hp += h;
+      m.dead = true; const h = Math.min(p.maxHp - p.hp, p.maxHp * MEAT_HEAL); p.hp += h; sfx('eat');
       G.texts.push({x: p.x, y: p.y - 24, v: '+' + Math.round(h), t: 0.8, heal: true});
     }
   }
@@ -3373,7 +3465,7 @@ function dropWeapon(w) {
   w.drop = true; w.beam = null; w.shots = [];
   // 몸에서 튕겨 나감 (0.135.2): WDROP_T 초 동안 포물선 + 돌며 날아가 떨어짐 — 떨어진 뒤에만 주울 수 있음
   G.wdrops.push({w, sx: p.x, sy: p.y + WPN_CY, x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: 0, fly: 0, rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * 14});
-  G.pstat = {txt: '무기 잃음', t: PSTAT_T};
+  G.pstat = {txt: '무기 잃음', t: PSTAT_T}; sfx('drop');
 }
 // 0.135.6: 하나만 — 마지막으로 무기를 얻은(판 시작 · 새 무기 · 다시 주움) 때부터 PANIC_T 초가 지나면 든 무기 중 아무거나 하나를 떨굼
 function tickPanic(dt) {
@@ -3590,7 +3682,7 @@ function fireGun(st, w, i) {
       dmg: st.dmg, stun: st.stun, knock: st.knock, splash: st.splash, chain: st.chain, travel: 0, maxTravel: st.range * 1.25, hit: new Set(),
       ...(st.pierce ? {pierce: true, pleft: st.pierce, rad: 3} : {})});   // 관통 부여 (0.103.0)
   }
-  G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06});
+  G.fx.push({kind: 'muzzle', x: m.mx, y: m.my, t: 0.06}); sfx('shoot');
 }
 
 // 저격총: 가장 가까운 적 쪽으로 빠른 관통탄. 날아가는 길의 적 모두 맞고 사거리 끝(+30px)까지 간다
@@ -3598,6 +3690,7 @@ function fireRail(st, w, i) {
   const p = G.p, W = WEAPONS[w.id];
   const tgt = nearestEnemy(p.x, p.y, st.range);
   if (!tgt) return;
+  sfx('rail');
   w.aim = Math.atan2(tgt.y - p.y, tgt.x - p.x); w.kick = 1;
   const m = weaponPose(w, i), base = Math.atan2(tgt.y - m.my, tgt.x - m.mx), spread = 0.12;
   for (let k = 0; k < st.count; k++) {
@@ -3671,6 +3764,7 @@ function beamLine(bm) {
 // 맞힘: 쿨다운마다 **빔이 지나는 길 위의 적 모두** 한 번씩 (연쇄 대상이 아니어도)
 const LASER_MOVE = 2400;              // 마디가 새 적으로 옮겨 가는 빠르기 (px/초) — 0.95.1: 700 → 2400. 맞힘은 바로 새 적에 들어가므로 빔이 거의 같이 닿게
 function updateLaser(w, wi, st, dt) {
+  if (w.beam) sfx('beam');
   const p = G.p, W = WEAPONS[w.id], hop = W.hop * st.range / W.range;
   let bm = w.beam;
   const before = k => new Set(bm.nodes.slice(0, k).map(n => n.e));   // 앞 마디들이 겨눈 적 (뒤 마디의 적은 가져와도 됨)
@@ -4020,7 +4114,7 @@ function update(dt) {
     if (d < magnet) g.pull = true;
     if (g.mag != null) g.mag += dt;                               // 자석으로 끌림 (0.119.0): 처음 MAG_PULL0 (보통의 2배) · 초당 MAG_ACC 씩 빨라짐
     if (g.pull) { const sp = (g.mag != null ? MAG_PULL0 + MAG_ACC * g.mag : GEM_PULL) * dt; g.x += dx / d * Math.min(sp, d); g.y += dy / d * Math.min(sp, d); }
-    if (d < p.r + 6) { g.dead = true; gainXp(g.v * G.s.xpMul * (ownsSub('xp2') ? 2 : 1)); }   // 경험치 증가 배율 · 연구 일지 ×2 (0.112.0)
+    if (d < p.r + 6) { g.dead = true; sfx('gem'); gainXp(g.v * G.s.xpMul * (ownsSub('xp2') ? 2 : 1)); }   // 경험치 증가 배율 · 연구 일지 ×2 (0.112.0)
   }
   // 상자: 닿으면 연다 (레벨업 창이 떠 있으면 줄 세워 두었다가 닫힐 때)
   for (const c of G.chests) {
@@ -4051,6 +4145,7 @@ function update(dt) {
 }
 
 function gameOver() {
+  sfx('over');
   G.mode = 'over'; joy.id = null;
   $('result').innerHTML = saveRec();
   $('over').hidden = false;
