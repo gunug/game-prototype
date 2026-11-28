@@ -377,7 +377,7 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.148.1';
+const VERSION = '0.148.2';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 소리 (0.148.0) ─────
@@ -566,6 +566,7 @@ const DOG_BITE = 0.25, DOG_DMG = 8;   // 반려견 물기 (0.135.4): 간격 · �
 const DOG_LEASH = 90, DOG_NEAR = [26, 60], DOG_WANDER = 0.45;   // 반려견 배회 (0.135.1): 이보다 멀면 달려옴 · 둘레 거리 [안, 밖] · 배회 빠르기 (주인공의)
 const MEAT_P = 0.02, MEAT_HEAL = 0.2, MEAT_LIFE = 60, DOG_R = 5, DOG_SPD = 1.3, PANIC_T = 30, WDROP_OUT = 70;
 const FIST = {dmg: 20, cd: 0.25, reach: 22, knock: 640};   // 0.148.1: 연사 0.4 → 0.25초 · 넉백 360 → 640 (좀비 약 80px)
+const PANIC_SAY = ['아이쿠!', '어어?!', '앗, 손이!', '미끄러졌다!', '이런…', '어디 갔지?', '으악, 놓쳤다!', '잠깐만!'];   // 당황 대사 (0.148.2)
 const WDROP_REPEL = 80;                                           // 떨군 무기 둘레: 적이 이 안으로 못 들어오고 밀려남 (0.148.1)   // 0.135.2: 피해 40 → 20 · 경직 대신 넉백 (처음 속도 ÷ 무게, 밀리는 거리 ≈ ÷8 → 좀비 45px)
 const WDROP_T = 0.55, WDROP_H = 46, PSTAT_T = 1.6;   // 무기가 튕겨 나가는 시간 · 높이 · 머리 위 상태 글 시간 (0.135.2)   // reach: 몸끼리 닿은 뒤 더 닿는 거리 (px)   // 자석 (0.106.0, make_item seed 3901) — 보조 그림을 바닥에도
 const MAGDROP_P = 0.005;   // 자석 떨굴 기본 확률 (적 하나마다)
@@ -3466,7 +3467,7 @@ function dropWeapon(w) {
   w.drop = true; w.beam = null; w.shots = [];
   // 몸에서 튕겨 나감 (0.135.2): WDROP_T 초 동안 포물선 + 돌며 날아가 떨어짐 — 떨어진 뒤에만 주울 수 있음
   G.wdrops.push({w, sx: p.x, sy: p.y + WPN_CY, x: p.x + Math.cos(a) * r, y: p.y + Math.sin(a) * r, t: 0, fly: 0, rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * 14});
-  G.pstat = {txt: '무기 잃음', t: PSTAT_T}; sfx('drop');
+  G.pstat = {txt: PANIC_SAY[Math.floor(Math.random() * PANIC_SAY.length)], t: PSTAT_T}; sfx('drop');   // 0.148.2: '무기 잃음' 대신 생존자 대사 8가지 중 하나
 }
 // 0.135.6: 하나만 — 마지막으로 무기를 얻은(판 시작 · 새 무기 · 다시 주움) 때부터 PANIC_T 초가 지나면 든 무기 중 아무거나 하나를 떨굼
 function tickPanic(dt) {
