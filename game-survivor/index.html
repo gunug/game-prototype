@@ -374,10 +374,11 @@ if (window.top === window && innerWidth >= 600 && matchMedia('(pointer: fine)').
   <div class="btns"><button class="sub" id="infoClose" data-neg>닫기</button></div>
 </div>
 
+<script type="module" src="vendor/pixelfx/bridge.js"></script>   <!-- 픽셀 이펙트 (0.149.0, patch-gg/pixelfx MIT) -->
 <script>
 'use strict';
 // 버전 — 업데이트마다 올린다. 기능 추가 = 가운데(0.x.0), 수정 · 작은 변경 = 끝(0.0.x). 기록은 docs/기능.md 의 '# 버전'
-const VERSION = '0.148.2';
+const VERSION = '0.149.0';
 const REGEN_T = 2;                    // 체력 재생 주기(초) — 초당 양 × 2 를 2초마다 (0.83.0)
 document.getElementById('ver').textContent = 'v' + VERSION;
 // ───── 소리 (0.148.0) ─────
@@ -402,6 +403,8 @@ function audioInit() {                                           // 첫 터치 �
 }
 addEventListener('pointerdown', audioInit, true); addEventListener('keydown', audioInit, true);
 addEventListener('click', e => { const b = e.target.closest && e.target.closest('button, .up, .world, .char'); if (b && !b.disabled) sfx(b.hasAttribute('data-neg') ? 'back' : 'click'); }, true);   // 단추 · 카드 누름
+// 픽셀 이펙트 (0.149.0): vendor/pixelfx/bridge.js 가 window.PFX 를 만든다 (모듈이라 늦게 뜰 수 있어 늘 있는지 보고 부름). 시뮬 중엔 안 씀
+const pfx = (k, x, y, o) => { if (window.PFX && !window.SIM_ACTIVE) window.PFX.spawn(k, x, y, o); };
 function sfx(name, volK = 1) {
   if (!AU.ctx || !AU.sfxOn || window.SIM_ACTIVE) return;
   const S = SFX[name], b = AU.buf[name]; if (!S || !b) return;
@@ -1106,7 +1109,7 @@ function wbossTick(dt) {                                         // 잠든 월�
   e.shield = e.shieldMax = e.shieldMax * ELITE_SHIELD;
   e.spd = Math.max(...G.world.mobs.filter(m => !m.eliteOnly).map(m => ENEMY_TYPES[m.type].spd)) * ELITE.spd;
   G.enemies.push(e);
-  setBanner(`월드 보스 ${ENEMY_TYPES[b.type].nm} 깨어남!`, gradeCol(WBOSS.grade)); sfx('wake');
+  setBanner(`월드 보스 ${ENEMY_TYPES[b.type].nm} 깨어남!`, gradeCol(WBOSS.grade)); sfx('wake'); pfx('portal', b.x, b.y + e.r * 0.8);
   G.shake = Math.max(G.shake || 0, 6);
 }
 function drawWbossSleep() {                                      // 잠든 월드 보스: 흐릿한 그림 + 둘레 깨어나는 거리 점선 + Z
@@ -1369,6 +1372,7 @@ function showSubPick(wid) {
 }
 
 function newGame(wi, weaponId, subId) {
+  if (window.PFX) window.PFX.clear();
   const C = CHARACTERS[charIdx];
   weaponId = weaponId || C.weapon; subId = subId || C.sub;   // 0.111.0: 직업 시작 구성
   G = {
@@ -2234,7 +2238,7 @@ function tickMines(dt) {
     if (m.t < 0.4) continue;                                      // 놓자마자는 안 터짐
     const trig = G.enemies.find(e => !e.dead && !e.air && (e.x - m.x) ** 2 + (e.y - m.y) ** 2 < (e.r + MINE_TRIG) ** 2); if (!trig) continue;
     m.dead = true; const st = wstat(m.w.id), W = WEAPONS[m.w.id], R = W.aoe * (st.splash > 1 ? splashR(st.splash) / splashR(1) : 1);
-    G.fx.push({kind: 'splash', mine: true, x: m.x, y: m.y, r: R, t: 0.3}); G.shake = Math.max(G.shake || 0, 3); sfx('boom');
+    G.fx.push({kind: 'splash', mine: true, x: m.x, y: m.y, r: R, t: 0.3}); G.shake = Math.max(G.shake || 0, 3); sfx('boom'); pfx('pow', m.x, m.y);
     for (const e of G.enemies) if (!e.dead && (e.x - m.x) ** 2 + (e.y - m.y) ** 2 < (R + e.r) ** 2) hurtEnemy(e, st.dmg, st.stun);
     for (let c = 0; c < st.chain; c++) { const o = nearestEnemy(m.x, m.y, 120); if (o) { G.fx.push({kind: 'splash', mine: true, x: o.x, y: o.y, r: R * 0.6, t: 0.25}); hurtEnemy(o, st.dmg * 0.5); } }   // 연쇄: 파편
   }
@@ -2471,6 +2475,7 @@ function bossPlan(id, wi, at) {
 }
 function spawnBoss(id) {
   sfx('bigboom');
+  setTimeout(() => { const b = G && G.enemies.find(e => e.boss && !e.dead); if (b) pfx('portal', b.x, b.y + b.r * 0.8); }, 0);   // 보스가 나온 자리에 문 (0.149.0)
   const B = BOSSES[id], [x, y] = offscreen(), hp = bossPlan(id, G.wi, G.t).hp * (G.dm || 1);   // 체력 × 난이도 (0.134.0)
   G.enemies.push({type: B.sprite, x, y, r: B.r, hp, maxHp: hp, def: B.def, spd: B.spd, dmg: B.dmg, xp: B.xp,
     wt: B.wt, flash: 0, vx: 0, kbx: 0, kby: 0, ph: 0, boss: B, bid: ++bossSeq, elite: B.grade, st: 'walk', bt: 2, pi: 0, dir: 0});
@@ -2842,7 +2847,7 @@ function hurtPlayer(raw, src, inv = 0.5) {
   const p = G.p;
   if (p.inv > 0 || G.mode === 'over' || G.dying) return false;
   const dmg = armor(raw * G.dm, G.s.def);                        // 적 피해 × 난이도 (0.134.0) — 몸 · 탄 · 곡사 · 보스 기술 모두 여기로
-  p.hp -= dmg; p.inv = Math.max(p.inv, inv); sfx('hurt');
+  p.hp -= dmg; p.inv = Math.max(p.inv, inv); sfx('hurt'); pfx('hurt', p.x, p.y + HIT_CY, {flip: src && src.x > p.x});
   G.texts.push({x: p.x, y: p.y - 24, v: -Math.round(dmg), t: 0.8, me: true});   // 정수로 (0.135.7)
   // 맞은 느낌 (0.87.0): 화면 가장자리 붉게 · 흔들림 · 머리 위 체력 줄 강조. 세게 맞을수록(최대 체력 대비) 크게
   const k = Math.min(1, dmg / p.maxHp * 6);
@@ -3244,7 +3249,7 @@ function tickEshots(dt) {
       b.t += dt;
       if (b.t >= b.T) {
         b.dead = true;
-        G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3}); if (b.aoe > 20) sfx('boom', b.ally ? 0.8 : 1);
+        G.fx.push({kind: 'splash', mine: b.ally, x: b.x, y: b.y, r: b.aoe, t: 0.3}); if (b.aoe > 20) { sfx('boom', b.ally ? 0.8 : 1); pfx('pow', b.x, b.y); }
         if (b.pool) G.pools.push({x: b.x, y: b.y, r: b.pool.r, t: b.pool.life, T: b.pool.life, dps: b.pool.dps, ally: b.ally, slow: b.pool.slow});   // 독 장판 병: 아군 · 느려짐 (0.145.0)   // 산성 비 → 웅덩이 (0.127.0)
         if (b.ally) { for (const e of G.enemies) if (!e.dead && (e.x - b.x) ** 2 + (e.y - b.y) ** 2 < (b.aoe + e.r) ** 2) hurtEnemy(e, b.dmg); continue; }   // 아군 것은 적에게 (0.116.0)
         if (G.walls.length) wallHit(b.x, b.y, b.dmg, b.aoe);       // 곡사 · 터짐 범위 안 바리케이드 (0.131.0)
@@ -3360,7 +3365,8 @@ function hurtEnemy(e, dmg, stun = 0) {
     real = 1;
     if (--e.shield === 0) { sfx('shieldbrk'); G.fx.push({kind: 'shieldbreak', x: e.x, y: e.y - e.r, r: e.r * 1.6, t: 0.4}); G.texts.push({x: e.x, y: e.y - e.r * 2.6, v: '방패 깨짐', t: 0.9, brk: true}); }
   }
-  e.hp -= real; e.flash = FLASH_T; e.hitAgo = 0; sfx(e.hp <= 0 ? 'kill' : 'hit');   // hitAgo: 재생 좀비가 안 맞은 시간 (0.127.0)
+  e.hp -= real; e.flash = FLASH_T; e.hitAgo = 0; sfx(e.hp <= 0 ? 'kill' : 'hit');
+  if (e.hp <= 0) pfx(e.boss ? 'boss' : 'kill', e.x, e.y + e.r * 0.8, e.boss ? {} : {flip: Math.random() < 0.5}); else pfx(crit ? 'crit' : 'hit', e.x, e.y - e.r * 0.5, {flip: e.x < G.p.x});   // 픽셀 이펙트 (0.149.0)   // hitAgo: 재생 좀비가 안 맞은 시간 (0.127.0)
   if (stun > 0 && !e.boss) e.stop = Math.max(e.stop || 0, stun);   // 경직: 남은 것보다 길 때만 늘림 (쌓이지 않음)
   G.texts.push({x: e.x, y: e.y - e.r, v: Math.round(real), t: crit ? 0.8 : 0.6, weak: !crit && real < dmg * 0.7, crit});   // 방어에 30% 넘게 막히면 회색 (방어 43 넘게)
   if (e.hp <= 0 && (e.hex || e.burn > 0)) {                     // 죽을 때: 부두 표식 터짐 · 불붙음이 둘레로 번짐 (0.145.0)
@@ -3379,7 +3385,7 @@ function hurtEnemy(e, dmg, stun = 0) {
       if (Math.random() < magDropP(G.magMiss || 0)) { G.mags.push({x: e.x, y: e.y, t: 0}); G.magMiss = 0; } else G.magMiss = (G.magMiss || 0) + 1;
     }
     if (e.elite != null || Math.random() < MEAT_P) G.meats.push({x: e.x, y: e.y, t: 0});   // 고기 (0.135.0): 엘리트 · 보스는 늘
-    if (e.wboss) { G.wboxes.push({w: e.wboss, x: e.x, y: e.y, t: 0}); setBanner('월드 보스 처치! 무기 상자', WBOX_COL); }   // 월드 보스 → 무기 상자 (0.147.0)
+    if (e.wboss) { G.wboxes.push({w: e.wboss, x: e.x, y: e.y, t: 0}); setBanner('월드 보스 처치! 무기 상자', WBOX_COL); pfx('loot', e.x, e.y + 8); }   // 월드 보스 → 무기 상자 (0.147.0)
     else if (e.elite != null && !e.boss) G.chests.push({x: e.x, y: e.y, g: e.elite, t: 0});   // 엘리트 → 상자 (보스는 따로 — 영구 성장템, 아직)
     if (e.boss) G.chests.push({x: e.x, y: e.y, boss: true, t: 0});   // 보스 → 보스 상자 (영구 업그레이드, 0.123.0)
     if (e.boss && e.boss.final) G.finalDead = true;               // 최종 보스를 잡으면 클리어 (update 에서)
@@ -3414,7 +3420,7 @@ function tickMeat(dt, magnet) {
     if (d < magnet) m.pull = true;
     if (m.pull) { const sp = GEM_PULL * dt; m.x += dx / d * Math.min(sp, d); m.y += dy / d * Math.min(sp, d); }
     if (d < p.r + 8) {
-      m.dead = true; const h = Math.min(p.maxHp - p.hp, p.maxHp * MEAT_HEAL); p.hp += h; sfx('eat');
+      m.dead = true; const h = Math.min(p.maxHp - p.hp, p.maxHp * MEAT_HEAL); p.hp += h; sfx('eat'); pfx('heart', p.x, p.y - 30);
       G.texts.push({x: p.x, y: p.y - 24, v: '+' + Math.round(h), t: 0.8, heal: true});
     }
   }
@@ -4416,6 +4422,7 @@ function draw() {
   drawWallThrows();                                              // 날아가는 바리케이드 (0.131.1)
   // 상자 (0.137.2): 몸 · 바닥 것보다 위, UI 바로 아래 — 등급 색으로 빛나며 살짝 뜀
   for (const c of G.chests) { const y = c.y - 4 - Math.abs(Math.sin(c.t * 3)) * 4; if (c.boss) drawBossChest(c.x, y, c.t); else drawChest(c.x, y, gradeCol(c.g)); }
+  if (window.PFX) window.PFX.draw(ctx, ox, oy, W, H);              // 픽셀 이펙트 (0.149.0) — 몸 · 상자 위, UI 아래
   for (const b of G.wboxes) if (view(b.x, b.y, 30)) drawWbox(b.x, b.y - 4 - Math.abs(Math.sin(b.t * 3)) * 4);   // 무기 상자 (0.141.0)
   // UI: 벽 → 적 → 아군 → 주인공
   for (const q of wallVis) wallUI(q);
@@ -4854,7 +4861,8 @@ function loop(now) {
       if (D.t >= DIE_T && G.mode === 'play') gameOver();
     }
     else if (G.mode === 'play') update(dt);
-    else if (G.mode === 'opening') tickOpening(dt);             // 상자 열림 연출 (0.141.0)
+    else if (G.mode === 'opening') tickOpening(dt);
+    if (window.PFX && (G.mode === 'play' || G.dying)) window.PFX.tick(G.dying ? dt * DIE_SLOW : dt);   // 픽셀 이펙트는 게임이 돌 때만 (0.149.0)             // 상자 열림 연출 (0.141.0)
     if (G.mode === 'levelup') G.inputLock -= dt;
   }
   draw(); if (G && G.opening) drawOpening(); hud();
